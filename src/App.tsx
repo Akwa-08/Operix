@@ -1,0 +1,59 @@
+import { LandingPage } from "./pages/LandingPage";
+import { CustomerPage } from "./pages/CustomerPage";
+import { ProfilePage } from "./pages/ProfilePage";
+import { ProductsProvider } from "./context/ProductsContext";
+import { RootLayout } from "./pages/RootLayout";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
+import { CartPage } from "./pages/CartPage";
+import { OrdersPage } from "./pages/OrdersPage";
+import { MessagesPage } from "./pages/MessagesPage";
+
+import { AdminPage } from "./pages/AdminPage";
+import AdminDashboard from "./components/Admin/AdminDashboard";
+import AdminManagement from "./components/Admin/AdminManagement";
+import AdminOrders from "./components/Admin/AdminOrders";
+import AdminMessages from "./components/Admin/AdminMessages";
+import AdminProducts from "./components/Admin/AdminProducts";
+import AdminPayroll from "./components/Admin/AdminPayroll";
+import AdminProfile from "./components/Admin/AdminProfile";
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <LandingPage />,
+  },
+  {
+    element: <RootLayout />,
+    children: [
+      { path: "customer", element: <CustomerPage /> },
+      { path: "profile", element: <ProfilePage /> },
+      { path: "cart", element: <CartPage /> },
+      { path: "orders", element: <OrdersPage /> },
+      { path: "messages", element: <MessagesPage /> },
+    ],
+  },
+  {
+    path: "/admin",
+    element: <AdminPage />,
+    children: [
+      { index: true, element: <AdminDashboard /> },
+      { path: "users", element: <AdminManagement /> },
+      { path: "orders", element: <AdminOrders /> },
+      { path: "messages", element: <AdminMessages /> },
+      { path: "products", element: <AdminProducts /> },
+      { path: "payroll", element: <AdminPayroll /> },   // <-- added
+      { path: "profile", element: <AdminProfile /> },  // <-- added
+    ],
+  },
+]);
+
+
+const App = () => {
+  return (
+    <ProductsProvider>
+      <RouterProvider router={router} />
+    </ProductsProvider>
+  );
+};
+
+export default App;
