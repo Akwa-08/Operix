@@ -13,7 +13,7 @@ import AdminDashboard from "./components/Admin/AdminDashboard";
 import AdminManagement from "./components/Admin/AdminManagement";
 import AdminOrders from "./components/Admin/AdminOrders";
 import AdminMessages from "./components/Admin/AdminMessages";
-import AdminProducts from "./components/Admin/AdminProducts";
+import AdminInventory from "./components/Admin/AdminInventory";
 import AdminPayroll from "./components/Admin/AdminPayroll";
 import AdminProfile from "./components/Admin/AdminProfile";
 
@@ -40,9 +40,9 @@ const router = createBrowserRouter([
       { path: "users", element: <AdminManagement /> },
       { path: "orders", element: <AdminOrders /> },
       { path: "messages", element: <AdminMessages /> },
-      { path: "products", element: <AdminProducts /> },
-      { path: "payroll", element: <AdminPayroll /> },   // <-- added
-      { path: "profile", element: <AdminProfile /> },  // <-- added
+      { path: "inventory", element: <AdminInventory /> },
+      { path: "payroll", element: <AdminPayroll /> },   
+      { path: "profile", element: <AdminProfile /> },  
     ],
   },
 ]);

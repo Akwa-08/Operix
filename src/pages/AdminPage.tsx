@@ -1,16 +1,24 @@
 import { Outlet } from "react-router-dom";
 import AdminSideBar from "../components/Admin/AdminSideBar";
+import TopNavBar from "../components/Shared/TopNavBar";
 
 export const AdminPage = () => {
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      {/* Sidebar */}
-      <AdminSideBar name="Admin Account" />
+    <div className="flex flex-col min-h-screen">
+      {/* Top Navbar */}
+      <TopNavBar userName="Admin" />
 
-      {/* Main Content */}
-      <main style={{ flex: 1, padding: "2rem", marginLeft: "16rem" }}>
-        <Outlet /> {/* <-- Child routes render here */}
-      </main>
+      {/* Main Layout */}
+      <div className="flex flex-1 mt-16"> {/* start below navbar */}
+        {/* Sidebar */}
+        <AdminSideBar name="Admin Account" />
+
+        {/* Main Content */}
+        <main className="flex-1 p-10 ml-72 lg:ml-72"> 
+          {/* move content more right (ml-72 = 18rem) so it is not behind sidebar */}
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 };

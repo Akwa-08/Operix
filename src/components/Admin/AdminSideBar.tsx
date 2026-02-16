@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { createPortal } from "react-dom";
 import { NavLink, useLocation } from "react-router-dom";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import {
@@ -12,37 +11,34 @@ import {
   User as ProfileIcon,
 } from "lucide-react";
 
-type Props = {
-  name: string;
-};
+type Props = { name: string };
 
 const adminSidebarItems = [
   { label: "Dashboard", icon: HouseIcon, path: "/admin" },
   { label: "Orders", icon: OrderIcon, path: "/admin/orders" },
   { label: "Management", icon: UsersIcon, path: "/admin/users" },
-  { label: "Inventory", icon: InventoryIcon, path: "/admin/products" },
+  { label: "Inventory", icon: InventoryIcon, path: "/admin/inventory" }, 
   { label: "Payroll", icon: PayrollIcon, path: "/admin/payroll" },
   { label: "Messages", icon: MessageIcon, path: "/admin/messages" },
   { label: "Profile", icon: ProfileIcon, path: "/admin/profile" },
 ];
 
+
 const AdminSideBar = ({ name }: Props) => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Hide sidebar on home (landing) page
   if (location.pathname === "/") return null;
-  //TEMPORARY RNI EHEHEH
 
   const isActiveClass = "bg-pink-600 text-white";
   const isNotActiveClass = "text-black hover:bg-gray-100";
 
-  return createPortal(
+  return (
     <>
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-md shadow"
+        className="lg:hidden fixed top-20 left-4 z-50 p-2 bg-white rounded-md shadow"
       >
         ☰
       </button>
@@ -59,7 +55,7 @@ const AdminSideBar = ({ name }: Props) => {
       <aside
         className={`
           bg-white text-black
-          fixed top-0 left-0 h-screen z-50
+          fixed top-16 left-0 h-[calc(100%-4rem)]  // below TopNavBar
           w-64 lg:w-1/5
           border-r border-gray-200 shadow-lg
           transform transition-transform duration-300
@@ -80,7 +76,7 @@ const AdminSideBar = ({ name }: Props) => {
               <NavLink
                 key={item.label}
                 to={item.path}
-                end={item.path === "/admin"} // only Dashboard exact match
+                end={item.path === "/admin"}
                 onClick={() => setIsOpen(false)}
                 className={({ isActive }) =>
                   `flex items-center gap-4 p-4 rounded-md transition ${
@@ -95,8 +91,7 @@ const AdminSideBar = ({ name }: Props) => {
           </nav>
         </header>
       </aside>
-    </>,
-    document.getElementById("modal")!
+    </>
   );
 };
 
