@@ -1,9 +1,9 @@
 import { LandingPage } from "./pages/LandingPage";
+import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { CustomerPage } from "./pages/CustomerPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ProductsProvider } from "./context/ProductsContext";
 import { RootLayout } from "./pages/RootLayout";
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { CartPage } from "./pages/CartPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { MessagesPage } from "./pages/MessagesPage";
@@ -16,6 +16,7 @@ import AdminMessages from "./components/Admin/AdminMessages";
 import AdminInventory from "./components/Admin/AdminInventory";
 import AdminPayroll from "./components/Admin/AdminPayroll";
 import AdminProfile from "./components/Admin/AdminProfile";
+
 
 const router = createBrowserRouter([
   {
