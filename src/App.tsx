@@ -17,6 +17,8 @@ import AdminInventory from "./components/Admin/AdminInventory";
 import AdminPayroll from "./components/Admin/AdminPayroll";
 import AdminProfile from "./components/Admin/AdminProfile";
 
+import { SignUpPage } from "../src/pages/SignUpPage";
+import { ForgotPasswordPage } from "../src/pages/ForgotPasswordPage";
 
 const router = createBrowserRouter([
   {
@@ -46,6 +48,16 @@ const router = createBrowserRouter([
       { path: "profile", element: <AdminProfile /> },  
     ],
   },
+
+    // In your router:
+  {
+    path: "/signup",
+    element: <SignUpPage />,
+  },
+  {
+    path: "/forgot-password",
+    element: <ForgotPasswordPage />,
+  }
 ]);
 
 

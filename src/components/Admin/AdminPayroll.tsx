@@ -478,8 +478,23 @@ const AdminPayroll: React.FC = () => {
     <div className="max-w-7xl mx-auto">
       {/* Edit Daily Rate Modal */}
       {selectedEmployeeForEdit && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200">
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedEmployeeForEdit(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setSelectedEmployeeForEdit(null)}
+              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              aria-label="Close"
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
+            
             <h3 className="text-2xl font-bold text-gray-900 mb-6">
               Employee Information
             </h3>
@@ -547,8 +562,14 @@ const AdminPayroll: React.FC = () => {
 
       {/* Payslip Modal */}
       {showPayslipModal && selectedPayslip && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full my-8">
+        <div 
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setShowPayslipModal(false)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl max-w-3xl w-full my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b">
               <h3 className="text-xl font-bold text-gray-900">Payslip Preview</h3>
