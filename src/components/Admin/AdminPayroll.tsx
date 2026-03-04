@@ -781,18 +781,8 @@ const AdminPayroll: React.FC = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 Payroll Dashboard
               </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                Used to manage and track employee payroll, attendance, and salary computations. Updated for every payroll period.
-              </p>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Top Buttons and Filters:</strong>
-              </p>
-              <ul className="text-xs text-gray-500 list-disc ml-5 mt-1">
-                <li>Payroll Dashboard – Main overview of payroll metrics</li>
-                <li>Attendance Logs – Track attendance records</li>
-                <li>Salary Computation – Compute salaries for the period</li>
-                <li>Salary History – View past payroll data</li>
-              </ul>
+              
+          
             </div>
             
             <div className="flex items-center justify-between pt-4 border-t">
@@ -948,21 +938,7 @@ const AdminPayroll: React.FC = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 Attendance Logs
               </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                Used to track and manage employee attendance records, updated every 15 days.
-              </p>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Top Buttons and Filters:</strong>
-              </p>
-              <ul className="text-xs text-gray-500 list-disc ml-5 mt-1">
-                <li>Import Biometrics – Upload attendance logs via biometric system</li>
-                <li>Search – Search by employee name or ID</li>
-                <li>Select Period – Current or Previous</li>
-                <li>Departments – Filters which department</li>
-              </ul>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Table Columns:</strong> First Name | Last Name | Role | Worked hrs. (Actual/Required) | Late (Times/Min) | Early Leave (Times/Min) | Overtime (Regular/Special) | Business Trip | Absence | On Leave | Additional Pay | Deduction | Actual Pay | Actions
-              </p>
+             
             </div>
             
             <div className="flex items-center justify-between pt-4 border-t">
@@ -1245,17 +1221,6 @@ const AdminPayroll: React.FC = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 Salary Computation
               </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                This tab is used to calculate employee salaries based on configured rules and attendance.
-              </p>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Export Options:</strong>
-              </p>
-              <ul className="text-xs text-gray-500 list-disc ml-5 mt-1">
-                <li>Print Payslip</li>
-                <li>Send to Employee Emails</li>
-                <li>Export PDF</li>
-              </ul>
             </div>
             
             <div className="flex items-center justify-between pt-4 border-t">
@@ -1633,9 +1598,7 @@ const AdminPayroll: React.FC = () => {
               <h2 className="text-2xl font-bold text-gray-900 mb-3">
                 Salary History
               </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                A searchable archive of previous salary records for all employees.
-              </p>
+             
             </div>
             
             <div className="flex items-center justify-between pt-4 border-t">
