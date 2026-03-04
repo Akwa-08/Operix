@@ -3,10 +3,6 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home as HouseIcon,
   PackageCheck as OrderIcon,
-  Users as UsersIcon,
-  ShoppingCart as InventoryIcon,
-  DollarSign as PayrollIcon,
-  MessageCircleMore as MessageIcon,
   User as ProfileIcon,
   LogOut,
   ChevronLeft,
@@ -16,16 +12,12 @@ import {
 
 type Props = { name: string };
 
-const adminSidebarItems = [
-  { label: "Dashboard", icon: HouseIcon, path: "/admin" },
-  { label: "Orders", icon: OrderIcon, path: "/admin/orders" },
-  { label: "Management", icon: UsersIcon, path: "/admin/users" },
-  { label: "Inventory", icon: InventoryIcon, path: "/admin/inventory" },
-  { label: "Payroll", icon: PayrollIcon, path: "/admin/payroll" },
-  { label: "Messages", icon: MessageIcon, path: "/admin/messages" },
+const designerSidebarItems = [
+  { label: "Dashboard", icon: HouseIcon, path: "/designer" },
+  { label: "My Orders", icon: OrderIcon, path: "/designer/orders" },
 ];
 
-const AdminSideBar = ({ name }: Props) => {
+const DesignerSideBar = ({ name }: Props) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -121,15 +113,14 @@ const AdminSideBar = ({ name }: Props) => {
           z-30
         `}
       >
-        {/* Top: Nav */}
         <div className="flex flex-col h-full">
           {/* Nav Links */}
           <nav className="flex flex-col gap-[2px] px-2 pt-3 flex-1">
-            {adminSidebarItems.map((item) => (
+            {designerSidebarItems.map((item) => (
               <NavLink
                 key={item.label}
                 to={item.path}
-                end={item.path === "/admin"}
+                end={item.path === "/designer"}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150 cursor-pointer
@@ -167,7 +158,7 @@ const AdminSideBar = ({ name }: Props) => {
           <div className="border-t border-gray-100 px-2 py-3 flex flex-col gap-1">
             {/* Profile Link */}
             <NavLink
-              to="/admin/profile"
+              to="/designer/profile"
               onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150 cursor-pointer
@@ -227,6 +218,7 @@ const AdminSideBar = ({ name }: Props) => {
                   <p className="text-[11px] font-bold text-gray-800 truncate">
                     {name}
                   </p>
+                  <p className="text-[9px] text-gray-500">Designer</p>
                 </div>
               )}
             </div>
@@ -258,4 +250,4 @@ const AdminSideBar = ({ name }: Props) => {
   );
 };
 
-export default AdminSideBar;
+export default DesignerSideBar;

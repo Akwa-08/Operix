@@ -1,50 +1,36 @@
-import { useState, createContext, useContext } from "react";
+import { createContext, useContext } from "react";
 import { Outlet } from "react-router-dom";
 import AdminSideBar from "../components/Admin/AdminSideBar";
-import TopNavBar from "../components/Shared/TopNavBar";
+import TopNavBar from "../components/Shared/UI/TopNavBar"; // ✅ FIXED: Added /UI/
 
-// Context to share sidebar state
-interface SidebarContextType {
-  collapsed: boolean;
-  setCollapsed: (collapsed: boolean) => void;
-}
-
-const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
+const SidebarContext = createContext<{ collapsed: boolean } | undefined>(undefined);
 
 export const useSidebar = () => {
   const context = useContext(SidebarContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useSidebar must be used within SidebarProvider");
   }
   return context;
 };
 
-export const AdminPage = () => {
-  const [collapsed, setCollapsed] = useState(false);
-
+const AdminPage = () => {
   return (
-    <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-      <div className="flex flex-col min-h-screen bg-gray-50">
-        {/* Top Navbar */}
-        <TopNavBar userName="Admin" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navigation Bar */}
+      <TopNavBar />
 
-        {/* Main Layout */}
-        <div className="flex flex-1 mt-16">
-          {/* Sidebar - pass collapse state */}
-          <AdminSideBar name="Admin Account" />
+      {/* Main Layout with Sidebar */}
+      <div className="flex">
+        {/* Sidebar */}
+        <AdminSideBar name="Admin User" />
 
-          {/* Main Content - adjusts based on sidebar state */}
-          <main
-            className={`
-              flex-1 p-6 lg:p-8
-              transition-all duration-300 ease-in-out
-              ${collapsed ? "lg:ml-[72px]" : "lg:ml-[160px]"}
-            `}
-          >
-            <Outlet />
-          </main>
-        </div>
+        {/* Main Content Area */}
+        <main className="flex-1 p-6 lg:ml-[160px] mt-16">
+          <Outlet />
+        </main>
       </div>
-    </SidebarContext.Provider>
+    </div>
   );
 };
+
+export default AdminPage;

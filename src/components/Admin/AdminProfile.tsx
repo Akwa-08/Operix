@@ -68,11 +68,11 @@ const AdminProfile: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col w-full ml-6 mt-6">
+    <div className="flex flex-col w-full max-w-5xl mx-auto mt-6 px-6">
       {/* Header */}
       <div className="text-4xl font-bold mb-8">{user.role} Account</div>
 
-      <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-10 w-[1000px] ml-15">
+      <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-10">
         {/* Personal Info Header */}
         <div className="flex justify-between items-center mb-10">
           <h2 className="text-3xl font-bold tracking-wide">
@@ -94,7 +94,7 @@ const AdminProfile: React.FC = () => {
                 isEditing ? handleSaveProfile() : setIsEditing(true)
               }
               disabled={isProfileSaving}
-              className="bg-sky-500 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-sky-600 transition disabled:opacity-50"
+              className="bg-[#00BEF4] text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-cyan-600 transition disabled:opacity-50"
             >
               {isProfileSaving ? "Saving..." : isEditing ? "Save" : "Edit"}
             </button>
@@ -103,8 +103,7 @@ const AdminProfile: React.FC = () => {
 
         {/* Profile Info */}
         <div className="flex items-center gap-5 mb-10">
-          
-          <div className="w-20 h-20 rounded-full bg-sky-500 flex items-center justify-center text-white text-3xl font-bold shadow-sm">
+          <div className="w-20 h-20 rounded-full bg-[#00BEF4] flex items-center justify-center text-white text-3xl font-bold shadow-sm">
             {fullName ? fullName.charAt(0).toUpperCase() : "A"}
           </div>
           <div>
@@ -118,7 +117,6 @@ const AdminProfile: React.FC = () => {
         </div>
 
         <hr className="border-t border-black my-8" />
-
 
         {/* Input Fields */}
         <div className="grid grid-cols-2 gap-8 mb-10">
@@ -169,7 +167,7 @@ const AdminProfile: React.FC = () => {
         {/* Change Password */}
         <button
           onClick={() => setShowPasswordModal(true)}
-          className="text-sky-600 font-semibold text-sm hover:underline"
+          className="text-[#00BEF4] font-semibold text-sm hover:underline"
         >
           Change Password
         </button>
@@ -214,7 +212,7 @@ const AdminProfile: React.FC = () => {
                 <button
                   onClick={handlePasswordSave}
                   disabled={isPasswordSaving}
-                  className="bg-sky-500 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-sky-600 transition disabled:opacity-50"
+                  className="bg-[#00BEF4] text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-cyan-600 transition disabled:opacity-50"
                 >
                   {isPasswordSaving ? "Saving..." : "Save"}
                 </button>
@@ -230,7 +228,6 @@ const AdminProfile: React.FC = () => {
 export default AdminProfile;
 
 /* ---------- Input Field ---------- */
-
 const InputField = ({ label, icon, value, onChange, disabled }: any) => (
   <div>
     <label className="text-sm font-semibold text-black-600 tracking-wide">
@@ -242,14 +239,13 @@ const InputField = ({ label, icon, value, onChange, disabled }: any) => (
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full border border-gray-300 rounded-lg pl-11 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition disabled:bg-gray-100"
+        className="w-full border border-gray-300 rounded-lg pl-11 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00BEF4] focus:border-[#00BEF4] transition disabled:bg-gray-100"
       />
     </div>
   </div>
 );
 
 /* ---------- Password Field ---------- */
-
 const PasswordField = ({ label, value, setValue, show, setShow }: any) => (
   <div className="mb-6">
     <label className="text-sm font-semibold text-gray-600 tracking-wide">
@@ -261,7 +257,7 @@ const PasswordField = ({ label, value, setValue, show, setShow }: any) => (
         type={show ? "text" : "password"}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="w-full border border-gray-300 rounded-lg pl-11 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+        className="w-full border border-gray-300 rounded-lg pl-11 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#00BEF4] focus:border-[#00BEF4] transition"
       />
       <button
         type="button"

@@ -3,10 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Home as HouseIcon,
   PackageCheck as OrderIcon,
-  Users as UsersIcon,
   ShoppingCart as InventoryIcon,
-  DollarSign as PayrollIcon,
-  MessageCircleMore as MessageIcon,
   User as ProfileIcon,
   LogOut,
   ChevronLeft,
@@ -16,16 +13,13 @@ import {
 
 type Props = { name: string };
 
-const adminSidebarItems = [
-  { label: "Dashboard", icon: HouseIcon, path: "/admin" },
-  { label: "Orders", icon: OrderIcon, path: "/admin/orders" },
-  { label: "Management", icon: UsersIcon, path: "/admin/users" },
-  { label: "Inventory", icon: InventoryIcon, path: "/admin/inventory" },
-  { label: "Payroll", icon: PayrollIcon, path: "/admin/payroll" },
-  { label: "Messages", icon: MessageIcon, path: "/admin/messages" },
+const productionSidebarItems = [
+  { label: "Dashboard", icon: HouseIcon, path: "/production" },
+  { label: "Orders", icon: OrderIcon, path: "/production/orders" },
+  { label: "Inventory", icon: InventoryIcon, path: "/production/inventory" },
 ];
 
-const AdminSideBar = ({ name }: Props) => {
+const ProductionSideBar = ({ name }: Props) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -36,25 +30,19 @@ const AdminSideBar = ({ name }: Props) => {
 
   const sidebarWidth = collapsed ? "w-[72px]" : "w-[160px]";
 
-  const handleLogout = () => {
-    setShowLogoutModal(true);
-  };
-
+  const handleLogout = () => setShowLogoutModal(true);
   const confirmLogout = () => {
     setShowLogoutModal(false);
     navigate("/");
   };
-
-  const cancelLogout = () => {
-    setShowLogoutModal(false);
-  };
+  const cancelLogout = () => setShowLogoutModal(false);
 
   return (
     <>
-      {/* Logout Confirmation Modal */}
+      {/* Logout Modal */}
       {showLogoutModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
                 <LogOut size={24} className="text-red-600" />
@@ -68,20 +56,17 @@ const AdminSideBar = ({ name }: Props) => {
                 </p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-6">
-              You will be redirected to the landing page and will need to log in
-              again to access your account.
-            </p>
+
             <div className="flex gap-3">
               <button
                 onClick={cancelLogout}
-                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg transition-colors"
+                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmLogout}
-                className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors"
+                className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg"
               >
                 Logout
               </button>
@@ -94,12 +79,10 @@ const AdminSideBar = ({ name }: Props) => {
       <button
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-20 left-4 z-50 p-2 bg-white rounded-md shadow border border-gray-200"
-        aria-label="Open menu"
       >
         <ChevronRight size={20} className="text-gray-600" />
       </button>
 
-      {/* Mobile Backdrop */}
       {mobileOpen && (
         <div
           onClick={() => setMobileOpen(false)}
@@ -109,37 +92,32 @@ const AdminSideBar = ({ name }: Props) => {
 
       {/* Sidebar */}
       <aside
-        className={`
-          bg-white text-black
-          fixed top-16 left-0 h-[calc(100%-4rem)]
-          ${sidebarWidth}
-          border-r border-gray-200 shadow-sm
-          transform transition-all duration-300 ease-in-out
-          flex flex-col justify-between
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
-          z-30
-        `}
+        className={`bg-white fixed top-16 left-0 h-[calc(100%-4rem)] 
+        ${sidebarWidth}
+        shadow-sm
+        transform transition-all duration-300
+        flex flex-col justify-between
+        ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+        lg:translate-x-0
+        z-30`}
       >
-        {/* Top: Nav */}
         <div className="flex flex-col h-full">
-          {/* Nav Links */}
+          {/* NAV LINKS */}
           <nav className="flex flex-col gap-[2px] px-2 pt-3 flex-1">
-            {adminSidebarItems.map((item) => (
+            {productionSidebarItems.map((item) => (
               <NavLink
                 key={item.label}
                 to={item.path}
-                end={item.path === "/admin"}
+                end={item.path === "/production"}
                 onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
-                  `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150 cursor-pointer
+                  `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150
                   ${
                     isActive
                       ? "bg-[#E80088] text-white"
                       : "text-gray-700 hover:bg-gray-100"
                   }`
                 }
-                title={collapsed ? item.label : undefined}
               >
                 {({ isActive }) => (
                   <>
@@ -150,7 +128,7 @@ const AdminSideBar = ({ name }: Props) => {
                     />
                     {!collapsed && (
                       <span
-                        className={`text-[11px] font-semibold text-center leading-tight ${
+                        className={`text-[11px] font-semibold ${
                           isActive ? "text-white" : "text-gray-700"
                         }`}
                       >
@@ -163,21 +141,20 @@ const AdminSideBar = ({ name }: Props) => {
             ))}
           </nav>
 
-          {/* Bottom Section: Profile + Logout */}
-          <div className="border-t border-gray-100 px-2 py-3 flex flex-col gap-1">
-            {/* Profile Link */}
+          {/* BOTTOM SECTION */}
+          <div className="px-2 py-3 flex flex-col gap-1">
+            {/* Profile */}
             <NavLink
-              to="/admin/profile"
+              to="/production/profile"
               onClick={() => setMobileOpen(false)}
               className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150 cursor-pointer
+                `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150
                 ${
                   isActive
                     ? "bg-[#E80088] text-white"
                     : "text-gray-700 hover:bg-gray-100"
                 }`
               }
-              title={collapsed ? "Profile" : undefined}
             >
               {({ isActive }) => (
                 <>
@@ -199,10 +176,9 @@ const AdminSideBar = ({ name }: Props) => {
               )}
             </NavLink>
 
-            {/* Logout Button */}
+            {/* Logout */}
             <button
               onClick={handleLogout}
-              title={collapsed ? "Logout" : undefined}
               className="flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-500 transition-all duration-150 w-full"
             >
               <LogOut size={20} strokeWidth={1.8} />
@@ -213,7 +189,7 @@ const AdminSideBar = ({ name }: Props) => {
 
             {/* User Info */}
             <div
-              className={`flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-gray-100 ${
+              className={`flex items-center gap-2 px-2 pt-3 ${
                 collapsed ? "justify-center" : ""
               }`}
             >
@@ -223,10 +199,11 @@ const AdminSideBar = ({ name }: Props) => {
                 className="text-gray-500 flex-shrink-0"
               />
               {!collapsed && (
-                <div className="min-w-0">
+                <div>
                   <p className="text-[11px] font-bold text-gray-800 truncate">
                     {name}
                   </p>
+                  <p className="text-[9px] text-gray-500">Production</p>
                 </div>
               )}
             </div>
@@ -234,19 +211,14 @@ const AdminSideBar = ({ name }: Props) => {
         </div>
       </aside>
 
-      {/* Collapse Toggle Button (desktop only) */}
+      {/* Collapse Button */}
       <button
         onClick={() => setCollapsed((prev) => !prev)}
-        className={`
-          hidden lg:flex
-          fixed top-1/2 -translate-y-1/2 z-40
-          transition-all duration-300 ease-in-out
-          items-center justify-center
-          w-5 h-10 bg-white border border-gray-200 rounded-r-md shadow-sm
-          hover:bg-gray-50 text-gray-500 hover:text-[#E80088]
-          ${collapsed ? "left-[72px]" : "left-[160px]"}
-        `}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className={`hidden lg:flex fixed top-1/2 -translate-y-1/2 z-40
+        items-center justify-center
+        w-5 h-10 bg-white border border-gray-200 rounded-r-md shadow-sm
+        hover:bg-gray-50 text-gray-500 hover:text-[#E80088]
+        ${collapsed ? "left-[72px]" : "left-[160px]"}`}
       >
         {collapsed ? (
           <ChevronRight size={14} strokeWidth={2.5} />
@@ -258,4 +230,4 @@ const AdminSideBar = ({ name }: Props) => {
   );
 };
 
-export default AdminSideBar;
+export default ProductionSideBar;

@@ -106,7 +106,7 @@ const AdminManagement: React.FC = () => {
     "Supplier List Management",
   ];
 
-  const roles = ["Admin", "Cashier", "Designer", "Production", "Customer"];
+  const roles = ["Admin", "Management", "Cashier", "Designer", "Production", "Customer"];
   const statuses = ["Active", "Inactive"];
 
   // DUMMY DATA
@@ -126,10 +126,10 @@ const AdminManagement: React.FC = () => {
       id: "U002",
       firstName: "Mary Jane",
       lastName: "Centino",
-      userName: "Admin",
-      email: "VTALPS@gmail.com",
-      contactNumber: "12345678901",
-      role: "Admin",
+      userName: "Manager1",
+      email: "maryjane@gmail.com",
+      contactNumber: "12345678902",
+      role: "Management",
       createdAt: "1/10/2025",
       updatedAt: "1/15/2025",
     },
@@ -1183,9 +1183,17 @@ const AdminManagement: React.FC = () => {
       {/* Content Based on Active Tab */}
       {activeTab === "User Account Management" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <h2 className="text-xl font-bold text-gray-900 p-6 border-b">
-            User Account Management
-          </h2>
+          <div className="p-6 border-b">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              User Account Management
+            </h2>
+            <p className="text-sm text-gray-600">
+              Used to manage and monitor different user accounts in the system.
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              <strong>Top Buttons and Filters:</strong> Search – Search by name or ID | Select Role – Filter accounts by role (Admin, Management, etc.)
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -1257,9 +1265,17 @@ const AdminManagement: React.FC = () => {
 
       {activeTab === "Employee List Management" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <h2 className="text-xl font-bold text-gray-900 p-6 border-b">
-            Employee List
-          </h2>
+          <div className="p-6 border-b">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              Employee List Management
+            </h2>
+            <p className="text-sm text-gray-600">
+              Used to track and manage employee details, roles, and updates.
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              <strong>Top Buttons and Filters:</strong> Search – Search by employee name or ID | Select Role – Filter by employee role | Date Created At – Filter by creation date
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -1341,9 +1357,24 @@ const AdminManagement: React.FC = () => {
 
       {activeTab === "Supplier List Management" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <h2 className="text-xl font-bold text-gray-900 p-6 border-b">
-            Supplier List
-          </h2>
+          <div className="p-6 border-b">
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              Supplier List Management
+            </h2>
+            <p className="text-sm text-gray-600">
+              Used to manage suppliers, their contact info, and status.
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              <strong>Top Buttons and Filters:</strong> Search – Search by supplier name or ID | Supplier Status – Filter by Active/Inactive | Date Created At – Filter by creation date
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              <strong>Available Actions:</strong>
+            </p>
+            <ul className="text-xs text-gray-500 ml-4 mt-1 list-disc">
+              <li><strong>Add Comments (Reason for Flag)</strong> – Admin can write internal notes or remarks explaining the reason for concern (e.g., delays, quality issues). This comment is stored with the account for future reference.</li>
+              <li><strong>Flag</strong> – Marks the supplier as unreliable or inactive. This is used when the supply is not up to standards or the company decides to stop further engagement. Flagged suppliers can be filtered or restricted from receiving new orders.</li>
+            </ul>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
