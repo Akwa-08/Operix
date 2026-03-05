@@ -18,7 +18,15 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hot-toast": "^2.6.0",
+<<<<<<< HEAD
+<<<<<<<< HEAD:frontend/package.json
     "react-router-dom": "^7.13.1",
+========
+    "react-router-dom": "^7.11.0",
+>>>>>>>> main:package.json
+=======
+    "react-router-dom": "^7.11.0",
+>>>>>>> main
     "styled-components": "^6.1.19",
     "tailwindcss": "^4.1.18"
   },
