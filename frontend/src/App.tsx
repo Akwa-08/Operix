@@ -4,7 +4,6 @@ import {LandingPage} from "./pages/LandingPage";
 import {createBrowserRouter, RouterProvider} from "react-router-dom";
 import {CustomerPage} from "./pages/CustomerPage";
 import {ProfilePage} from "./pages/ProfilePage";
-import {ProductsProvider} from "./context/ProductsContext";
 import {RootLayout} from "./pages/RootLayout";
 import {CartPage} from "./pages/CartPage";
 import {OrdersPage} from "./pages/OrdersPage";
@@ -119,11 +118,14 @@ const router = createBrowserRouter([
   },
 ]);
 
+import {Provider} from "react-redux";
+import {store} from "./store";
+
 const App = () => {
   return (
-    <ProductsProvider>
+    <Provider store={store}>
       <RouterProvider router={router} />
-    </ProductsProvider>
+    </Provider>
   );
 };
 

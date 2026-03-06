@@ -3,7 +3,6 @@ import {
   ShoppingCart as CartIcon,
   PackageCheck as OrderIcon,
   MessageCircleMore as MessageIcon,
-  User as UserIcon,
   Users as UsersIcon,
   DollarSign as PayrollIcon,
 } from "lucide-react";
@@ -11,7 +10,6 @@ import type {SidebarItem} from "../components/Shared/UI/SharedSideBar";
 
 export const customerSidebarItems: SidebarItem[] = [
   {label: "Home", icon: HouseIcon, path: "/customer", end: true},
-  {label: "Profile", icon: UserIcon, path: "/profile"},
   {label: "Cart", icon: CartIcon, path: "/cart"},
   {label: "Order", icon: OrderIcon, path: "/orders"},
   {label: "Messages", icon: MessageIcon, path: "/messages"},

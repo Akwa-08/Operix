@@ -21,7 +21,7 @@ export const RootLayout = () => {
           setCollapsed={setCollapsed}
         />
         <main
-          className={`flex-1 p-6 mt-16 transition-all duration-300 ${
+          className={`flex-1 pt-6 px-6 pb-0 mt-16 transition-all duration-300 ${
             collapsed ? "lg:ml-[72px]" : "lg:ml-[160px]"
           }`}>
           <Outlet />
