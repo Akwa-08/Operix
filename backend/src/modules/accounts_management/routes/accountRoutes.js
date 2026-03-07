@@ -16,6 +16,7 @@ router.post('/users', userController.createUser);
 router.patch('/users/deactivate', userController.bulkDeactivate);
 router.patch('/users/reactivate', userController.bulkReactivate);
 router.patch('/users/:id/reactivate', userController.reactivateUser);
+router.put('/users/:id', userController.updateUser);
 
 // ──── SUPPLIER ROUTES (Account Dashboard Scope) ─────────────────
 

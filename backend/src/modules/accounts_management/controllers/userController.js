@@ -42,6 +42,11 @@ class UserController {
             `${result.reactivated_count} user(s) reactivated successfully`
         );
     });
+    // Update user profile
+    updateUser = asyncHandler(async (req, res) => {
+        const user = await userService.updateUser(req.params.id, req.body);
+        return successResponse(res, user, 'User updated successfully');
+    });
 }
 
 module.exports = new UserController();

@@ -5,7 +5,7 @@ const { supabase } = require('../../../config/supabase');
 const Joi = require('joi');
 
 // Columns to select (explicitly excludes password)
-const USER_SAFE_COLUMNS = 'id, first_name, last_name, username, contact_number, email, role, is_active, created_at';
+const USER_SAFE_COLUMNS = 'id, first_name, last_name, username, contact_number, email, address, role, is_active, created_at';
 
 // Validation schemas
 const createUserSchema = Joi.object({
@@ -17,6 +17,15 @@ const createUserSchema = Joi.object({
     email: Joi.string().email().optional().allow('', null),
     role: Joi.string().optional().default('Employee')
 });
+
+const updateUserSchema = Joi.object({
+    first_name: Joi.string().optional().allow('', null),
+    last_name: Joi.string().optional().allow('', null),
+    email: Joi.string().email().optional().allow('', null),
+    contact_number: Joi.string().optional().allow('', null),
+    address: Joi.string().optional().allow('', null),
+    password: Joi.string().min(8).optional()
+}).min(1).messages({ 'object.min': 'At least one field must be provided for update' });
 
 const bulkDeactivateSchema = Joi.object({
     ids: Joi.array().items(Joi.string().uuid()).min(1).required()
@@ -237,6 +246,70 @@ class UserService {
             reactivated_count: data.length,
             reactivated_ids: data.map(u => u.id)
         };
+    }
+    /**
+     * Update a user's profile fields
+     * Supports: first_name, last_name, email, contact_number, address, password
+     */
+    async updateUser(id, userData) {
+        // Validate input
+        const { error: validationError, value } = updateUserSchema.validate(userData, {
+            abortEarly: false,
+            stripUnknown: true
+        });
+
+        if (validationError) {
+            const err = new Error('Validation failed');
+            err.name = 'ValidationError';
+            err.details = validationError.details.map(d => ({
+                field: d.path.join('.'),
+                message: d.message
+            }));
+            throw err;
+        }
+
+        // Check email uniqueness if email is being changed
+        if (value.email) {
+            const { data: existingEmail } = await supabase
+                .from('users')
+                .select('id')
+                .eq('email', value.email)
+                .neq('id', id)
+                .limit(1)
+                .maybeSingle();
+
+            if (existingEmail) {
+                const err = new Error('Email already in use by another account');
+                err.statusCode = 409;
+                throw err;
+            }
+        }
+
+        // Build update payload (only include provided fields)
+        const updatePayload = {};
+        if (value.first_name !== undefined) updatePayload.first_name = value.first_name || null;
+        if (value.last_name !== undefined) updatePayload.last_name = value.last_name || null;
+        if (value.email !== undefined) updatePayload.email = value.email || null;
+        if (value.contact_number !== undefined) updatePayload.contact_number = value.contact_number || null;
+        if (value.address !== undefined) updatePayload.address = value.address || null;
+        if (value.password !== undefined) updatePayload.password = value.password;
+
+        const { data, error } = await supabase
+            .from('users')
+            .update(updatePayload)
+            .eq('id', id)
+            .select(USER_SAFE_COLUMNS)
+            .single();
+
+        if (error) throw error;
+
+        if (!data) {
+            const notFoundError = new Error('User not found');
+            notFoundError.name = 'NotFoundError';
+            throw notFoundError;
+        }
+
+        return data;
     }
 }
 
