@@ -25,7 +25,7 @@ export const OrdersHeader: React.FC<OrdersHeaderProps> = ({
       <motion.h1
         initial={{opacity: 0, x: -20}}
         animate={{opacity: 1, x: 0}}
-        className="text-4xl font-black tracking-tight">
+        className="text-3xl font-bold tracking-tight">
         Orders
       </motion.h1>
 
@@ -37,7 +37,7 @@ export const OrdersHeader: React.FC<OrdersHeaderProps> = ({
           placeholder="Search by order ID or product name..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-16 pr-6 py-5 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 text-lg font-medium shadow-sm transition-all hover:shadow-md"
+          className="w-full pl-16 pr-6 py-5 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 text-sm font-medium shadow-sm transition-all hover:shadow-md"
         />
       </div>
 
@@ -49,7 +49,7 @@ export const OrdersHeader: React.FC<OrdersHeaderProps> = ({
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-bold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
+              className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
               <option value="All">All Status</option>
               <option value="Queue">In Queue</option>
               <option value="Design">Designing</option>
@@ -65,7 +65,7 @@ export const OrdersHeader: React.FC<OrdersHeaderProps> = ({
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-bold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
+              className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
               <option value="Any">Any Date</option>
               <option value="Today">Today</option>
               <option value="Week">This Week</option>
@@ -77,7 +77,7 @@ export const OrdersHeader: React.FC<OrdersHeaderProps> = ({
         <motion.button
           whileHover={{scale: 1.02}}
           whileTap={{scale: 0.98}}
-          className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-cyan-400 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-cyan-100 transition-all cursor-pointer">
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-cyan-400 text-white font-bold text-sm uppercase tracking-widest rounded-xl shadow-lg shadow-cyan-100 transition-all cursor-pointer">
           <Plus className="w-5 h-5" />
           New Order
         </motion.button>

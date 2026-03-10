@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Hammer,
   Truck,
-  User,
   Package,
 } from "lucide-react";
 
@@ -73,25 +72,6 @@ const getStatusLabel = (status: OrderStatus) => {
   }
 };
 
-const getStatusColor = (status: OrderStatus) => {
-  switch (status) {
-    case "Queue":
-      return "bg-cyan-500";
-    case "Design":
-      return "bg-pink-500";
-    case "Payment":
-      return "bg-green-500";
-    case "Production":
-      return "bg-purple-500";
-    case "Pick-up":
-      return "bg-orange-500";
-    case "Complete":
-      return "bg-green-600";
-    default:
-      return "bg-gray-400";
-  }
-};
-
 export const OrderCard: React.FC<OrderCardProps> = ({
   order,
   onViewDetails,
@@ -102,6 +82,25 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const currentStepIndex = statusSteps.findIndex(
     (s) => s.status === order.currentStatus,
   );
+
+  const getStatusColor = (status: OrderStatus) => {
+    switch (status) {
+      case "Queue":
+        return "bg-[#0ea5e9]";
+      case "Design":
+        return "bg-[#ec4899]";
+      case "Payment":
+        return "bg-[#22c55e]";
+      case "Production":
+        return "bg-[#8b5cf6]";
+      case "Pick-up":
+        return "bg-[#f59e0b]";
+      case "Complete":
+        return "bg-[#10b981]";
+      default:
+        return "bg-gray-400";
+    }
+  };
 
   const getPaymentStatusColor = (status: string) => {
     switch (status) {
@@ -116,60 +115,48 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   return (
     <motion.div
-      initial={{opacity: 0, y: 20}}
+      initial={{opacity: 0, y: 10}}
       animate={{opacity: 1, y: 0}}
-      whileHover={{y: -8, boxShadow: "0 20px 40px -15px rgba(0,0,0,0.1)"}}
-      className="group bg-white border border-gray-100 rounded-[2rem] p-7 shadow-sm transition-all duration-500 flex flex-col gap-6 relative overflow-hidden h-full">
-      {/* Top Header: Avatar & Header Meta */}
-      <div className="flex justify-between items-start">
-        <div className="flex gap-4">
-          <div className="w-14 h-14 bg-gray-50 rounded-full flex items-center justify-center border-4 border-white shadow-inner">
-            <div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center text-gray-400">
-              <User className="w-6 h-6" />
-            </div>
-          </div>
-          <div className="pt-1">
-            <h3 className="text-xl font-black text-gray-900 leading-none mb-1">
-              {order.customerName}{" "}
-              <span className="text-gray-300 font-medium px-2">|</span>{" "}
-              <span className="text-gray-400 font-bold text-sm">
-                {order.role}
-              </span>
-            </h3>
-            <p className="text-gray-400 text-[10px] font-black tracking-widest uppercase">
-              {order.orderNumber}
-            </p>
-          </div>
+      className="bg-[#f3f4f6]/50 p-6 rounded-3xl border border-gray-200 flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-gray-300 rounded-full flex-shrink-0" />
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 leading-tight">
+            {order.customerName} |{" "}
+            <span className="font-medium">{order.role}</span>
+          </h3>
+          <p className="text-[10px] text-gray-400 uppercase font-medium mt-0.5">
+            {order.orderNumber}
+          </p>
         </div>
+      </div>
 
+      {/* Product & Badge Row */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Package className="w-4 h-4 text-gray-500" />
+          <span className="text-sm font-medium text-gray-700">
+            {order.productName}
+          </span>
+        </div>
         <span
-          className={`${getStatusColor(order.currentStatus)} text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-lg shadow-current/20`}>
+          className={`${getStatusColor(order.currentStatus)} text-white px-3 py-1 rounded-full text-[10px] font-semibold`}>
           {getStatusLabel(order.currentStatus)}
         </span>
       </div>
 
-      {/* Product Information */}
-      <div className="flex items-center gap-3 mt-1">
-        <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
-          <Package className="w-5 h-5 text-gray-400" />
-        </div>
-        <span className="text-xl font-black text-gray-800 tracking-tight">
-          {order.productName}
-        </span>
-      </div>
-
-      {/* Progress Timeline */}
-      <div className="relative flex justify-between items-center px-1 py-6">
-        {/* Connection Line */}
-        <div className="absolute left-6 right-6 h-[3px] bg-gray-100 top-1/2 -translate-y-1/2 rounded-full overflow-hidden">
-          <motion.div
-            initial={{width: 0}}
-            animate={{
-              width: `${(currentStepIndex / (statusSteps.length - 1)) * 100}%`,
-            }}
-            className="h-full bg-green-400"
-          />
-        </div>
+      {/* Timeline */}
+      <div className="relative flex justify-between items-center px-1 my-2">
+        {/* Progress bar background */}
+        <div className="absolute left-4 right-4 h-[1px] bg-gray-200 top-[16px]" />
+        {/* Progress bar active */}
+        <div
+          className="absolute left-4 h-[1px] bg-green-500 top-[16px] transition-all duration-500"
+          style={{
+            width: `calc(${(currentStepIndex / (statusSteps.length - 1)) * 100}% - 32px)`,
+          }}
+        />
 
         {statusSteps.map((step, index) => {
           const isCompleted = index < currentStepIndex;
@@ -179,24 +166,22 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           return (
             <div
               key={step.status}
-              className="relative z-10 flex flex-col items-center">
+              className="relative z-10 flex flex-col items-center flex-1">
               <div
-                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-500 border-4 border-white shadow-md ${
-                  isCompleted
+                className={`w-8 h-8 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-colors duration-300 ${
+                  isCompleted || isActive
                     ? "bg-green-500 text-white"
-                    : isActive
-                      ? `${getStatusColor(step.status)} text-white scale-125 z-20`
-                      : "bg-gray-50 text-gray-300"
+                    : "bg-gray-100 text-gray-400"
                 }`}>
                 {isCompleted ? (
-                  <CheckCircle2 className="w-5 h-5" />
+                  <CheckCircle2 className="w-4 h-4" />
                 ) : (
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-4 h-4" />
                 )}
               </div>
               <span
-                className={`text-[9px] font-black uppercase tracking-tighter mt-3 whitespace-nowrap transition-all duration-300 ${
-                  isActive ? "text-gray-900 scale-110" : "text-gray-300"
+                className={`text-[9px] mt-1.5 font-medium whitespace-nowrap ${
+                  isActive ? "text-gray-900 font-bold" : "text-gray-400"
                 }`}>
                 {step.label}
               </span>
@@ -205,82 +190,73 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         })}
       </div>
 
-      {/* Meta Grid: Dates & Money */}
-      <div className="bg-gray-50/70 rounded-2xl p-5 space-y-4 border border-gray-100/50">
-        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-          <div className="flex items-center gap-2 text-gray-400">
-            <Clock className="w-4 h-4" />
+      {/* Meta Grid */}
+      <div className="grid grid-cols-1 gap-2">
+        <div className="flex justify-between items-center text-[10px] text-gray-400 font-medium">
+          <div className="flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" />
             <span>{order.orderDate}</span>
           </div>
-          <div className="flex items-center gap-2 text-red-500 bg-red-50 px-3 py-1 rounded-full border border-red-100">
-            <Clock className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 text-red-500">
+            <Clock className="w-3.5 h-3.5" />
             <span>Due: {order.dueDate}</span>
           </div>
         </div>
 
-        <div className="flex justify-between items-end">
-          <div>
-            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">
-              {order.isPriceEstimated ? "Estimated Amount" : "Price"}
-            </p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-gray-900 text-3xl font-black tracking-tighter">
-                ₱{order.price.toLocaleString()}
-                {order.isPriceEstimated && (
-                  <span className="text-gray-400">~</span>
-                )}
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-1.5">
+            {order.isPriceEstimated && (
+              <span className="text-[10px] text-gray-400 font-medium leading-none mt-1">
+                Estimated amount
               </span>
-              <span className="text-gray-400 text-sm font-bold">.00</span>
-            </div>
+            )}
+            <span className="text-lg font-bold text-[#f59e0b]">
+              ₱{order.price.toLocaleString()}
+              {order.isPriceEstimated ? "~" : ""}
+            </span>
           </div>
           <span
-            className={`px-3 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest ${getPaymentStatusColor(
-              order.paymentStatus,
-            )}`}>
+            className={`px-2.5 py-0.5 rounded-full border text-[9px] font-semibold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
             {order.paymentStatus}
           </span>
         </div>
 
         {order.note && (
-          <div className="pt-2 border-t border-gray-200/50">
-            <p className="text-xs text-gray-500 font-medium leading-relaxed italic">
-              "{order.note}"
+          <div className="flex items-start gap-1.5">
+            <MessageCircle className="w-3.5 h-3.5 text-gray-400 mt-0.5" />
+            <p className="text-[10px] text-gray-500 leading-tight">
+              {order.note}
             </p>
           </div>
         )}
       </div>
 
-      {/* Actions Section */}
-      <div className="mt-auto flex flex-col gap-2">
-        <div className="flex gap-2">
+      {/* Actions */}
+      <div className="flex items-center gap-2 mt-auto">
+        <button
+          onClick={() => onViewDetails(order.id)}
+          className="flex-1 bg-[#0ea5e9] text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-[#0284c7]">
+          <Eye className="w-3.5 h-3.5" />
+          View Details
+        </button>
+        {order.currentStatus === "Payment" && onPay && (
           <button
-            onClick={() => onViewDetails(order.id)}
-            className="flex-[3] flex items-center justify-center gap-2 bg-cyan-400 py-4 rounded-xl text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-cyan-100 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer">
-            <Eye className="w-5 h-5" />
-            View Details
+            onClick={() => onPay(order.id)}
+            className="flex-shrink-0 bg-[#22c55e] text-white text-xs font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#16a34a]">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Pay
           </button>
-
-          {order.currentStatus === "Payment" && onPay && (
-            <button
-              onClick={() => onPay(order.id)}
-              className="flex-[2] flex items-center justify-center gap-2 bg-green-500 py-4 rounded-xl text-white font-black text-[10px] uppercase tracking-widest shadow-lg shadow-green-100 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer">
-              <CreditCard className="w-5 h-5" />
-              Pay
-            </button>
-          )}
-
-          <button
-            onClick={() => onChat?.(order.id)}
-            className="w-14 h-14 flex items-center justify-center bg-white border border-gray-200 rounded-xl text-gray-900 hover:bg-gray-50 transition-all cursor-pointer shadow-sm">
-            <MessageCircle className="w-6 h-6" />
-          </button>
-
-          <button
-            onClick={() => onDelete?.(order.id)}
-            className="w-14 h-14 flex items-center justify-center bg-red-500 rounded-xl text-white hover:bg-red-600 transition-all cursor-pointer shadow-lg shadow-red-100">
-            <Trash2 className="w-6 h-6" />
-          </button>
-        </div>
+        )}
+        <button
+          onClick={() => onChat?.(order.id)}
+          className="w-9 h-9 border border-gray-200 rounded-lg flex items-center justify-center text-gray-600 hover:bg-gray-50">
+          <MessageCircle className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => onDelete?.(order.id)}
+          className="w-9 h-9 bg-red-600 text-white rounded-lg flex items-center justify-center hover:bg-red-700">
+          <Trash2 className="w-4 h-4" />
+        </button>
       </div>
     </motion.div>
   );

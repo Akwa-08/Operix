@@ -51,22 +51,22 @@ export default function HomePage() {
           <motion.div
             initial={{opacity: 0, scale: 0.9}}
             animate={{opacity: 1, scale: 1}}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-100/50 border border-cyan-200 rounded-full text-cyan-600 text-xs font-black uppercase tracking-widest mb-6">
-            <Sparkles className="w-4 h-4" />
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-100/50 border border-cyan-200 rounded-full text-cyan-600 text-[11px] font-black uppercase tracking-widest mb-6">
+            <Sparkles className="w-3.5 h-3.5" />
             <span>Welcome back to Operix</span>
           </motion.div>
 
           <motion.h1
             initial={{opacity: 0, x: -20}}
             animate={{opacity: 1, x: 0}}
-            className="text-7xl font-black text-gray-900 leading-none tracking-tight mb-4">
+            className="text-5xl font-black text-gray-900 leading-none tracking-tight mb-4">
             John <span className="text-cyan-500">Doe.</span>
           </motion.h1>
           <motion.p
             initial={{opacity: 0, x: -20}}
             animate={{opacity: 1, x: 0}}
             transition={{delay: 0.1}}
-            className="text-gray-500 text-2xl font-medium max-w-2xl leading-relaxed">
+            className="text-gray-500 text-lg font-medium max-w-2xl leading-relaxed">
             Explore our curated collection of professional-grade products
             designed for your next masterpiece.
           </motion.p>
@@ -79,10 +79,10 @@ export default function HomePage() {
           {/* Controls Header */}
           <div className="flex flex-col lg:flex-row justify-between items-end gap-6">
             <div className="w-full lg:w-auto">
-              <h2 className="text-4xl font-black text-gray-900 tracking-tight">
+              <h2 className="text-2xl font-black text-gray-900 tracking-tight">
                 Available Products
               </h2>
-              <p className="text-gray-500 font-bold uppercase text-[12px] tracking-widest mt-1">
+              <p className="text-gray-500 font-bold uppercase text-[11px] tracking-widest mt-1">
                 Showing {pagedProducts.length} of {filteredProducts.length}{" "}
                 items
               </p>
@@ -131,7 +131,7 @@ export default function HomePage() {
               </button>
 
               <div className="flex items-center px-4">
-                <span className="w-12 h-12 rounded-xl bg-cyan-400 text-white flex items-center justify-center text-xl font-black shadow-lg shadow-cyan-100">
+                <span className="w-10 h-10 rounded-xl bg-cyan-400 text-white flex items-center justify-center text-lg font-black shadow-lg shadow-cyan-100">
                   {currentPage}
                 </span>
               </div>

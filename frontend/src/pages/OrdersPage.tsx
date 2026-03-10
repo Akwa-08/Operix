@@ -168,7 +168,7 @@ export const OrdersPage: React.FC = () => {
               animate={{opacity: 1}}
               className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
               <PackageOpen className="w-20 h-20 text-gray-200 mb-4" />
-              <p className="text-gray-400 font-bold text-xl">
+              <p className="text-gray-400 font-bold text-lg">
                 No orders found matching your criteria
               </p>
             </motion.div>
@@ -186,7 +186,7 @@ export const OrdersPage: React.FC = () => {
             </button>
 
             <div className="flex items-center px-4">
-              <span className="w-14 h-14 rounded-2xl bg-cyan-400 text-white flex items-center justify-center text-2xl font-black shadow-xl shadow-cyan-100 ring-4 ring-white">
+              <span className="w-14 h-14 rounded-2xl bg-cyan-400 text-white flex items-center justify-center text-lg font-bold shadow-xl shadow-cyan-100 ring-4 ring-white">
                 {currentPage}
               </span>
             </div>
