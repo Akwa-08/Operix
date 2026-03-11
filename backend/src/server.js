@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const { testConnection } = require('./config/supabase');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const inventoryRoutes = require('./modules/inventory/routes/inventoryRoutes');
+const accountRoutes = require('./modules/accounts_management/routes/accountRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -40,6 +41,7 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api', accountRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -52,7 +54,7 @@ const startServer = async () => {
   try {
     // Test database connection
     const dbConnected = await testConnection();
-    
+
     if (!dbConnected) {
       console.error('Failed to connect to database. Exiting...');
       process.exit(1);
