@@ -1,4 +1,4 @@
-import { useState } from "react";
+import {useState} from "react";
 import {
   Search,
   Eye,
@@ -10,50 +10,8 @@ import {
   Trash2,
   Check,
 } from "lucide-react";
-
-// Types for backend integration
-interface UserAccount {
-  id: string;
-  firstName: string;
-  lastName: string;
-  userName: string;
-  email: string;
-  contactNumber: string;
-  role: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Employee {
-  id: string;
-  firstName: string;
-  lastName: string;
-  userName: string;
-  email: string;
-  contactNumber: string;
-  role: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Supplier {
-  id: string;
-  supplierName: string;
-  email: string;
-  contactNumber: string;
-  address: string;
-  supplierStatus: "Active" | "Inactive";
-  createdAt: string;
-  updatedAt: string;
-  isFlagged: boolean;
-  flagNotes: string;
-  items: SupplierItem[];
-}
-
-interface SupplierItem {
-  itemType: string;
-  itemVariant: string;
-}
+import {managementData} from "../../util/management";
+import type {UserAccount, Employee, Supplier} from "../../util/management";
 
 const AdminManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState("User Account Management");
@@ -64,18 +22,24 @@ const AdminManagement: React.FC = () => {
   const [showDateDropdown, setShowDateDropdown] = useState(false);
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  
+
   // Modal states
   const [showViewModal, setShowViewModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [showSupplierInfoModal, setShowSupplierInfoModal] = useState(false);
   const [showFlagNotesModal, setShowFlagNotesModal] = useState(false);
-  
-  const [selectedUser, setSelectedUser] = useState<UserAccount | Employee | null>(null);
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [userToDeactivate, setUserToDeactivate] = useState<UserAccount | Employee | null>(null);
-  
+
+  const [selectedUser, setSelectedUser] = useState<
+    UserAccount | Employee | null
+  >(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(
+    null,
+  );
+  const [userToDeactivate, setUserToDeactivate] = useState<
+    UserAccount | Employee | null
+  >(null);
+
   // Form states
   const [createForm, setCreateForm] = useState({
     firstName: "",
@@ -98,7 +62,9 @@ const AdminManagement: React.FC = () => {
   });
 
   const [flagNotes, setFlagNotes] = useState("");
-  const [supplierFlags, setSupplierFlags] = useState<{ [key: string]: boolean }>({});
+  const [supplierFlags, setSupplierFlags] = useState<{[key: string]: boolean}>(
+    {},
+  );
 
   const tabs = [
     "User Account Management",
@@ -106,211 +72,22 @@ const AdminManagement: React.FC = () => {
     "Supplier List Management",
   ];
 
-  const roles = ["Admin", "Management", "Cashier", "Designer", "Production", "Customer"];
+  const roles = [
+    "Admin",
+    "Management",
+    "Cashier",
+    "Designer",
+    "Production",
+    "Customer",
+  ];
   const statuses = ["Active", "Inactive"];
 
-  // DUMMY DATA
-  const userAccounts: UserAccount[] = [
-    {
-      id: "U001",
-      firstName: "Cen",
-      lastName: "Tino",
-      userName: "Admin",
-      email: "VTALPS@gmail.com",
-      contactNumber: "12345678901",
-      role: "Admin",
-      createdAt: "1/10/2025",
-      updatedAt: "1/15/2025",
-    },
-    {
-      id: "U002",
-      firstName: "Mary Jane",
-      lastName: "Centino",
-      userName: "Manager1",
-      email: "maryjane@gmail.com",
-      contactNumber: "12345678902",
-      role: "Management",
-      createdAt: "1/10/2025",
-      updatedAt: "1/15/2025",
-    },
-    {
-      id: "U003",
-      firstName: "Cashie",
-      lastName: "Yir",
-      userName: "Cashier",
-      email: "Cashie@gmail.com",
-      contactNumber: "23456789012",
-      role: "Cashier",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-    },
-  ];
+  // MOCK DATA - Imported from TS
+  const userAccounts = managementData.userAccounts;
 
-  const employees: Employee[] = [
-    {
-      id: "E001",
-      firstName: "Cen",
-      lastName: "Tino",
-      userName: "Admin",
-      email: "VTALPS@gmail.com",
-      contactNumber: "12345678901",
-      role: "Admin",
-      createdAt: "1/10/2025",
-      updatedAt: "1/15/2025",
-    },
-    {
-      id: "E002",
-      firstName: "Mary Jane",
-      lastName: "Centino",
-      userName: "Admin",
-      email: "VTALPS@gmail.com",
-      contactNumber: "12345678901",
-      role: "Admin",
-      createdAt: "1/10/2025",
-      updatedAt: "1/15/2025",
-    },
-    {
-      id: "E003",
-      firstName: "Cashie",
-      lastName: "Yir",
-      userName: "Cashier",
-      email: "Cashie@gmail.com",
-      contactNumber: "23456789012",
-      role: "Cashier",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-    },
-    {
-      id: "E004",
-      firstName: "Des",
-      lastName: "Igner",
-      userName: "Designer1",
-      email: "Igner@gmail.com",
-      contactNumber: "34567890123",
-      role: "Designer",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-    },
-    {
-      id: "E005",
-      firstName: "Del",
-      lastName: "Sayner",
-      userName: "Designer2",
-      email: "Sayner@gmail.com",
-      contactNumber: "45678901234",
-      role: "Designer",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-    },
-    {
-      id: "E006",
-      firstName: "John",
-      lastName: "Doe",
-      userName: "Production",
-      email: "Doe@gmail.com",
-      contactNumber: "78901234567",
-      role: "Production",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-    },
-    {
-      id: "E007",
-      firstName: "John",
-      lastName: "Cena",
-      userName: "Production",
-      email: "Cena@gmail.com",
-      contactNumber: "89012345678",
-      role: "Production",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-    },
-  ];
+  const employees = managementData.employees;
 
-  const suppliers: Supplier[] = [
-    {
-      id: "S001",
-      supplierName: "ABC co.",
-      email: "VTALPS@gmail.com",
-      contactNumber: "12345678901",
-      address: "Subdivision, Barangay, Surigao City",
-      supplierStatus: "Active",
-      createdAt: "1/10/2025",
-      updatedAt: "1/15/2025",
-      isFlagged: false,
-      flagNotes: "",
-      items: [
-        { itemType: "Tarpaulin roll", itemVariant: "Small - 6.1 ft" },
-        { itemType: "Tarpaulin roll", itemVariant: "Medium - 8.2 ft" },
-      ],
-    },
-    {
-      id: "S002",
-      supplierName: "Fabre co.",
-      email: "VTALPS@gmail.com",
-      contactNumber: "12345678901",
-      address: "Subdivision, Barangay, Surigao City",
-      supplierStatus: "Active",
-      createdAt: "1/10/2025",
-      updatedAt: "1/15/2025",
-      isFlagged: false,
-      flagNotes: "",
-      items: [
-        { itemType: "Tarpaulin roll", itemVariant: "Small - 6.1 ft" },
-      ],
-    },
-    {
-      id: "S003",
-      supplierName: "JFJF co.",
-      email: "Cashie@gmail.com",
-      contactNumber: "23456789012",
-      address: "Subdivision, Barangay, Surigao City",
-      supplierStatus: "Active",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-      isFlagged: false,
-      flagNotes: "",
-      items: [],
-    },
-    {
-      id: "S004",
-      supplierName: "QWE co.",
-      email: "Igner@gmail.com",
-      contactNumber: "34567890123",
-      address: "Subdivision, Barangay, Surigao City",
-      supplierStatus: "Active",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-      isFlagged: false,
-      flagNotes: "",
-      items: [],
-    },
-    {
-      id: "S005",
-      supplierName: "RTY co.",
-      email: "Sayner@gmail.com",
-      contactNumber: "45678901234",
-      address: "Subdivision, Barangay, Surigao City",
-      supplierStatus: "Active",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-      isFlagged: false,
-      flagNotes: "",
-      items: [],
-    },
-    {
-      id: "S006",
-      supplierName: "Tailor Swift",
-      email: "Production@gmail.com",
-      contactNumber: "56789012345",
-      address: "Subdivision, Barangay, Surigao City",
-      supplierStatus: "Inactive",
-      createdAt: "1/10/2025",
-      updatedAt: "3/10/2025",
-      isFlagged: true,
-      flagNotes: "The tarpaulin lacks sufficient durability and weather resistance, leading to faster wear and reduced usability outdoors.",
-      items: [],
-    },
-  ];
+  const suppliers = managementData.suppliers;
 
   // Handler functions
   const handleViewUser = (user: UserAccount | Employee) => {
@@ -354,15 +131,12 @@ const AdminManagement: React.FC = () => {
     setShowViewModal(false);
   };
 
-  const handleDeactivateClick = (user: UserAccount | Employee) => {
-    setUserToDeactivate(user);
-    setShowDeactivateModal(true);
-  };
-
   const handleConfirmDeactivate = () => {
     console.log("Deactivate user:", userToDeactivate);
     // TODO: API call to deactivate user
-    alert(`User ${userToDeactivate?.firstName} ${userToDeactivate?.lastName} has been deactivated`);
+    alert(
+      `User ${userToDeactivate?.firstName} ${userToDeactivate?.lastName} has been deactivated`,
+    );
     setShowDeactivateModal(false);
     setUserToDeactivate(null);
   };
@@ -387,7 +161,11 @@ const AdminManagement: React.FC = () => {
   };
 
   const handleSaveFlagNotes = () => {
-    console.log("Save flag notes for supplier:", selectedSupplier?.id, flagNotes);
+    console.log(
+      "Save flag notes for supplier:",
+      selectedSupplier?.id,
+      flagNotes,
+    );
     // TODO: API call to save notes
     alert("Notes saved successfully!");
     setShowFlagNotesModal(false);
@@ -405,10 +183,13 @@ const AdminManagement: React.FC = () => {
       item.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.supplierName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.email?.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesRole = selectedRole === "Select Role" || item.role === selectedRole;
-    const matchesStatus = selectedStatus === "Select Status" || item.supplierStatus === selectedStatus;
-    
+
+    const matchesRole =
+      selectedRole === "Select Role" || item.role === selectedRole;
+    const matchesStatus =
+      selectedStatus === "Select Status" ||
+      item.supplierStatus === selectedStatus;
+
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -418,17 +199,14 @@ const AdminManagement: React.FC = () => {
       {showViewModal && selectedUser && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowViewModal(false)}
-        >
+          onClick={() => setShowViewModal(false)}>
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-in fade-in zoom-in duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
+            onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setShowViewModal(false)}
               className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Close"
-            >
+              aria-label="Close">
               <X size={20} className="text-gray-600" />
             </button>
 
@@ -445,7 +223,7 @@ const AdminManagement: React.FC = () => {
                   type="text"
                   value={editForm.firstName}
                   onChange={(e) =>
-                    setEditForm({ ...editForm, firstName: e.target.value })
+                    setEditForm({...editForm, firstName: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -458,7 +236,7 @@ const AdminManagement: React.FC = () => {
                   type="text"
                   value={editForm.lastName}
                   onChange={(e) =>
-                    setEditForm({ ...editForm, lastName: e.target.value })
+                    setEditForm({...editForm, lastName: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -472,7 +250,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="09XX XXX XXXX"
                   value={editForm.phoneNumber}
                   onChange={(e) =>
-                    setEditForm({ ...editForm, phoneNumber: e.target.value })
+                    setEditForm({...editForm, phoneNumber: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -486,7 +264,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="ABCD@email.com"
                   value={editForm.email}
                   onChange={(e) =>
-                    setEditForm({ ...editForm, email: e.target.value })
+                    setEditForm({...editForm, email: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -500,7 +278,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="JD"
                   value={editForm.username}
                   onChange={(e) =>
-                    setEditForm({ ...editForm, username: e.target.value })
+                    setEditForm({...editForm, username: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -513,10 +291,9 @@ const AdminManagement: React.FC = () => {
                   <select
                     value={editForm.role}
                     onChange={(e) =>
-                      setEditForm({ ...editForm, role: e.target.value })
+                      setEditForm({...editForm, role: e.target.value})
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none bg-white"
-                  >
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none bg-white">
                     <option value="">Select Role</option>
                     {roles.map((role) => (
                       <option key={role} value={role}>
@@ -535,14 +312,12 @@ const AdminManagement: React.FC = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowViewModal(false)}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
-              >
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors">
                 Cancel
               </button>
               <button
                 onClick={handleUpdateAccount}
-                className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
+                className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                 <Check size={20} />
                 Save Changes
               </button>
@@ -555,17 +330,14 @@ const AdminManagement: React.FC = () => {
       {showCreateModal && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowCreateModal(false)}
-        >
+          onClick={() => setShowCreateModal(false)}>
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-in fade-in zoom-in duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
+            onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setShowCreateModal(false)}
               className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Close"
-            >
+              aria-label="Close">
               <X size={20} className="text-gray-600" />
             </button>
 
@@ -583,7 +355,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="John"
                   value={createForm.firstName}
                   onChange={(e) =>
-                    setCreateForm({ ...createForm, firstName: e.target.value })
+                    setCreateForm({...createForm, firstName: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -597,7 +369,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="Doe"
                   value={createForm.lastName}
                   onChange={(e) =>
-                    setCreateForm({ ...createForm, lastName: e.target.value })
+                    setCreateForm({...createForm, lastName: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -611,7 +383,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="09XX XXX XXXX"
                   value={createForm.phoneNumber}
                   onChange={(e) =>
-                    setCreateForm({ ...createForm, phoneNumber: e.target.value })
+                    setCreateForm({...createForm, phoneNumber: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -625,7 +397,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="ABCD@email.com"
                   value={createForm.email}
                   onChange={(e) =>
-                    setCreateForm({ ...createForm, email: e.target.value })
+                    setCreateForm({...createForm, email: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -639,7 +411,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="JD"
                   value={createForm.username}
                   onChange={(e) =>
-                    setCreateForm({ ...createForm, username: e.target.value })
+                    setCreateForm({...createForm, username: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -652,10 +424,9 @@ const AdminManagement: React.FC = () => {
                   <select
                     value={createForm.role}
                     onChange={(e) =>
-                      setCreateForm({ ...createForm, role: e.target.value })
+                      setCreateForm({...createForm, role: e.target.value})
                     }
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none bg-white"
-                  >
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none bg-white">
                     <option value="">Select Role</option>
                     {roles.map((role) => (
                       <option key={role} value={role}>
@@ -678,7 +449,7 @@ const AdminManagement: React.FC = () => {
                   placeholder="••••"
                   value={createForm.password}
                   onChange={(e) =>
-                    setCreateForm({ ...createForm, password: e.target.value })
+                    setCreateForm({...createForm, password: e.target.value})
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
@@ -705,14 +476,12 @@ const AdminManagement: React.FC = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
-              >
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors">
                 Cancel
               </button>
               <button
                 onClick={handleCreateAccount}
-                className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors"
-              >
+                className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors">
                 Create Account
               </button>
             </div>
@@ -724,17 +493,14 @@ const AdminManagement: React.FC = () => {
       {showDeactivateModal && userToDeactivate && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowDeactivateModal(false)}
-        >
+          onClick={() => setShowDeactivateModal(false)}>
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
+            onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setShowDeactivateModal(false)}
               className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Close"
-            >
+              aria-label="Close">
               <X size={20} className="text-gray-600" />
             </button>
 
@@ -780,21 +546,19 @@ const AdminManagement: React.FC = () => {
             </div>
 
             <p className="text-sm text-gray-600 mb-6">
-              This user will be deactivated and will no longer have access to the
-              system. This action can be reversed later if needed.
+              This user will be deactivated and will no longer have access to
+              the system. This action can be reversed later if needed.
             </p>
 
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeactivateModal(false)}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
-              >
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors">
                 Cancel
               </button>
               <button
                 onClick={handleConfirmDeactivate}
-                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-colors"
-              >
+                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl transition-colors">
                 Deactivate
               </button>
             </div>
@@ -806,17 +570,14 @@ const AdminManagement: React.FC = () => {
       {showSupplierInfoModal && selectedSupplier && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowSupplierInfoModal(false)}
-        >
+          onClick={() => setShowSupplierInfoModal(false)}>
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full p-8 animate-in fade-in zoom-in duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
+            onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setShowSupplierInfoModal(false)}
               className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Close"
-            >
+              aria-label="Close">
               <X size={20} className="text-gray-600" />
             </button>
 
@@ -830,7 +591,9 @@ const AdminManagement: React.FC = () => {
                   Supplier Name
                 </label>
                 <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                  <span className="text-gray-900">{selectedSupplier.supplierName}</span>
+                  <span className="text-gray-900">
+                    {selectedSupplier.supplierName}
+                  </span>
                 </div>
               </div>
               <div>
@@ -838,7 +601,9 @@ const AdminManagement: React.FC = () => {
                   Address
                 </label>
                 <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                  <span className="text-gray-900">{selectedSupplier.address}</span>
+                  <span className="text-gray-900">
+                    {selectedSupplier.address}
+                  </span>
                 </div>
               </div>
               <div>
@@ -846,7 +611,9 @@ const AdminManagement: React.FC = () => {
                   Phone Number
                 </label>
                 <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                  <span className="text-gray-900">{selectedSupplier.contactNumber}</span>
+                  <span className="text-gray-900">
+                    {selectedSupplier.contactNumber}
+                  </span>
                 </div>
               </div>
               <div>
@@ -854,7 +621,9 @@ const AdminManagement: React.FC = () => {
                   Email Address
                 </label>
                 <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                  <span className="text-gray-900">{selectedSupplier.email}</span>
+                  <span className="text-gray-900">
+                    {selectedSupplier.email}
+                  </span>
                 </div>
               </div>
             </div>
@@ -925,8 +694,7 @@ const AdminManagement: React.FC = () => {
             <div className="flex justify-between items-center">
               <button
                 onClick={() => setShowSupplierInfoModal(false)}
-                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
-              >
+                className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors">
                 Cancel
               </button>
               <button className="px-6 py-3 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-xl transition-colors flex items-center gap-2">
@@ -942,17 +710,14 @@ const AdminManagement: React.FC = () => {
       {showFlagNotesModal && selectedSupplier && (
         <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowFlagNotesModal(false)}
-        >
+          onClick={() => setShowFlagNotesModal(false)}>
           <div
             className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 animate-in fade-in zoom-in duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
+            onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => setShowFlagNotesModal(false)}
               className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Close"
-            >
+              aria-label="Close">
               <X size={20} className="text-gray-600" />
             </button>
 
@@ -975,8 +740,7 @@ const AdminManagement: React.FC = () => {
             <div className="flex justify-end">
               <button
                 onClick={handleSaveFlagNotes}
-                className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors"
-              >
+                className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors">
                 Confirm
               </button>
             </div>
@@ -996,8 +760,7 @@ const AdminManagement: React.FC = () => {
       <div className="flex justify-end gap-3 mb-6">
         <button
           onClick={handleCreateNew}
-          className="px-6 py-2.5 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-lg transition-colors"
-        >
+          className="px-6 py-2.5 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-lg transition-colors">
           Create New
         </button>
         <button
@@ -1009,8 +772,7 @@ const AdminManagement: React.FC = () => {
               alert("Deactivate functionality for suppliers");
             }
           }}
-          className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors"
-        >
+          className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors">
           Deactivate
         </button>
       </div>
@@ -1025,8 +787,7 @@ const AdminManagement: React.FC = () => {
               activeTab === tab
                 ? "bg-cyan-500 text-white shadow-md"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
+            }`}>
             {tab.replace(" Management", "")}
           </button>
         ))}
@@ -1057,8 +818,7 @@ const AdminManagement: React.FC = () => {
                 setShowRoleDropdown(false);
                 setShowStatusDropdown(false);
               }}
-              className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[180px]"
-            >
+              className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[180px]">
               <span className="text-gray-500">Date Created At</span>
               <ChevronDown size={16} />
             </button>
@@ -1070,9 +830,10 @@ const AdminManagement: React.FC = () => {
                     setShowDateDropdown(false);
                   }}
                   className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                    selectedDateSort === "Ascending" ? "bg-gray-50 font-semibold" : ""
-                  }`}
-                >
+                    selectedDateSort === "Ascending"
+                      ? "bg-gray-50 font-semibold"
+                      : ""
+                  }`}>
                   Ascending
                 </button>
                 <button
@@ -1081,9 +842,10 @@ const AdminManagement: React.FC = () => {
                     setShowDateDropdown(false);
                   }}
                   className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                    selectedDateSort === "Descending" ? "bg-gray-50 font-semibold" : ""
-                  }`}
-                >
+                    selectedDateSort === "Descending"
+                      ? "bg-gray-50 font-semibold"
+                      : ""
+                  }`}>
                   Descending
                 </button>
               </div>
@@ -1099,8 +861,7 @@ const AdminManagement: React.FC = () => {
                   setShowDateDropdown(false);
                   setShowStatusDropdown(false);
                 }}
-                className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[150px]"
-              >
+                className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[150px]">
                 <span>{selectedRole}</span>
                 <ChevronDown size={16} />
               </button>
@@ -1111,8 +872,7 @@ const AdminManagement: React.FC = () => {
                       setSelectedRole("Select Role");
                       setShowRoleDropdown(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
-                  >
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors">
                     All Roles
                   </button>
                   {roles.map((role) => (
@@ -1124,8 +884,7 @@ const AdminManagement: React.FC = () => {
                       }}
                       className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
                         selectedRole === role ? "bg-gray-50 font-semibold" : ""
-                      }`}
-                    >
+                      }`}>
                       {role}
                     </button>
                   ))}
@@ -1143,8 +902,7 @@ const AdminManagement: React.FC = () => {
                   setShowDateDropdown(false);
                   setShowRoleDropdown(false);
                 }}
-                className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[150px]"
-              >
+                className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[150px]">
                 <span>{selectedStatus}</span>
                 <ChevronDown size={16} />
               </button>
@@ -1155,8 +913,7 @@ const AdminManagement: React.FC = () => {
                       setSelectedStatus("Select Status");
                       setShowStatusDropdown(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
-                  >
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors">
                     All Status
                   </button>
                   {statuses.map((status) => (
@@ -1167,9 +924,10 @@ const AdminManagement: React.FC = () => {
                         setShowStatusDropdown(false);
                       }}
                       className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                        selectedStatus === status ? "bg-gray-50 font-semibold" : ""
-                      }`}
-                    >
+                        selectedStatus === status
+                          ? "bg-gray-50 font-semibold"
+                          : ""
+                      }`}>
                       {status}
                     </button>
                   ))}
@@ -1191,7 +949,9 @@ const AdminManagement: React.FC = () => {
               Used to manage and monitor different user accounts in the system.
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              <strong>Top Buttons and Filters:</strong> Search – Search by name or ID | Select Role – Filter accounts by role (Admin, Management, etc.)
+              <strong>Top Buttons and Filters:</strong> Search – Search by name
+              or ID | Select Role – Filter accounts by role (Admin, Management,
+              etc.)
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -1236,7 +996,9 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3">
                       <input type="checkbox" className="rounded" />
                     </td>
-                    <td className="px-4 py-3 text-gray-900">{user.firstName}</td>
+                    <td className="px-4 py-3 text-gray-900">
+                      {user.firstName}
+                    </td>
                     <td className="px-4 py-3 text-gray-900">{user.lastName}</td>
                     <td className="px-4 py-3 text-gray-900">{user.userName}</td>
                     <td className="px-4 py-3 text-gray-900">{user.email}</td>
@@ -1244,14 +1006,17 @@ const AdminManagement: React.FC = () => {
                       {user.contactNumber}
                     </td>
                     <td className="px-4 py-3 text-gray-900">{user.role}</td>
-                    <td className="px-4 py-3 text-gray-900">{user.createdAt}</td>
-                    <td className="px-4 py-3 text-gray-900">{user.updatedAt}</td>
+                    <td className="px-4 py-3 text-gray-900">
+                      {user.createdAt}
+                    </td>
+                    <td className="px-4 py-3 text-gray-900">
+                      {user.updatedAt}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => handleViewUser(user)}
                         className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors"
-                        title="View Details"
-                      >
+                        title="View Details">
                         <Eye size={18} className="text-cyan-600" />
                       </button>
                     </td>
@@ -1273,7 +1038,9 @@ const AdminManagement: React.FC = () => {
               Used to track and manage employee details, roles, and updates.
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              <strong>Top Buttons and Filters:</strong> Search – Search by employee name or ID | Select Role – Filter by employee role | Date Created At – Filter by creation date
+              <strong>Top Buttons and Filters:</strong> Search – Search by
+              employee name or ID | Select Role – Filter by employee role | Date
+              Created At – Filter by creation date
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -1327,7 +1094,9 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3 text-gray-900">
                       {employee.userName}
                     </td>
-                    <td className="px-4 py-3 text-gray-900">{employee.email}</td>
+                    <td className="px-4 py-3 text-gray-900">
+                      {employee.email}
+                    </td>
                     <td className="px-4 py-3 text-gray-900">
                       {employee.contactNumber}
                     </td>
@@ -1342,8 +1111,7 @@ const AdminManagement: React.FC = () => {
                       <button
                         onClick={() => handleViewUser(employee)}
                         className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors"
-                        title="View Details"
-                      >
+                        title="View Details">
                         <Eye size={18} className="text-cyan-600" />
                       </button>
                     </td>
@@ -1365,14 +1133,27 @@ const AdminManagement: React.FC = () => {
               Used to manage suppliers, their contact info, and status.
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              <strong>Top Buttons and Filters:</strong> Search – Search by supplier name or ID | Supplier Status – Filter by Active/Inactive | Date Created At – Filter by creation date
+              <strong>Top Buttons and Filters:</strong> Search – Search by
+              supplier name or ID | Supplier Status – Filter by Active/Inactive
+              | Date Created At – Filter by creation date
             </p>
             <p className="text-xs text-gray-500 mt-2">
               <strong>Available Actions:</strong>
             </p>
             <ul className="text-xs text-gray-500 ml-4 mt-1 list-disc">
-              <li><strong>Add Comments (Reason for Flag)</strong> – Admin can write internal notes or remarks explaining the reason for concern (e.g., delays, quality issues). This comment is stored with the account for future reference.</li>
-              <li><strong>Flag</strong> – Marks the supplier as unreliable or inactive. This is used when the supply is not up to standards or the company decides to stop further engagement. Flagged suppliers can be filtered or restricted from receiving new orders.</li>
+              <li>
+                <strong>Add Comments (Reason for Flag)</strong> – Admin can
+                write internal notes or remarks explaining the reason for
+                concern (e.g., delays, quality issues). This comment is stored
+                with the account for future reference.
+              </li>
+              <li>
+                <strong>Flag</strong> – Marks the supplier as unreliable or
+                inactive. This is used when the supply is not up to standards or
+                the company decides to stop further engagement. Flagged
+                suppliers can be filtered or restricted from receiving new
+                orders.
+              </li>
             </ul>
           </div>
           <div className="overflow-x-auto">
@@ -1417,7 +1198,9 @@ const AdminManagement: React.FC = () => {
                       <td className="px-4 py-3 text-gray-900">
                         {supplier.supplierName}
                       </td>
-                      <td className="px-4 py-3 text-gray-900">{supplier.email}</td>
+                      <td className="px-4 py-3 text-gray-900">
+                        {supplier.email}
+                      </td>
                       <td className="px-4 py-3 text-gray-900">
                         {supplier.contactNumber}
                       </td>
@@ -1435,8 +1218,7 @@ const AdminManagement: React.FC = () => {
                           <button
                             onClick={() => handleViewSupplier(supplier)}
                             className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors"
-                            title="View Details"
-                          >
+                            title="View Details">
                             <Eye size={18} className="text-cyan-600" />
                           </button>
                           <button
@@ -1444,18 +1226,20 @@ const AdminManagement: React.FC = () => {
                             className={`p-1.5 hover:bg-red-100 rounded-lg transition-colors ${
                               isFlagged ? "bg-red-50" : ""
                             }`}
-                            title={isFlagged ? "Flagged" : "Flag Supplier"}
-                          >
+                            title={isFlagged ? "Flagged" : "Flag Supplier"}>
                             <Flag
                               size={18}
-                              className={isFlagged ? "text-red-600 fill-red-600" : "text-gray-600"}
+                              className={
+                                isFlagged
+                                  ? "text-red-600 fill-red-600"
+                                  : "text-gray-600"
+                              }
                             />
                           </button>
                           <button
                             onClick={() => handleOpenFlagNotes(supplier)}
                             className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                            title="View Notes"
-                          >
+                            title="View Notes">
                             <FileText size={18} className="text-gray-600" />
                           </button>
                         </div>

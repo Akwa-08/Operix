@@ -1,3 +1,5 @@
+import CustomerMessages from "../components/Customer/CustomerMessages";
+
 export const MessagesPage = () => {
-  return <div>MessagesPage</div>;
+  return <CustomerMessages />;
 };

@@ -1,9 +1,12 @@
-import { createContext, useContext } from "react";
-import { Outlet } from "react-router-dom";
-import AdminSideBar from "../components/Admin/AdminSideBar";
+import {useState, createContext, useContext} from "react";
+import {Outlet, useNavigate} from "react-router-dom";
+import SharedSideBar from "../components/Shared/UI/SharedSideBar";
 import TopNavBar from "../components/Shared/UI/TopNavBar"; // ✅ FIXED: Added /UI/
+import {adminSidebarItems} from "../config/sidebarConfigs";
 
-const SidebarContext = createContext<{ collapsed: boolean } | undefined>(undefined);
+const SidebarContext = createContext<{collapsed: boolean} | undefined>(
+  undefined,
+);
 
 export const useSidebar = () => {
   const context = useContext(SidebarContext);
@@ -14,6 +17,9 @@ export const useSidebar = () => {
 };
 
 const AdminPage = () => {
+  const [collapsed, setCollapsed] = useState(false);
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top Navigation Bar */}
@@ -22,10 +28,20 @@ const AdminPage = () => {
       {/* Main Layout with Sidebar */}
       <div className="flex">
         {/* Sidebar */}
-        <AdminSideBar name="Admin User" />
+        <SharedSideBar
+          name="Admin User"
+          items={adminSidebarItems}
+          profilePath="/admin/profile"
+          onLogout={() => navigate("/")}
+          collapsed={collapsed}
+          setCollapsed={setCollapsed}
+        />
 
         {/* Main Content Area */}
-        <main className="flex-1 p-6 lg:ml-[160px] mt-16">
+        <main
+          className={`flex-1 p-6 mt-16 transition-all duration-300 ${
+            collapsed ? "lg:ml-[72px]" : "lg:ml-[160px]"
+          }`}>
           <Outlet />
         </main>
       </div>

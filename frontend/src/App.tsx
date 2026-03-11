@@ -1,14 +1,13 @@
 // src/App.tsx
 
-import { LandingPage } from "./pages/LandingPage";
-import { createBrowserRouter, RouterProvider, Outlet } from "react-router-dom";
-import { CustomerPage } from "./pages/CustomerPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { ProductsProvider } from "./context/ProductsContext";
-import { RootLayout } from "./pages/RootLayout";
-import { CartPage } from "./pages/CartPage";
-import { OrdersPage } from "./pages/OrdersPage";
-import { MessagesPage } from "./pages/MessagesPage";
+import {LandingPage} from "./pages/LandingPage";
+import {createBrowserRouter, RouterProvider} from "react-router-dom";
+import {CustomerPage} from "./pages/CustomerPage";
+import {ProfilePage} from "./pages/ProfilePage";
+import {RootLayout} from "./pages/RootLayout";
+import {CartPage} from "./pages/CartPage";
+import {OrdersPage} from "./pages/OrdersPage";
+import {MessagesPage} from "./pages/MessagesPage";
 
 // Admin
 import AdminPage from "./pages/AdminPage";
@@ -38,22 +37,22 @@ import ProductionOrders from "./components/Production/ProductionOrders";
 import ProductionInventory from "./components/Production/ProductionInventory";
 
 // Auth
-import { SignUpPage } from "./pages/SignUpPage";
-import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import {SignUpPage} from "./pages/SignUpPage";
+import {ForgotPasswordPage} from "./pages/ForgotPasswordPage";
 
 const router = createBrowserRouter([
   // Landing
-  { path: "/", element: <LandingPage /> },
+  {path: "/", element: <LandingPage />},
 
   // Customer
   {
     element: <RootLayout />,
     children: [
-      { path: "customer", element: <CustomerPage /> },
-      { path: "profile", element: <ProfilePage /> },
-      { path: "cart", element: <CartPage /> },
-      { path: "orders", element: <OrdersPage /> },
-      { path: "messages", element: <MessagesPage /> },
+      {path: "customer", element: <CustomerPage />},
+      {path: "profile", element: <ProfilePage />},
+      {path: "cart", element: <CartPage />},
+      {path: "orders", element: <OrdersPage />},
+      {path: "messages", element: <MessagesPage />},
     ],
   },
 
@@ -62,13 +61,13 @@ const router = createBrowserRouter([
     path: "/admin",
     element: <AdminPage />,
     children: [
-      { index: true, element: <AdminDashboard /> },
-      { path: "users", element: <AdminManagement /> },
-      { path: "orders", element: <AdminOrders /> },
-      { path: "messages", element: <AdminMessages /> },
-      { path: "inventory", element: <AdminInventory /> },
-      { path: "payroll", element: <AdminPayroll /> },
-      { path: "profile", element: <AdminProfile /> },
+      {index: true, element: <AdminDashboard />},
+      {path: "users", element: <AdminManagement />},
+      {path: "orders", element: <AdminOrders />},
+      {path: "messages", element: <AdminMessages />},
+      {path: "inventory", element: <AdminInventory />},
+      {path: "payroll", element: <AdminPayroll />},
+      {path: "profile", element: <AdminProfile />},
     ],
   },
 
@@ -77,9 +76,9 @@ const router = createBrowserRouter([
     path: "/cashier",
     element: <CashierPage />,
     children: [
-      { index: true, element: <CashierDashboard /> },
-      { path: "orders", element: <CashierOrders /> },
-      { path: "inventory", element: <CashierInventory /> },
+      {index: true, element: <CashierDashboard />},
+      {path: "orders", element: <CashierOrders />},
+      {path: "inventory", element: <CashierInventory />},
     ],
   },
 
@@ -88,8 +87,8 @@ const router = createBrowserRouter([
     path: "/designer",
     element: <DesignerPage />,
     children: [
-      { index: true, element: <DesignerDashboard /> },
-      { path: "orders", element: <DesignerOrders /> },
+      {index: true, element: <DesignerDashboard />},
+      {path: "orders", element: <DesignerOrders />},
     ],
   },
 
@@ -98,15 +97,15 @@ const router = createBrowserRouter([
     path: "/production",
     element: <ProductionPage />,
     children: [
-      { index: true, element: <ProductionDashboard /> },
-      { path: "orders", element: <ProductionOrders /> },
-      { path: "inventory", element: <ProductionInventory /> },
+      {index: true, element: <ProductionDashboard />},
+      {path: "orders", element: <ProductionOrders />},
+      {path: "inventory", element: <ProductionInventory />},
     ],
   },
 
   // Auth
-  { path: "/signup", element: <SignUpPage /> },
-  { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  {path: "/signup", element: <SignUpPage />},
+  {path: "/forgot-password", element: <ForgotPasswordPage />},
 
   // 404 Page
   {
@@ -119,11 +118,14 @@ const router = createBrowserRouter([
   },
 ]);
 
+import {Provider} from "react-redux";
+import {store} from "./store";
+
 const App = () => {
   return (
-    <ProductsProvider>
+    <Provider store={store}>
       <RouterProvider router={router} />
-    </ProductsProvider>
+    </Provider>
   );
 };
 
