@@ -1,3 +1,4 @@
+import { supabase } from '../config/supabaseClient';
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
@@ -8,28 +9,26 @@ export const ForgotPasswordPage = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+ 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    setError('Please enter a valid email address');
+    return;
+  }
+ 
+  await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    { redirectTo: `${window.location.origin}/reset-password` }
+  );
+ 
+  // Always show success — never reveal if email exists
+  setSuccess(true);
+  setError('');
+};
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError("Please enter a valid email address");
-      return;
-    }
 
-    // TODO: API call to send reset link
-    console.log("Sending reset link to:", email);
-    
-    setSuccess(true);
-    setError("");
-    
-    // Show success message
-    setTimeout(() => {
-      alert("Password reset link has been sent to your email!");
-      navigate("/");
-    }, 1500);
-  };
 
   const handleBackToHomepage = () => {
     navigate("/");
