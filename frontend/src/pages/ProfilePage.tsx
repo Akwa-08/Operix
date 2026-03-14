@@ -51,7 +51,7 @@ export const ProfilePage = () => {
                 disabled={!isEditing}
                 className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md transition ${
                   isEditing ? "bg-white" : "bg-gray-50"
-                }`}
+                }`} 
               />
             </div>
           </div>
