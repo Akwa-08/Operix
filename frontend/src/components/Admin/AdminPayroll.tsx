@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import {
   Download,
   Calendar,
@@ -13,10 +14,17 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Edit2,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
+import { payrollApi } from "../../services/payrollApi";
+import type {
+  EmployeeAttendanceSummary,
+  SalaryComputation,
+  PayrollRecord
+} from "../../services/payrollApi";
 
-// Types for backend integration
+/* --- Original Mock Types ---
 interface Employee {
   id: string;
   firstName: string;
@@ -75,12 +83,13 @@ interface PayrollRecord {
   netPay: number;
   status: "Complete" | "Pending" | "Processing";
 }
+--- End Mock Types --- */
 
 const AdminPayroll: React.FC = () => {
   const [activePayrollTab, setActivePayrollTab] = useState("Payroll Dashboard");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("All Departments");
-  const [selectedPeriod, setSelectedPeriod] = useState("Current");
+  const [selectedPeriod, setSelectedPeriod] = useState("Current Month");
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
   const [selectedEmployeeForEdit, setSelectedEmployeeForEdit] = useState<SalaryComputation | null>(null);
@@ -88,7 +97,21 @@ const AdminPayroll: React.FC = () => {
   const [showPayslipModal, setShowPayslipModal] = useState(false);
   const [selectedPayslip, setSelectedPayslip] = useState<SalaryComputation | null>(null);
   const [expandedPayrollRecords, setExpandedPayrollRecords] = useState<Set<string>>(new Set());
-  
+
+  // --- Live Data States ---
+  const [attendanceData, setAttendanceData] = useState<EmployeeAttendanceSummary[]>([]);
+  const [salaryComputationData, setSalaryComputationData] = useState<SalaryComputation | null>(null);
+  const [allComputations, setAllComputations] = useState<SalaryComputation[]>([]);
+  const [payrollHistory, setPayrollHistory] = useState<PayrollRecord[]>([]);
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isComputing, setIsComputing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Computed Date Strings (backend needs YYYY-MM-DD)
+  const [periodStart, setPeriodStart] = useState(() => format(startOfMonth(new Date()), "yyyy-MM-dd"));
+  const [periodEnd, setPeriodEnd] = useState(() => format(endOfMonth(new Date()), "yyyy-MM-dd"));
+
   const payrollTabs = [
     "Payroll Dashboard",
     "Attendance Logs",
@@ -97,257 +120,98 @@ const AdminPayroll: React.FC = () => {
   ];
 
   const departments = ["All Departments", "Admin", "Staff", "Design", "Production"];
-  const periods = ["Current", "Previous"];
+  const periods = ["Current Month", "Previous Month", "Custom Range"];
 
-  // DUMMY DATA
-  const attendanceData: Employee[] = [
-    {
-      id: "E001",
-      firstName: "Cen",
-      lastName: "Tino",
-      role: "Admin",
-      department: "Admin",
-      position: "Admin",
-      dailyRate: 650,
-      daysPresent: 22,
-      workedHrs: 159,
-      lateTimeslots: 2,
-      earlyLeaveTimeslots: 1,
-      overtimeHrs: 8,
-      businessTrip: 0,
-      absence: 1,
-      onLeave: 0,
-      additionalPay: 1000,
-      deduction: 500,
-      actualPay: 15750,
-    },
-    {
-      id: "E002",
-      firstName: "Mary Jane",
-      lastName: "Centino",
-      role: "Admin",
-      department: "Admin",
-      position: "Admin",
-      dailyRate: 680,
-      daysPresent: 22,
-      workedHrs: 162,
-      lateTimeslots: 0,
-      earlyLeaveTimeslots: 0,
-      overtimeHrs: 12,
-      businessTrip: 2,
-      absence: 0,
-      onLeave: 0,
-      additionalPay: 1500,
-      deduction: 200,
-      actualPay: 18300,
-    },
-    {
-      id: "E003",
-      firstName: "Cache",
-      lastName: "Yir",
-      role: "Cashier",
-      department: "Staff",
-      position: "Cashier",
-      dailyRate: 550,
-      daysPresent: 22,
-      workedHrs: 155,
-      lateTimeslots: 3,
-      earlyLeaveTimeslots: 2,
-      overtimeHrs: 6,
-      businessTrip: 0,
-      absence: 2,
-      onLeave: 1,
-      additionalPay: 800,
-      deduction: 750,
-      actualPay: 14200,
-    },
-    {
-      id: "E004",
-      firstName: "Des",
-      lastName: "Igner",
-      role: "Designer",
-      department: "Design",
-      position: "Designer",
-      dailyRate: 720,
-      daysPresent: 22,
-      workedHrs: 164,
-      lateTimeslots: 1,
-      earlyLeaveTimeslots: 0,
-      overtimeHrs: 16,
-      businessTrip: 1,
-      absence: 0,
-      onLeave: 0,
-      additionalPay: 2000,
-      deduction: 300,
-      actualPay: 19500,
-    },
-    {
-      id: "E005",
-      firstName: "Del",
-      lastName: "Sayner",
-      role: "Designer",
-      department: "Design",
-      position: "Designer",
-      dailyRate: 700,
-      daysPresent: 22,
-      workedHrs: 159,
-      lateTimeslots: 0,
-      earlyLeaveTimeslots: 1,
-      overtimeHrs: 10,
-      businessTrip: 0,
-      absence: 0,
-      onLeave: 1,
-      additionalPay: 1200,
-      deduction: 400,
-      actualPay: 16800,
-    },
-    {
-      id: "E006",
-      firstName: "John",
-      lastName: "Doe",
-      role: "Production",
-      department: "Production",
-      position: "Production",
-      dailyRate: 580,
-      daysPresent: 22,
-      workedHrs: 160,
-      lateTimeslots: 2,
-      earlyLeaveTimeslots: 0,
-      overtimeHrs: 8,
-      businessTrip: 0,
-      absence: 0,
-      onLeave: 0,
-      additionalPay: 1000,
-      deduction: 250,
-      actualPay: 16750,
-    },
-    {
-      id: "E007",
-      firstName: "John",
-      lastName: "Cena",
-      role: "Production",
-      department: "Production",
-      position: "Production",
-      dailyRate: 590,
-      daysPresent: 22,
-      workedHrs: 161,
-      lateTimeslots: 0,
-      earlyLeaveTimeslots: 1,
-      overtimeHrs: 5,
-      businessTrip: 0,
-      absence: 1,
-      onLeave: 0,
-      additionalPay: 600,
-      deduction: 500,
-      actualPay: 14100,
-    },
-  ];
+  // --- Data Fetching ---
+  const fetchDashboardData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Fetch all needed data for the selected period
+      const [attSummary, compDetails, history] = await Promise.all([
+        payrollApi.getAttendanceSummary(periodStart, periodEnd),
+        payrollApi.computeAllPayroll(periodStart, periodEnd).catch(e => ({ results: [] })), // Allow this to fail initially if not computed
+        payrollApi.getSalaryHistory(periodStart, periodEnd)
+      ]);
 
-  const salaryComputationData: SalaryComputation = {
-    employeeId: "MJ001",
-    name: "Mary Jane",
-    department: "Staff",
-    position: "Cashier",
-    dailyRate: 650,
-    daysPresent: 22,
-    basicPay: 14300,
-    regularHolidayPay: 2800,
-    specialHolidayPay: 945,
-    regularOvertime: 812.5,
-    holidayOvertime: 520,
-    specialOvertime: 211.25,
-    grossIncome: 19288.75,
-    tardyDeductions: 10625,
-    undertimeDeductions: 81.25,
-    sss: 581.3,
-    philhealth: 200,
-    hdmf: 200,
-    withholdingTax: 0,
-    cashAdvance: 1300,
-    totalDeductions: 2663.175,
-    netPay: 16625.575,
-    taxableIncome: 18247.45,
-    taxRateApplied: "0%",
+      setAttendanceData(attSummary);
+      setAllComputations(compDetails?.results || []);
+
+      // If we have computations, set the first one as selected
+      if (compDetails?.results && compDetails.results.length > 0) {
+        setSalaryComputationData(compDetails.results[0]);
+      } else {
+        setSalaryComputationData(null);
+      }
+
+      setPayrollHistory(history);
+    } catch (err: any) {
+      console.error("Error fetching payroll data:", err);
+      setError(err.message || "Failed to load payroll data");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const payrollHistory: PayrollRecord[] = [
-    {
-      id: "PR001",
-      date: "June 1-15, 2025",
-      payDate: "June 16, 2025",
-      employees: 8,
-      grossIncome: 125450,
-      deductions: 26690,
-      netPay: 98760,
-      status: "Complete",
-    },
-    {
-      id: "PR002",
-      date: "May 16-31, 2025",
-      payDate: "June 1, 2025",
-      employees: 8,
-      grossIncome: 118750,
-      deductions: 24890,
-      netPay: 93860,
-      status: "Complete",
-    },
-    {
-      id: "PR003",
-      date: "May 1-15, 2025",
-      payDate: "May 16, 2025",
-      employees: 8,
-      grossIncome: 122300,
-      deductions: 25680,
-      netPay: 96620,
-      status: "Complete",
-    },
-  ];
+  useEffect(() => {
+    // When period changes in dropdown
+    const now = new Date();
+    if (selectedPeriod === "Current Month") {
+      setPeriodStart(format(startOfMonth(now), "yyyy-MM-dd"));
+      setPeriodEnd(format(endOfMonth(now), "yyyy-MM-dd"));
+    } else if (selectedPeriod === "Previous Month") {
+      const prev = subDays(startOfMonth(now), 1);
+      setPeriodStart(format(startOfMonth(prev), "yyyy-MM-dd"));
+      setPeriodEnd(format(endOfMonth(prev), "yyyy-MM-dd"));
+    }
+  }, [selectedPeriod]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [periodStart, periodEnd]);
+
+  // --- Original Hardcoded Data (Commented Out per request) ---
+  /*
+  const mockAttendanceData = [ ... ];
+  const mockSalaryComputationData = { ... };
+  const mockPayrollHistory = [ ... ];
+  const dummyPayrollBreakdown = [ ... ];
+  const dummyRecentUpdates = [ ... ];
+  */
+
+  // --- Computed display values for the Dashboard based on live data
+  const totalEmployees = attendanceData.length;
+  const totalGrossIncome = allComputations.reduce((sum, c) => sum + (c.earnings?.gross_pay || 0), 0);
+  const totalDeductionsAmount = allComputations.reduce((sum, c) => sum + (c.deductions?.total_deductions || 0), 0);
+  const totalNetPay = allComputations.reduce((sum, c) => sum + (c.net_salary || 0), 0);
 
   const payrollBreakdown = [
-    { label: "Basic Pay", amount: "₱89,600" },
-    { label: "Holiday Pay", amount: "₱12,450" },
-    { label: "Overtime Pay", amount: "₱18,200" },
-    { label: "Bonuses", amount: "₱5,200" },
-    { label: "Total Deductions", amount: "-₱26,690", isDeduction: true },
+    { label: "Basic Pay", amount: `₱${allComputations.reduce((s, c) => s + (c.earnings?.basic_pay || 0), 0).toLocaleString()}` },
+    { label: "Holiday Pay", amount: `₱${allComputations.reduce((s, c) => s + (c.earnings?.regular_holiday_pay || 0) + (c.earnings?.special_holiday_pay || 0), 0).toLocaleString()}` },
+    { label: "Overtime Pay", amount: `₱${allComputations.reduce((s, c) => s + (c.earnings?.overtime_pay || 0), 0).toLocaleString()}` },
+    { label: "Bonuses", amount: `₱${allComputations.reduce((s, c) => s + (c.bonus || 0), 0).toLocaleString()}` },
+    { label: "Total Deductions", amount: `-₱${totalDeductionsAmount.toLocaleString()}`, isDeduction: true },
   ];
 
   const recentUpdates = [
     {
       icon: Calendar,
-      title: "3 new Attendance Records added",
-      subtitle: "Mary Jane, VC, Junny - June 15, 2025",
-      badge: "New",
-      badgeColor: "bg-green-100 text-green-700",
-      timestamp: "2 hours ago",
+      title: `${attendanceData.length} Attendance Records Loaded`,
+      subtitle: `For period ${periodStart} to ${periodEnd}`,
+      badge: "Current",
+      badgeColor: "bg-blue-100 text-blue-700",
+      timestamp: "Just now",
       targetTab: "Attendance Logs",
     },
     {
       icon: CheckCircle2,
-      title: "Payroll Computed for 8 Employees",
-      subtitle: "All salary computations completed for current period",
-      badge: "Complete",
-      badgeColor: "bg-green-500 text-white",
-      timestamp: "1 day ago",
+      title: `Payroll Computed for ${allComputations.length} Employees`,
+      subtitle: "Results ready for review",
+      badge: allComputations.length > 0 ? "Ready" : "Pending",
+      badgeColor: allComputations.length > 0 ? "bg-green-500 text-white" : "bg-yellow-100 text-yellow-700",
+      timestamp: "Recently",
       targetTab: "Salary Computation",
-    },
-    {
-      icon: Clock,
-      title: "Updated Salary History for June 2025",
-      subtitle: "Historical records updated with latest payroll data",
-      badge: "Updated",
-      badgeColor: "bg-purple-200 text-purple-700",
-      timestamp: "1 day ago",
-      targetTab: "Salary History",
-    },
-    {
-      icon: AlertCircle,
-      title: "2 Overtime Records Pending Review",
-      subtitle: "Nathaniel and Des - Special holiday overtime",
-      badge: "Pending",
-      badgeColor: "bg-yellow-100 text-yellow-700",
-      timestamp: "1 day ago",
-      targetTab: "Attendance Logs",
-    },
+    }
   ];
 
   // Handler functions
@@ -396,11 +260,6 @@ const AdminPayroll: React.FC = () => {
 
   const handleUpdateClick = (targetTab: string) => {
     setActivePayrollTab(targetTab);
-  };
-
-  const handleEditDailyRate = (employee: SalaryComputation) => {
-    setSelectedEmployeeForEdit(employee);
-    setEditedDailyRate(employee.dailyRate.toString());
   };
 
   const handleSaveDailyRate = () => {
@@ -464,25 +323,69 @@ const AdminPayroll: React.FC = () => {
     setExpandedPayrollRecords(newExpanded);
   };
 
-  const filteredAttendanceData = attendanceData.filter((employee) => {
+  const filteredAttendanceData = attendanceData.filter((item) => {
+    const emp = item.employee;
     const matchesSearch =
-      employee.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      employee.lastName.toLowerCase().includes(searchQuery.toLowerCase());
+      emp.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      emp.employee_code.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDepartment =
       selectedDepartment === "All Departments" ||
-      employee.department === selectedDepartment;
+      // @ts-ignore - Assuming department might be added to employee later, or using a default
+      (emp.department || "Staff") === selectedDepartment;
     return matchesSearch && matchesDepartment;
   });
+
+  const handleComputePayroll = async () => {
+    setIsComputing(true);
+    setError(null);
+    try {
+      const response = await payrollApi.computeAllPayroll(periodStart, periodEnd);
+      // Refresh the data to show new computations
+      await fetchDashboardData();
+      alert(`Successfully processed payroll for ${response.processed} employees.`);
+    } catch (err: any) {
+      console.error("Compute error:", err);
+      setError(err.message || "Failed to compute payroll");
+      alert("Error computing payroll: " + (err.message || "Unknown error"));
+    } finally {
+      setIsComputing(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96">
+        <Loader2 className="w-12 h-12 text-cyan-500 animate-spin mb-4" />
+        <p className="text-gray-500 font-medium">Loading payroll data...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 bg-red-50 rounded-xl border border-red-100">
+        <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+        <p className="text-red-700 font-bold mb-2">Error Loading Data</p>
+        <p className="text-red-500 text-sm mb-4">{error}</p>
+        <button
+          onClick={fetchDashboardData}
+          className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-2"
+        >
+          <RefreshCw size={16} /> Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
       {/* Edit Daily Rate Modal */}
       {selectedEmployeeForEdit && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
           onClick={() => setSelectedEmployeeForEdit(null)}
         >
-          <div 
+          <div
             className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200 relative"
             onClick={(e) => e.stopPropagation()}
           >
@@ -494,7 +397,7 @@ const AdminPayroll: React.FC = () => {
             >
               <X size={20} className="text-gray-600" />
             </button>
-            
+
             <h3 className="text-2xl font-bold text-gray-900 mb-6">
               Employee Information
             </h3>
@@ -562,11 +465,11 @@ const AdminPayroll: React.FC = () => {
 
       {/* Payslip Modal */}
       {showPayslipModal && selectedPayslip && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto"
           onClick={() => setShowPayslipModal(false)}
         >
-          <div 
+          <div
             className="bg-white rounded-xl shadow-2xl max-w-3xl w-full my-8"
             onClick={(e) => e.stopPropagation()}
           >
@@ -613,11 +516,11 @@ const AdminPayroll: React.FC = () => {
                   <div>
                     <h3 className="font-bold text-sm mb-3">EMPLOYEE INFORMATION</h3>
                     <div className="space-y-1 text-sm">
-                      <p>Name: {selectedPayslip.name}</p>
-                      <p>Department: {selectedPayslip.department}</p>
+                      <p>Name: {selectedPayslip.employee_name}</p>
+                      <p>Department: {selectedPayslip.department || "Staff"}</p>
                       <p>Position: {selectedPayslip.position}</p>
-                      <p>Daily Rate: ₱{selectedPayslip.dailyRate}</p>
-                      <p>Days Present: {selectedPayslip.daysPresent} days</p>
+                      <p>Daily Rate: ₱{selectedPayslip.daily_rate}</p>
+                      <p>Days Present: {selectedPayslip.attendance?.days_present || 0} days</p>
                     </div>
                   </div>
                   <div>
@@ -625,31 +528,23 @@ const AdminPayroll: React.FC = () => {
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
                         <span>Basic Pay:</span>
-                        <span>₱{selectedPayslip.basicPay.toLocaleString()}</span>
+                        <span>₱{selectedPayslip.earnings?.basic_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Regular Holiday Pay:</span>
-                        <span>₱{selectedPayslip.regularHolidayPay.toLocaleString()}</span>
+                        <span>₱{selectedPayslip.earnings?.regular_holiday_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Special Holiday Pay:</span>
-                        <span>₱{selectedPayslip.specialHolidayPay.toLocaleString()}</span>
+                        <span>₱{selectedPayslip.earnings?.special_holiday_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Regular OT:</span>
-                        <span>₱{selectedPayslip.regularOvertime.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Holiday OT:</span>
-                        <span>₱{selectedPayslip.holidayOvertime.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Special Holiday OT:</span>
-                        <span>₱{selectedPayslip.specialOvertime.toLocaleString()}</span>
+                        <span>Overtime Pay:</span>
+                        <span>₱{selectedPayslip.earnings?.overtime_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                       </div>
                       <div className="flex justify-between font-bold border-t pt-1 mt-1">
                         <span>GROSS INCOME:</span>
-                        <span>₱{selectedPayslip.grossIncome.toLocaleString()}</span>
+                        <span>₱{selectedPayslip.earnings?.gross_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                       </div>
                     </div>
                   </div>
@@ -663,39 +558,43 @@ const AdminPayroll: React.FC = () => {
                       <div>
                         <p className="font-bold text-xs mb-1">Time-Based deductions</p>
                         <div className="flex justify-between pl-2">
-                          <span>Undertime(1h):</span>
-                          <span>₱{selectedPayslip.undertimeDeductions.toLocaleString()}</span>
+                          <span>Undertime({selectedPayslip.attendance?.undertime_hours || 0}h):</span>
+                          <span>₱{selectedPayslip.deductions?.undertime_deduction?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                         </div>
                         <div className="flex justify-between pl-2">
-                          <span>Tardy Deduction(0.5h):</span>
-                          <span>₱{selectedPayslip.tardyDeductions.toLocaleString()}</span>
+                          <span>Tardy Deduction({selectedPayslip.attendance?.tardy_hours || 0}h):</span>
+                          <span>₱{selectedPayslip.deductions?.tardy_deduction?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                         </div>
                       </div>
                       <div>
                         <p className="font-bold text-xs mb-1">Government Contributions:</p>
                         <div className="flex justify-between pl-2">
+                          <span>SSS:</span>
+                          <span>₱{selectedPayslip.deductions?.sss?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
+                        </div>
+                        <div className="flex justify-between pl-2">
                           <span>PhilHealth:</span>
-                          <span>₱{selectedPayslip.philhealth.toLocaleString()}</span>
+                          <span>₱{selectedPayslip.deductions?.philhealth?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                         </div>
                         <div className="flex justify-between pl-2">
                           <span>HDMF:</span>
-                          <span>₱{selectedPayslip.hdmf.toLocaleString()}</span>
+                          <span>₱{selectedPayslip.deductions?.hdmf?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                         </div>
                       </div>
                       <div>
-                        <p className="font-bold text-xs mb-1">Other Deductions</p>
+                        <p className="font-bold text-xs mb-1">Other Deductions & Taxes</p>
                         <div className="flex justify-between pl-2">
                           <span>Cash Advance:</span>
-                          <span>₱{selectedPayslip.cashAdvance.toLocaleString()}</span>
+                          <span>₱{selectedPayslip.deductions?.cash_advance?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                         </div>
                         <div className="flex justify-between pl-2">
                           <span>Withholding Tax:</span>
-                          <span>₱{selectedPayslip.withholdingTax.toLocaleString()}</span>
+                          <span>₱{selectedPayslip.deductions?.withholding_tax?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                         </div>
                       </div>
                       <div className="flex justify-between font-bold border-t pt-1 mt-1">
-                        <span>GROSS INCOME:</span>
-                        <span>₱{selectedPayslip.totalDeductions.toLocaleString()}</span>
+                        <span>TOTAL DEDUCTIONS:</span>
+                        <span>₱{selectedPayslip.deductions?.total_deductions?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}</span>
                       </div>
                     </div>
                   </div>
@@ -705,19 +604,25 @@ const AdminPayroll: React.FC = () => {
                       <div className="flex justify-between">
                         <span>Gross Income:</span>
                         <span className="text-green-600">
-                          ₱{selectedPayslip.grossIncome.toLocaleString()}
+                          ₱{selectedPayslip.earnings?.gross_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Total Deductions:</span>
                         <span className="text-red-600">
-                          -₱{selectedPayslip.totalDeductions.toLocaleString()}
+                          -₱{selectedPayslip.deductions?.total_deductions?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
                         </span>
                       </div>
-                      <div className="bg-green-100 p-3 rounded font-bold flex justify-between">
+                      <div className="flex justify-between">
+                        <span>Bonus (Tax-Exempt):</span>
+                        <span className="text-green-600">
+                          +₱{selectedPayslip.bonus?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                      <div className="bg-green-100 p-3 rounded font-bold flex justify-between mt-2">
                         <span>Net Pay</span>
-                        <span className="text-green-700">
-                          ₱{selectedPayslip.netPay.toLocaleString()}
+                        <span className="text-green-700 text-lg">
+                          ₱{selectedPayslip.net_salary?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
                         </span>
                       </div>
                     </div>
@@ -729,7 +634,7 @@ const AdminPayroll: React.FC = () => {
             {/* Modal Footer */}
             <div className="flex gap-3 p-6 border-t bg-white">
               <button
-                onClick={() => handleDownloadPayslip({ id: selectedPayslip.employeeId } as Employee)}
+                onClick={() => handleDownloadPayslip(selectedPayslip)}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
                 <Download size={16} />
@@ -761,11 +666,10 @@ const AdminPayroll: React.FC = () => {
           <button
             key={tab}
             onClick={() => setActivePayrollTab(tab)}
-            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${
-              activePayrollTab === tab
-                ? "bg-cyan-500 text-white shadow-md"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
+            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activePayrollTab === tab
+              ? "bg-cyan-500 text-white shadow-md"
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
           >
             {tab}
           </button>
@@ -794,14 +698,14 @@ const AdminPayroll: React.FC = () => {
                 <li>Salary History – View past payroll data</li>
               </ul>
             </div>
-            
+
             <div className="flex items-center justify-between pt-4 border-t">
               <div>
                 <p className="text-xs text-gray-400">
-                  Current Period: June 1-15, 2025
+                  Current Period: {periodStart} to {periodEnd}
                 </p>
                 <p className="text-xs text-gray-400">
-                  Last Updated: September 5, 2025
+                  Last Updated: {format(new Date(), 'MMMM d, yyyy')}
                 </p>
               </div>
               <button
@@ -820,28 +724,28 @@ const AdminPayroll: React.FC = () => {
               <h3 className="text-sm font-semibold text-gray-700 mb-2">
                 Total Employees
               </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">8</p>
+              <p className="text-3xl font-bold text-gray-900 mb-1">{totalEmployees}</p>
               <p className="text-xs text-gray-400">Active Payroll</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">
                 Gross Payroll
               </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">₱125,450</p>
+              <p className="text-3xl font-bold text-gray-900 mb-1">₱{totalGrossIncome.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
               <p className="text-xs text-gray-400">Current Period</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">
                 Net Payroll
               </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">₱98,760</p>
+              <p className="text-3xl font-bold text-gray-900 mb-1">₱{totalNetPay.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
               <p className="text-xs text-gray-400">After deductions</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">
                 Total Deductions
               </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">₱26,690</p>
+              <p className="text-3xl font-bold text-gray-900 mb-1">₱{totalDeductionsAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}</p>
               <p className="text-xs text-gray-400">Taxes & benefits</p>
             </div>
           </div>
@@ -897,29 +801,26 @@ const AdminPayroll: React.FC = () => {
                 {payrollBreakdown.map((item, index) => (
                   <div
                     key={index}
-                    className={`flex items-center justify-between px-4 py-3 rounded-lg ${
-                      item.label === "Net Payroll"
-                        ? "bg-green-100"
-                        : "bg-gray-50"
-                    }`}
+                    className={`flex items-center justify-between px-4 py-3 rounded-lg ${item.label === "Net Payroll"
+                      ? "bg-green-100"
+                      : "bg-gray-50"
+                      }`}
                   >
                     <span
-                      className={`text-sm font-semibold ${
-                        item.label === "Net Payroll"
-                          ? "text-green-900"
-                          : "text-gray-700"
-                      }`}
+                      className={`text-sm font-semibold ${item.label === "Net Payroll"
+                        ? "text-green-900"
+                        : "text-gray-700"
+                        }`}
                     >
                       {item.label}
                     </span>
                     <span
-                      className={`text-sm font-bold ${
-                        item.label === "Net Payroll"
-                          ? "text-green-900"
-                          : item.isDeduction
+                      className={`text-sm font-bold ${item.label === "Net Payroll"
+                        ? "text-green-900"
+                        : item.isDeduction
                           ? "text-red-600"
                           : "text-gray-900"
-                      }`}
+                        }`}
                     >
                       {item.amount}
                     </span>
@@ -930,7 +831,7 @@ const AdminPayroll: React.FC = () => {
                     Net Payroll
                   </span>
                   <span className="text-lg font-black text-green-900">
-                    ₱98,760
+                    ₱{totalNetPay.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                   </span>
                 </div>
               </div>
@@ -964,7 +865,7 @@ const AdminPayroll: React.FC = () => {
                 <strong>Table Columns:</strong> First Name | Last Name | Role | Worked hrs. (Actual/Required) | Late (Times/Min) | Early Leave (Times/Min) | Overtime (Regular/Special) | Business Trip | Absence | On Leave | Additional Pay | Deduction | Actual Pay | Actions
               </p>
             </div>
-            
+
             <div className="flex items-center justify-between pt-4 border-t">
               <div>
                 <p className="text-xs text-gray-400">
@@ -1009,7 +910,7 @@ const AdminPayroll: React.FC = () => {
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </div>
-              
+
               {/* Department Dropdown */}
               <div className="relative">
                 <button
@@ -1031,9 +932,8 @@ const AdminPayroll: React.FC = () => {
                           setSelectedDepartment(dept);
                           setShowDepartmentDropdown(false);
                         }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedDepartment === dept ? "bg-gray-50 font-semibold" : ""
-                        }`}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${selectedDepartment === dept ? "bg-gray-50 font-semibold" : ""
+                          }`}
                       >
                         {dept}
                       </button>
@@ -1063,9 +963,8 @@ const AdminPayroll: React.FC = () => {
                           setSelectedPeriod(period);
                           setShowPeriodDropdown(false);
                         }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
-                        }`}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
+                          }`}
                       >
                         {period}
                       </button>
@@ -1106,32 +1005,17 @@ const AdminPayroll: React.FC = () => {
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
                       <div>Early Leave</div>
                       <div className="text-[10px] text-gray-500 font-normal">
-                        (Timeslots)
+                        (Mins)
                       </div>
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
                       <div>Overtime</div>
                       <div className="text-[10px] text-gray-500 font-normal">
-                        (Regular/Holiday)
+                        (Hours)
                       </div>
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Business Trip
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Absence
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      On Leave
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Additional Pay
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Deduction
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Actual Pay
+                      Days Present
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
                       Actions
@@ -1139,66 +1023,43 @@ const AdminPayroll: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredAttendanceData.map((employee) => (
-                    <tr key={employee.id} className="hover:bg-gray-50">
+                  {filteredAttendanceData.map((summary) => (
+                    <tr key={summary.employee_id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-900">
-                        {employee.firstName}
+                        {summary.employee.full_name}
                       </td>
                       <td className="px-4 py-3 text-gray-900">
-                        {employee.lastName}
+                        {summary.employee.employee_code}
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {employee.role}
+                        {summary.employee.position}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="font-semibold text-gray-900">
-                          {employee.workedHrs}
-                        </div>
-                        <div className="text-[10px] text-gray-500">160h</div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="font-semibold text-gray-900">
-                          {employee.lateTimeslots}
-                        </div>
-                        <div className="text-[10px] text-gray-500">
-                          {employee.lateTimeslots > 0 ? "x30m" : "-"}
+                          {summary.total_hours.toFixed(1)}
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="font-semibold text-gray-900">
-                          {employee.earlyLeaveTimeslots}
-                        </div>
-                        <div className="text-[10px] text-gray-500">
-                          {employee.earlyLeaveTimeslots > 0 ? "x30m" : "-"}
+                          {summary.late_count} ({summary.total_tardy_minutes}m)
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="font-semibold text-gray-900">
-                          {employee.overtimeHrs}h
+                          -
                         </div>
-                        <div className="text-[10px] text-gray-500">8h / 0h</div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="font-semibold text-gray-900">
+                          {summary.overtime_hours.toFixed(1)}h
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.businessTrip}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.absence}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.onLeave}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        ₱{employee.additionalPay.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.deduction}
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-gray-900">
-                        ₱{employee.actualPay.toLocaleString()}
+                        {summary.days_present}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
-                          onClick={() => handleViewEmployeeInAttendance(employee.id)}
+                          onClick={() => handleViewEmployeeInAttendance(summary.employee_id)}
                           className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors"
                           title="View in Salary Computation"
                         >
@@ -1215,22 +1076,28 @@ const AdminPayroll: React.FC = () => {
           {/* Summary Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-blue-600 mb-2">1276</p>
+              <p className="text-3xl font-bold text-blue-600 mb-2">
+                {attendanceData.reduce((sum, item) => sum + item.total_hours, 0).toFixed(1)}
+              </p>
               <p className="text-sm text-gray-600">Total Work Hours</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-green-600 mb-2">108</p>
+              <p className="text-3xl font-bold text-green-600 mb-2">
+                {attendanceData.reduce((sum, item) => sum + item.overtime_hours, 0).toFixed(1)}
+              </p>
               <p className="text-sm text-gray-600">Total Overtime Hours</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-red-600 mb-2">4</p>
-              <p className="text-sm text-gray-600">Total Absences</p>
+              <p className="text-3xl font-bold text-red-600 mb-2">
+                {attendanceData.reduce((sum, item) => sum + item.late_count, 0)}
+              </p>
+              <p className="text-sm text-gray-600">Total Late Instances</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
               <p className="text-3xl font-bold text-gray-900 mb-2">
-                ₱132,650
+                {attendanceData.reduce((sum, item) => sum + item.days_present, 0)}
               </p>
-              <p className="text-sm text-gray-600">Total Actual Pay</p>
+              <p className="text-sm text-gray-600">Total Days Present</p>
             </div>
           </div>
         </div>
@@ -1257,7 +1124,7 @@ const AdminPayroll: React.FC = () => {
                 <li>Export PDF</li>
               </ul>
             </div>
-            
+
             <div className="flex items-center justify-between pt-4 border-t">
               <div>
                 <p className="text-xs text-gray-400">
@@ -1265,6 +1132,17 @@ const AdminPayroll: React.FC = () => {
                 </p>
               </div>
               <div className="flex gap-2">
+                <button
+                  onClick={handleComputePayroll}
+                  disabled={isComputing}
+                  className="flex items-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-semibold hover:bg-cyan-600 disabled:opacity-50"
+                >
+                  {isComputing ? (
+                    <><Loader2 size={16} className="animate-spin" /> Computing...</>
+                  ) : (
+                    <><RefreshCw size={16} /> Compute Payroll</>
+                  )}
+                </button>
                 <button
                   onClick={handleSendEmail}
                   className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
@@ -1321,9 +1199,8 @@ const AdminPayroll: React.FC = () => {
                           setSelectedPeriod(period);
                           setShowPeriodDropdown(false);
                         }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
-                        }`}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
+                          }`}
                       >
                         {period}
                       </button>
@@ -1335,257 +1212,284 @@ const AdminPayroll: React.FC = () => {
           </div>
 
           {/* Computation Details Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Employee Information */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                <h3 className="text-base font-bold text-gray-900">
-                  EMPLOYEE INFORMATION
+          {salaryComputationData ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Employee Information */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <div className="flex items-center justify-between mb-4 pb-2 border-b">
+                  <h3 className="text-base font-bold text-gray-900">
+                    EMPLOYEE INFORMATION
+                  </h3>
+                  {/* Optional: Add dropdown to select other employees if multiple were computed */}
+                  <div className="relative inline-block text-left">
+                    <select
+                      className="text-sm border-gray-300 rounded-md focus:ring-cyan-500 focus:border-cyan-500 py-1 pl-2 pr-6"
+                      value={salaryComputationData.employee_id}
+                      onChange={(e) => {
+                        const selected = allComputations.find(c => c.employee_id === e.target.value);
+                        if (selected) setSalaryComputationData(selected);
+                      }}
+                    >
+                      {allComputations.map(comp => (
+                        <option key={comp.employee_id} value={comp.employee_id}>
+                          {comp.employee_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Employee ID:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {salaryComputationData.employee_id}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Name:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {salaryComputationData.employee_name}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Department:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {salaryComputationData.department || "Staff"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Position:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {salaryComputationData.position}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Daily Rate:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      ₱{salaryComputationData.daily_rate}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Days/Hours Present:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      {salaryComputationData.attendance?.days_present || 0} Days / {salaryComputationData.attendance?.total_hours || 0} Hrs
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Earnings Breakdown */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
+                  EARNINGS BREAKDOWN
                 </h3>
-                <button
-                  onClick={() => handleEditDailyRate(salaryComputationData)}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Edit Daily Rate"
-                >
-                  <Edit2 size={16} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Employee ID:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.employeeId}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Name:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.name}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Department:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.department}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Position:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.position}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Daily Rate:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.dailyRate}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Days Present:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.daysPresent} Days
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Earnings Breakdown */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
-                EARNINGS BREAKDOWN
-              </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Basic Pay:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.basicPay.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Regular Holiday Pay:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.regularHolidayPay.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Special Holiday Pay:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.specialHolidayPay.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Regular Overtime:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.regularOvertime.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Holiday Overtime:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.holidayOvertime.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Special Overtime:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.specialOvertime.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-3 border-t">
-                  <span className="text-sm font-bold text-gray-900">
-                    Gross Income:
-                  </span>
-                  <span className="text-sm font-bold text-green-600">
-                    ₱{salaryComputationData.grossIncome.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Deductions Breakdown */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
-                DEDUCTIONS BREAKDOWN
-              </h3>
-              <div className="space-y-3">
-                <div className="bg-red-50 px-3 py-2 rounded">
-                  <p className="text-xs font-semibold text-red-900 mb-2">
-                    Time-based Deductions
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Tardy to Work (1h):</span>
-                      <span className="text-red-600 font-semibold">
-                        ₱{salaryComputationData.tardyDeductions.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Under time (1h):</span>
-                      <span className="text-red-600 font-semibold">
-                        ₱
-                        {salaryComputationData.undertimeDeductions.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 px-3 py-2 rounded">
-                  <p className="text-xs font-semibold text-blue-900 mb-2">
-                    Government Contributions
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">SSS:</span>
-                      <span className="text-blue-600 font-semibold">
-                        ₱{salaryComputationData.sss.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">PhilHealth:</span>
-                      <span className="text-blue-600 font-semibold">
-                        ₱{salaryComputationData.philhealth.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">HDMF (Pag-IBIG):</span>
-                      <span className="text-blue-600 font-semibold">
-                        ₱{salaryComputationData.hdmf.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 px-3 py-2 rounded">
-                  <p className="text-xs font-semibold text-yellow-900 mb-2">
-                    Other Deductions
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Withholding Tax:</span>
-                      <span className="text-yellow-600 font-semibold">₱0</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Cash Advance:</span>
-                      <span className="text-yellow-600 font-semibold">
-                        ₱{salaryComputationData.cashAdvance.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between pt-3 border-t">
-                  <span className="text-sm font-bold text-gray-900">
-                    Total Deductions:
-                  </span>
-                  <span className="text-sm font-bold text-red-600">
-                    -₱{salaryComputationData.totalDeductions.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Pay Summary */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
-                PAY SUMMARY
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-gray-900">
-                    Gross Income:
-                  </span>
-                  <span className="text-sm font-bold text-green-600">
-                    ₱{salaryComputationData.grossIncome.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-gray-900">
-                    Total Deductions:
-                  </span>
-                  <span className="text-sm font-bold text-red-600">
-                    -₱{salaryComputationData.totalDeductions.toLocaleString()}
-                  </span>
-                </div>
-                <div className="bg-green-100 px-4 py-4 rounded-lg flex justify-between items-center">
-                  <span className="text-base font-bold text-green-900">
-                    NET PAY:
-                  </span>
-                  <span className="text-xl font-black text-green-900">
-                    ₱{salaryComputationData.netPay.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="pt-4 border-t space-y-2">
-                  <p className="text-xs font-semibold text-gray-700">
-                    Tax Information
-                  </p>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-600">Taxable Income:</span>
-                    <span className="text-gray-900 font-semibold">
-                      ₱{salaryComputationData.taxableIncome.toLocaleString()}
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">Basic Pay:</span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      ₱{salaryComputationData.earnings?.basic_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-600">Tax Rate Applied:</span>
-                    <span className="text-gray-900 font-semibold">
-                      {salaryComputationData.taxRateApplied}
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">
+                      Regular Holiday Pay:
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      ₱{salaryComputationData.earnings?.regular_holiday_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">
+                      Special Holiday Pay:
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      ₱{salaryComputationData.earnings?.special_holiday_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">
+                      Overtime Pay:
+                    </span>
+                    <span className="text-sm font-semibold text-gray-900">
+                      ₱{salaryComputationData.earnings?.overtime_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">
+                      Bonus / Adjustments:
+                    </span>
+                    <span className="text-sm font-semibold text-green-600">
+                      +₱{salaryComputationData.bonus?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-3 border-t">
+                    <span className="text-sm font-bold text-gray-900">
+                      Gross Income (Excl. Bonus):
+                    </span>
+                    <span className="text-sm font-bold text-green-600">
+                      ₱{salaryComputationData.earnings?.gross_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
                     </span>
                   </div>
                 </div>
               </div>
+
+              {/* Deductions Breakdown */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
+                  DEDUCTIONS BREAKDOWN
+                </h3>
+                <div className="space-y-3">
+                  <div className="bg-red-50 px-3 py-2 rounded">
+                    <p className="text-xs font-semibold text-red-900 mb-2">
+                      Time-based Deductions
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Tardy Deduction ({salaryComputationData.attendance?.tardy_hours || 0}h):</span>
+                        <span className="text-red-600 font-semibold">
+                          ₱{salaryComputationData.deductions?.tardy_deduction?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Undertime ({salaryComputationData.attendance?.undertime_hours || 0}h):</span>
+                        <span className="text-red-600 font-semibold">
+                          ₱{salaryComputationData.deductions?.undertime_deduction?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 px-3 py-2 rounded">
+                    <p className="text-xs font-semibold text-blue-900 mb-2">
+                      Government Contributions
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">SSS:</span>
+                        <span className="text-blue-600 font-semibold">
+                          ₱{salaryComputationData.deductions?.sss?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">PhilHealth:</span>
+                        <span className="text-blue-600 font-semibold">
+                          ₱{salaryComputationData.deductions?.philhealth?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">HDMF (Pag-IBIG):</span>
+                        <span className="text-blue-600 font-semibold">
+                          ₱{salaryComputationData.deductions?.hdmf?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-50 px-3 py-2 rounded">
+                    <p className="text-xs font-semibold text-yellow-900 mb-2">
+                      Tax & Other Deductions
+                    </p>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Withholding Tax (Rate: {salaryComputationData.tax_rate_applied || '0%'}):</span>
+                        <span className="text-yellow-600 font-semibold">
+                          ₱{salaryComputationData.deductions?.withholding_tax?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Cash Advance:</span>
+                        <span className="text-yellow-600 font-semibold">
+                          ₱{salaryComputationData.deductions?.cash_advance?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-3 border-t">
+                    <span className="text-sm font-bold text-gray-900">
+                      Total Deductions:
+                    </span>
+                    <span className="text-sm font-bold text-red-600">
+                      -₱{salaryComputationData.deductions?.total_deductions?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pay Summary */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
+                  PAY SUMMARY
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between">
+                    <span className="text-sm font-semibold text-gray-900">
+                      Gross Income:
+                    </span>
+                    <span className="text-sm font-bold text-green-600">
+                      ₱{salaryComputationData.earnings?.gross_pay?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm font-semibold text-gray-900">
+                      Total Deductions:
+                    </span>
+                    <span className="text-sm font-bold text-red-600">
+                      -₱{salaryComputationData.deductions?.total_deductions?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm font-semibold text-gray-900">
+                      Bonus (Tax-Exempt):
+                    </span>
+                    <span className="text-sm font-bold text-green-600">
+                      +₱{salaryComputationData.bonus?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+                  <div className="bg-green-100 px-4 py-4 rounded-lg flex justify-between items-center mt-2">
+                    <span className="text-base font-bold text-green-900">
+                      NET PAY:
+                    </span>
+                    <span className="text-xl font-black text-green-900">
+                      ₱{salaryComputationData.net_salary?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                    </span>
+                  </div>
+
+                  <div className="pt-4 border-t space-y-2">
+                    <p className="text-xs font-semibold text-gray-700">
+                      Tax Information
+                    </p>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-600">Taxable Income (Gross - Docs):</span>
+                      <span className="text-gray-900 font-semibold">
+                        ₱{salaryComputationData.taxable_income?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || 0}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-600">Tax Bracket Applied:</span>
+                      <span className="text-gray-900 font-semibold">
+                        {salaryComputationData.tax_rate_applied || 'None'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 p-12 shadow-sm text-center">
+              <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-gray-900 mb-2">No Computations Available</h3>
+              <p className="text-gray-500 mb-4">Click "Compute Payroll" to process the selected period.</p>
+              <button
+                onClick={handleComputePayroll}
+                disabled={isComputing || attendanceData.length === 0}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-cyan-500 text-white rounded-lg font-semibold hover:bg-cyan-600 disabled:opacity-50"
+              >
+                {isComputing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                Process Now
+              </button>
+            </div>
+          )}
 
           {/* Computation Formulas */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
@@ -1637,7 +1541,7 @@ const AdminPayroll: React.FC = () => {
                 A searchable archive of previous salary records for all employees.
               </p>
             </div>
-            
+
             <div className="flex items-center justify-between pt-4 border-t">
               <div>
                 <p className="text-xs text-gray-400">
@@ -1694,9 +1598,8 @@ const AdminPayroll: React.FC = () => {
                           setSelectedPeriod(period);
                           setShowPeriodDropdown(false);
                         }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
-                        }`}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
+                          }`}
                       >
                         {period}
                       </button>
@@ -1710,20 +1613,26 @@ const AdminPayroll: React.FC = () => {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-blue-600 mb-2">₱386,500</p>
-              <p className="text-sm text-gray-600">Total Gross Income</p>
+              <p className="text-3xl font-bold text-blue-600 mb-2">
+                ₱{payrollHistory.reduce((sum, r) => sum + (r.total_salary || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-sm text-gray-600">Total Extrapolated Pay</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-red-600 mb-2">₱77,260</p>
-              <p className="text-sm text-gray-600">Total Deductions</p>
+              <p className="text-3xl font-bold text-red-600 mb-2">
+                ₱{payrollHistory.reduce((sum, r) => sum + (r.total_hours || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
+              </p>
+              <p className="text-sm text-gray-600">Total Hours Worked</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-green-600 mb-2">₱280,240</p>
-              <p className="text-sm text-gray-600">Total Net Pay</p>
+              <p className="text-3xl font-bold text-green-600 mb-2">
+                ₱{payrollHistory.reduce((sum, r) => sum + (r.bonus || 0), 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-sm text-gray-600">Total Bonuses</p>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-gray-900 mb-2">24</p>
-              <p className="text-sm text-gray-600">Total Employee Records</p>
+              <p className="text-3xl font-bold text-gray-900 mb-2">{payrollHistory.length}</p>
+              <p className="text-sm text-gray-600">Total Computed Records</p>
             </div>
           </div>
 
@@ -1731,7 +1640,7 @@ const AdminPayroll: React.FC = () => {
           <div className="space-y-4">
             {payrollHistory.map((record) => {
               const isExpanded = expandedPayrollRecords.has(record.id);
-              
+
               return (
                 <div
                   key={record.id}
@@ -1743,16 +1652,16 @@ const AdminPayroll: React.FC = () => {
                       <Calendar size={20} className="text-gray-600" />
                       <div>
                         <p className="text-sm font-bold text-gray-900">
-                          {record.date}
+                          {record.employees?.full_name || record.employee_id}
                         </p>
                         <p className="text-xs text-gray-500">
-                          Pay Date: {record.payDate}
+                          Period: {record.period_start} to {record.period_end}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                        {record.status}
+                        {"Processed"}
                       </span>
                       <button
                         onClick={() => togglePayrollRecordExpansion(record.id)}
@@ -1772,126 +1681,39 @@ const AdminPayroll: React.FC = () => {
                   <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                     <div className="grid grid-cols-4 gap-4">
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Employees</p>
+                        <p className="text-xs text-gray-500 mb-1">Total Hours</p>
                         <p className="text-sm font-bold text-gray-900">
-                          {record.employees}
+                          {record.total_hours}h
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 mb-1">
-                          Gross Income
+                          Role/Position
                         </p>
                         <p className="text-sm font-bold text-blue-600">
-                          ₱{record.grossIncome.toLocaleString()}
+                          {record.employees?.position || "Staff"}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500 mb-1">Deductions</p>
-                        <p className="text-sm font-bold text-red-600">
-                          ₱{record.deductions.toLocaleString()}
+                        <p className="text-xs text-gray-500 mb-1">Bonus</p>
+                        <p className="text-sm font-bold text-green-600">
+                          ₱{(record.bonus || 0).toLocaleString()}
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Net Pay</p>
                         <p className="text-sm font-bold text-green-600">
-                          ₱{record.netPay.toLocaleString()}
+                          ₱{(record.total_salary || 0).toLocaleString()}
                         </p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Employee Payslips Table - Only show when expanded */}
                   {isExpanded && (
                     <div className="p-6">
-                      <h4 className="text-sm font-bold text-gray-900 mb-3">
-                        Individual Employee Payslips
+                      <h4 className="text-sm font-bold text-gray-900 mb-3 text-center text-gray-400">
+                        Historical detailed breakdown relies on Salary Computations tab.
                       </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                                EMPLOYEE
-                              </th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                                DEPARTMENT
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                                GROSS INCOME
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                                DEDUCTIONS
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                                NET PAY
-                              </th>
-                              <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                                STATUS
-                              </th>
-                              <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                                ACTIONS
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {attendanceData.slice(0, 6).map((employee) => (
-                              <tr key={employee.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 text-gray-900">
-                                  {employee.firstName} {employee.lastName}
-                                </td>
-                                <td className="px-3 py-2 text-gray-600">
-                                  {employee.department}
-                                </td>
-                                <td className="px-3 py-2 text-right text-blue-600 font-semibold">
-                                  ₱{(employee.actualPay * 1.3).toFixed(0)}
-                                </td>
-                                <td className="px-3 py-2 text-right text-red-600 font-semibold">
-                                  ₱{(employee.deduction * 5).toFixed(0)}
-                                </td>
-                                <td className="px-3 py-2 text-right text-green-600 font-semibold">
-                                  ₱{employee.actualPay.toLocaleString()}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded">
-                                    Paid
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => handleViewPayslip(employee)}
-                                      className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                      title="View Payslip"
-                                    >
-                                      <Eye size={14} className="text-gray-600" />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDownloadPayslip(employee)}
-                                      className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                      title="Download PDF"
-                                    >
-                                      <Download
-                                        size={14}
-                                        className="text-gray-600"
-                                      />
-                                    </button>
-                                    <button
-                                      onClick={() => handlePrintPayslipForEmployee(employee)}
-                                      className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                      title="Print"
-                                    >
-                                      <Printer
-                                        size={14}
-                                        className="text-gray-600"
-                                      />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
                     </div>
                   )}
                 </div>

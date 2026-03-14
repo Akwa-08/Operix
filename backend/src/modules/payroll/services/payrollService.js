@@ -24,6 +24,34 @@ const STANDARD_HOURS = 8;
 const WORK_START_MINUTES = 8 * 60;   // 08:00
 const WORK_END_MINUTES = 17 * 60;    // 17:00
 
+/**
+ * Philippine BIR withholding tax (semi-monthly / per-period brackets).
+ * Applied ONLY to Gi (gross earnings), NOT to bonus.
+ * Using semi-monthly thresholds.
+ */
+function calculateWithholdingTax(taxableIncome) {
+    // Semi-monthly BIR brackets (annual / 24)
+    const brackets = [
+        { min: 0, max: 10417, rate: 0, base: 0 },
+        { min: 10417, max: 16667, rate: 0.15, base: 0 },      // 15% over 10,417
+        { min: 16667, max: 33333, rate: 0.20, base: 937.50 },  // 20% over 16,667
+        { min: 33333, max: 83333, rate: 0.25, base: 4270.83 }, // 25% over 33,333
+        { min: 83333, max: 333333, rate: 0.30, base: 16770.83 },// 30% over 83,333
+        { min: 333333, max: Infinity, rate: 0.35, base: 91770.83 } // 35% over 333,333
+    ];
+
+    if (taxableIncome <= brackets[0].max) return { tax: 0, rate: '0%' };
+
+    for (let i = brackets.length - 1; i >= 0; i--) {
+        if (taxableIncome > brackets[i].min) {
+            const excess = taxableIncome - brackets[i].min;
+            const tax = round2(brackets[i].base + excess * brackets[i].rate);
+            return { tax, rate: `${brackets[i].rate * 100}%` };
+        }
+    }
+    return { tax: 0, rate: '0%' };
+}
+
 class PayrollService {
     /**
      * Compute payroll for a single employee — full 4-phase workflow in JS
@@ -141,6 +169,7 @@ class PayrollService {
         let totalSpecialHolidayHours = 0;
         let totalOvertimeHours = 0;
         let totalTardyHours = 0;
+        let totalUndertimeHours = 0;
         let totalHours = 0;
 
         for (const log of (logs || [])) {
@@ -177,8 +206,9 @@ class PayrollService {
             let regularHours = Math.min(hoursWorked, STANDARD_HOURS);
             let otHours = Math.max(0, hoursWorked - STANDARD_HOURS);
 
-            // Calculate tardy (late arrival + early departure)
+            // Calculate tardy (late arrival) and undertime (early departure) separately
             let tardyMinutes = 0;
+            let undertimeMinutes = 0;
             const timeIn = new Date(log.time_in);
             const minutesIn = timeIn.getHours() * 60 + timeIn.getMinutes();
             if (minutesIn > WORK_START_MINUTES) {
@@ -189,11 +219,12 @@ class PayrollService {
                 const timeOut = new Date(log.time_out);
                 const minutesOut = timeOut.getHours() * 60 + timeOut.getMinutes();
                 if (minutesOut < WORK_END_MINUTES) {
-                    tardyMinutes += (WORK_END_MINUTES - minutesOut);
+                    undertimeMinutes += (WORK_END_MINUTES - minutesOut);
                 }
             }
 
             totalTardyHours += tardyMinutes / 60;
+            totalUndertimeHours += undertimeMinutes / 60;
 
             // Accumulate by day type
             if (dayType === 'Normal') {
@@ -208,7 +239,7 @@ class PayrollService {
             totalHours += hoursWorked;
         }
 
-        // ── Phase 3: Compute pay ────────────────────────────
+        // ── Phase 3: Compute Gross Earnings (Gi) ─────────────
         const rate = employee.base_hourly_rate || 0;
         const holidayMultiplier = employee.holiday_rate_multiplier || 2.0;
         const otMultiplier = employee.overtime_rate_multiplier || 1.25;
@@ -217,30 +248,42 @@ class PayrollService {
         const regularHolidayPay = totalRegularHolidayHours * (rate * holidayMultiplier);
         const specialHolidayPay = totalSpecialHolidayHours * (rate * 1.3);
         const overtimePay = totalOvertimeHours * (rate * otMultiplier);
-        const grossPay = basicPay + regularHolidayPay + specialHolidayPay + overtimePay;
+        const grossPay = basicPay + regularHolidayPay + specialHolidayPay + overtimePay; // Gi
 
-        // Deductions
-        const tardyDeduction = totalTardyHours * rate;
+        // ── Phase 4: Deductions (Dg) — time-based + government ──
+        const tardyDeduction = round2(totalTardyHours * rate);
+        const undertimeDeduction = round2(totalUndertimeHours * rate);
         const govDeductions = GOV_DEDUCTIONS.SSS + GOV_DEDUCTIONS.PHILHEALTH + GOV_DEDUCTIONS.HDMF;
 
-        // Cash advance: check if there's already a record with cash_advance set
+        // ── Phase 5: Withholding Tax (Tax) ──────────────────
+        // Taxable income = Gi - Dg (gov only, per BIR rules)
+        const taxableIncome = round2(grossPay - govDeductions);
+        const { tax: withholdingTax, rate: taxRateApplied } = calculateWithholdingTax(taxableIncome);
+
+        // Fetch existing record for bonus & cash_advance
         let cashAdvance = 0;
+        let bonus = 0;
         const { data: existingRecord } = await supabase
             .from('payroll_records')
-            .select('cash_advance')
+            .select('cash_advance, bonus')
             .eq('employee_id', employeeId)
             .eq('period_start', periodStart)
             .eq('period_end', periodEnd)
             .maybeSingle();
 
-        if (existingRecord && existingRecord.cash_advance) {
+        if (existingRecord) {
             cashAdvance = parseFloat(existingRecord.cash_advance) || 0;
+            bonus = parseFloat(existingRecord.bonus) || 0;
         }
 
-        const totalDeductions = tardyDeduction + govDeductions + cashAdvance;
-        const netSalary = grossPay - totalDeductions;
+        // ── Unified Formula: Pn = (Gi - Dg - Tax) + (B - Ac) ──
+        const totalGovAndTimeDeductions = govDeductions + tardyDeduction + undertimeDeduction;
+        const taxableNet = round2(grossPay - totalGovAndTimeDeductions - withholdingTax);
+        const adjustments = round2(bonus - cashAdvance);
+        const netSalary = round2(taxableNet + adjustments);
+        const totalDeductions = round2(totalGovAndTimeDeductions + withholdingTax + cashAdvance);
 
-        // ── Phase 4: Persist ────────────────────────────────
+        // ── Persist ─────────────────────────────────────────
         const payrollData = {
             employee_id: employeeId,
             period_start: periodStart,
@@ -250,7 +293,7 @@ class PayrollService {
             holiday_hours: round2(totalRegularHolidayHours + totalSpecialHolidayHours),
             overtime_hours: round2(totalOvertimeHours),
             cash_advance: cashAdvance,
-            bonus: existingRecord?.bonus || 0,
+            bonus: bonus,
             total_salary: round2(netSalary)
         };
 
@@ -276,14 +319,19 @@ class PayrollService {
         return {
             employee_id: employeeId,
             employee_name: employee.full_name,
+            department: employee.department || '',
+            position: employee.position || '',
+            daily_rate: round2(rate * STANDARD_HOURS),
             period: { start: periodStart, end: periodEnd },
             attendance: {
                 total_hours: round2(totalHours),
+                days_present: totalNormalDays + (totalRegularHolidayHours > 0 ? Math.ceil(totalRegularHolidayHours / STANDARD_HOURS) : 0) + (totalSpecialHolidayHours > 0 ? Math.ceil(totalSpecialHolidayHours / STANDARD_HOURS) : 0),
                 normal_days: totalNormalDays,
                 regular_holiday_hours: round2(totalRegularHolidayHours),
                 special_holiday_hours: round2(totalSpecialHolidayHours),
                 overtime_hours: round2(totalOvertimeHours),
-                tardy_hours: round2(totalTardyHours)
+                tardy_hours: round2(totalTardyHours),
+                undertime_hours: round2(totalUndertimeHours)
             },
             earnings: {
                 basic_pay: round2(basicPay),
@@ -293,13 +341,18 @@ class PayrollService {
                 gross_pay: round2(grossPay)
             },
             deductions: {
-                tardy_deduction: round2(tardyDeduction),
+                tardy_deduction: tardyDeduction,
+                undertime_deduction: undertimeDeduction,
                 sss: GOV_DEDUCTIONS.SSS,
                 philhealth: GOV_DEDUCTIONS.PHILHEALTH,
                 hdmf: GOV_DEDUCTIONS.HDMF,
+                withholding_tax: withholdingTax,
                 cash_advance: cashAdvance,
-                total_deductions: round2(totalDeductions)
+                total_deductions: totalDeductions
             },
+            bonus: bonus,
+            taxable_income: round2(taxableIncome),
+            tax_rate_applied: taxRateApplied,
             net_salary: round2(netSalary)
         };
     }
