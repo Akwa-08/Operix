@@ -134,23 +134,52 @@ class UserService {
             }
         }
 
-        // Insert user (password stored as plain text for now)
+        // Step 1: Create Supabase Auth user (passwords hashed by Supabase — no plain text)
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: value.email,
+        password: value.password,
+        email_confirm: true,   // Employees skip email confirmation
+        user_metadata: {
+            role: value.role.toLowerCase(),
+            first_name: value.first_name || '',
+            last_name: value.last_name || '',
+        }
+        });
+        
+        if (authError) {
+        if (authError.message.includes('already been registered')) {
+            const err = new Error('An account with this email already exists.');
+            err.statusCode = 409;
+            throw err;
+        }
+        throw authError;
+        }
+        
+        // Step 2: Insert the user profile row using the Supabase Auth UUID as id
         const { data, error } = await supabase
-            .from('users')
-            .insert([{
-                first_name: value.first_name || null,
-                last_name: value.last_name || null,
-                username: value.username,
-                password: value.password,
-                contact_number: value.contact_number || null,
-                email: value.email || null,
-                role: value.role
-            }])
-            .select(USER_SAFE_COLUMNS)
-            .single();
-
-        if (error) throw error;
+        .from('users')
+        .insert([{
+            id: authData.user.id,
+            first_name: value.first_name || null,
+            last_name: value.last_name || null,
+            username: value.username,
+            contact_number: value.contact_number || null,
+            email: value.email || null,
+            role: value.role,
+            is_active: true,
+        }])
+        .select(USER_SAFE_COLUMNS)
+        .single();
+        
+        if (error) {
+        // Clean up the auth user to avoid orphaned accounts
+        await supabase.auth.admin.deleteUser(authData.user.id);
+        throw error;
+        }
+        
         return data;
+
+
     }
 
     /**

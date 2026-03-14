@@ -1,3 +1,4 @@
+import { supabase } from '../config/supabaseClient';
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
@@ -19,6 +20,12 @@ export const SignUpPage = () => {
     email: "",
     phone: "",
   });
+
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -60,20 +67,46 @@ export const SignUpPage = () => {
     return isValid;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
+  const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!validateForm()) return;
+ 
+  setSubmitLoading(true);
+  setSubmitError('');
+ 
+  const { data, error } = await supabase.auth.signUp({
+    email: formData.email.trim().toLowerCase(),
+    password: formData.password,
+    options: {
+      data: {
+        role: 'customer',
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        contact_number: formData.contactNumber,
+      }
+    }
+  });
+    if (error) {
+      setSubmitError(error.message.includes('already registered')
+        ? 'An account with this email already exists.'
+        : error.message);
+      setSubmitLoading(false);
       return;
     }
-
-    // TODO: API call to create account
-    console.log("Creating account:", formData);
-    alert("Account created successfully!");
-    
-    // Navigate to login or dashboard
-    navigate("/");
+  
+    // Email confirm is OFF — session returned, user is immediately logged in
+    if (data.session) {
+      navigate('/customer');
+      return;
+    }
+  
+    // Email confirm is ON — tell user to check email
+    setSuccessMessage('Account created! Please check your email to confirm your account, then log in.');
+    setSubmitLoading(false);
   };
+
+
+
 
   const handleBackToHomepage = () => {
     navigate("/");
@@ -252,13 +285,28 @@ export const SignUpPage = () => {
               )}
             </div>
 
+            {submitError && (
+              <div className='bg-red-50 border border-red-200 text-red-700
+                            rounded-xl px-4 py-3 text-sm font-medium'>
+                {submitError}
+              </div>
+            )}
+            
+            {successMessage && (
+              <div className='bg-green-50 border border-green-200 text-green-700
+                            rounded-xl px-4 py-3 text-sm font-medium'>
+                {successMessage}
+              </div>
+            )}
+
+
             {/* Submit Button */}
-            <button
-              type="submit"
-              className="w-full bg-[#00BEF4] hover:bg-[#0099CC] text-white font-bold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg"
-            >
-              Create Account
-            </button>
+            <button type='submit' disabled={submitLoading}
+            className='w-full bg-[#00BEF4] hover:bg-[#0099CC]
+                      disabled:bg-gray-400 disabled:cursor-not-allowed
+                      text-white font-bold py-4 px-6 rounded-xl transition-all'>
+            {submitLoading ? 'Creating account...' : 'Create Account'}
+          </button>
           </form>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from 'react-router-dom';
 import { LoginModal } from "../UserModal/LoginModal";
 
 export const Navbar = () => {
@@ -99,6 +99,16 @@ export const Navbar = () => {
               >
                 Log in
               </button>
+
+              {/* Small link for employees to find their portal */}
+              <Link
+                to='/staff-login'
+                className='text-xs text-gray-400 hover:text-gray-600
+                           transition-colors underline underline-offset-2'>
+                Staff Login
+              </Link>
+
+
             </nav>
           </div>
         </div>

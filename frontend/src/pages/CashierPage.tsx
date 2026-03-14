@@ -3,10 +3,18 @@ import {Outlet, useNavigate} from "react-router-dom";
 import SharedSideBar from "../components/Shared/UI/SharedSideBar";
 import TopNavBar from "../components/Shared/UI/TopNavBar";
 import {cashierSidebarItems} from "../config/sidebarConfigs";
+import { useAuth } from '../context/AuthContext';
 
 const CashierPage = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+
+  const { user, signOut } = useAuth();
+  const displayName = user?.firstName
+    ? `${user.firstName} ${user.lastName || ''}`.trim()
+    : 'Cashier';
+
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -16,11 +24,11 @@ const CashierPage = () => {
       <div className="flex flex-1">
         {/* Sidebar */}
         <SharedSideBar
-          name="Cashier User"
+          name={displayName}
           role="Cashier"
           items={cashierSidebarItems}
           profilePath="/cashier/profile"
-          onLogout={() => navigate("/")}
+          onLogout={() => { signOut(); navigate('/staff-login'); }}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
         />

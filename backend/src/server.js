@@ -7,6 +7,8 @@ const { testConnection } = require('./config/supabase');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const inventoryRoutes = require('./modules/inventory/routes/inventoryRoutes');
 const accountRoutes = require('./modules/accounts_management/routes/accountRoutes');
+const authRoutes = require('./modules/auth/routes/authRoutes');        
+const { verifyToken } = require('./middleware/authMiddleware');         
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,7 +41,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API Routes
+// PUBLIC routes (no token needed)
+app.use('/auth', authRoutes);
+ 
+// PROTECTED routes — token required for everything below this line
+app.use('/api', verifyToken);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api', accountRoutes);
 

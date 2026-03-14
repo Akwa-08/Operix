@@ -3,10 +3,17 @@ import {Outlet, useNavigate} from "react-router-dom";
 import SharedSideBar from "../components/Shared/UI/SharedSideBar";
 import TopNavBar from "../components/Shared/UI/TopNavBar";
 import {productionSidebarItems} from "../config/sidebarConfigs";
+import { useAuth } from '../context/AuthContext';
 
 const ProductionPage = () => {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const displayName = user?.firstName
+    ? `${user.firstName} ${user.lastName || ''}`.trim()
+    : 'Production';
+
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -14,11 +21,11 @@ const ProductionPage = () => {
 
       <div className="flex flex-1">
         <SharedSideBar
-          name="Production User"
+          name={displayName}
           role="Production"
           items={productionSidebarItems}
           profilePath="/production/profile"
-          onLogout={() => navigate("/")}
+          onLogout={() => { signOut(); navigate('/staff-login'); }}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
         />
