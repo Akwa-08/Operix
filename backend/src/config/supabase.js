@@ -1,5 +1,6 @@
 // backend/src/config/supabase.js
-// Supabase client configuration for Operix backend
+// REFACTORED: Added SUPABASE_ANON_KEY to required env vars
+// The anon key is needed by createAuthenticatedClient() in authMiddleware.js
 
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
@@ -7,7 +8,8 @@ require('dotenv').config();
 // Validate environment variables
 const requiredEnvVars = [
   'SUPABASE_URL',
-  'SUPABASE_SERVICE_ROLE_KEY'
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'SUPABASE_ANON_KEY'  // NEW: needed for per-request RLS-respecting client
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -16,8 +18,14 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-// Create Supabase client with service role key
-// Service role bypasses RLS and has full database access
+// ── Service Role Client ──────────────────────────────────────────────────────
+// BYPASSES RLS — has full database access. Use for:
+//   - Admin operations (createUser, deleteUser, updateUserById)
+//   - Multi-table transactions
+//   - Backend-to-database operations where RLS is too restrictive
+//
+// DO NOT use for customer-facing reads where data should be scoped to the user.
+
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -33,10 +41,10 @@ const supabase = createClient(
 const testConnection = async () => {
   try {
     const { data, error } = await supabase
-      .from('suppliers')
-      .select('count')
+      .from('users')
+      .select('id')
       .limit(1);
-    
+
     if (error) throw error;
     console.log('✅ Supabase connection successful');
     return true;

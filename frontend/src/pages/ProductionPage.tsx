@@ -1,8 +1,11 @@
-import {useState} from "react";
-import {Outlet, useNavigate} from "react-router-dom";
+// frontend/src/pages/ProductionPage.tsx
+// REFACTORED: Logout navigates to '/' (unified login on landing page)
+
+import { useState } from "react";
+import { Outlet, useNavigate } from "react-router-dom";
 import SharedSideBar from "../components/Shared/UI/SharedSideBar";
 import TopNavBar from "../components/Shared/UI/TopNavBar";
-import {productionSidebarItems} from "../config/sidebarConfigs";
+import { productionSidebarItems } from "../config/sidebarConfigs";
 import { useAuth } from '../context/AuthContext';
 
 const ProductionPage = () => {
@@ -13,23 +16,19 @@ const ProductionPage = () => {
     ? `${user.firstName} ${user.lastName || ''}`.trim()
     : 'Production';
 
-
-
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <TopNavBar />
-
       <div className="flex flex-1">
         <SharedSideBar
           name={displayName}
           role="Production"
           items={productionSidebarItems}
           profilePath="/production/profile"
-          onLogout={() => { signOut(); navigate('/staff-login'); }}
+          onLogout={() => { signOut(); navigate('/'); }}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
         />
-
         <main
           className={`flex-1 p-6 mt-16 transition-all duration-300 ${
             collapsed ? "lg:ml-[72px]" : "lg:ml-[160px]"
