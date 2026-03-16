@@ -1,5 +1,8 @@
+// frontend/src/components/Landing/Navbar.tsx
+// REFACTORED: Removed "Staff Login" link — single unified LoginModal handles all roles
+
 import { useState } from "react";
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { LoginModal } from "../UserModal/LoginModal";
 
 export const Navbar = () => {
@@ -13,23 +16,13 @@ export const Navbar = () => {
     }
   };
 
-  const handleSignUp = () => {
-    navigate("/signup");
-  };
-
-  const handleLogin = () => {
-    setShowLoginModal(true);
-  };
-
   return (
     <>
-      {/* Login Modal */}
       <LoginModal
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
       />
 
-      {/* Navbar */}
       <div className="bg-white shadow-md sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
@@ -40,11 +33,8 @@ export const Navbar = () => {
                 alt="OPERIX Logo"
                 className="h-10 w-auto"
                 onError={(e) => {
-                  // Fallback if image doesn't load
                   e.currentTarget.style.display = "none";
-                  e.currentTarget.nextElementSibling?.classList.remove(
-                    "hidden"
-                  );
+                  e.currentTarget.nextElementSibling?.classList.remove("hidden");
                 }}
               />
               <div className="text-2xl font-bold hidden">
@@ -84,31 +74,21 @@ export const Navbar = () => {
                 About Us
               </button>
 
-              {/* Sign Up Button (Semi-transparent) */}
+              {/* Sign Up Button */}
               <button
-                onClick={handleSignUp}
+                onClick={() => navigate("/signup")}
                 className="font-bold text-[#E80088] bg-[#E80088]/20 hover:bg-[#E80088]/30 px-6 py-2 rounded-lg transition-all duration-300 border-2 border-[#E80088]"
               >
                 Sign up
               </button>
 
-              {/* Log In Button (Solid) */}
+              {/* Log In Button — opens unified modal for ALL roles */}
               <button
-                onClick={handleLogin}
+                onClick={() => setShowLoginModal(true)}
                 className="font-bold text-white bg-[#E80088] hover:bg-[#C70070] px-6 py-2 rounded-lg transition-all duration-300 shadow-md"
               >
                 Log in
               </button>
-
-              {/* Small link for employees to find their portal */}
-              <Link
-                to='/staff-login'
-                className='text-xs text-gray-400 hover:text-gray-600
-                           transition-colors underline underline-offset-2'>
-                Staff Login
-              </Link>
-
-
             </nav>
           </div>
         </div>
