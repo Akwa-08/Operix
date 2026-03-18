@@ -1,165 +1,239 @@
-import {useState} from "react";
-import {User, Mail, Phone, MapPin, Users} from "lucide-react";
+// frontend/src/pages/ProfilePage.tsx
+// REFACTORED: Connected to real AuthContext data + direct Supabase for profile CRUD
+// Customer profile uses RLS — supabase client (anon key) respects users_select_own policy
+
+import { useState, useEffect } from "react";
+import { User, Mail, Phone, MapPin, Lock, Eye, EyeOff } from "lucide-react";
+import toast from "react-hot-toast";
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../config/supabaseClient';
+import authService from '../services/authService';
 
 export const ProfilePage = () => {
+  const { user } = useAuth();
+
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [isPasswordSaving, setIsPasswordSaving] = useState(false);
+
+  // Profile fields
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [address, setAddress] = useState('');
+  const [memberSince, setMemberSince] = useState('');
+
+  // Password fields
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  // ── Load profile from Supabase (RLS ensures customer only sees own row) ──
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName || '');
+      setLastName(user.lastName || '');
+      setEmail(user.email || '');
+      loadFullProfile();
+    }
+  }, [user]);
+
+  const loadFullProfile = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (!error && data) {
+      setFirstName(data.first_name || '');
+      setLastName(data.last_name || '');
+      setEmail(data.email || '');
+      setPhoneNumber(data.contact_number || '');
+      setAddress(data.address || '');
+      if (data.created_at) {
+        setMemberSince(new Date(data.created_at).toLocaleDateString('en-US', {
+          month: 'long', year: 'numeric'
+        }));
+      }
+    }
+  };
+
+  const fullName = `${firstName} ${lastName}`.trim() || 'Customer';
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'C';
+
+  // ── Save profile — direct Supabase update (RLS: users_update_own) ──────
+  const handleSaveProfile = async () => {
+    if (!firstName.trim()) return toast.error("First name is required");
+    if (!email.includes("@")) return toast.error("Enter a valid email");
+
+    setIsSaving(true);
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        contact_number: phoneNumber,
+        address: address,
+      })
+      .eq('id', user!.id);
+
+    setIsSaving(false);
+
+    if (!error) {
+      setIsEditing(false);
+      toast.success("Profile updated successfully");
+    } else {
+      toast.error("Failed to update profile: " + error.message);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    loadFullProfile(); // Discard unsaved changes
+  };
+
+  // ── Save password (via Supabase Auth directly) ─────────────────────────
+  const handlePasswordSave = async () => {
+    if (!newPassword || !confirmPassword) return toast.error("All fields are required");
+    if (newPassword.length < 8) return toast.error("Password must be at least 8 characters");
+    if (newPassword !== confirmPassword) return toast.error("Passwords do not match");
+
+    setIsPasswordSaving(true);
+    const result = await authService.updatePassword(newPassword);
+    setIsPasswordSaving(false);
+
+    if (result.success) {
+      toast.success("Password changed successfully");
+      setShowPasswordModal(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } else {
+      toast.error(result.error || "Failed to change password");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      {/* Personal Information Section */}
       <div className="max-w-6xl ml-auto bg-white rounded-lg shadow-sm p-8 mb-8">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-3xl font-bold">Personal Information</h2>
-          <button
-            onClick={() => setIsEditing((prev) => !prev)}
-            className={`px-6 py-2 rounded-md transition cursor-pointer ${
-              isEditing
-                ? "bg-sky-500 text-white hover:bg-sky-600"
-                : "border border-gray-300 hover:bg-gray-50"
-            }`}>
-            {isEditing ? "Save Profile" : "Edit Profile"}
-          </button>
+          <div className="flex gap-3">
+            {isEditing && (
+              <button onClick={handleCancelEdit} className="px-6 py-2 rounded-md border border-gray-300 hover:bg-gray-50 transition">
+                Cancel
+              </button>
+            )}
+            <button
+              onClick={() => isEditing ? handleSaveProfile() : setIsEditing(true)}
+              disabled={isSaving}
+              className={`px-6 py-2 rounded-md transition cursor-pointer ${
+                isEditing ? "bg-sky-500 text-white hover:bg-sky-600" : "border border-gray-300 hover:bg-gray-50"
+              } disabled:opacity-50`}
+            >
+              {isSaving ? "Saving..." : isEditing ? "Save Profile" : "Edit Profile"}
+            </button>
+          </div>
         </div>
 
         {/* Profile Header */}
         <div className="flex items-center gap-6 mb-8 pb-8 border-b">
           <div className="w-24 h-24 bg-gray-300 rounded-full flex items-center justify-center text-3xl font-bold text-gray-600">
-            JD
+            {initials}
           </div>
           <div>
-            <h3 className="text-2xl font-bold mb-1">John Doe</h3>
+            <h3 className="text-2xl font-bold mb-1">{fullName}</h3>
             <p className="text-lg text-gray-600 mb-1">Customer</p>
-            <p className="text-gray-500">Member since June 2025</p>
+            {memberSince && <p className="text-gray-500">Member since {memberSince}</p>}
           </div>
         </div>
 
         {/* Form Fields */}
         <div className="grid grid-cols-2 gap-6">
-          {/* Full Name */}
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Full Name
-            </label>
-            <div className="relative">
-              <User
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
-              />
-              <input
-                type="text"
-                defaultValue="John Doe"
-                disabled={!isEditing}
-                className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md transition ${
-                  isEditing ? "bg-white" : "bg-gray-50"
-                }`} 
-              />
-            </div>
-          </div>
-
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Email Address
-            </label>
-            <div className="relative">
-              <Mail
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
-              />
-              <input
-                type="email"
-                defaultValue="john.doe@gmail.com"
-                disabled={!isEditing}
-                className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md transition ${
-                  isEditing ? "bg-white" : "bg-gray-50"
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Phone Number
-            </label>
-            <div className="relative">
-              <Phone
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
-              />
-              <input
-                type="tel"
-                defaultValue="+64 (965) 123-4567"
-                disabled={!isEditing}
-                className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md transition ${
-                  isEditing ? "bg-white" : "bg-gray-50"
-                }`}
-              />
-            </div>
-          </div>
-
-          {/* Role */}
-          <div>
-            <label className="block text-sm font-semibold mb-2">Role</label>
-            <div className="relative">
-              <Users
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
-              />
-              <input
-                type="text"
-                defaultValue="Customer"
-                disabled
-                className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md bg-gray-50"
-              />
-            </div>
-          </div>
-
-          {/* Address */}
+          <FieldWithIcon label="First Name" icon={<User size={20} />} value={firstName} onChange={(e) => setFirstName(e.target.value)} disabled={!isEditing} />
+          <FieldWithIcon label="Last Name" icon={<User size={20} />} value={lastName} onChange={(e) => setLastName(e.target.value)} disabled={!isEditing} />
+          <FieldWithIcon label="Email Address" icon={<Mail size={20} />} value={email} onChange={(e) => setEmail(e.target.value)} disabled={!isEditing} />
+          <FieldWithIcon label="Phone Number" icon={<Phone size={20} />} value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} disabled={!isEditing} />
           <div className="col-span-2">
-            <label className="block text-sm font-semibold mb-2">Address</label>
-            <div className="relative">
-              <MapPin
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                size={20}
-              />
-              <input
-                type="text"
-                defaultValue="Cordova, Lapu-Lapu City, Cebu"
-                disabled={!isEditing}
-                className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md transition ${
-                  isEditing ? "bg-white" : "bg-gray-100"
-                }`}
-              />
+            <FieldWithIcon label="Address" icon={<MapPin size={20} />} value={address} onChange={(e) => setAddress(e.target.value)} disabled={!isEditing} />
+          </div>
+        </div>
+
+        {/* Change Password */}
+        <button onClick={() => setShowPasswordModal(true)} className="mt-6 text-sky-500 font-semibold text-sm hover:underline">
+          Change Password
+        </button>
+      </div>
+
+      {/* Password Modal — uses Supabase Auth directly (no backend round-trip) */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-10 w-[450px] shadow-xl">
+            <h3 className="text-xl font-semibold mb-8">Change Password</h3>
+
+            <div className="mb-6">
+              <label className="text-sm font-semibold text-gray-600">New Password</label>
+              <div className="relative mt-2">
+                <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
+                <input type={showNew ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-2.5 text-gray-500">
+                  {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="text-sm font-semibold text-gray-600">Confirm New Password</label>
+              <div className="relative mt-2">
+                <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
+                <input type={showConfirm ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-2.5 text-gray-500">
+                  {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-4">
+              <button onClick={() => setShowPasswordModal(false)} className="px-5 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+              <button onClick={handlePasswordSave} disabled={isPasswordSaving}
+                className="bg-sky-500 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-sky-600 disabled:opacity-50">
+                {isPasswordSaving ? "Saving..." : "Save"}
+              </button>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Order History Section */}
-      <div className="max-w-6xl ml-auto bg-white rounded-lg shadow-sm p-8">
-        <h2 className="text-3xl font-bold mb-8">Order History</h2>
-
-        <div className="grid grid-cols-3 gap-6">
-          {/* Total Orders */}
-          <div className="bg-gray-100 rounded-lg p-8 text-center">
-            <div className="text-5xl font-bold text-cyan-500 mb-2">15</div>
-            <p className="text-gray-600 font-medium">Total Orders</p>
-          </div>
-
-          {/* Total Spent */}
-          <div className="bg-gray-100 rounded-lg p-8 text-center">
-            <div className="text-5xl font-bold text-pink-600 mb-2">₱2450</div>
-            <p className="text-gray-600 font-medium">Total Spent</p>
-          </div>
-
-          {/* Pending Orders */}
-          <div className="bg-gray-100 rounded-lg p-8 text-center">
-            <div className="text-5xl font-bold text-yellow-500 mb-2">3</div>
-            <p className="text-gray-600 font-medium">Pending Orders</p>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
+
+/* ---------- Field with Icon ---------- */
+const FieldWithIcon = ({ label, icon, value, onChange, disabled }: {
+  label: string; icon: React.ReactNode; value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; disabled: boolean;
+}) => (
+  <div>
+    <label className="block text-sm font-semibold mb-2">{label}</label>
+    <div className="relative">
+      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{icon}</div>
+      <input
+        type="text"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md transition ${
+          disabled ? "bg-gray-50" : "bg-white focus:ring-2 focus:ring-sky-500"
+        }`}
+      />
+    </div>
+  </div>
+);
