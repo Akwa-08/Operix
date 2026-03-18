@@ -44,11 +44,13 @@ export interface Material {
   itemVariant: string;
   usableStocks: number;
   stockUnit: string;
+  reorderPoint: number;
+  unitCost: number;
   purchaseQty: number;
   purchaseUnit: string;
   supplier: string;
   status: MaterialStatus;
-  reorderPoint?: number;
+  isActive: boolean;
   description?: string;
   lastSupplierCost?: number;
 }
