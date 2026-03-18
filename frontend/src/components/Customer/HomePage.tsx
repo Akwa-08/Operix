@@ -3,9 +3,10 @@ import {Search, ChevronLeft, ChevronRight, Sparkles} from "lucide-react";
 import {useDispatch} from "react-redux";
 import {motion, AnimatePresence} from "framer-motion";
 import {addProduct} from "../../store/productsSlice";
-import productsData from "../../util/Products";
+import { useProductCatalog } from "../../hooks/useProductCatalog";
 import {ProductCard} from "./ProductCard";
 import {Toast} from "./Toast";
+import { useCartData } from "../../hooks/useCartData";
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -16,9 +17,7 @@ export default function HomePage() {
   const itemsPerPage = 6;
   const dispatch = useDispatch();
 
-  const filteredProducts = productsData.filter((p) =>
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const { products: filteredProducts, loading: productsLoading } = useProductCatalog(searchQuery);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const pagedProducts = filteredProducts.slice(
@@ -26,11 +25,15 @@ export default function HomePage() {
     currentPage * itemsPerPage,
   );
 
-  const handleAddToCart = (product: any) => {
-    dispatch(addProduct({...product, id: String(product.id)}));
+  const { addToCart } = useCartData();
+
+  const handleAddToCart = async (product: any) => {
+  const result = await addToCart(product.id, 1);
+  if (result.success) {
     setToastMessage(`${product.title} added to your cart!`);
     setShowToast(true);
-  };
+  }
+};
 
   return (
     <div className="w-full bg-gray-50 flex flex-col min-h-screen">

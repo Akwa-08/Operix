@@ -1,5 +1,5 @@
 // backend/src/server.js
-// REFACTORED: Removed /auth routes. Frontend calls Supabase Auth directly.
+// UPDATED: Added /api/orders + /api (cart/products) route mounts
 
 require('dotenv').config();
 const express = require('express');
@@ -10,6 +10,8 @@ const { testConnection } = require('./config/supabase');
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const inventoryRoutes = require('./modules/inventory/routes/inventoryRoutes');
 const accountRoutes = require('./modules/accounts_management/routes/accountRoutes');
+const orderRoutes = require('./modules/orders/routes/orderRoutes');
+const cartRoutes = require('./modules/orders/routes/cartRoutes');
 const { verifyToken } = require('./middleware/authMiddleware');
 
 const app = express();
@@ -35,10 +37,12 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString(), environment: process.env.NODE_ENV });
 });
 
-// ── ALL /api routes require JWT ──────────────────────────────────────────────
+// ALL /api routes require JWT
 app.use('/api', verifyToken);
-app.use('/api', accountRoutes);
-app.use('/api/inventory', inventoryRoutes);
+app.use('/api', accountRoutes);        // /api/users, /api/suppliers, /api/employees
+app.use('/api/inventory', inventoryRoutes); // /api/inventory/*
+app.use('/api/orders', orderRoutes);    // /api/orders/*
+app.use('/api', cartRoutes);            // /api/cart, /api/checkout, /api/products
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -48,7 +52,7 @@ const startServer = async () => {
     const dbConnected = await testConnection();
     if (!dbConnected) { console.error('Failed to connect to database. Exiting...'); process.exit(1); }
     app.listen(PORT, () => {
-      console.log(`\n  OPERIX BACKEND | Port: ${PORT} | Env: ${process.env.NODE_ENV || 'development'} | DB: Connected ✓ | Auth: Supabase Direct\n`);
+      console.log(`\n  OPERIX BACKEND | Port: ${PORT} | Env: ${process.env.NODE_ENV || 'development'} | DB: Connected\n`);
     });
   } catch (error) { console.error('Failed to start server:', error); process.exit(1); }
 };
