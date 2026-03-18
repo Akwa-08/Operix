@@ -6,12 +6,14 @@ import { useState, useEffect } from "react";
 import { User, Mail, Phone, MapPin, Lock, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from '../context/AuthContext';
+import apiClient from '../services/apiClient';
 import { supabase } from '../config/supabaseClient';
 import authService from '../services/authService';
 
 export const ProfilePage = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
+  const [profileLoading, setProfileLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -43,25 +45,17 @@ export const ProfilePage = () => {
 
   const loadFullProfile = async () => {
     if (!user) return;
-
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single();
-
-    if (!error && data) {
-      setFirstName(data.first_name || '');
-      setLastName(data.last_name || '');
-      setEmail(data.email || '');
-      setPhoneNumber(data.contact_number || '');
-      setAddress(data.address || '');
-      if (data.created_at) {
-        setMemberSince(new Date(data.created_at).toLocaleDateString('en-US', {
-          month: 'long', year: 'numeric'
-        }));
-      }
+    setProfileLoading(true);
+    const result = await apiClient.get(`/api/users?query=${user.id}`);
+    if (result.success && result.data && result.data.length > 0) {
+      const profile = result.data[0];
+      setPhoneNumber(profile.contact_number || '');
+      setAddress(profile.address || '');
+      setFirstName(profile.first_name || '');
+      setLastName(profile.last_name || '');
+      setEmail(profile.email || '');
     }
+    setProfileLoading(false);
   };
 
   const fullName = `${firstName} ${lastName}`.trim() || 'Customer';
@@ -111,15 +105,29 @@ export const ProfilePage = () => {
     setIsPasswordSaving(false);
 
     if (result.success) {
-      toast.success("Password changed successfully");
-      setShowPasswordModal(false);
-      setNewPassword('');
-      setConfirmPassword('');
-    } else {
+      // Sync name to Supabase Auth metadata so navbar updates
+      const { supabase } = await import('../config/supabaseClient').then(m => ({ supabase: m.supabase }));
+      await supabase.auth.updateUser({
+        data: { first_name: firstName, last_name: lastName }
+      });
+      // Refresh AuthContext so sidebar/navbar picks up new name
+      await supabase.auth.updateUser({ data: { first_name: firstName, last_name: lastName } });
+      await refreshUser();
+      setIsEditing(false);
+      toast.success("Profile updated successfully");
+    }else {
       toast.error(result.error || "Failed to change password");
     }
   };
 
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
+      </div>
+    );
+
+  }
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl ml-auto bg-white rounded-lg shadow-sm p-8 mb-8">

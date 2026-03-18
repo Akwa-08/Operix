@@ -146,12 +146,12 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             <InfoField label="Date Ordered" value={order.dateOrdered} />
             <InfoField label="Due Date" value={order.dueDate} />
             {order.assignedDesigner && (
-              <InfoField label="Assigned Designer" value={order.assignedDesigner} />
+              <InfoField label="Assigned Designer" value={order.designerName || 'Not assigned'} />
             )}
             {order.assignedProduction && (
               <InfoField
                 label="Assigned Production"
-                value={order.assignedProduction}
+                value={order.productionName || 'Not assigned'}
               />
             )}
           </div>

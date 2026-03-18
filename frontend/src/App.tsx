@@ -86,22 +86,24 @@ const router = createBrowserRouter([
 
   // ── CASHIER (role: cashier) ──────────────────────────────────────────────
   {
-    path: '/cashier',
-    element: <ProtectedRoute allowedRoles={['cashier']} redirectTo='/'><CashierPage /></ProtectedRoute>,
-    children: [
-      { index: true,       element: <CashierDashboard /> },
-      { path: 'orders',    element: <CashierOrders /> },
-      { path: 'inventory', element: <CashierInventory /> },
-    ],
-  },
+  path: '/cashier',
+  element: <ProtectedRoute allowedRoles={['cashier']} redirectTo='/'><CashierPage /></ProtectedRoute>,
+  children: [
+    { index: true,       element: <CashierDashboard /> },
+    { path: 'orders',    element: <CashierOrders /> },
+    { path: 'inventory', element: <CashierInventory /> },
+    { path: 'profile',   element: <ProfilePage /> },
+  ],
+},
 
   // ── DESIGNER (role: designer) ────────────────────────────────────────────
   {
-    path: '/designer',
-    element: <ProtectedRoute allowedRoles={['designer']} redirectTo='/'><DesignerPage /></ProtectedRoute>,
-    children: [
-      { index: true,    element: <DesignerDashboard /> },
-      { path: 'orders', element: <DesignerOrders /> },
+  path: '/designer',
+  element: <ProtectedRoute allowedRoles={['designer']} redirectTo='/'><DesignerPage /></ProtectedRoute>,
+  children: [
+    { index: true,    element: <DesignerDashboard /> },
+    { path: 'orders', element: <DesignerOrders /> },
+    { path: 'profile', element: <ProfilePage /> },
     ],
   },
 

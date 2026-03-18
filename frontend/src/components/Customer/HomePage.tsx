@@ -2,11 +2,12 @@ import {useState} from "react";
 import {Search, ChevronLeft, ChevronRight, Sparkles} from "lucide-react";
 import {useDispatch} from "react-redux";
 import {motion, AnimatePresence} from "framer-motion";
-import {addProduct} from "../../store/productsSlice";
 import { useProductCatalog } from "../../hooks/useProductCatalog";
 import {ProductCard} from "./ProductCard";
 import {Toast} from "./Toast";
 import { useCartData } from "../../hooks/useCartData";
+import { useAuth } from '../../context/AuthContext'; // or however you access auth
+
 
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -14,10 +15,17 @@ export default function HomePage() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
 
+  const { user } = useAuth();
+  const { products: allProducts, loading: productsLoading } = useProductCatalog();
+  const { addToCart } = useCartData();
+
+  const filteredProducts = allProducts.filter((p) =>
+    p.title.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
+
   const itemsPerPage = 6;
   const dispatch = useDispatch();
 
-  const { products: filteredProducts, loading: productsLoading } = useProductCatalog(searchQuery);
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const pagedProducts = filteredProducts.slice(
@@ -25,15 +33,17 @@ export default function HomePage() {
     currentPage * itemsPerPage,
   );
 
-  const { addToCart } = useCartData();
 
   const handleAddToCart = async (product: any) => {
-  const result = await addToCart(product.id, 1);
-  if (result.success) {
-    setToastMessage(`${product.title} added to your cart!`);
-    setShowToast(true);
-  }
-};
+    const result = await addToCart(product.id, 1);
+    if (result.success) {
+      setToastMessage(`${product.title} added to your cart!`);
+      setShowToast(true);
+    } else {
+      setToastMessage("Failed to add to cart");
+      setShowToast(true);
+    }
+  };
 
   return (
     <div className="w-full bg-gray-50 flex flex-col min-h-screen">
@@ -56,22 +66,21 @@ export default function HomePage() {
             animate={{opacity: 1, scale: 1}}
             className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-100/50 border border-cyan-200 rounded-full text-cyan-600 text-[11px] font-black uppercase tracking-widest mb-6">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Welcome back to Operix</span>
+            <span>Welcome  to Operix</span>
           </motion.div>
 
           <motion.h1
             initial={{opacity: 0, x: -20}}
             animate={{opacity: 1, x: 0}}
             className="text-5xl font-black text-gray-900 leading-none tracking-tight mb-4">
-            John <span className="text-cyan-500">Doe.</span>
+            Hello {user?.firstName ? `, ${user.firstName}` : ''}!
           </motion.h1>
           <motion.p
             initial={{opacity: 0, x: -20}}
             animate={{opacity: 1, x: 0}}
             transition={{delay: 0.1}}
             className="text-gray-500 text-lg font-medium max-w-2xl leading-relaxed">
-            Explore our curated collection of professional-grade products
-            designed for your next masterpiece.
+            Browse our products and add them to your cart
           </motion.p>
         </div>
       </section>
