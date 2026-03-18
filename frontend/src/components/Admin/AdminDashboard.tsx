@@ -1,318 +1,151 @@
-import {useState} from "react";
-import {PenTool} from "lucide-react";
-import {
-  Search,
-  TrendingUp,
-  Package,
-  AlertCircle,
-  Trophy,
-  Eye,
-  ChevronDown,
-  X,
-  User,
-  PackageIcon,
-} from "lucide-react";
-import {dashboardData} from "../../util/dashboard";
-import type {OrderDetails} from "../../util/dashboard";
+import { useState } from "react";
+import { PenTool, Search, TrendingUp, Package, AlertCircle, Trophy, Eye, ChevronDown, X, User, PackageIcon } from "lucide-react";
+import { useDashboardData } from "../../hooks/useDashboardData";
 
 const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedPeriod, setSelectedPeriod] = useState("This Month");
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [selectedOrderDetails, setSelectedOrderDetails] =
-    useState<OrderDetails | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  const { data: liveData, loading: dashLoading } = useDashboardData();
 
   const periods = ["This Month", "Last Month", "Last 3 Months", "This Year"];
 
-  // MOCK DATA - Imported from TS
-  const metrics = dashboardData.metrics;
-  const dailySalesData = dashboardData.dailySalesData;
-  const productRevenue = dashboardData.productRevenue;
+  // ── Live metrics from API ──────────────────────────────────────────────
+  const os = liveData?.orderStats;
+  const inv = liveData?.inventoryStats;
 
-  const topOrders = dashboardData.topOrders;
-  const inventorySnapshot = dashboardData.inventorySnapshot;
-  const recentOrders = dashboardData.recentOrders;
-
-  // Order details data - Imported from TS
-  const getOrderDetails = (orderId: string): OrderDetails => {
-    return {
-      id: orderId,
-      ...dashboardData.sampleOrderDetails,
-    } as OrderDetails;
+  const metrics = {
+    totalRevenue: os?.totalRevenue || 0,
+    revenueChange: "+0%",
+    completedOrders: os?.completed || 0,
+    ordersChange: `${os?.total || 0} total`,
+    delayedPayments: os?.overdue || 0,
+    paymentsChange: `${os?.unpaid || 0} unpaid`,
+    topSellingProduct: "Tarpaulin",
+    productChange: `${os?.inQueue || 0} in queue`,
   };
 
-  // Handler functions - Ready for backend
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Searching for:", searchQuery);
-    // TODO: API call to search orders/customers
-  };
+  // ── Live inventory snapshot ────────────────────────────────────────────
+  const inventorySnapshot = (liveData?.lowStockItems || []).map(item => ({
+    id: item.id,
+    materialName: item.name,
+    currentQty: item.currentQty,
+    reorderLevel: item.reorderPoint,
+    unit: item.unit,
+    status: item.currentQty <= 0 ? "Low" : item.currentQty <= item.reorderPoint ? "Warning" : "Sufficient",
+  }));
 
-  const handleViewOrder = (orderId: string) => {
-    console.log("View order:", orderId);
-    // TODO: Fetch order details from API
-    const orderDetails = getOrderDetails(orderId);
-    setSelectedOrderDetails(orderDetails);
-    setShowOrderDetails(true);
-  };
+  // ── Live recent orders ─────────────────────────────────────────────────
+  const recentOrders = (liveData?.recentOrders || []).map(o => ({
+    id: o.orderId,
+    product: o.product,
+    materialsUsed: "—",
+    remainingStock: "—",
+  }));
 
+  // ── Live top orders ────────────────────────────────────────────────────
+  const topOrders = (liveData?.recentOrders || []).map(o => ({
+    id: o.orderId,
+    customer: o.customerName,
+    amount: o.amount,
+    status: o.status === "completed" ? "Paid" : o.status === "cancelled" ? "Unpaid" : "Partial",
+    date: o.date,
+  }));
+
+  // ── Static chart data (no daily breakdown from API yet) ────────────────
+  const dailySalesData = [
+    { date: "Mar 1", revenue: 12500 }, { date: "Mar 3", revenue: 8300 },
+    { date: "Mar 6", revenue: 15200 }, { date: "Mar 9", revenue: 9800 },
+    { date: "Mar 12", revenue: 18500 }, { date: "Mar 15", revenue: 14200 },
+    { date: "Mar 18", revenue: 22000 }, { date: "Mar 20", revenue: 16500 },
+    { date: "Mar 22", revenue: 19800 }, { date: "Mar 25", revenue: 25000 },
+  ];
+
+  const productRevenue = [
+    { category: "Tarpaulin", amount: 65000, percentage: 37, color: "#0ea5e9" },
+    { category: "T-Shirts", amount: 48000, percentage: 27, color: "#8b5cf6" },
+    { category: "ID Cards", amount: 25000, percentage: 14, color: "#f59e0b" },
+    { category: "Documents", amount: 22000, percentage: 13, color: "#10b981" },
+    { category: "Others", amount: 15000, percentage: 9, color: "#6b7280" },
+  ];
+
+  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); };
+  const handleViewOrder = (orderId: string) => { setSelectedOrderId(orderId); setShowOrderDetails(true); };
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Paid":
-        return "bg-green-100 text-green-700";
-      case "Unpaid":
-        return "bg-red-100 text-red-700";
-      case "Partial":
-        return "bg-yellow-100 text-yellow-700";
-      case "Low":
-        return "text-red-600";
-      case "Warning":
-        return "text-yellow-600";
-      case "Sufficient":
-        return "text-green-600";
-      default:
-        return "bg-gray-100 text-gray-700";
+      case "Paid": return "bg-green-100 text-green-700";
+      case "Unpaid": return "bg-red-100 text-red-700";
+      case "Partial": return "bg-yellow-100 text-yellow-700";
+      case "Low": return "text-red-600";
+      case "Warning": return "text-yellow-600";
+      case "Sufficient": return "text-green-600";
+      default: return "bg-gray-100 text-gray-700";
     }
   };
 
   const maxRevenue = Math.max(...dailySalesData.map((d) => d.revenue));
+  // ── FIXED: Use viewBox with numeric points instead of percentage strings ──
+  const chartWidth = 800;
   const chartHeight = 200;
+
+  if (dashLoading) return <div className="max-w-[1400px] mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
   return (
     <div className="max-w-[1400px] mx-auto">
       {/* Order Details Modal */}
-      {showOrderDetails && selectedOrderDetails && (
-        <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowOrderDetails(false)}>
-          <div
-            className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200 relative"
-            onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">
-                    Order Details
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    #{selectedOrderDetails.id}
-                  </p>
+      {showOrderDetails && selectedOrderId && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowOrderDetails(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 relative" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowOrderDetails(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={24} className="text-gray-600" /></button>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Details</h2>
+            <p className="text-sm text-gray-500 mb-6">#{selectedOrderId}</p>
+            {(() => {
+              const order = topOrders.find(o => o.id === selectedOrderId);
+              if (!order) return <p className="text-gray-500">Order not found in current view.</p>;
+              return (
+                <div className="space-y-4">
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-gray-600">Customer:</span><span className="font-semibold">{order.customer}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Amount:</span><span className="font-semibold">₱{order.amount.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Status:</span><span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-600">Date:</span><span className="font-semibold">{order.date}</span></div>
+                  </div>
+                  <p className="text-xs text-gray-400">Full order details available in the Orders tab.</p>
                 </div>
-                <button
-                  onClick={() => setShowOrderDetails(false)}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                  aria-label="Close">
-                  <X size={24} className="text-gray-600" />
-                </button>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-6">
-              {/* Customer Info and Product Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Customer Information */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <User size={20} className="text-gray-700" />
-                    <h3 className="text-lg font-bold text-gray-900">
-                      Customer Information
-                    </h3>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Name</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {selectedOrderDetails.customer.name}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Email</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {selectedOrderDetails.customer.email}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Phone</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {selectedOrderDetails.customer.phone}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Product Information */}
-                <div className="bg-gray-50 rounded-xl p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <PackageIcon size={20} className="text-gray-700" />
-                    <h3 className="text-lg font-bold text-gray-900">
-                      Product Information
-                    </h3>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Product</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {selectedOrderDetails.product.name}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Quantity</p>
-                      <p className="text-sm font-semibold text-gray-900">
-                        {selectedOrderDetails.product.quantity} pcs
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-600 mb-1">Total Amount</p>
-                      <div className="flex items-center justify-between">
-                        <p className="text-lg font-bold text-red-600">
-                          ₱
-                          {selectedOrderDetails.product.totalAmount.toLocaleString()}
-                        </p>
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
-                            selectedOrderDetails.product.status,
-                          )}`}>
-                          {selectedOrderDetails.product.status}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Assigned Staff */}
-              <div className="bg-gray-50 rounded-xl p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">
-                  Assigned Staff
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1">Designer</p>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {selectedOrderDetails.assignedStaff.designer}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-600 mb-1">Production</p>
-                    <p className="text-sm font-semibold text-gray-900">
-                      {selectedOrderDetails.assignedStaff.production}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Special Instructions */}
-              <div className="bg-gray-50 rounded-xl p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">
-                  Special Instructions
-                </h3>
-                <p className="text-sm text-gray-700 leading-relaxed">
-                  {selectedOrderDetails.specialInstructions}
-                </p>
-              </div>
-
-              {/* Design Section */}
-              <div className="bg-gray-50 rounded-xl p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <PenTool className="w-5 h-5 text-gray-700" /> Design
-                </h3>
-
-                {/* Customer Design */}
-                <div className="mb-6">
-                  <p className="text-sm font-semibold text-gray-700 mb-3">
-                    Customer Design
-                  </p>
-                  <div className="bg-gray-200 rounded-lg h-64 flex items-center justify-center">
-                    <p className="text-gray-500">Design Preview</p>
-                  </div>
-                </div>
-
-                {/* Final Design Path */}
-                <div className="mb-6">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">
-                    Final Design Path
-                  </p>
-                  <p className="text-sm text-gray-900 font-mono bg-white px-4 py-2 rounded border border-gray-300">
-                    {selectedOrderDetails.design.finalDesignPath}
-                  </p>
-                </div>
-
-                {/* Final Design Preview */}
-                <div>
-                  <p className="text-sm font-semibold text-gray-700 mb-3">
-                    Final Design Preview
-                  </p>
-                  <div className="bg-gray-200 rounded-lg h-64 flex items-center justify-center">
-                    <p className="text-gray-500">Final Preview</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
       )}
 
-      {/* Header Section */}
+      {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-sm text-gray-500">
-          Monitor overall performance, sales trends, and inventory status in
-          real time
-        </p>
+        <p className="text-sm text-gray-500">Monitor overall performance, sales trends, and inventory status</p>
       </div>
 
       {/* Search and Filter */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
         <div className="flex gap-3">
           <form onSubmit={handleSearch} className="flex-1 relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              size={18}
-            />
-            <input
-              type="text"
-              placeholder="Search orders or customers by name, order ID, or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <input type="text" placeholder="Search orders or customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
           </form>
-
-          {/* Period Dropdown */}
           <div className="relative">
-            <button
-              onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center gap-2 min-w-[150px]">
-              <span>{selectedPeriod}</span>
-              <ChevronDown size={16} />
+            <button onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]">
+              <span>{selectedPeriod}</span><ChevronDown size={16} />
             </button>
             {showPeriodDropdown && (
-              <>
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowPeriodDropdown(false)}
-                />
-                <div className="absolute top-full mt-1 right-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-20 overflow-hidden">
-                  {periods.map((period) => (
-                    <button
-                      key={period}
-                      onClick={() => {
-                        setSelectedPeriod(period);
-                        setShowPeriodDropdown(false);
-                      }}
-                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                        selectedPeriod === period
-                          ? "bg-gray-50 font-semibold"
-                          : ""
-                      }`}>
-                      {period}
-                    </button>
-                  ))}
-                </div>
-              </>
+              <><div className="fixed inset-0 z-10" onClick={() => setShowPeriodDropdown(false)} />
+              <div className="absolute top-full mt-1 right-0 w-full bg-white border rounded-lg shadow-lg z-20">
+                {periods.map(p => (<button key={p} onClick={() => { setSelectedPeriod(p); setShowPeriodDropdown(false); }}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${selectedPeriod === p ? "bg-gray-50 font-semibold" : ""}`}>{p}</button>))}
+              </div></>
             )}
           </div>
         </div>
@@ -320,367 +153,160 @@ const AdminDashboard = () => {
 
       {/* Top Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {/* Total Revenue */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">Total Revenue</p>
-            <TrendingUp size={20} className="text-green-600" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">
-            ₱{metrics.totalRevenue.toLocaleString()}
-          </p>
-          <p className="text-xs text-green-600 font-semibold">
-            {metrics.revenueChange} vs last month
-          </p>
+          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Total Revenue</p><TrendingUp size={20} className="text-green-600" /></div>
+          <p className="text-3xl font-bold text-gray-900 mb-1">₱{metrics.totalRevenue.toLocaleString()}</p>
+          <p className="text-xs text-green-600 font-semibold">{metrics.revenueChange}</p>
         </div>
-
-        {/* Completed Orders */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">Completed Orders</p>
-            <Package size={20} className="text-blue-600" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">
-            {metrics.completedOrders}
-          </p>
-          <p className="text-xs text-green-600 font-semibold">
-            {metrics.ordersChange} vs last month
-          </p>
+          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Completed Orders</p><Package size={20} className="text-blue-600" /></div>
+          <p className="text-3xl font-bold text-gray-900 mb-1">{metrics.completedOrders}</p>
+          <p className="text-xs text-blue-600 font-semibold">{metrics.ordersChange}</p>
         </div>
-
-        {/* Delayed Payments */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">Delayed Payments</p>
-            <AlertCircle size={20} className="text-red-600" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">
-            {metrics.delayedPayments}
-          </p>
-          <p className="text-xs text-red-600 font-semibold">
-            {metrics.paymentsChange} vs last month
-          </p>
+          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Overdue Orders</p><AlertCircle size={20} className="text-red-600" /></div>
+          <p className="text-3xl font-bold text-gray-900 mb-1">{metrics.delayedPayments}</p>
+          <p className="text-xs text-red-600 font-semibold">{metrics.paymentsChange}</p>
         </div>
-
-        {/* Top-Selling Product */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm text-gray-600">Top-Selling Product</p>
-            <Trophy size={20} className="text-yellow-600" />
-          </div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">
-            {metrics.topSellingProduct}
-          </p>
-          <p className="text-xs text-green-600 font-semibold">
-            {metrics.productChange} vs last month
-          </p>
+          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Inventory Status</p><Trophy size={20} className="text-yellow-600" /></div>
+          <p className="text-3xl font-bold text-gray-900 mb-1">{inv?.total || 0}</p>
+          <p className="text-xs font-semibold" style={{color: (inv?.lowStock || 0) > 0 ? '#dc2626' : '#16a34a'}}>{inv?.lowStock || 0} low stock, {inv?.available || 0} available</p>
         </div>
       </div>
 
-      {/* Daily Sales Performance Chart */}
+      {/* Daily Sales Chart — FIXED polyline */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
         <div className="mb-4">
-          <h3 className="text-lg font-bold text-gray-900">
-            Daily Sales Performance
-          </h3>
-          <p className="text-xs text-gray-500">
-            Revenue trend over the past 30 days
-          </p>
+          <h3 className="text-lg font-bold text-gray-900">Daily Sales Performance</h3>
+          <p className="text-xs text-gray-500">Revenue trend (sample data — will connect to live when daily tracking is available)</p>
         </div>
-
-        {/* Simple Line Chart */}
-        <div className="relative" style={{height: `${chartHeight}px`}}>
-          {/* Y-axis labels */}
+        <div className="relative" style={{ height: `${chartHeight}px` }}>
           <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-xs text-gray-500">
             <span>₱{(maxRevenue / 1000).toFixed(0)}k</span>
-            <span>₱{((maxRevenue * 0.75) / 1000).toFixed(0)}k</span>
             <span>₱{((maxRevenue * 0.5) / 1000).toFixed(0)}k</span>
-            <span>₱{((maxRevenue * 0.25) / 1000).toFixed(0)}k</span>
             <span>₱0k</span>
           </div>
-
-          {/* Chart area */}
           <div className="absolute left-14 right-0 top-0 bottom-8">
-            <svg width="100%" height="100%" className="overflow-visible">
-              {/* Horizontal grid lines */}
-              {[0, 0.25, 0.5, 0.75, 1].map((fraction, i) => (
-                <line
-                  key={`h-${i}`}
-                  x1="0"
-                  y1={`${fraction * 100}%`}
-                  x2="100%"
-                  y2={`${fraction * 100}%`}
-                  stroke="#e5e7eb"
-                  strokeWidth="1"
-                  strokeDasharray="none"
-                />
+            {/* FIXED: Use viewBox with numeric coords instead of % strings */}
+            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" width="100%" height="100%" className="overflow-visible">
+              {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
+                <line key={`h-${i}`} x1="0" y1={f * chartHeight} x2={chartWidth} y2={f * chartHeight} stroke="#e5e7eb" strokeWidth="1" />
               ))}
-
-              {/* Vertical grid lines */}
-              {dailySalesData
-                .filter((_, i) => i % 3 === 0)
-                .map((_, i) => {
-                  const x = ((i * 3) / (dailySalesData.length - 1)) * 100;
-                  return (
-                    <line
-                      key={`v-${i}`}
-                      x1={`${x}%`}
-                      y1="0"
-                      x2={`${x}%`}
-                      y2="100%"
-                      stroke="#f3f4f6"
-                      strokeWidth="1"
-                      strokeDasharray="none"
-                    />
-                  );
-                })}
-
-              {/* Line path */}
               <polyline
-                fill="none"
-                stroke="#0ea5e9"
-                strokeWidth="2"
-                points={dailySalesData
-                  .map((d, i) => {
-                    const x = (i / (dailySalesData.length - 1)) * 100;
-                    const y = ((maxRevenue - d.revenue) / maxRevenue) * 100;
-                    return `${x}%,${y}%`;
-                  })
-                  .join(" ")}
+                fill="none" stroke="#0ea5e9" strokeWidth="2.5" strokeLinejoin="round"
+                points={dailySalesData.map((d, i) => {
+                  const x = (i / (dailySalesData.length - 1)) * chartWidth;
+                  const y = ((maxRevenue - d.revenue) / maxRevenue) * chartHeight;
+                  return `${x},${y}`;
+                }).join(" ")}
               />
-
-              {/* Data points */}
               {dailySalesData.map((d, i) => {
-                const x = (i / (dailySalesData.length - 1)) * 100;
-                const y = ((maxRevenue - d.revenue) / maxRevenue) * 100;
-                return (
-                  <circle
-                    key={i}
-                    cx={`${x}%`}
-                    cy={`${y}%`}
-                    r="3"
-                    fill="#0ea5e9"
-                  />
-                );
+                const x = (i / (dailySalesData.length - 1)) * chartWidth;
+                const y = ((maxRevenue - d.revenue) / maxRevenue) * chartHeight;
+                return <circle key={i} cx={x} cy={y} r="4" fill="#0ea5e9" />;
               })}
             </svg>
           </div>
-
-          {/* X-axis labels */}
           <div className="absolute left-14 right-0 bottom-0 h-8 flex justify-between text-xs text-gray-500">
-            {dailySalesData
-              .filter((_, i) => i % 3 === 0)
-              .map((d, i) => (
-                <span key={i}>{d.date}</span>
-              ))}
+            {dailySalesData.filter((_, i) => i % 2 === 0).map((d, i) => (<span key={i}>{d.date}</span>))}
           </div>
         </div>
       </div>
 
-      {/* Revenue Insights Section */}
+      {/* Revenue Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Revenue by Product Type */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-gray-900">
-              Revenue by Product Type
-            </h3>
-            <p className="text-xs text-gray-500">
-              Distribution of revenue across product categories
-            </p>
-          </div>
-
-          {/* Pie Chart */}
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Revenue by Product Type</h3><p className="text-xs text-gray-500">Distribution across categories</p></div>
           <div className="flex items-center justify-center mb-6">
             <div className="relative w-48 h-48">
               <svg viewBox="0 0 100 100" className="transform -rotate-90">
                 {(() => {
-                  let cumulativePercent = 0;
+                  let cum = 0;
                   return productRevenue.map((item, i) => {
-                    const startAngle = (cumulativePercent * 360) / 100;
-                    const endAngle =
-                      ((cumulativePercent + item.percentage) * 360) / 100;
-                    cumulativePercent += item.percentage;
-
-                    const startRad = (startAngle * Math.PI) / 180;
-                    const endRad = (endAngle * Math.PI) / 180;
-
-                    const x1 = 50 + 40 * Math.cos(startRad);
-                    const y1 = 50 + 40 * Math.sin(startRad);
-                    const x2 = 50 + 40 * Math.cos(endRad);
-                    const y2 = 50 + 40 * Math.sin(endRad);
-
-                    const largeArc = item.percentage > 50 ? 1 : 0;
-
-                    return (
-                      <path
-                        key={i}
-                        d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                        fill={item.color}
-                      />
-                    );
+                    const start = (cum * 360) / 100;
+                    const end = ((cum + item.percentage) * 360) / 100;
+                    cum += item.percentage;
+                    const sr = (start * Math.PI) / 180; const er = (end * Math.PI) / 180;
+                    const x1 = 50 + 40 * Math.cos(sr); const y1 = 50 + 40 * Math.sin(sr);
+                    const x2 = 50 + 40 * Math.cos(er); const y2 = 50 + 40 * Math.sin(er);
+                    return <path key={i} d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${item.percentage > 50 ? 1 : 0} 1 ${x2} ${y2} Z`} fill={item.color} />;
                   });
                 })()}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-2xl font-bold text-gray-900">5</p>
-                <p className="text-xs text-gray-500">Product Types</p>
+                <p className="text-2xl font-bold text-gray-900">{productRevenue.length}</p>
+                <p className="text-xs text-gray-500">Categories</p>
               </div>
             </div>
           </div>
-
-          {/* Legend */}
           <div className="space-y-2">
             {productRevenue.map((item, i) => (
               <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{backgroundColor: item.color}}
-                  />
-                  <span className="text-sm text-gray-700">{item.category}</span>
-                </div>
-                <span className="text-sm font-semibold text-gray-900">
-                  ₱{(item.amount / 1000).toFixed(0)}k
-                </span>
+                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} /><span className="text-sm text-gray-700">{item.category}</span></div>
+                <span className="text-sm font-semibold text-gray-900">₱{(item.amount / 1000).toFixed(0)}k</span>
               </div>
             ))}
           </div>
-
           <div className="mt-4 pt-4 border-t text-center">
-            <p className="text-lg font-bold text-gray-900">₱175k</p>
-            <p className="text-xs text-gray-500">Total Revenue</p>
+            <p className="text-lg font-bold text-gray-900">₱{(os?.totalRevenue ? (os.totalRevenue / 1000).toFixed(0) : "0")}k</p>
+            <p className="text-xs text-gray-500">Total Revenue (from orders)</p>
           </div>
         </div>
 
-        {/* Top Orders by Revenue */}
+        {/* Top Orders */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-gray-900">
-              Top Orders by Revenue
-            </h3>
-            <p className="text-xs text-gray-500">
-              Highest value orders from this month
-            </p>
-          </div>
-
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Recent Orders</h3><p className="text-xs text-gray-500">Latest orders from the system</p></div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                    Product Type
-                  </th>
-                  <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                    Amount
-                  </th>
-                  <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                    Status
-                  </th>
-                  <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                    Date
-                  </th>
-                  <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                    Action
-                  </th>
-                </tr>
-              </thead>
+              <thead className="bg-gray-50 border-b"><tr>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Customer</th>
+                <th className="px-3 py-2 text-right font-semibold text-gray-700">Amount</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">Date</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">Action</th>
+              </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {topOrders.map((order) => (
+                {topOrders.length === 0 ? (
+                  <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No recent orders</td></tr>
+                ) : topOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2">
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          {order.customer}
-                        </p>
-                        <p className="text-gray-500 text-[10px]">{order.id}</p>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-right font-semibold text-gray-900">
-                      ₱{order.amount.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span
-                        className={`px-2 py-1 rounded-full text-[10px] font-semibold ${getStatusColor(
-                          order.status,
-                        )}`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-center text-gray-600">
-                      {order.date}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <button
-                        onClick={() => handleViewOrder(order.id)}
-                        className="p-1 hover:bg-gray-200 rounded transition-colors"
-                        title="View Details">
-                        <Eye size={14} className="text-gray-600" />
-                      </button>
-                    </td>
+                    <td className="px-3 py-2"><p className="font-semibold text-gray-900">{order.customer}</p><p className="text-gray-500 text-[10px]">{order.id}</p></td>
+                    <td className="px-3 py-2 text-right font-semibold text-gray-900">₱{order.amount.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></td>
+                    <td className="px-3 py-2 text-center text-gray-600">{order.date}</td>
+                    <td className="px-3 py-2 text-center"><button onClick={() => handleViewOrder(order.id)} className="p-1 hover:bg-gray-200 rounded"><Eye size={14} className="text-gray-600" /></button></td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-
-          <div className="mt-4 pt-4 border-t text-center">
-            <p className="text-xs text-gray-500">
-              Showing top 7 orders • Total for orders: ₱93,100
-            </p>
           </div>
         </div>
       </div>
 
-      {/* Inventory Overview Section */}
+      {/* Inventory Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Inventory Snapshot */}
+        {/* Inventory Snapshot — LIVE DATA */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-gray-900">
-              Inventory Snapshot
-            </h3>
-            <p className="text-xs text-gray-500">
-              Current state of raw materials and stock
-            </p>
-          </div>
-
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Inventory Alerts</h3><p className="text-xs text-gray-500">Materials at or below reorder point</p></div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                    Material Name
-                  </th>
-                  <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                    Current Qty
-                  </th>
-                  <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                    Reorder Level
-                  </th>
-                  <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                    Status
-                  </th>
-                </tr>
-              </thead>
+              <thead className="bg-gray-50 border-b"><tr>
+                <th className="px-3 py-2 text-left font-semibold text-gray-700">Material</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">Current</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">Reorder At</th>
+                <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
+              </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {inventorySnapshot.map((item) => (
+                {inventorySnapshot.length === 0 ? (
+                  <tr><td colSpan={4} className="px-3 py-6 text-center text-green-600 font-semibold">All materials above reorder levels</td></tr>
+                ) : inventorySnapshot.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-gray-900">
-                      {item.materialName}
-                    </td>
-                    <td className="px-3 py-2 text-center font-semibold text-gray-900">
-                      {item.currentQty} {item.unit}
-                    </td>
-                    <td className="px-3 py-2 text-center text-gray-600">
-                      {item.reorderLevel} {item.unit}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span
-                        className={`font-semibold ${getStatusColor(item.status)}`}>
-                        {item.status}
-                      </span>
-                    </td>
+                    <td className="px-3 py-2 text-gray-900">{item.materialName}</td>
+                    <td className="px-3 py-2 text-center font-semibold text-gray-900">{item.currentQty} {item.unit}</td>
+                    <td className="px-3 py-2 text-center text-gray-600">{item.reorderLevel} {item.unit}</td>
+                    <td className="px-3 py-2 text-center"><span className={`font-semibold ${getStatusColor(item.status)}`}>{item.status}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -688,48 +314,31 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Recent Orders with Inventory Impact */}
+        {/* Quick Stats */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4">
-            <h3 className="text-lg font-bold text-gray-900">
-              Recent Orders with Inventory Impact
-            </h3>
-            <p className="text-xs text-gray-500">
-              Orders that recently affected material stock levels
-            </p>
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Order Summary</h3><p className="text-xs text-gray-500">Current order pipeline breakdown</p></div>
+          <div className="space-y-3">
+            {[
+              { label: "In Queue", value: os?.inQueue || 0, color: "bg-blue-500" },
+              { label: "Designing", value: os?.designing || 0, color: "bg-purple-500" },
+              { label: "In Production", value: os?.production || 0, color: "bg-orange-500" },
+              { label: "Ready for Pickup", value: os?.pickup || 0, color: "bg-green-500" },
+              { label: "Completed", value: os?.completed || 0, color: "bg-gray-400" },
+              { label: "Overdue", value: os?.overdue || 0, color: "bg-red-500" },
+            ].map((item) => (
+              <div key={item.label} className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                <span className="text-sm text-gray-700 flex-1">{item.label}</span>
+                <span className="text-sm font-bold text-gray-900">{item.value}</span>
+                <div className="w-24 bg-gray-100 rounded-full h-2">
+                  <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${os?.total ? (item.value / os.total) * 100 : 0}%` }} />
+                </div>
+              </div>
+            ))}
           </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                    Product
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                    Materials Used
-                  </th>
-                  <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                    Remaining Stock
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {recentOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-semibold text-gray-900">
-                      {order.product}
-                    </td>
-                    <td className="px-3 py-2 text-gray-600">
-                      {order.materialsUsed}
-                    </td>
-                    <td className="px-3 py-2 text-gray-900">
-                      {order.remainingStock}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-4 pt-4 border-t flex justify-between text-sm">
+            <span className="text-gray-600">Total Collected:</span>
+            <span className="font-bold text-green-600">₱{(os?.totalCollected || 0).toLocaleString()}</span>
           </div>
         </div>
       </div>

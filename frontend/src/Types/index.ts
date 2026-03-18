@@ -36,6 +36,11 @@ export interface Order {
   designFile?: string;
   assignedDesigner?: string;
   assignedProduction?: string;
+  designerName?: string;
+  productionName?: string;
+  comments?: string;
+  amountPaid?: number;
+  orderType?: string;
 }
 
 export interface Material {

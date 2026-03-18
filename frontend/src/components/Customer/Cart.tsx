@@ -1,16 +1,24 @@
-import React, {useState} from "react";
-import {useSelector, useDispatch} from "react-redux";
-import type {RootState} from "../../store";
-import {
-  removeProduct,
-  setQuantity,
-  updateProductFile,
-} from "../../store/productsSlice";
-import {CartHeader} from "./CartHeader";
-import {CartFilters} from "./CartFilters";
-import {CartTable} from "./CartTable";
-import {CartFooter} from "./CartFooter";
-import {FileUploadModal} from "./FileUploadModal";
+import React, { useState } from "react";
+import { useCartData, type CartItem } from "../../hooks/useCartData";
+import { CartHeader } from "./CartHeader";
+import { CartFilters } from "./CartFilters";
+import { CartTable } from "./CartTable";
+import { CartFooter } from "./CartFooter";
+import { FileUploadModal } from "./FileUploadModal";
+import type { Product } from "../../store/productsSlice";
+
+// Maps our API CartItem to the Product type that CartTable expects
+function cartItemToProduct(item: CartItem): Product {
+  return {
+    id: item.id,                       // cart_items.id
+    title: item.productName,           // CartTable shows product.title
+    variant: item.variant || item.category || "",
+    size: item.sizeSpec || "",
+    price: item.price,
+    quantity: item.quantity,
+    fileUrl: item.fileUrl,
+  };
+}
 
 export const Cart: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,14 +27,14 @@ export const Cart: React.FC = () => {
 
   // File Upload State
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [uploadTarget, setUploadTarget] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
+  const [uploadTarget, setUploadTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const dispatch = useDispatch();
-  const products = useSelector((state: RootState) => state.products.items);
+  // Live cart data from API (replaces Redux)
+  const { items, totalItems, totalPrice: cartTotal, loading, updateQuantity, removeItem, checkout } = useCartData();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Convert CartItem[] → Product[] for CartTable compatibility
+  const products: Product[] = items.map(cartItemToProduct);
 
   const filteredProducts = products.filter((product) =>
     product.title.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -53,35 +61,43 @@ export const Cart: React.FC = () => {
   };
 
   const selectedCount = selectedIds.length;
-  const totalPrice = products
+  const selectedTotal = products
     .filter((p) => selectedIds.includes(p.id))
     .reduce((sum, p) => sum + p.price * (p.quantity || 1), 0);
 
   const handleOpenUpload = (id: string, name: string) => {
-    setUploadTarget({id, name});
+    setUploadTarget({ id, name });
     setIsUploadModalOpen(true);
   };
 
   const handleUploadComplete = (fileUrl: string) => {
-    if (uploadTarget) {
-      dispatch(updateProductFile({id: uploadTarget.id, fileUrl}));
-    }
+    // File uploads stored locally for now — Supabase Storage integration later
+    console.log("File uploaded for:", uploadTarget?.id, fileUrl);
+    setIsUploadModalOpen(false);
   };
+
+  if (loading) {
+    return (
+      <div className="w-full pt-6 px-8 flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="w-full pt-6 px-8 pb-0 bg-gray-50 flex flex-col gap-2 min-h-[calc(100vh-4rem)]">
-      <CartHeader totalItems={products.length} />
+      <CartHeader totalItems={totalItems} />
       <CartFilters searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       <CartTable
         products={pagedProducts}
         selectedIds={selectedIds}
         toggleSelect={toggleSelect}
         toggleSelectAll={toggleSelectAll}
-        onUpdateQuantity={(id, quantity) =>
-          dispatch(setQuantity({id, quantity: Math.max(0, quantity)}))
-        }
-        onRemove={(id) => {
-          dispatch(removeProduct(id));
+        onUpdateQuantity={async (id, quantity) => {
+          await updateQuantity(id, Math.max(1, quantity));
+        }}
+        onRemove={async (id) => {
+          await removeItem(id);
           setSelectedIds((prev) => prev.filter((i) => i !== id));
         }}
         currentPage={currentPage}
@@ -92,12 +108,26 @@ export const Cart: React.FC = () => {
       <div className="mt-auto">
         <CartFooter
           selectedCount={selectedCount}
-          totalPrice={totalPrice}
-          onRemoveSelected={() => {
-            selectedIds.forEach((id) => dispatch(removeProduct(id)));
+          totalPrice={selectedTotal}
+          onRemoveSelected={async () => {
+            for (const id of selectedIds) {
+              await removeItem(id);
+            }
             setSelectedIds([]);
           }}
-          onCheckout={() => console.log("Checkout clicked")}
+          onCheckout={async () => {
+            if (items.length === 0) {
+              alert("Your cart is empty");
+              return;
+            }
+            const result = await checkout();
+            if (result.success) {
+              alert("Order placed successfully! Check your Orders tab.");
+              setSelectedIds([]);
+            } else {
+              alert("Checkout failed: " + result.error);
+            }
+          }}
         />
       </div>
 

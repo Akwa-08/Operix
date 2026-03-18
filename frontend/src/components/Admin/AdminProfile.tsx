@@ -9,10 +9,12 @@ import toast from "react-hot-toast";
 import { useAuth } from '../../context/AuthContext';
 import apiClient from '../../services/apiClient';
 import authService from '../../services/authService';
+import { supabase } from "../../config/supabaseClient";
 
 const AdminProfile: React.FC = () => {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
 
+  const [profileLoading, setProfileLoading] = useState(true)
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
@@ -32,28 +34,38 @@ const AdminProfile: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false);
 
   // ── Load profile data from AuthContext (immediate) and API (detailed) ───
-  useEffect(() => {
+  const [loading, setLoading] = useState(true);
+  const [profileData, setProfileData] = useState<any>(null);
+
+useEffect(() => {
+  const loadProfile = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      setFirstName(user.firstName || '');
-      setLastName(user.lastName || '');
-      setEmail(user.email || '');
+      const res = await apiClient.get(`/api/users/${user.id}`);
+      // OR for non-admin profiles, fetch directly from supabase
+      setProfileData(res.data || user.user_metadata);
     }
-    // Fetch full profile from backend for fields not in AuthContext (phone, address)
-    loadFullProfile();
-  }, [user]);
+    setLoading(false);
+  };
+  loadProfile();
+}, []);
+
+if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
   const loadFullProfile = async () => {
     if (!user) return;
+    setProfileLoading(true);
     const result = await apiClient.get(`/api/users?query=${user.id}`);
     if (result.success && result.data && result.data.length > 0) {
       const profile = result.data[0];
       setPhoneNumber(profile.contact_number || '');
       setAddress(profile.address || '');
-      // Also sync name/email in case they differ
       setFirstName(profile.first_name || '');
       setLastName(profile.last_name || '');
       setEmail(profile.email || '');
     }
+    setProfileLoading(false);
   };
 
   const fullName = `${firstName} ${lastName}`.trim() || 'Admin';
@@ -77,9 +89,16 @@ const AdminProfile: React.FC = () => {
     setIsProfileSaving(false);
 
     if (result.success) {
+      // Sync name to Supabase Auth metadata so navbar updates
+      const { supabase } = await import('../../config/supabaseClient').then(m => ({ supabase: m.supabase }));
+      await supabase.auth.updateUser({
+        data: { first_name: firstName, last_name: lastName }
+      });
+      // Refresh AuthContext so sidebar/navbar picks up new name
+      await refreshUser();
       setIsEditing(false);
       toast.success("Profile updated successfully");
-    } else {
+    }else {
       toast.error(result.error || "Failed to update profile");
     }
   };
@@ -119,6 +138,14 @@ const AdminProfile: React.FC = () => {
       toast.error(result.error || "Failed to change password");
     }
   };
+
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full max-w-5xl mx-auto mt-6 px-6">
