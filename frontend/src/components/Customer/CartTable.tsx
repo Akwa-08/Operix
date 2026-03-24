@@ -1,6 +1,16 @@
 import React from "react";
 import {Minus, Plus} from "lucide-react";
-import type {Product} from "../../store/productsSlice";
+
+/** Product shape used by CartTable (matches Cart.tsx mapping from CartItem) */
+export interface Product {
+  id: string;
+  title: string;
+  variant: string;
+  size: string;
+  price: number;
+  quantity: number;
+  fileUrl?: string;
+}
 
 interface CartTableProps {
   products: Product[];

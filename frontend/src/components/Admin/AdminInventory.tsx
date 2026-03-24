@@ -9,7 +9,8 @@ import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
 import { DeleteMaterialModal } from "../Shared/Inventory/DeleteMaterialModal";
 import type { Material } from "../../Types";
 import { useInventoryData } from "../../hooks/useInventoryData";
-import apiClient from "../../services/apiClient";
+import toast from "react-hot-toast";
+import { db } from "../../lib/database";
 
 const AdminInventory = () => {
   const [activeTab, setActiveTab] = useState("Materials");
@@ -32,27 +33,27 @@ const AdminInventory = () => {
 
   const handleCreateMaterial = async () => {
     if (!newMaterial.name.trim() || !newMaterial.unit_of_measure.trim()) {
-      alert("Item name and unit of measure are required");
+      toast.error("Item name and unit of measure are required");
       return;
     }
     setCreating(true);
-    const res = await apiClient.post("/api/inventory/inventory-items", {
-      name: newMaterial.name,
-      unit_of_measure: newMaterial.unit_of_measure,
-      current_quantity: Number(newMaterial.current_quantity) || 0,
-      reorder_point: Number(newMaterial.reorder_point) || 0,
-      unit_cost: Number(newMaterial.unit_cost) || 0,
-      description: newMaterial.description || null,
-    });
-    setCreating(false);
-    if (res.success) {
-      alert("Material created successfully!");
+    try {
+      await db.createInventoryItem({
+        name: newMaterial.name,
+        unit_of_measure: newMaterial.unit_of_measure,
+        current_quantity: Number(newMaterial.current_quantity) || 0,
+        reorder_point: Number(newMaterial.reorder_point) || 0,
+        unit_cost: Number(newMaterial.unit_cost) || 0,
+        description: newMaterial.description || undefined,
+      });
+      toast.success("Material created successfully!");
       setShowCreateMaterialModal(false);
       setNewMaterial({ name: "", unit_of_measure: "", current_quantity: "", reorder_point: "", unit_cost: "", description: "" });
       refresh();
-    } else {
-      alert("Error: " + res.error);
+    } catch (err: any) {
+      toast.error("Error: " + (err.message || "Failed to create material"));
     }
+    setCreating(false);
   };
 
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;

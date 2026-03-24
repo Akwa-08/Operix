@@ -6,6 +6,29 @@ import type { EmployeeRecord } from "../../hooks/useManagementData";
 
 type Supplier = FrontendSupplier;
 
+  // ── Reusable field ───────────────────────────────────────────────────
+  const F = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+      <input type={type} placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm" />
+    </div>
+  );
+
+  // ── Modal wrapper ────────────────────────────────────────────────────
+  const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
+    if (!show) return null;
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
+          <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
+          {children}
+        </div>
+      </div>
+    );
+  };
+
 const AdminManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState("User Account Management");
   const [searchQuery, setSearchQuery] = useState("");
@@ -148,28 +171,7 @@ const AdminManagement: React.FC = () => {
   // ── Loading ──────────────────────────────────────────────────────────
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
-  // ── Reusable field ───────────────────────────────────────────────────
-  const F = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-      <input type={type} placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm" />
-    </div>
-  );
 
-  // ── Modal wrapper ────────────────────────────────────────────────────
-  const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
-    if (!show) return null;
-    return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
-          {children}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="max-w-7xl mx-auto">

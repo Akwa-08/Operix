@@ -5,7 +5,7 @@ import { CartFilters } from "./CartFilters";
 import { CartTable } from "./CartTable";
 import { CartFooter } from "./CartFooter";
 import { FileUploadModal } from "./FileUploadModal";
-import type { Product } from "../../store/productsSlice";
+import type { Product } from "./CartTable";
 
 // Maps our API CartItem to the Product type that CartTable expects
 function cartItemToProduct(item: CartItem): Product {
@@ -30,7 +30,7 @@ export const Cart: React.FC = () => {
   const [uploadTarget, setUploadTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Live cart data from API (replaces Redux)
-  const { items, totalItems, totalPrice: cartTotal, loading, updateQuantity, removeItem, checkout } = useCartData();
+  const { items, totalItems, loading, updateQuantity, removeItem, checkout } = useCartData();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Convert CartItem[] → Product[] for CartTable compatibility

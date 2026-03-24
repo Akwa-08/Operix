@@ -1,68 +1,39 @@
 // frontend/src/hooks/useProductCatalog.ts
-// Replaces hardcoded productsData in customer HomePage
+// Bridge hook: maps useProducts() from useSupabase.ts to the shape
+// that HomePage.tsx expects (title, variant, size, price, etc.)
 
-import { useState, useEffect, useCallback } from 'react';
-import apiClient from '../services/apiClient';
+import { useProducts } from './useSupabase';
 
+/** Product shape expected by ProductCard / HomePage */
 export interface CatalogProduct {
   id: string;
-  title: string;      // matches ProductCard's expected field
-  name: string;
+  title: string;
+  category: string;
   variant: string;
   size: string;
   price: number;
   description: string;
-  category: string;
+  isActive: boolean;
 }
 
-function mapProduct(p: any): CatalogProduct {
+/** Map a raw Supabase products row → CatalogProduct */
+function toCatalog(p: any): CatalogProduct {
   return {
     id: p.id,
-    title: p.name || '',
-    name: p.name || '',
-    variant: p.variant || p.category || '',
-    size: p.size_spec || '',
-    price: Number(p.final_price) || 0,
-    description: p.description || '',
+    title: p.name,
     category: p.category || '',
+    variant: p.variant || '',
+    size: p.size_spec || '',
+    price: Number(p.final_price),
+    description: p.description || '',
+    isActive: p.is_active,
   };
 }
 
-export function useProductCatalog(searchQuery?: string, category?: string) {
-  const [products, setProducts] = useState<CatalogProduct[]>([]);
-  const [categories, setCategories] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function useProductCatalog(filters?: { search?: string; category?: string }) {
+  const { products: raw, loading, error, refresh } = useProducts(filters);
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (searchQuery) params.set('search', searchQuery);
-      if (category && category !== 'All') params.set('category', category);
+  const products: CatalogProduct[] = raw.map(toCatalog);
 
-      const url = `/api/products${params.toString() ? '?' + params.toString() : ''}`;
-      const res = await apiClient.get(url);
-
-      if (res.success && res.data) {
-        const mapped = res.data.map(mapProduct);
-        setProducts(mapped);
-
-        // Extract unique categories
-        const cats = [...new Set(res.data.map((p: any) => p.category).filter(Boolean))] as string[];
-        setCategories(cats);
-      } else {
-        setError(res.error || 'Failed to load products');
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [searchQuery, category]);
-
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
-
-  return { products, categories, loading, error, refresh: fetchProducts };
+  return { products, loading, error, refresh };
 }

@@ -1,19 +1,19 @@
 // frontend/src/pages/ProfilePage.tsx
-// REFACTORED: Connected to real AuthContext data + direct Supabase for profile CRUD
-// Customer profile uses RLS — supabase client (anon key) respects users_select_own policy
+// Customer/Staff profile — uses db.getMyProfile() + db.updateMyProfile()
+// Password changes use authService.updatePassword() via Supabase Auth.
+// RLS: users_read_own + users_update_own policies handle all security.
 
 import { useState, useEffect } from "react";
 import { User, Mail, Phone, MapPin, Lock, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from '../context/AuthContext';
-import apiClient from '../services/apiClient';
-import { supabase } from '../config/supabaseClient';
 import authService from '../services/authService';
+import { db } from '../lib/database';
 
 export const ProfilePage = () => {
-  const { user, refreshUser } = useAuth();
+  const { refreshUser } = useAuth();
 
-  const [profileLoading, setProfileLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -33,68 +33,61 @@ export const ProfilePage = () => {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // ── Load profile from Supabase (RLS ensures customer only sees own row) ──
-  useEffect(() => {
-    if (user) {
-      setFirstName(user.firstName || '');
-      setLastName(user.lastName || '');
-      setEmail(user.email || '');
-      loadFullProfile();
+  // ── Load profile from Supabase via db layer (RLS enforces own-row access) ──
+  const loadProfile = async () => {
+    setLoading(true);
+    try {
+      const profile = await db.getMyProfile();
+      if (profile) {
+        setFirstName(profile.first_name || '');
+        setLastName(profile.last_name || '');
+        setEmail(profile.email || '');
+        setPhoneNumber(profile.contact_number || '');
+        setAddress(profile.address || '');
+        if (profile.created_at) {
+          setMemberSince(new Date(profile.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }));
+        }
+      }
+    } catch (err: any) {
+      toast.error('Failed to load profile');
     }
-  }, [user]);
-
-  const loadFullProfile = async () => {
-    if (!user) return;
-    setProfileLoading(true);
-    const result = await apiClient.get(`/api/users?query=${user.id}`);
-    if (result.success && result.data && result.data.length > 0) {
-      const profile = result.data[0];
-      setPhoneNumber(profile.contact_number || '');
-      setAddress(profile.address || '');
-      setFirstName(profile.first_name || '');
-      setLastName(profile.last_name || '');
-      setEmail(profile.email || '');
-    }
-    setProfileLoading(false);
+    setLoading(false);
   };
+
+  useEffect(() => { loadProfile(); }, []);
 
   const fullName = `${firstName} ${lastName}`.trim() || 'Customer';
   const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'C';
 
-  // ── Save profile — direct Supabase update (RLS: users_update_own) ──────
+  // ── Save profile via db.updateMyProfile (RLS: users_update_own) ──
   const handleSaveProfile = async () => {
     if (!firstName.trim()) return toast.error("First name is required");
     if (!email.includes("@")) return toast.error("Enter a valid email");
 
     setIsSaving(true);
-
-    const { error } = await supabase
-      .from('users')
-      .update({
+    try {
+      await db.updateMyProfile({
         first_name: firstName,
         last_name: lastName,
-        email: email,
+        email,
         contact_number: phoneNumber,
-        address: address,
-      })
-      .eq('id', user!.id);
-
-    setIsSaving(false);
-
-    if (!error) {
+        address,
+      });
+      await refreshUser();
       setIsEditing(false);
       toast.success("Profile updated successfully");
-    } else {
-      toast.error("Failed to update profile: " + error.message);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update profile");
     }
+    setIsSaving(false);
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    loadFullProfile(); // Discard unsaved changes
+    loadProfile();
   };
 
-  // ── Save password (via Supabase Auth directly) ─────────────────────────
+  // ── Save password (via Supabase Auth directly) ──
   const handlePasswordSave = async () => {
     if (!newPassword || !confirmPassword) return toast.error("All fields are required");
     if (newPassword.length < 8) return toast.error("Password must be at least 8 characters");
@@ -105,29 +98,25 @@ export const ProfilePage = () => {
     setIsPasswordSaving(false);
 
     if (result.success) {
-      // Sync name to Supabase Auth metadata so navbar updates
-      const { supabase } = await import('../config/supabaseClient').then(m => ({ supabase: m.supabase }));
-      await supabase.auth.updateUser({
-        data: { first_name: firstName, last_name: lastName }
-      });
-      // Refresh AuthContext so sidebar/navbar picks up new name
-      await supabase.auth.updateUser({ data: { first_name: firstName, last_name: lastName } });
-      await refreshUser();
-      setIsEditing(false);
-      toast.success("Profile updated successfully");
-    }else {
+      toast.success("Password changed successfully");
+      setShowPasswordModal(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowNew(false);
+      setShowConfirm(false);
+    } else {
       toast.error(result.error || "Failed to change password");
     }
   };
 
-  if (profileLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
       </div>
     );
-
   }
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl ml-auto bg-white rounded-lg shadow-sm p-8 mb-8">
@@ -180,7 +169,7 @@ export const ProfilePage = () => {
         </button>
       </div>
 
-      {/* Password Modal — uses Supabase Auth directly (no backend round-trip) */}
+      {/* Password Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-10 w-[450px] shadow-xl">

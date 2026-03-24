@@ -1,6 +1,6 @@
 import {useState} from "react";
 import {Search, ChevronLeft, ChevronRight, Sparkles} from "lucide-react";
-import {useDispatch} from "react-redux";
+
 import {motion, AnimatePresence} from "framer-motion";
 import { useProductCatalog } from "../../hooks/useProductCatalog";
 import {ProductCard} from "./ProductCard";
@@ -16,7 +16,7 @@ export default function HomePage() {
   const [toastMessage, setToastMessage] = useState("");
 
   const { user } = useAuth();
-  const { products: allProducts, loading: productsLoading } = useProductCatalog();
+  const { products: allProducts } = useProductCatalog();
   const { addToCart } = useCartData();
 
   const filteredProducts = allProducts.filter((p) =>
@@ -24,7 +24,7 @@ export default function HomePage() {
   );
 
   const itemsPerPage = 6;
-  const dispatch = useDispatch();
+
 
 
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);

@@ -10,6 +10,20 @@ import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import type { Order } from "../../Types";
 import { useOrdersData } from "../../hooks/useOrdersData";
 
+// Modal helper
+  const Modal = ({ show, onClose, title, children, width = "max-w-lg" }: any) => {
+    if (!show) return null;
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
+          <h3 className="text-xl font-bold text-gray-900 mb-6">{title}</h3>
+          {children}
+        </div>
+      </div>
+    );
+  };
+
 const AdminOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All Orders");
@@ -99,19 +113,7 @@ const AdminOrders = () => {
 
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
-  // Modal helper
-  const Modal = ({ show, onClose, title, children, width = "max-w-lg" }: any) => {
-    if (!show) return null;
-    return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-          <h3 className="text-xl font-bold text-gray-900 mb-6">{title}</h3>
-          {children}
-        </div>
-      </div>
-    );
-  };
+  
 
   return (
     <div className="max-w-7xl mx-auto">

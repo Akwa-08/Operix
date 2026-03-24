@@ -1,26 +1,24 @@
 // frontend/src/components/Admin/AdminProfile.tsx
-// REFACTORED: Connected to real AuthContext data + apiClient for profile updates
-// REFACTORED: Password changes now use authService.updatePassword() via Supabase Auth
-// Removed all hardcoded mock data
+// Uses db.getMyProfile() + db.updateMyProfile() — no Express apiClient needed.
+// Password changes use authService.updatePassword() via Supabase Auth.
 
 import React, { useState, useEffect } from "react";
 import { User, Mail, Phone, MapPin, Lock, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from '../../context/AuthContext';
-import apiClient from '../../services/apiClient';
 import authService from '../../services/authService';
-import { supabase } from "../../config/supabaseClient";
+import { db } from '../../lib/database';
 
 const AdminProfile: React.FC = () => {
   const { user, refreshUser } = useAuth();
 
-  const [profileLoading, setProfileLoading] = useState(true)
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
   const [isPasswordSaving, setIsPasswordSaving] = useState(false);
 
-  // Profile fields — initialized from AuthContext + fetched data
+  // Profile fields
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -33,98 +31,65 @@ const AdminProfile: React.FC = () => {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // ── Load profile data from AuthContext (immediate) and API (detailed) ───
-  const [loading, setLoading] = useState(true);
-  const [profileData, setProfileData] = useState<any>(null);
-
-useEffect(() => {
+  // ── Load profile from Supabase (RLS: users_read_own + users_staff_read_all) ──
   const loadProfile = async () => {
     setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const res = await apiClient.get(`/api/users/${user.id}`);
-      // OR for non-admin profiles, fetch directly from supabase
-      setProfileData(res.data || user.user_metadata);
+    try {
+      const profile = await db.getMyProfile();
+      if (profile) {
+        setFirstName(profile.first_name || '');
+        setLastName(profile.last_name || '');
+        setEmail(profile.email || '');
+        setPhoneNumber(profile.contact_number || '');
+        setAddress(profile.address || '');
+      }
+    } catch (err: any) {
+      toast.error('Failed to load profile');
     }
     setLoading(false);
   };
-  loadProfile();
-}, []);
 
-if (loading) return <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
-
-  const loadFullProfile = async () => {
-    if (!user) return;
-    setProfileLoading(true);
-    const result = await apiClient.get(`/api/users?query=${user.id}`);
-    if (result.success && result.data && result.data.length > 0) {
-      const profile = result.data[0];
-      setPhoneNumber(profile.contact_number || '');
-      setAddress(profile.address || '');
-      setFirstName(profile.first_name || '');
-      setLastName(profile.last_name || '');
-      setEmail(profile.email || '');
-    }
-    setProfileLoading(false);
-  };
+  useEffect(() => { loadProfile(); }, []);
 
   const fullName = `${firstName} ${lastName}`.trim() || 'Admin';
   const roleLabel = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Admin';
 
-  // ── Save profile ───────────────────────────────────────────────────────
+  // ── Save profile via db.updateMyProfile (RLS: users_update_own) ──
   const handleSaveProfile = async () => {
     if (!firstName.trim()) return toast.error("First name is required");
     if (!email.includes("@")) return toast.error("Enter a valid email");
 
     setIsProfileSaving(true);
-
-    const result = await apiClient.put(`/api/users/${user!.id}`, {
-      first_name: firstName,
-      last_name: lastName,
-      email: email,
-      contact_number: phoneNumber,
-      address: address,
-    });
-
-    setIsProfileSaving(false);
-
-    if (result.success) {
-      // Sync name to Supabase Auth metadata so navbar updates
-      const { supabase } = await import('../../config/supabaseClient').then(m => ({ supabase: m.supabase }));
-      await supabase.auth.updateUser({
-        data: { first_name: firstName, last_name: lastName }
+    try {
+      await db.updateMyProfile({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        contact_number: phoneNumber,
+        address,
       });
-      // Refresh AuthContext so sidebar/navbar picks up new name
       await refreshUser();
       setIsEditing(false);
       toast.success("Profile updated successfully");
-    }else {
-      toast.error(result.error || "Failed to update profile");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update profile");
     }
+    setIsProfileSaving(false);
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
-    // Reload to discard unsaved changes
-    loadFullProfile();
+    loadProfile();
   };
 
-  // ── Save password (via Supabase Auth — NOT the users table) ────────────
+  // ── Save password (via Supabase Auth directly) ──
   const handlePasswordSave = async () => {
-    if (!newPassword || !confirmPassword) {
-      return toast.error("All password fields are required");
-    }
-    if (newPassword.length < 8) {
-      return toast.error("Password must be at least 8 characters");
-    }
-    if (newPassword !== confirmPassword) {
-      return toast.error("Passwords do not match");
-    }
+    if (!newPassword || !confirmPassword) return toast.error("All password fields are required");
+    if (newPassword.length < 8) return toast.error("Password must be at least 8 characters");
+    if (newPassword !== confirmPassword) return toast.error("Passwords do not match");
 
     setIsPasswordSaving(true);
-
     const result = await authService.updatePassword(newPassword);
-
     setIsPasswordSaving(false);
 
     if (result.success) {
@@ -139,7 +104,7 @@ if (loading) return <div className="flex justify-center py-20"><div className="a
     }
   };
 
-  if (profileLoading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />

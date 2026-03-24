@@ -1,100 +1,112 @@
 // frontend/src/hooks/useCartData.ts
-// Replaces Redux productsSlice with live API cart management
+// Bridge hook: wraps useCart() from useSupabase.ts and exposes
+// the interface that Cart.tsx and HomePage.tsx expect.
 
-import { useState, useEffect, useCallback } from 'react';
-import apiClient from '../services/apiClient';
+import { useCart } from './useSupabase';
 
+/** Cart item shape expected by Cart.tsx */
 export interface CartItem {
-  id: string;          // cart_items.id
+  id: string;
   productId: string;
   productName: string;
-  description: string;
   category: string;
-  sizeSpec: string;
   variant: string;
-  price: number;       // final_price per unit
+  sizeSpec: string;
+  price: number;
   quantity: number;
-  specifications: string;
-  fileUrl?: string;     // for customer design uploads (local state only)
+  specifications?: string;
+  fileUrl?: string;
 }
 
-function mapCartItem(ci: any): CartItem {
-  const product = ci.product || {};
+/** Map a raw Supabase cart_items row → CartItem */
+function toCartItem(row: any): CartItem {
   return {
-    id: ci.id,
-    productId: product.id || ci.product_id || '',
-    productName: product.name || 'Unknown Product',
-    description: product.description || '',
-    category: product.category || '',
-    sizeSpec: product.size_spec || '',
-    variant: product.variant || '',
-    price: Number(product.final_price) || 0,
-    quantity: ci.quantity || 1,
-    specifications: ci.specifications || '',
+    id: row.id,
+    productId: row.product_id,
+    productName: row.product?.name || 'Unknown',
+    category: row.product?.category || '',
+    variant: row.product?.variant || '',
+    sizeSpec: row.product?.size_spec || '',
+    price: Number(row.product?.final_price || 0),
+    quantity: row.quantity,
+    specifications: row.specifications,
+    fileUrl: undefined, // Supabase Storage integration pending
   };
 }
 
 export function useCartData() {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    items: raw,
+    totalItems,
+    totalPrice,
+    loading,
+    error,
+    refresh,
+    addToCart: rawAdd,
+    updateQuantity: rawUpdate,
+    removeItem: rawRemove,
+    clearCart: rawClear,
+    checkout: rawCheckout,
+  } = useCart();
 
-  const fetchCart = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await apiClient.get('/api/cart');
-      if (res.success && res.data) {
-        setItems(res.data.map(mapCartItem));
-      } else {
-        setError(res.error || 'Failed to load cart');
+  const items: CartItem[] = raw.map(toCartItem);
+
+  return {
+    items,
+    totalItems,
+    totalPrice,
+    loading,
+    error,
+    refresh,
+
+    /** Add product to cart. Returns { success, error } */
+    addToCart: async (productId: string, qty?: number) => {
+      try {
+        await rawAdd(productId, qty);
+        return { success: true, error: null };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Failed to add to cart' };
       }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
 
-  useEffect(() => { fetchCart(); }, [fetchCart]);
+    /** Update quantity of a cart item */
+    updateQuantity: async (cartItemId: string, qty: number) => {
+      try {
+        await rawUpdate(cartItemId, qty);
+        return { success: true, error: null };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    },
 
-  const totalItems = items.reduce((sum, i) => sum + i.quantity, 0);
-  const totalPrice = items.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+    /** Remove a cart item */
+    removeItem: async (cartItemId: string) => {
+      try {
+        await rawRemove(cartItemId);
+        return { success: true, error: null };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    },
 
-  // ── Add to cart ────────────────────────────────────────────────────────
-  const addToCart = async (productId: string, quantity: number = 1, specifications?: string) => {
-    const res = await apiClient.post('/api/cart', { product_id: productId, quantity, specifications });
-    if (res.success) { await fetchCart(); return { success: true }; }
-    return { success: false, error: res.error || 'Failed to add to cart' };
+    /** Clear all cart items */
+    clearCart: async () => {
+      try {
+        await rawClear();
+        return { success: true, error: null };
+      } catch (err: any) {
+        return { success: false, error: err.message };
+      }
+    },
+
+    /** Checkout the cart → create order */
+    checkout: async (notes?: string, due?: string) => {
+      try {
+        const order = await rawCheckout(notes, due);
+        return { success: true, error: null, order };
+      } catch (err: any) {
+        return { success: false, error: err.message || 'Checkout failed', order: null };
+      }
+    },
   };
-
-  // ── Update quantity ────────────────────────────────────────────────────
-  const updateQuantity = async (cartItemId: string, quantity: number) => {
-    const res = await apiClient.put(`/api/cart/${cartItemId}`, { quantity: Math.max(1, quantity) });
-    if (res.success) { await fetchCart(); return { success: true }; }
-    return { success: false, error: res.error || 'Failed to update quantity' };
-  };
-
-  // ── Remove item ────────────────────────────────────────────────────────
-  const removeItem = async (cartItemId: string) => {
-    const res = await apiClient.delete(`/api/cart/${cartItemId}`);
-    if (res.success) { await fetchCart(); return { success: true }; }
-    return { success: false, error: res.error || 'Failed to remove item' };
-  };
-
-  // ── Clear cart ─────────────────────────────────────────────────────────
-  const clearCart = async () => {
-    const res = await apiClient.delete('/api/cart');
-    if (res.success) { setItems([]); return { success: true }; }
-    return { success: false, error: res.error || 'Failed to clear cart' };
-  };
-
-  // ── Checkout ───────────────────────────────────────────────────────────
-  const checkout = async (specialInstructions?: string, dueDate?: string) => {
-    const res = await apiClient.post('/api/checkout', { special_instructions: specialInstructions, due_date: dueDate });
-    if (res.success) { setItems([]); return { success: true, order: res.data }; }
-    return { success: false, error: res.error || 'Checkout failed' };
-  };
-
-  return { items, totalItems, totalPrice, loading, error, refresh: fetchCart, addToCart, updateQuantity, removeItem, clearCart, checkout };
 }

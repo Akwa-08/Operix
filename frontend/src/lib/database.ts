@@ -1,0 +1,358 @@
+// frontend/src/lib/database.ts
+// Direct Supabase queries — NO Express middleman
+// RLS handles all security. This file is the ONLY data access layer.
+
+import { supabase } from '../config/supabaseClient';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// USERS (own profile — admin CRUD uses backend /api/admin/*)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const db = {
+
+  // ── Profile ────────────────────────────────────────────────────────────
+  async getMyProfile() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data } = await supabase.from('users').select('*').eq('id', user.id).single();
+    return data;
+  },
+
+  async updateMyProfile(updates: { first_name?: string; last_name?: string; contact_number?: string; address?: string; email?: string }) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Sync name to auth metadata so AuthContext stays fresh
+    if (updates.first_name !== undefined || updates.last_name !== undefined) {
+      await supabase.auth.updateUser({
+        data: { first_name: updates.first_name, last_name: updates.last_name }
+      });
+    }
+
+    const { data, error } = await supabase.from('users').update(updates).eq('id', user.id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateMyPassword(newPassword: string) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  },
+
+  // ── Users list (staff can read all via RLS) ────────────────────────────
+  async getUsers(filters?: { role?: string; status?: string }) {
+    let query = supabase.from('users').select('*').order('created_at', { ascending: false });
+    if (filters?.role) query = query.eq('role', filters.role);
+    if (filters?.status === 'active') query = query.eq('is_active', true);
+    if (filters?.status === 'inactive') query = query.eq('is_active', false);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // EMPLOYEES
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getEmployees() {
+    const { data, error } = await supabase.from('employees').select('*').order('employee_code');
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; base_hourly_rate?: number; hire_date?: string }) {
+    const { data, error } = await supabase.from('employees').insert([{
+      ...emp, is_active: true,
+      base_hourly_rate: emp.base_hourly_rate || 0,
+      hire_date: emp.hire_date || new Date().toISOString().split('T')[0],
+    }]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateEmployee(id: string, updates: Record<string, any>) {
+    const { data, error } = await supabase.from('employees').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SUPPLIERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getSuppliers() {
+    const { data, error } = await supabase.from('suppliers').select('*').order('name');
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createSupplier(s: { name: string; contact_person?: string; phone?: string; email?: string; address?: string }) {
+    const { data, error } = await supabase.from('suppliers').insert([{ ...s, is_active: true, is_flagged: false }]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateSupplier(id: string, updates: Record<string, any>) {
+    const { data, error } = await supabase.from('suppliers').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INVENTORY
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getInventoryItems() {
+    const { data, error } = await supabase
+      .from('inventory_items')
+      .select('*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))')
+      .order('name');
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createInventoryItem(item: { name: string; unit_of_measure: string; current_quantity?: number; reorder_point?: number; unit_cost?: number; description?: string }) {
+    const { data, error } = await supabase.from('inventory_items').insert([{ ...item, is_active: true }]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateInventoryItem(id: string, updates: Record<string, any>) {
+    const { data, error } = await supabase.from('inventory_items').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PRODUCTS
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getProducts(filters?: { category?: string; search?: string }) {
+    let query = supabase.from('products').select('*').order('category').order('name');
+    if (filters?.category) query = query.eq('category', filters.category);
+    if (filters?.search) query = query.or(`name.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createProduct(p: Record<string, any>) {
+    const { data, error } = await supabase.from('products').insert([{ ...p, is_active: true }]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateProduct(id: string, updates: Record<string, any>) {
+    const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ORDERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
+    let query = supabase.from('orders').select(`
+      *,
+      customer:customer_id(id, first_name, last_name, email, contact_number),
+      designer:assigned_designer(id, first_name, last_name),
+      production_staff:assigned_production(id, first_name, last_name),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications)
+    `).order('created_at', { ascending: false });
+
+    if (filters?.status && filters.status !== 'all') query = query.eq('status', filters.status);
+    if (filters?.assigned_designer) query = query.eq('assigned_designer', filters.assigned_designer);
+    if (filters?.assigned_production) query = query.eq('assigned_production', filters.assigned_production);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getOrderById(id: string) {
+    const { data, error } = await supabase.from('orders').select(`
+      *,
+      customer:customer_id(id, first_name, last_name, email, contact_number),
+      designer:assigned_designer(id, first_name, last_name),
+      production_staff:assigned_production(id, first_name, last_name),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications),
+      payments(id, amount, payment_method, reference_number, notes, received_by, created_at)
+    `).eq('id', id).single();
+    if (error) throw error;
+    return data;
+  },
+
+  async createOrder(order: {
+    customer_id?: string | null; order_type: string; special_instructions?: string;
+    due_date?: string; assigned_designer?: string; assigned_production?: string;
+    comments?: string; items: { product_id?: string; product_name: string; quantity: number; unit_price: number; specifications?: string }[];
+  }) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Generate order number
+    let orderNumber: string;
+    try {
+      const { data: seq } = await supabase.rpc('get_next_order_seq');
+      orderNumber = `ORD-${new Date().getFullYear()}-${String(seq ?? Date.now()).padStart(5, '0')}`;
+    } catch {
+      orderNumber = `ORD-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+    }
+
+    const totalAmount = order.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+
+    const { data: newOrder, error: orderErr } = await supabase.from('orders').insert([{
+      order_number: orderNumber,
+      customer_id: order.customer_id || null,
+      created_by: user.id,
+      order_type: order.order_type || 'walk-in',
+      status: 'in_queue',
+      payment_status: 'unpaid',
+      special_instructions: order.special_instructions || null,
+      comments: order.comments || null,
+      due_date: order.due_date || null,
+      total_amount: totalAmount,
+      amount_paid: 0,
+      assigned_designer: order.assigned_designer || null,
+      assigned_production: order.assigned_production || null,
+    }]).select().single();
+
+    if (orderErr) throw orderErr;
+
+    // Insert items
+    const items = order.items.map(i => ({
+      order_id: newOrder.id,
+      product_id: i.product_id || null,
+      product_name: i.product_name,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+      subtotal: i.quantity * i.unit_price,
+      specifications: i.specifications || null,
+    }));
+
+    await supabase.from('order_items').insert(items);
+    return newOrder;
+  },
+
+  async updateOrder(id: string, updates: Record<string, any>) {
+    const { data, error } = await supabase.from('orders').update(updates).eq('id', id).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async deleteOrder(id: string) {
+    await supabase.from('payments').delete().eq('order_id', id);
+    await supabase.from('order_items').delete().eq('order_id', id);
+    const { error } = await supabase.from('orders').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // ── Payments ─────────────────────────────────────────────────────────
+  async recordPayment(orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Insert payment
+    const { error: payErr } = await supabase.from('payments').insert([{
+      order_id: orderId, ...payment, received_by: user.id,
+    }]);
+    if (payErr) throw payErr;
+
+    // Update order totals
+    const { data: order } = await supabase.from('orders').select('amount_paid, total_amount').eq('id', orderId).single();
+    if (order) {
+      const newPaid = parseFloat(order.amount_paid) + payment.amount;
+      const total = parseFloat(order.total_amount);
+      const ps = newPaid >= total ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
+      await supabase.from('orders').update({ amount_paid: newPaid, payment_status: ps }).eq('id', orderId);
+    }
+  },
+
+  async getPayments(orderId: string) {
+    const { data, error } = await supabase.from('payments').select('*').eq('order_id', orderId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CART (customer only — RLS enforces ownership)
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getCart() {
+    const { data, error } = await supabase
+      .from('cart_items')
+      .select('*, product:product_id(id, name, description, category, size_spec, variant, final_price)')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  async addToCart(productId: string, quantity: number = 1, specifications?: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    // Upsert: if already in cart, increment
+    const { data: existing } = await supabase.from('cart_items').select('id, quantity').eq('customer_id', user.id).eq('product_id', productId).maybeSingle();
+
+    if (existing) {
+      const { data, error } = await supabase.from('cart_items').update({ quantity: existing.quantity + quantity, specifications }).eq('id', existing.id).select().single();
+      if (error) throw error;
+      return data;
+    }
+
+    const { data, error } = await supabase.from('cart_items').insert([{ customer_id: user.id, product_id: productId, quantity, specifications }]).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateCartItem(cartItemId: string, updates: { quantity?: number; specifications?: string }) {
+    const { data, error } = await supabase.from('cart_items').update(updates).eq('id', cartItemId).select().single();
+    if (error) throw error;
+    return data;
+  },
+
+  async removeCartItem(cartItemId: string) {
+    const { error } = await supabase.from('cart_items').delete().eq('id', cartItemId);
+    if (error) throw error;
+  },
+
+  async clearCart() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+    const { error } = await supabase.from('cart_items').delete().eq('customer_id', user.id);
+    if (error) throw error;
+  },
+
+  async checkout(specialInstructions?: string, dueDate?: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const cartItems = await db.getCart();
+    if (!cartItems.length) throw new Error('Cart is empty');
+
+    const order = await db.createOrder({
+      customer_id: user.id,
+      order_type: 'online',
+      special_instructions: specialInstructions,
+      due_date: dueDate,
+      items: cartItems.map(ci => ({
+        product_id: ci.product_id,
+        product_name: ci.product?.name || 'Unknown',
+        quantity: ci.quantity,
+        unit_price: parseFloat(ci.product?.final_price || '0'),
+      })),
+    });
+
+    await db.clearCart();
+    return order;
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STAFF LIST (for assignment dropdowns)
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getStaffList() {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, first_name, last_name, role')
+      .in('role', ['designer', 'production', 'admin'])
+      .eq('is_active', true)
+      .order('role').order('first_name');
+    if (error) throw error;
+    return data || [];
+  },
+};
