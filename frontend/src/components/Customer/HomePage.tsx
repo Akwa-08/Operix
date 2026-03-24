@@ -2,10 +2,10 @@ import {useState} from "react";
 import {Search, ChevronLeft, ChevronRight, Sparkles} from "lucide-react";
 
 import {motion, AnimatePresence} from "framer-motion";
-import { useProductCatalog } from "../../hooks/useProductCatalog";
+import { useProductCatalog } from "../../hooks/useSupabase";
 import {ProductCard} from "./ProductCard";
 import {Toast} from "./Toast";
-import { useCartData } from "../../hooks/useCartData";
+import { useCartData } from "../../hooks/useSupabase";
 import { useAuth } from '../../context/AuthContext'; // or however you access auth
 
 

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { useCartData, type CartItem } from "../../hooks/useCartData";
+import { useCartData } from "../../hooks/useSupabase";
+import type { CartItem } from "../../Types";
 import { CartHeader } from "./CartHeader";
 import { CartFilters } from "./CartFilters";
 import { CartTable } from "./CartTable";

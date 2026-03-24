@@ -99,3 +99,111 @@ export interface Supplier {
   status: "Active" | "Inactive" | "Flagged";
   flagReason?: string;
 }
+
+// ── Frontend display types (camelCase, mapped from Supabase snake_case) ──────
+
+export interface FrontendUser {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  userName: string;
+  role: string;
+  contactNumber: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface FrontendSupplier {
+  id: string;
+  supplierName: string;
+  email: string;
+  contactNumber: string;
+  address: string;
+  supplierStatus: string;
+  isFlagged: boolean;
+  flagNotes: string;
+  createdAt: string;
+}
+
+export interface EmployeeRecord {
+  id: string;
+  employeeCode: string;
+  fullName: string;
+  position: string;
+  baseHourlyRate: number;
+  holidayRateMultiplier: number;
+  overtimeRateMultiplier: number;
+  hireDate: string;
+  isActive: boolean;
+}
+
+export interface CatalogProduct {
+  id: string;
+  title: string;
+  category: string;
+  variant: string;
+  size: string;
+  price: number;
+  description: string;
+  isActive: boolean;
+}
+
+export interface CartItem {
+  id: string;
+  productId: string;
+  productName: string;
+  category: string;
+  variant: string;
+  sizeSpec: string;
+  price: number;
+  quantity: number;
+  specifications?: string;
+  fileUrl?: string;
+}
+
+// ── Admin Product (with Bill of Materials) ───────────────────────────────────
+export interface BOMItem {
+  id: string;
+  inventoryItemId: string;
+  materialName: string;
+  quantityRequired: number;
+  unitOfMeasure: string;
+  unitCost: number;
+}
+
+export interface AdminProduct {
+  id: string;
+  name: string;
+  category: string;
+  variant: string;
+  sizeSpec: string;
+  materialCost: number;
+  profitFee: number;
+  finalPrice: number;
+  isActive: boolean;
+  description: string;
+  bom: BOMItem[];
+}
+
+// ── Deliveries ───────────────────────────────────────────────────────────────
+export type DeliveryStatus = "requested" | "ordered" | "en_route" | "received" | "returned" | "completed";
+
+export interface Delivery {
+  id: string;
+  inventoryItemId: string;
+  materialName: string;
+  materialUnit: string;
+  supplierId: string | null;
+  supplierName: string;
+  requestedBy: string | null;
+  requestedByName: string;
+  requestedQuantity: number;
+  expectedArrivalDate: string;
+  status: DeliveryStatus;
+  receivedQuantity: number;
+  receiptReferenceNumber: string;
+  receivedDate: string;
+  notes: string;
+  createdAt: string;
+}

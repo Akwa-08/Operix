@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Search, Eye, Flag, FileText, ChevronDown, X, Check, Trash2 } from "lucide-react";
-import { useManagementData } from "../../hooks/useManagementData";
-import type { FrontendUser, FrontendSupplier } from "../../services/dataMappers";
-import type { EmployeeRecord } from "../../hooks/useManagementData";
+import { useManagementData } from "../../hooks/useSupabase";
+import type { FrontendUser, FrontendSupplier, EmployeeRecord } from "../../Types";
 
 type Supplier = FrontendSupplier;
 
