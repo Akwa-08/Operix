@@ -135,21 +135,14 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete }: {
 // ── Grid container ──────────────────────────────────────────────────────────
 interface OrderCardsGridProps {
   orders: Order[];
-  searchQuery?: string;
+  searchQuery?: string; // kept for API compat but not used — parent filters
   onView: (order: Order) => void;
   onEdit?: (order: Order) => void;
   onDelete?: (order: Order) => void;
 }
 
-export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, searchQuery = "", onView, onEdit, onDelete }) => {
-  const filtered = orders.filter(o => {
-    const q = searchQuery.toLowerCase();
-    return (o.customerName || "").toLowerCase().includes(q)
-      || o.orderId.toLowerCase().includes(q)
-      || (o.productType || o.product || "").toLowerCase().includes(q);
-  });
-
-  if (filtered.length === 0) {
+export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete }) => {
+  if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
         <Package size={48} className="text-gray-200 mb-3" />
@@ -161,7 +154,7 @@ export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, searchQu
   return (
     <AnimatePresence mode="popLayout">
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {filtered.map(o => (
+        {orders.map(o => (
           <StaffOrderCard key={o.id} order={o} onView={onView} onEdit={onEdit} onDelete={onDelete} />
         ))}
       </motion.div>

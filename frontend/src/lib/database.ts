@@ -282,19 +282,25 @@ export const db = {
     return data || [];
   },
 
-  async addToCart(productId: string, quantity: number = 1, specifications?: string) {
+  async addToCart(productId: string, quantity: number = 1, forceNewRow: boolean = false, specifications?: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
-    // Upsert: if already in cart, increment
-    const { data: existing } = await supabase.from('cart_items').select('id, quantity').eq('customer_id', user.id).eq('product_id', productId).maybeSingle();
-
-    if (existing) {
-      const { data, error } = await supabase.from('cart_items').update({ quantity: existing.quantity + quantity, specifications }).eq('id', existing.id).select().single();
-      if (error) throw error;
-      return data;
+    if (!forceNewRow) {
+      // Find the most recent matching item to increment safely
+      let query = supabase.from('cart_items').select('id, quantity').eq('customer_id', user.id).eq('product_id', productId);
+      
+      const { data: existingList, error: queryErr } = await query.order('created_at', { ascending: false }).limit(1);
+      
+      if (!queryErr && existingList && existingList.length > 0) {
+        const existing = existingList[0];
+        const { data, error } = await supabase.from('cart_items').update({ quantity: existing.quantity + quantity, specifications }).eq('id', existing.id).select().single();
+        if (error) throw error;
+        return data;
+      }
     }
 
+    // Insert as a new row (e.g., completely different design intent or brand new cart entry)
     const { data, error } = await supabase.from('cart_items').insert([{ customer_id: user.id, product_id: productId, quantity, specifications }]).select().single();
     if (error) throw error;
     return data;

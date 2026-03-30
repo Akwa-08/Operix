@@ -55,6 +55,11 @@ const CashierOrders = () => {
 
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
+  const filteredOrders = orders.filter(o => {
+    const q = searchQuery.toLowerCase();
+    return !q || o.customerName?.toLowerCase().includes(q) || o.orderId?.toLowerCase().includes(q) || o.productType?.toLowerCase().includes(q);
+  });
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
@@ -100,10 +105,7 @@ const CashierOrders = () => {
                 <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {orders.filter(o => {
-                  const q = searchQuery.toLowerCase();
-                  return !q || o.customerName?.toLowerCase().includes(q) || o.orderId?.toLowerCase().includes(q) || o.productType?.toLowerCase().includes(q);
-                }).map((o: any) => (
+                {filteredOrders.map((o: any) => (
                   <tr key={o.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-xs">{o.orderId}</td>
                     <td className="px-4 py-3">{o.customerName}</td>
@@ -139,13 +141,13 @@ const CashierOrders = () => {
                     </td>
                   </tr>
                 ))}
-                {orders.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No orders found</td></tr>}
+                {filteredOrders.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No orders found</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
       ) : (
-        <OrderCardsGrid orders={orders} searchQuery={searchQuery} onView={handleViewOrder} />
+        <OrderCardsGrid orders={filteredOrders} onView={handleViewOrder} />
       )}
 
       <CreateOrderModal isOpen={showCreateModal} userRole="cashier" onClose={() => setShowCreateModal(false)} onSave={handleCreateOrder} />

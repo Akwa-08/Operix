@@ -107,30 +107,36 @@ export const OrdersPage: React.FC = () => {
           </div>
 
           {/* Filters */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex gap-4 w-full sm:w-auto">
-              <div className="relative group flex-1 sm:w-48">
-                <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-hover:text-cyan-500 transition-colors" />
-                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
-                  <option value="All">All Status</option>
-                  <option value="Queue">In Queue</option>
-                  <option value="Design">Designing</option>
-                  <option value="Payment">Payment Pending</option>
-                  <option value="Production">In Production</option>
-                  <option value="Pick-up">Ready for Pick-up</option>
-                  <option value="Complete">Completed</option>
-                </select>
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+              <div className="flex-1 sm:w-48 flex flex-col gap-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">Status Filter</label>
+                <div className="relative group">
+                  <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-hover:text-cyan-500 transition-colors" />
+                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
+                    <option value="All">All Status</option>
+                    <option value="Queue">In Queue</option>
+                    <option value="Design">Designing</option>
+                    <option value="Payment">Payment Pending</option>
+                    <option value="Production">In Production</option>
+                    <option value="Pick-up">Ready for Pick-up</option>
+                    <option value="Complete">Completed</option>
+                  </select>
+                </div>
               </div>
-              <div className="relative group flex-1 sm:w-48">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-hover:text-cyan-500 transition-colors" />
-                <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
-                  className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
-                  <option value="Any">Any Date</option>
-                  <option value="Today">Today</option>
-                  <option value="Week">This Week</option>
-                  <option value="Month">This Month</option>
-                </select>
+              <div className="flex-1 sm:w-48 flex flex-col gap-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">Date Filter</label>
+                <div className="relative group">
+                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-hover:text-cyan-500 transition-colors" />
+                  <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
+                    className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
+                    <option value="Any">Any Date</option>
+                    <option value="Today">Today</option>
+                    <option value="Week">This Week</option>
+                    <option value="Month">This Month</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>

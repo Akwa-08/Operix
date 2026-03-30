@@ -6,7 +6,8 @@ import { useProductCatalog } from "../../hooks/useSupabase";
 import {ProductCard} from "./ProductCard";
 import {Toast} from "./Toast";
 import { useCartData } from "../../hooks/useSupabase";
-import { useAuth } from '../../context/AuthContext'; // or however you access auth
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from "react-router-dom";
 
 
 export default function HomePage() {
@@ -17,7 +18,10 @@ export default function HomePage() {
 
   const { user } = useAuth();
   const { products: allProducts } = useProductCatalog();
-  const { addToCart } = useCartData();
+  const { items, addToCart } = useCartData();
+  const navigate = useNavigate();
+
+  const [duplicateModalProduct, setDuplicateModalProduct] = useState<any>(null);
 
   const filteredProducts = allProducts.filter((p) =>
     p.title.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -35,7 +39,16 @@ export default function HomePage() {
 
 
   const handleAddToCart = async (product: any) => {
-    const result = await addToCart(product.id, 1);
+    const exists = items.some((i) => i.productId === product.id);
+    if (exists) {
+      setDuplicateModalProduct(product);
+      return;
+    }
+    await processAddToCart(product, false);
+  };
+
+  const processAddToCart = async (product: any, forceNewRow: boolean) => {
+    const result = await addToCart(product.id, 1, forceNewRow);
     if (result.success) {
       setToastMessage(`${product.title} added to your cart!`);
       setShowToast(true);
@@ -52,7 +65,38 @@ export default function HomePage() {
         isVisible={showToast}
         message={toastMessage}
         onClose={() => setShowToast(false)}
+        onAction={() => navigate('/cart')}
+        actionLabel="View Cart"
       />
+
+      {/* Duplicate Prompt Modal */}
+      <AnimatePresence>
+        {duplicateModalProduct && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full mx-auto outline-none">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Item already in cart</h3>
+              <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                You already have <strong className="text-gray-900">{duplicateModalProduct.title}</strong> in your cart. What would you like to do?
+              </p>
+              <div className="flex flex-col gap-3">
+                <button onClick={() => { processAddToCart(duplicateModalProduct, false); setDuplicateModalProduct(null); }}
+                  className="w-full py-3.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl shadow-sm transition-colors text-sm">
+                  Increase Quantity
+                </button>
+                <button onClick={() => { processAddToCart(duplicateModalProduct, true); setDuplicateModalProduct(null); }}
+                  className="w-full py-3.5 bg-white border-2 border-gray-200 hover:border-cyan-500 hover:text-cyan-600 text-gray-700 font-bold rounded-xl transition-colors text-sm">
+                  Add as New Design
+                </button>
+                <button onClick={() => setDuplicateModalProduct(null)}
+                  className="w-full py-3 text-sm text-gray-400 hover:text-gray-600 font-semibold transition-colors mt-2">
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-white border-b border-gray-100 py-20 px-10">

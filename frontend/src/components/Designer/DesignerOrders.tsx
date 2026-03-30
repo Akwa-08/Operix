@@ -28,9 +28,10 @@ const DesignerOrders = () => {
 
   const handleViewOrder = (order: Order) => { setSelectedOrder(order); setShowDetailsModal(true); };
 
-  const handleUpdateStatus = async (status: string) => {
-    if (!selectedOrder) return;
-    const r = await updateStatus(selectedOrder.id, status);
+  const handleUpdateStatus = async (status: string, orderId?: string) => {
+    const targetId = orderId || selectedOrder?.id;
+    if (!targetId) return;
+    const r = await updateStatus(targetId, status);
     if (r.success) setShowDetailsModal(false);
     else alert("Error: " + r.error);
   };
@@ -98,7 +99,7 @@ const DesignerOrders = () => {
                       <div className="flex items-center justify-center gap-1">
                         <button onClick={() => handleViewOrder(o)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View"><Package size={16} className="text-cyan-600" /></button>
                         {o.status === 'Designing' && (
-                          <button onClick={() => { setSelectedOrder(o); handleUpdateStatus('Payment'); }}
+                          <button onClick={() => handleUpdateStatus('Payment', o.id)}
                             className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold rounded-lg" title="Mark design complete">
                             Done →
                           </button>

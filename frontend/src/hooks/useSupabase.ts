@@ -244,7 +244,7 @@ export function useCartData() {
 
   return {
     items, totalItems, totalPrice, loading, error, refresh,
-    addToCart:       async (productId: string, qty?: number) => { const r = await safe(() => db.addToCart(productId, qty).then(() => refresh())); return r; },
+    addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow).then(() => refresh())); return r; },
     updateQuantity:  async (id: string, qty: number) =>         { const r = await safe(() => db.updateCartItem(id, { quantity: Math.max(1, qty) }).then(() => refresh())); return r; },
     removeItem:      async (id: string) =>                      { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart:       async () =>                                 { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },

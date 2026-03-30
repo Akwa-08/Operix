@@ -390,7 +390,18 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{u.role}</span></td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{u.isActive ? 'Active' : 'Inactive'}</span></td>
                     <td className="px-4 py-3 text-gray-600">{u.createdAt}</td>
-                    <td className="px-4 py-3 text-center"><button onClick={() => handleViewUser(u)} className="p-1.5 hover:bg-cyan-100 rounded-lg"><Eye size={18} className="text-cyan-600" /></button></td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleViewUser(u)} className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors" title="View/Edit">
+                          <Eye size={18} className="text-cyan-600" />
+                        </button>
+                        {u.isActive && (
+                          <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="p-1.5 hover:bg-red-100 rounded-lg transition-colors" title="Deactivate">
+                            <Trash2 size={18} className="text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
@@ -424,7 +435,22 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3 text-right font-semibold">₱{e.baseHourlyRate.toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-600">{e.hireDate}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{e.isActive ? 'Active' : 'Inactive'}</span></td>
-                    <td className="px-4 py-3 text-center"><button onClick={() => handleViewEmp(e)} className="p-1.5 hover:bg-cyan-100 rounded-lg"><Eye size={18} className="text-cyan-600" /></button></td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleViewEmp(e)} className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors" title="View/Edit">
+                          <Eye size={18} className="text-cyan-600" />
+                        </button>
+                        {e.isActive && (
+                          <button onClick={async () => {
+                            if (window.confirm(`Deactivate ${e.fullName}?`)) {
+                              await deactivateEmployee(e.id);
+                            }
+                          }} className="p-1.5 hover:bg-red-100 rounded-lg transition-colors" title="Deactivate">
+                            <Trash2 size={18} className="text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {filteredEmployees.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No employee records found</td></tr>}
