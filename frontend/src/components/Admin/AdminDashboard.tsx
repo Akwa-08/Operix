@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PenTool, Search, TrendingUp, Package, AlertCircle, Trophy, Eye, ChevronDown, X, User, PackageIcon } from "lucide-react";
-import { useDashboardData } from "../../hooks/useDashboardData";
+import { useDashboardData } from "../../hooks/useSupabase";
 
 const AdminDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");

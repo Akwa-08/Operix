@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Plus, X, DollarSign } from "lucide-react";
+import { Plus, X, DollarSign, LayoutGrid, LayoutList } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
-import { OrdersTable } from "../Shared/Orders/OrdersTable";
+import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import { Package, Clock, CheckCircle } from "lucide-react";
 import type { Order } from "../../Types";
-import { useOrdersData } from "../../hooks/useOrdersData";
+import { useOrdersData } from "../../hooks/useSupabase";
 
 const CashierOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -17,8 +17,9 @@ const CashierOrders = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [payForm, setPayForm] = useState({ amount: "", method: "cash", reference: "", notes: "" });
+  const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const { orders, stats, loading, createOrder, recordPayment, updateStatus } = useOrdersData();
+  const { orders, stats, loading, createOrder, recordPayment } = useOrdersData();
 
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
@@ -54,6 +55,11 @@ const CashierOrders = () => {
 
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
+  const filteredOrders = orders.filter(o => {
+    const q = searchQuery.toLowerCase();
+    return !q || o.customerName?.toLowerCase().includes(q) || o.orderId?.toLowerCase().includes(q) || o.productType?.toLowerCase().includes(q);
+  });
+
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
@@ -69,8 +75,12 @@ const CashierOrders = () => {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex flex-col md:flex-row gap-3 items-center">
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search orders..." />
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+            <button onClick={() => setViewMode("list")} title="List view" className={`p-2 rounded-md transition-all ${viewMode === "list" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}><LayoutList size={18} /></button>
+            <button onClick={() => setViewMode("cards")} title="Card view" className={`p-2 rounded-md transition-all ${viewMode === "cards" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}><LayoutGrid size={18} /></button>
+          </div>
           <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>Create Order</Button>
         </div>
       </div>
@@ -79,65 +89,66 @@ const CashierOrders = () => {
         <p className="text-sm text-blue-900 font-medium">ℹ️ <strong>Cashier:</strong> Create walk-in orders, view details, and record payments. Click the ₱ icon on any order to process payment.</p>
       </div>
 
-      {/* Custom table wrapper to add payment action */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b"><tr>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Product</th>
-              <th className="px-4 py-3 text-right font-semibold text-gray-700">Amount</th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
-            </tr></thead>
-            <tbody className="divide-y divide-gray-100">
-              {orders.filter(o => {
-                const q = searchQuery.toLowerCase();
-                return !q || o.customerName?.toLowerCase().includes(q) || o.orderId?.toLowerCase().includes(q) || o.productType?.toLowerCase().includes(q);
-              }).map((o: any) => (
-                <tr key={o.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-mono text-xs">{o.orderId}</td>
-                  <td className="px-4 py-3">{o.customerName}</td>
-                  <td className="px-4 py-3 text-gray-600">{o.productType}</td>
-                  <td className="px-4 py-3 text-right font-semibold">₱{o.totalAmount?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      o.status === 'Completed' ? 'bg-green-100 text-green-700' :
-                      o.status === 'In Queue' ? 'bg-blue-100 text-blue-700' :
-                      o.status === 'Overdue' ? 'bg-red-100 text-red-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>{o.status}</span>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                      o.paymentStatus === 'Paid' ? 'bg-green-100 text-green-700' :
-                      o.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>{o.paymentStatus}</span>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{o.dateOrdered}</td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button onClick={() => handleViewOrder(o)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View Details">
-                        <Package size={16} className="text-cyan-600" />
-                      </button>
-                      {o.paymentStatus !== 'Paid' && (
-                        <button onClick={() => openPayment(o)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Record Payment">
-                          <DollarSign size={16} className="text-green-600" />
+      {/* Orders — list or cards */}
+      {viewMode === "list" ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b"><tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Product</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-700">Amount</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Date</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
+              </tr></thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredOrders.map((o: any) => (
+                  <tr key={o.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-xs">{o.orderId}</td>
+                    <td className="px-4 py-3">{o.customerName}</td>
+                    <td className="px-4 py-3 text-gray-600">{o.productType}</td>
+                    <td className="px-4 py-3 text-right font-semibold">₱{o.totalAmount?.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        o.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                        o.status === 'In Queue' ? 'bg-blue-100 text-blue-700' :
+                        o.status === 'Overdue' ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>{o.status}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        o.paymentStatus === 'Paid' ? 'bg-green-100 text-green-700' :
+                        o.paymentStatus === 'Partial' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>{o.paymentStatus}</span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 text-xs">{o.dateOrdered}</td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleViewOrder(o)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View Details">
+                          <Package size={16} className="text-cyan-600" />
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {orders.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No orders found</td></tr>}
-            </tbody>
-          </table>
+                        {o.paymentStatus !== 'Paid' && (
+                          <button onClick={() => openPayment(o)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Record Payment">
+                            <DollarSign size={16} className="text-green-600" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredOrders.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No orders found</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <OrderCardsGrid orders={filteredOrders} onView={handleViewOrder} />
+      )}
 
       <CreateOrderModal isOpen={showCreateModal} userRole="cashier" onClose={() => setShowCreateModal(false)} onSave={handleCreateOrder} />
 

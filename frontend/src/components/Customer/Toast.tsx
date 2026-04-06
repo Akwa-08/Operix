@@ -6,9 +6,11 @@ interface ToastProps {
   message: string;
   isVisible: boolean;
   onClose: () => void;
+  onAction?: () => void;
+  actionLabel?: string;
 }
 
-export const Toast: React.FC<ToastProps> = ({message, isVisible, onClose}) => {
+export const Toast: React.FC<ToastProps> = ({message, isVisible, onClose, onAction, actionLabel}) => {
   useEffect(() => {
     if (isVisible) {
       const timer = setTimeout(onClose, 3000);
@@ -33,6 +35,13 @@ export const Toast: React.FC<ToastProps> = ({message, isVisible, onClose}) => {
               Success
             </p>
           </div>
+          {onAction && actionLabel && (
+            <button
+              onClick={onAction}
+              className="ml-2 px-3 py-1.5 bg-green-500/20 hover:bg-green-500 text-green-400 hover:text-white text-xs font-bold rounded-lg transition-colors border border-green-500/30">
+              {actionLabel}
+            </button>
+          )}
           <button
             onClick={onClose}
             className="p-1 hover:bg-gray-800 rounded-md transition-colors text-gray-400 hover:text-white cursor-pointer">

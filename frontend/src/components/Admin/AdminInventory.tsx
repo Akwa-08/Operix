@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Package, CheckCircle, AlertTriangle, X } from "lucide-react";
+import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ArrowRight, Search } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
@@ -7,52 +7,164 @@ import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
 import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
 import { DeleteMaterialModal } from "../Shared/Inventory/DeleteMaterialModal";
-import type { Material } from "../../Types";
-import { useInventoryData } from "../../hooks/useInventoryData";
-import apiClient from "../../services/apiClient";
+import { ProductsTable } from "../Shared/Inventory/ProductsTable";
+import { EditProductModal } from "../Shared/Inventory/EditProductModal";
+import { ProductDetailsModal } from "../Shared/Inventory/ProductDetailsModal";
+import { DeleteProductModal } from "../Shared/Inventory/DeleteProductModal";
+import type { Material, AdminProduct, Delivery, DeliveryStatus } from "../../Types";
+import { useInventoryData, useProductsData, useDeliveries } from "../../hooks/useSupabase";
+import toast from "react-hot-toast";
+import { db } from "../../lib/database";
+
+// ── Reusable Modal Shell ─────────────────────────────────────────────────────
+const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: { show: boolean; onClose: () => void; title: string; children: React.ReactNode; width?: string }) => {
+  if (!show) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full max-h-[90vh] overflow-y-auto p-8 relative`} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
+        <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const AdminInventory = () => {
   const [activeTab, setActiveTab] = useState("Materials");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // ── Materials state ──
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
   const [showCreateMaterialModal, setShowCreateMaterialModal] = useState(false);
-  const [newMaterial, setNewMaterial] = useState({ name: "", unit_of_measure: "", current_quantity: "", reorder_point: "", unit_cost: "", description: "" });
+  const [newMaterial, setNewMaterial] = useState({ name: "", unit_of_measure: "", current_quantity: "", reorder_point: "", unit_cost: "", description: "", purchase_unit: "", conversion_rate: "" });
   const [creating, setCreating] = useState(false);
 
+  // ── Products state ──
+  const [showProductView, setShowProductView] = useState(false);
+  const [showProductEdit, setShowProductEdit] = useState(false);
+  const [showProductDelete, setShowProductDelete] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
+
+  // ── Deliveries state ──
+  const [showCreateDelivery, setShowCreateDelivery] = useState(false);
+  const [showConfirmReceipt, setShowConfirmReceipt] = useState(false);
+  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
+  const [newDelivery, setNewDelivery] = useState({ inventory_item_id: "", supplier_id: "", requested_quantity: "", expected_arrival_date: "", notes: "" });
+  const [receipt, setReceipt] = useState({ received_quantity: "", receipt_reference_number: "" });
+
   const tabs = ["Materials", "Products", "Deliveries"];
-  const { materials, stats: materialStats, loading, refresh } = useInventoryData();
+  const { materials, stats: materialStats, loading: matLoading, refresh: refreshMat } = useInventoryData();
+  const { products, stats: prodStats, materials: rawMaterials, loading: prodLoading, refresh: refreshProd, createProduct, updateProduct, deleteProduct } = useProductsData();
+  const { deliveries, stats: delStats, materials: delMaterials, suppliers, loading: delLoading, createDelivery, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
-  const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
-  const handleEditMaterial = (material: Material) => { setSelectedMaterial(material); setShowEditModal(true); };
-  const handleDeleteMaterial = (material: Material) => { setSelectedMaterial(material); setShowDeleteModal(true); };
-  const handleSaveEdit = (data: Partial<Material>) => { console.log("Saving material:", data); setShowEditModal(false); };
+  const loading = activeTab === "Materials" ? matLoading : activeTab === "Products" ? prodLoading : delLoading;
 
+  // ══════════════════════════════════════════════════════════════════════════════
+  // MATERIALS HANDLERS
+  // ══════════════════════════════════════════════════════════════════════════════
   const handleCreateMaterial = async () => {
-    if (!newMaterial.name.trim() || !newMaterial.unit_of_measure.trim()) {
-      alert("Item name and unit of measure are required");
-      return;
-    }
+    if (!newMaterial.name.trim() || !newMaterial.unit_of_measure.trim()) { toast.error("Item name and unit of measure are required"); return; }
     setCreating(true);
-    const res = await apiClient.post("/api/inventory/inventory-items", {
-      name: newMaterial.name,
-      unit_of_measure: newMaterial.unit_of_measure,
-      current_quantity: Number(newMaterial.current_quantity) || 0,
-      reorder_point: Number(newMaterial.reorder_point) || 0,
-      unit_cost: Number(newMaterial.unit_cost) || 0,
-      description: newMaterial.description || null,
-    });
+    try {
+      await db.createInventoryItem({
+        name: newMaterial.name, unit_of_measure: newMaterial.unit_of_measure,
+        current_quantity: Number(newMaterial.current_quantity) || 0,
+        reorder_point: Number(newMaterial.reorder_point) || 0,
+        unit_cost: Number(newMaterial.unit_cost) || 0,
+        description: newMaterial.description || undefined,
+      });
+      toast.success("Material created!"); setShowCreateMaterialModal(false);
+      setNewMaterial({ name: "", unit_of_measure: "", current_quantity: "", reorder_point: "", unit_cost: "", description: "", purchase_unit: "", conversion_rate: "" });
+      refreshMat();
+    } catch (err: any) { toast.error(err.message || "Failed to create material"); }
     setCreating(false);
-    if (res.success) {
-      alert("Material created successfully!");
-      setShowCreateMaterialModal(false);
-      setNewMaterial({ name: "", unit_of_measure: "", current_quantity: "", reorder_point: "", unit_cost: "", description: "" });
-      refresh();
+  };
+
+  const handleSaveEdit = async (data: Partial<Material>) => {
+    if (!selectedMaterial) return;
+    try {
+      await db.updateInventoryItem(selectedMaterial.id, {
+        name: data.itemType, unit_of_measure: data.stockUnit,
+        current_quantity: data.usableStocks, reorder_point: data.reorderPoint,
+        unit_cost: data.unitCost, description: data.description,
+      });
+      toast.success("Material updated!"); setShowEditModal(false); refreshMat();
+    } catch (err: any) { toast.error(err.message || "Failed to update"); }
+  };
+
+  const handleDeleteMaterial = async () => {
+    if (!selectedMaterial) return;
+    try {
+      await db.deleteInventoryItem(selectedMaterial.id);
+      toast.success("Material deactivated"); setShowDeleteModal(false); refreshMat();
+    } catch (err: any) { toast.error(err.message || "Failed to deactivate"); }
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // PRODUCTS HANDLERS
+  // ══════════════════════════════════════════════════════════════════════════════
+  const handleSaveProduct = async (
+    product: { name: string; category?: string; variant?: string; size_spec?: string; material_cost: number; profit_fee: number; final_price: number; description?: string },
+    bom: { inventory_item_id: string; quantity_required: number }[]
+  ) => {
+    if (selectedProduct) {
+      const r = await updateProduct(selectedProduct.id, product, bom);
+      if (r.success) { toast.success("Product updated!"); setShowProductEdit(false); }
+      else toast.error(r.error || "Failed to update");
     } else {
-      alert("Error: " + res.error);
+      const r = await createProduct(product, bom);
+      if (r.success) { toast.success("Product created!"); setShowCreateProduct(false); }
+      else toast.error(r.error || "Failed to create");
     }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    const r = await deleteProduct(id);
+    if (r.success) { toast.success("Product deactivated"); setShowProductDelete(false); }
+    else toast.error(r.error || "Failed");
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // DELIVERIES HANDLERS
+  // ══════════════════════════════════════════════════════════════════════════════
+  const handleCreateDelivery = async () => {
+    if (!newDelivery.inventory_item_id || !newDelivery.requested_quantity) { toast.error("Material and quantity are required"); return; }
+    const r = await createDelivery({
+      inventory_item_id: newDelivery.inventory_item_id,
+      supplier_id: newDelivery.supplier_id || undefined,
+      requested_quantity: Number(newDelivery.requested_quantity),
+      expected_arrival_date: newDelivery.expected_arrival_date || undefined,
+      notes: newDelivery.notes || undefined,
+    });
+    if (r.success) { toast.success("Restock request created!"); setShowCreateDelivery(false); setNewDelivery({ inventory_item_id: "", supplier_id: "", requested_quantity: "", expected_arrival_date: "", notes: "" }); }
+    else toast.error(r.error || "Failed");
+  };
+
+  const handleConfirmReceipt = async () => {
+    if (!selectedDelivery || !receipt.receipt_reference_number.trim() || !receipt.received_quantity) { toast.error("Reference number and quantity are required"); return; }
+    const r = await confirmReceiptFn(selectedDelivery.id, { received_quantity: Number(receipt.received_quantity), receipt_reference_number: receipt.receipt_reference_number });
+    if (r.success) { toast.success("Delivery confirmed! Inventory updated."); setShowConfirmReceipt(false); setReceipt({ received_quantity: "", receipt_reference_number: "" }); refreshMat(); }
+    else toast.error(r.error || "Failed");
+  };
+
+  const handleUpdateDeliveryStatus = async (id: string, status: string) => {
+    const r = await updateDelivery(id, { status });
+    if (r.success) toast.success(`Status updated to ${status}`);
+    else toast.error(r.error || "Failed");
+  };
+
+  const getDeliveryStatusBadge = (status: DeliveryStatus) => {
+    const map: Record<DeliveryStatus, string> = {
+      requested: "bg-yellow-100 text-yellow-700", ordered: "bg-blue-100 text-blue-700",
+      en_route: "bg-purple-100 text-purple-700", received: "bg-green-100 text-green-700",
+      returned: "bg-red-100 text-red-700", completed: "bg-gray-100 text-gray-600",
+    };
+    return map[status] || "bg-gray-100 text-gray-600";
   };
 
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
@@ -66,13 +178,16 @@ const AdminInventory = () => {
 
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
         {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
+          <button key={tab} onClick={() => { setActiveTab(tab); setSearchQuery(""); }}
             className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-[#00BEF4] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
             {tab}
           </button>
         ))}
       </div>
 
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* MATERIALS TAB */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "Materials" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
@@ -82,59 +197,201 @@ const AdminInventory = () => {
             <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" />
             <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
           </div>
-
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateMaterialModal(true)}>Add New Material</Button>
             </div>
           </div>
-
-          <MaterialsTable materials={materials} userRole="admin" onView={handleViewMaterial} onEdit={handleEditMaterial} onDelete={handleDeleteMaterial} searchQuery={searchQuery} />
-
+          <MaterialsTable materials={materials} userRole="admin"
+            onView={(m: Material) => { setSelectedMaterial(m); setShowViewModal(true); }}
+            onEdit={(m: Material) => { setSelectedMaterial(m); setShowEditModal(true); }}
+            onDelete={(m: Material) => { setSelectedMaterial(m); setShowDeleteModal(true); }}
+            searchQuery={searchQuery} />
           {selectedMaterial && (
             <>
               <MaterialDetailsModal isOpen={showViewModal} material={selectedMaterial} userRole="admin" onClose={() => setShowViewModal(false)} />
               <EditMaterialModal isOpen={showEditModal} material={selectedMaterial} userRole="admin" onClose={() => setShowEditModal(false)} onSave={handleSaveEdit} />
-              <DeleteMaterialModal isOpen={showDeleteModal} material={selectedMaterial} userRole="admin" onClose={() => setShowDeleteModal(false)} onDelete={() => { console.log("Delete:", selectedMaterial.id); setShowDeleteModal(false); }} />
+              <DeleteMaterialModal isOpen={showDeleteModal} material={selectedMaterial} userRole="admin" onClose={() => setShowDeleteModal(false)} onDelete={handleDeleteMaterial} />
             </>
           )}
-
-          {showCreateMaterialModal && (
-            <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowCreateMaterialModal(false)}>
-              <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative" onClick={e => e.stopPropagation()}>
-                <button onClick={() => setShowCreateMaterialModal(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-                <h3 className="text-2xl font-bold text-gray-900 mb-6">Add New Material</h3>
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Item Name *</label>
-                    <input type="text" value={newMaterial.name} onChange={e => setNewMaterial({...newMaterial, name: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., Tarpaulin Roll 6.1ft" /></div>
-                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Unit of Measure *</label>
-                    <input type="text" value={newMaterial.unit_of_measure} onChange={e => setNewMaterial({...newMaterial, unit_of_measure: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., feet, ml, pieces" /></div>
-                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Current Quantity</label>
-                    <input type="number" value={newMaterial.current_quantity} onChange={e => setNewMaterial({...newMaterial, current_quantity: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
-                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Reorder Point</label>
-                    <input type="number" value={newMaterial.reorder_point} onChange={e => setNewMaterial({...newMaterial, reorder_point: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
-                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Unit Cost (₱)</label>
-                    <input type="number" value={newMaterial.unit_cost} onChange={e => setNewMaterial({...newMaterial, unit_cost: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0.00" step="0.01" /></div>
-                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
-                    <input type="text" value={newMaterial.description} onChange={e => setNewMaterial({...newMaterial, description: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Optional description" /></div>
-                </div>
-                <div className="flex gap-3">
-                  <button onClick={() => setShowCreateMaterialModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-                  <button onClick={handleCreateMaterial} disabled={creating} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">{creating ? "Creating..." : "Add Material"}</button>
-                </div>
-              </div>
+          {/* Create Material Modal */}
+          <Modal show={showCreateMaterialModal} onClose={() => setShowCreateMaterialModal(false)} title="Add New Material">
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Item Name *</label><input type="text" value={newMaterial.name} onChange={e => setNewMaterial({ ...newMaterial, name: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., Tarpaulin Roll 6.1ft" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Stock Unit *</label><input type="text" value={newMaterial.unit_of_measure} onChange={e => setNewMaterial({ ...newMaterial, unit_of_measure: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., feet, ml, pieces" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Purchase Unit</label><input type="text" value={newMaterial.purchase_unit} onChange={e => setNewMaterial({ ...newMaterial, purchase_unit: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., rolls, bottles" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Conversion Rate</label><input type="number" value={newMaterial.conversion_rate} onChange={e => setNewMaterial({ ...newMaterial, conversion_rate: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Stock units per purchase unit" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Current Quantity</label><input type="number" value={newMaterial.current_quantity} onChange={e => setNewMaterial({ ...newMaterial, current_quantity: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Reorder Point</label><input type="number" value={newMaterial.reorder_point} onChange={e => setNewMaterial({ ...newMaterial, reorder_point: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Unit Cost (₱)</label><input type="number" value={newMaterial.unit_cost} onChange={e => setNewMaterial({ ...newMaterial, unit_cost: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0.00" step="0.01" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Description</label><input type="text" value={newMaterial.description} onChange={e => setNewMaterial({ ...newMaterial, description: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Optional" /></div>
             </div>
-          )}
-
-          <div className="flex justify-end">
-            <Button variant="primary" onClick={() => setActiveTab("Deliveries")}>Ongoing Deliveries</Button>
-          </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowCreateMaterialModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
+              <button onClick={handleCreateMaterial} disabled={creating} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">{creating ? "Creating..." : "Add Material"}</button>
+            </div>
+          </Modal>
         </div>
       )}
 
-      {activeTab === "Products" && (<div className="space-y-6"><p className="text-gray-500">Products section coming soon...</p></div>)}
-      {activeTab === "Deliveries" && (<div className="space-y-6"><p className="text-gray-500">Deliveries section coming soon...</p></div>)}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* PRODUCTS TAB */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "Products" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
+            <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
+            <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div className="flex flex-col md:flex-row gap-3">
+              <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search products..." />
+              <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setSelectedProduct(null); setShowCreateProduct(true); }}>Add New Product</Button>
+            </div>
+          </div>
+          <ProductsTable products={products} searchQuery={searchQuery}
+            onView={p => { setSelectedProduct(p); setShowProductView(true); }}
+            onEdit={p => { setSelectedProduct(p); setShowProductEdit(true); }}
+            onDelete={p => { setSelectedProduct(p); setShowProductDelete(true); }} />
+          <ProductDetailsModal isOpen={showProductView} product={selectedProduct} onClose={() => setShowProductView(false)} />
+          <EditProductModal isOpen={showProductEdit || showCreateProduct} product={showCreateProduct ? null : selectedProduct} materials={rawMaterials}
+            onClose={() => { setShowProductEdit(false); setShowCreateProduct(false); }} onSave={handleSaveProduct} />
+          <DeleteProductModal isOpen={showProductDelete} product={selectedProduct} onClose={() => setShowProductDelete(false)} onDelete={handleDeleteProduct} />
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {/* DELIVERIES TAB */}
+      {/* ═══════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "Deliveries" && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" />
+            <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" />
+            <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" />
+            <StatusCard title="En Route" value={delStats.enRoute} icon={<Truck size={18} />} iconColor="text-purple-600" />
+            <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
+            <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" />
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div className="flex flex-col md:flex-row gap-3">
+              <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search deliveries..." />
+              <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateDelivery(true)}>Request Restock</Button>
+            </div>
+          </div>
+
+          {/* Deliveries Table */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Material</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Supplier</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Qty Requested</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Expected</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Requested By</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No deliveries found</td></tr>
+                  ) : deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).map(d => (
+                    <tr key={d.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3"><p className="font-semibold text-gray-900">{d.materialName}</p><p className="text-xs text-gray-500">{d.materialUnit}</p></td>
+                      <td className="px-4 py-3 text-gray-600">{d.supplierName}</td>
+                      <td className="px-4 py-3 text-center font-semibold">{d.requestedQuantity}</td>
+                      <td className="px-4 py-3 text-center text-gray-600">{d.expectedArrivalDate || "—"}</td>
+                      <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusBadge(d.status)}`}>{d.status.replace("_", " ")}</span></td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{d.requestedByName}<br /><span className="text-gray-400">{d.createdAt}</span></td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          {d.status === "requested" && (
+                            <button onClick={() => handleUpdateDeliveryStatus(d.id, "ordered")} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">Mark Ordered</button>
+                          )}
+                          {d.status === "ordered" && (
+                            <button onClick={() => handleUpdateDeliveryStatus(d.id, "en_route")} className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">Mark En Route</button>
+                          )}
+                          {d.status === "en_route" && (
+                            <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }}
+                              className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 font-semibold">Confirm Receipt</button>
+                          )}
+                          {d.status === "received" && (
+                            <button onClick={() => handleUpdateDeliveryStatus(d.id, "completed")} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Complete</button>
+                          )}
+                          {d.status === "completed" && <span className="text-xs text-gray-400">Done</span>}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Create Delivery Modal */}
+          <Modal show={showCreateDelivery} onClose={() => setShowCreateDelivery(false)} title="Request Restock">
+            <div className="space-y-4 mb-6">
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Material *</label>
+                <select value={newDelivery.inventory_item_id} onChange={e => setNewDelivery({ ...newDelivery, inventory_item_id: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                  <option value="">Select material...</option>
+                  {delMaterials.map((m: any) => <option key={m.id} value={m.id}>{m.name} ({m.unit_of_measure})</option>)}
+                </select></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Supplier</label>
+                <select value={newDelivery.supplier_id} onChange={e => setNewDelivery({ ...newDelivery, supplier_id: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                  <option value="">Select supplier (optional)...</option>
+                  {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div><label className="block text-sm font-semibold text-gray-700 mb-1">Quantity *</label>
+                  <input type="number" min="1" value={newDelivery.requested_quantity} onChange={e => setNewDelivery({ ...newDelivery, requested_quantity: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Amount in purchase units" /></div>
+                <div><label className="block text-sm font-semibold text-gray-700 mb-1">Expected Arrival</label>
+                  <input type="date" value={newDelivery.expected_arrival_date} onChange={e => setNewDelivery({ ...newDelivery, expected_arrival_date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+              </div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Notes</label>
+                <textarea value={newDelivery.notes} onChange={e => setNewDelivery({ ...newDelivery, notes: e.target.value })} rows={2}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Optional notes" /></div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowCreateDelivery(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
+              <button onClick={handleCreateDelivery} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl">Submit Request</button>
+            </div>
+          </Modal>
+
+          {/* Confirm Receipt Modal */}
+          <Modal show={showConfirmReceipt} onClose={() => setShowConfirmReceipt(false)} title="Confirm Delivery Receipt" width="max-w-md">
+            {selectedDelivery && (
+              <>
+                <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                  <p className="font-semibold text-gray-900">{selectedDelivery.materialName}</p>
+                  <p className="text-xs text-gray-500">Requested: {selectedDelivery.requestedQuantity} {selectedDelivery.materialUnit} from {selectedDelivery.supplierName}</p>
+                </div>
+                <div className="space-y-4 mb-6">
+                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Received Quantity *</label>
+                    <input type="number" min="0.01" step="0.01" value={receipt.received_quantity} onChange={e => setReceipt({ ...receipt, received_quantity: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
+                  <div><label className="block text-sm font-semibold text-gray-700 mb-1">Receipt / Reference Number *</label>
+                    <input type="text" value={receipt.receipt_reference_number} onChange={e => setReceipt({ ...receipt, receipt_reference_number: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., RCV-2026-001" /></div>
+                </div>
+                <p className="text-xs text-gray-400 mb-4">Confirming will automatically update the material's stock based on the received quantity × conversion rate.</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowConfirmReceipt(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
+                  <button onClick={handleConfirmReceipt} className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl">Confirm Receipt</button>
+                </div>
+              </>
+            )}
+          </Modal>
+        </div>
+      )}
     </div>
   );
 };

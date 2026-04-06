@@ -86,17 +86,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const getStatusColor = (status: OrderStatus) => {
     switch (status) {
       case "Queue":
-        return "bg-[#0ea5e9]";
+        return "bg-sky-500";
       case "Design":
-        return "bg-[#ec4899]";
+        return "bg-pink-500";
       case "Payment":
-        return "bg-[#22c55e]";
+        return "bg-green-500";
       case "Production":
-        return "bg-[#8b5cf6]";
+        return "bg-violet-500";
       case "Pick-up":
-        return "bg-[#f59e0b]";
+        return "bg-amber-500";
       case "Complete":
-        return "bg-[#10b981]";
+        return "bg-emerald-500";
       default:
         return "bg-gray-400";
     }
@@ -122,12 +122,11 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-gray-300 rounded-full flex-shrink-0" />
         <div>
-          <h3 className="text-sm font-semibold text-gray-900 leading-tight">
-            {order.customerName} |{" "}
-            <span className="font-medium">{order.role}</span>
+          <h3 className="text-sm font-bold text-gray-900 leading-tight">
+            {order.customerName}
           </h3>
-          <p className="text-[10px] text-gray-400 uppercase font-medium mt-0.5">
-            {order.orderNumber}
+          <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+            {order.role} • <span className="uppercase">{order.orderNumber}</span>
           </p>
         </div>
       </div>
@@ -191,15 +190,15 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       </div>
 
       {/* Meta Grid */}
-      <div className="grid grid-cols-1 gap-2">
-        <div className="flex justify-between items-center text-[10px] text-gray-400 font-medium">
+      <div className="grid grid-cols-1 gap-3 mt-1">
+        <div className="flex justify-between items-center text-[11px] text-gray-500 font-medium">
           <div className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            <span>{order.orderDate}</span>
+            <span className="text-gray-400">Ordered:</span>
+            <span className="text-gray-900 font-semibold">{order.orderDate}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-red-500">
-            <Clock className="w-3.5 h-3.5" />
-            <span>Due: {order.dueDate}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-400">Due:</span>
+            <span className="text-red-600 font-bold">{order.dueDate}</span>
           </div>
         </div>
 
@@ -232,18 +231,18 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 mt-auto">
+      <div className="flex items-center gap-2 mt-auto pt-2">
         <button
           onClick={() => onViewDetails(order.id)}
-          className="flex-1 bg-[#0ea5e9] text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-2 hover:bg-[#0284c7]">
-          <Eye className="w-3.5 h-3.5" />
+          className="flex-1 bg-cyan-500 text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 hover:bg-cyan-600 transition-colors shadow-sm">
+          <Eye className="w-4 h-4" />
           View Details
         </button>
         {order.currentStatus === "Payment" && onPay && (
           <button
             onClick={() => onPay(order.id)}
-            className="flex-shrink-0 bg-[#22c55e] text-white text-xs font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 hover:bg-[#16a34a]">
-            <CheckCircle2 className="w-3.5 h-3.5" />
+            className="flex-shrink-0 bg-green-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-green-600 transition-colors shadow-sm">
+            <CheckCircle2 className="w-4 h-4" />
             Pay
           </button>
         )}

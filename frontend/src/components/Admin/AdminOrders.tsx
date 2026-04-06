@@ -1,19 +1,34 @@
 import { useState } from "react";
-import { Plus, Trash2, X, Check } from "lucide-react";
+import { Plus, Trash2, X, Check, LayoutGrid, LayoutList } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
-import { Package, Clock, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
+import { Package, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { OrdersTable } from "../Shared/Orders/OrdersTable";
+import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import type { Order } from "../../Types";
-import { useOrdersData } from "../../hooks/useOrdersData";
+import { useOrdersData } from "../../hooks/useSupabase";
+
+const Modal = ({ show, onClose, title, children, width = "max-w-lg" }: any) => {
+  if (!show) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">{title}</h3>
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const AdminOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All Orders");
   const [periodFilter, setPeriodFilter] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -99,20 +114,6 @@ const AdminOrders = () => {
 
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
-  // Modal helper
-  const Modal = ({ show, onClose, title, children, width = "max-w-lg" }: any) => {
-    if (!show) return null;
-    return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-          <h3 className="text-xl font-bold text-gray-900 mb-6">{title}</h3>
-          {children}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
@@ -150,17 +151,33 @@ const AdminOrders = () => {
         ))}
       </div>
 
-      {/* Search + Create */}
+      {/* Search + View Toggle + Create */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row gap-3">
+        <div className="flex flex-col md:flex-row gap-3 items-center">
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search by customer, order ID, product..." />
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+            <button onClick={() => setViewMode("list")} title="List view"
+              className={`p-2 rounded-md transition-all ${viewMode === "list" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
+              <LayoutList size={18} />
+            </button>
+            <button onClick={() => setViewMode("cards")} title="Card view"
+              className={`p-2 rounded-md transition-all ${viewMode === "cards" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
+              <LayoutGrid size={18} />
+            </button>
+          </div>
           <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>Create Order</Button>
         </div>
       </div>
 
-      {/* Orders Table */}
-      <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder} searchQuery={searchQuery}
-        onEdit={(order) => openAssign(order)} onDelete={(order) => { setSelectedOrder(order); setShowDeleteConfirm(true); }} />
+      {/* Orders — list or cards */}
+      {viewMode === "list" ? (
+        <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder} searchQuery={searchQuery}
+          onEdit={(order) => openAssign(order)} onDelete={(order) => { setSelectedOrder(order); setShowDeleteConfirm(true); }} />
+      ) : (
+        <OrderCardsGrid orders={filteredOrders} searchQuery={searchQuery}
+          onView={handleViewOrder} onEdit={(order) => openAssign(order)}
+          onDelete={(order) => { setSelectedOrder(order); setShowDeleteConfirm(true); }} />
+      )}
 
       {/* Create Modal */}
       <CreateOrderModal isOpen={showCreateModal} userRole="admin" onClose={() => setShowCreateModal(false)} onSave={handleCreateOrder} />

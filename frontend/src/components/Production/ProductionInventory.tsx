@@ -8,7 +8,7 @@ import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
 import { Package, CheckCircle, AlertTriangle } from "lucide-react";
 import type { Material } from "../../Types";
-import { useInventoryData } from "../../hooks/useInventoryData";
+import { useInventoryData } from "../../hooks/useSupabase";
 
 const ProductionInventory = () => {
   const [searchQuery, setSearchQuery] = useState("");

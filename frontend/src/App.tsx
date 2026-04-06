@@ -1,10 +1,8 @@
 // frontend/src/App.tsx
-// REFACTORED: Removed /staff-login route — unified LoginModal on landing page handles all roles
+// REFACTORED: Removed Redux — all state flows through Supabase hooks + AuthContext
 // REFACTORED: All ProtectedRoute redirectTo now point to '/' (landing page with login modal)
 
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { Provider } from 'react-redux';
-import { store } from './store';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 
 // Pages
@@ -123,7 +121,7 @@ const router = createBrowserRouter([
 ]);
 
 const App = () => (
-  <Provider store={store}><RouterProvider router={router} /></Provider>
+  <RouterProvider router={router} />
 );
 
 export default App;

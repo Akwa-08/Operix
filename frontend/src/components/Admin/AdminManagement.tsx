@@ -1,10 +1,32 @@
 import { useState } from "react";
 import { Search, Eye, Flag, FileText, ChevronDown, X, Check, Trash2 } from "lucide-react";
-import { useManagementData } from "../../hooks/useManagementData";
-import type { FrontendUser, FrontendSupplier } from "../../services/dataMappers";
-import type { EmployeeRecord } from "../../hooks/useManagementData";
+import { useManagementData } from "../../hooks/useSupabase";
+import type { FrontendUser, FrontendSupplier, EmployeeRecord } from "../../Types";
 
 type Supplier = FrontendSupplier;
+
+  // ── Reusable field ───────────────────────────────────────────────────
+  const F = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+      <input type={type} placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm" />
+    </div>
+  );
+
+  // ── Modal wrapper ────────────────────────────────────────────────────
+  const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
+    if (!show) return null;
+    return (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
+          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
+          <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
+          {children}
+        </div>
+      </div>
+    );
+  };
 
 const AdminManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState("User Account Management");
@@ -148,28 +170,7 @@ const AdminManagement: React.FC = () => {
   // ── Loading ──────────────────────────────────────────────────────────
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
-  // ── Reusable field ───────────────────────────────────────────────────
-  const F = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-      <input type={type} placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm" />
-    </div>
-  );
 
-  // ── Modal wrapper ────────────────────────────────────────────────────
-  const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
-    if (!show) return null;
-    return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
-          {children}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -389,7 +390,18 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{u.role}</span></td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{u.isActive ? 'Active' : 'Inactive'}</span></td>
                     <td className="px-4 py-3 text-gray-600">{u.createdAt}</td>
-                    <td className="px-4 py-3 text-center"><button onClick={() => handleViewUser(u)} className="p-1.5 hover:bg-cyan-100 rounded-lg"><Eye size={18} className="text-cyan-600" /></button></td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleViewUser(u)} className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors" title="View/Edit">
+                          <Eye size={18} className="text-cyan-600" />
+                        </button>
+                        {u.isActive && (
+                          <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="p-1.5 hover:bg-red-100 rounded-lg transition-colors" title="Deactivate">
+                            <Trash2 size={18} className="text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
@@ -423,7 +435,22 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3 text-right font-semibold">₱{e.baseHourlyRate.toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-600">{e.hireDate}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{e.isActive ? 'Active' : 'Inactive'}</span></td>
-                    <td className="px-4 py-3 text-center"><button onClick={() => handleViewEmp(e)} className="p-1.5 hover:bg-cyan-100 rounded-lg"><Eye size={18} className="text-cyan-600" /></button></td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button onClick={() => handleViewEmp(e)} className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors" title="View/Edit">
+                          <Eye size={18} className="text-cyan-600" />
+                        </button>
+                        {e.isActive && (
+                          <button onClick={async () => {
+                            if (window.confirm(`Deactivate ${e.fullName}?`)) {
+                              await deactivateEmployee(e.id);
+                            }
+                          }} className="p-1.5 hover:bg-red-100 rounded-lg transition-colors" title="Deactivate">
+                            <Trash2 size={18} className="text-red-500" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {filteredEmployees.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No employee records found</td></tr>}

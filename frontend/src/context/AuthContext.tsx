@@ -65,9 +65,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const refreshUser = async () => {
+    // 1. Refresh auth session + get fresh user from server
     await supabase.auth.refreshSession();
     const { data: { user: freshUser } } = await supabase.auth.getUser();
-    setUser(parseUser(freshUser));
+    if (!freshUser) return;
+
+    // 2. Also fetch from public.users for the most current name
+    //    (auth metadata may be cached by Supabase until next token refresh)
+    const { data: profile } = await supabase
+      .from('users')
+      .select('first_name, last_name, role')
+      .eq('id', freshUser.id)
+      .single();
+
+    if (profile) {
+      setUser({
+        id: freshUser.id,
+        email: freshUser.email ?? '',
+        role: (profile.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
+        firstName: profile.first_name ?? freshUser.user_metadata?.first_name ?? null,
+        lastName: profile.last_name ?? freshUser.user_metadata?.last_name ?? null,
+      });
+    } else {
+      setUser(parseUser(freshUser));
+    }
   };
  
   return (
