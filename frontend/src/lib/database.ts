@@ -503,4 +503,183 @@ export const db = {
 
     return delivery;
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CHAT
+  // ═══════════════════════════════════════════════════════════════════════════
+  chat: {
+    /**
+     * Returns a deduplicated list of conversations for the current user.
+     * Each conversation represents a unique "other person" the user has
+     * exchanged messages with.
+     */
+    async getConversations() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select(`
+          id,
+          sender_id,
+          receiver_id,
+          message,
+          sent_at,
+          sender:sender_id(id, first_name, last_name, role),
+          receiver:receiver_id(id, first_name, last_name, role)
+        `)
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order('sent_at', { ascending: false });
+
+      if (error) throw error;
+      if (!data) return [];
+
+      // Build a Map keyed on the OTHER person's user id.
+      // We iterate newest-first so the first occurrence IS the latest message.
+      const conversationsMap = new Map<string, any>();
+
+      for (const msg of data as any[]) {
+        const isSender = msg.sender_id === user.id;
+        // Try to use the joined object; fall back to just the id if RLS hid the profile.
+        const otherProfile = isSender ? msg.receiver : msg.sender;
+        const otherId = isSender ? msg.receiver_id : msg.sender_id;
+
+        if (!otherId) continue;
+        if (conversationsMap.has(otherId)) continue; // already captured the latest
+
+        conversationsMap.set(otherId, {
+          id: otherId,
+          userId: otherId,
+          userName: otherProfile
+            ? `${otherProfile.first_name || ''} ${otherProfile.last_name || ''}`.trim()
+            : 'Unknown User',
+          userRole: otherProfile?.role || 'user',
+          lastMessage: msg.message,
+          lastMessageTime: new Date(msg.sent_at).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          unreadCount: 0,
+          isActive: true,
+          messages: [],
+        });
+      }
+
+      return Array.from(conversationsMap.values());
+    },
+
+    /**
+     * Returns the full message history between the current user and otherUserId,
+     * ordered oldest-first so the UI can render top-to-bottom.
+     */
+    async getMessages(otherUserId: string) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .select(`
+          id,
+          sender_id,
+          message,
+          sent_at,
+          sender:sender_id(first_name, last_name, role)
+        `)
+        .or(
+          `and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id})`
+        )
+        .order('sent_at', { ascending: true });
+
+      if (error) throw error;
+      if (!data) return [];
+
+      const STAFF_ROLES = ['admin', 'cashier', 'designer', 'production'];
+
+      return data.map((msg: any) => ({
+        id: msg.id,
+        senderId: msg.sender_id,
+        senderName: msg.sender
+          ? `${msg.sender.first_name || ''} ${msg.sender.last_name || ''}`.trim()
+          : 'Unknown',
+        content: msg.message,
+        timestamp: new Date(msg.sent_at).toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit',
+        }),
+        isFromAdmin: STAFF_ROLES.includes((msg.sender?.role || '').toLowerCase()),
+      }));
+    },
+
+    /**
+     * Inserts a new message row. RLS enforces sender_id === auth.uid().
+     */
+    async sendMessage(receiverId: string, message: string, orderId?: string) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('chat_messages')
+        .insert([{
+          sender_id: user.id,
+          receiver_id: receiverId,
+          message,
+          order_id: orderId || null,
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+
+    /**
+     * Opens a Supabase Realtime channel and calls `callback` whenever
+     * a new row is inserted into chat_messages.
+     * Returns the channel so the caller can `.unsubscribe()` on cleanup.
+     */
+    subscribeToMessages(callback: (payload: any) => void) {
+      return supabase
+        .channel('chat_messages_realtime')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+          callback
+        )
+        .subscribe();
+    },
+
+    /**
+     * Returns the list of users that the current user is allowed to message.
+     * Staff/Admins see ALL active users.
+     * Customers only see active staff/admin users.
+     */
+    async getPotentialRecipients(currentUserRole: string) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const STAFF_ROLES = ['admin', 'cashier', 'designer', 'production'];
+      const isStaff = STAFF_ROLES.includes((currentUserRole || '').toLowerCase());
+
+      let query = supabase
+        .from('users')
+        .select('id, first_name, last_name, role')
+        .eq('is_active', true)
+        .neq('id', user.id); // never show yourself
+
+      // Customers may only discover staff, not other customers
+      if (!isStaff) {
+        query = query.in('role', ['admin', 'cashier', 'designer', 'production', 'Admin', 'Cashier', 'Designer', 'Production']);
+      }
+
+      const { data, error } = await query.order('first_name');
+      if (error) throw error;
+      if (!data) return [];
+
+      return data.map((u: any) => ({
+        userId: u.id,
+        userName: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+        userRole: u.role,
+      }));
+    },
+  },
 };
