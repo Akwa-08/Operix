@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PenTool, Search, TrendingUp, Package, AlertCircle, Trophy, Eye, ChevronDown, X, User, PackageIcon } from "lucide-react";
+import { Search, TrendingUp, Package, AlertCircle, Trophy, Eye, ChevronDown, X } from "lucide-react";
 import { useDashboardData } from "../../hooks/useSupabase";
 
 const AdminDashboard = () => {
@@ -36,14 +36,6 @@ const AdminDashboard = () => {
     reorderLevel: item.reorderPoint,
     unit: item.unit,
     status: item.currentQty <= 0 ? "Low" : item.currentQty <= item.reorderPoint ? "Warning" : "Sufficient",
-  }));
-
-  // ── Live recent orders ─────────────────────────────────────────────────
-  const recentOrders = (liveData?.recentOrders || []).map(o => ({
-    id: o.orderId,
-    product: o.product,
-    materialsUsed: "—",
-    remainingStock: "—",
   }));
 
   // ── Live top orders ────────────────────────────────────────────────────
@@ -124,7 +116,7 @@ const AdminDashboard = () => {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-sm text-gray-500">Monitor overall performance, sales trends, and inventory status</p>
+        <p className="text-base text-gray-500">Monitor overall performance, sales trends, and inventory status</p>
       </div>
 
       {/* Search and Filter */}
@@ -133,7 +125,7 @@ const AdminDashboard = () => {
           <form onSubmit={handleSearch} className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input type="text" placeholder="Search orders or customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-cyan-500" />
           </form>
           <div className="relative">
             <button onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
@@ -154,24 +146,24 @@ const AdminDashboard = () => {
       {/* Top Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Total Revenue</p><TrendingUp size={20} className="text-green-600" /></div>
+          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Total Revenue</p><TrendingUp size={20} className="text-green-600" /></div>
           <p className="text-3xl font-bold text-gray-900 mb-1">₱{metrics.totalRevenue.toLocaleString()}</p>
-          <p className="text-xs text-green-600 font-semibold">{metrics.revenueChange}</p>
+          <p className="text-sm text-green-600 font-semibold">{metrics.revenueChange}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Completed Orders</p><Package size={20} className="text-blue-600" /></div>
+          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Completed Orders</p><Package size={20} className="text-blue-600" /></div>
           <p className="text-3xl font-bold text-gray-900 mb-1">{metrics.completedOrders}</p>
-          <p className="text-xs text-blue-600 font-semibold">{metrics.ordersChange}</p>
+          <p className="text-sm text-blue-600 font-semibold">{metrics.ordersChange}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Overdue Orders</p><AlertCircle size={20} className="text-red-600" /></div>
+          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Overdue Orders</p><AlertCircle size={20} className="text-red-600" /></div>
           <p className="text-3xl font-bold text-gray-900 mb-1">{metrics.delayedPayments}</p>
-          <p className="text-xs text-red-600 font-semibold">{metrics.paymentsChange}</p>
+          <p className="text-sm text-red-600 font-semibold">{metrics.paymentsChange}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-sm text-gray-600">Inventory Status</p><Trophy size={20} className="text-yellow-600" /></div>
+          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Inventory Status</p><Trophy size={20} className="text-yellow-600" /></div>
           <p className="text-3xl font-bold text-gray-900 mb-1">{inv?.total || 0}</p>
-          <p className="text-xs font-semibold" style={{color: (inv?.lowStock || 0) > 0 ? '#dc2626' : '#16a34a'}}>{inv?.lowStock || 0} low stock, {inv?.available || 0} available</p>
+          <p className="text-sm font-semibold" style={{color: (inv?.lowStock || 0) > 0 ? '#dc2626' : '#16a34a'}}>{inv?.lowStock || 0} low stock, {inv?.available || 0} available</p>
         </div>
       </div>
 
@@ -272,9 +264,9 @@ const AdminDashboard = () => {
                   <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No recent orders</td></tr>
                 ) : topOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2"><p className="font-semibold text-gray-900">{order.customer}</p><p className="text-gray-500 text-[10px]">{order.id}</p></td>
+                    <td className="px-3 py-2"><p className="font-semibold text-gray-900">{order.customer}</p><p className="text-gray-500 text-xs">{order.id}</p></td>
                     <td className="px-3 py-2 text-right font-semibold text-gray-900">₱{order.amount.toLocaleString()}</td>
-                    <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded-full text-[10px] font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></td>
+                    <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></td>
                     <td className="px-3 py-2 text-center text-gray-600">{order.date}</td>
                     <td className="px-3 py-2 text-center"><button onClick={() => handleViewOrder(order.id)} className="p-1 hover:bg-gray-200 rounded"><Eye size={14} className="text-gray-600" /></button></td>
                   </tr>

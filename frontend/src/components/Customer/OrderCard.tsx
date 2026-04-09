@@ -125,7 +125,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <h3 className="text-sm font-bold text-gray-900 leading-tight">
             {order.customerName}
           </h3>
-          <p className="text-[11px] text-gray-500 font-medium mt-0.5">
+          <p className="text-xs text-gray-500 font-medium mt-0.5">
             {order.role} • <span className="uppercase">{order.orderNumber}</span>
           </p>
         </div>
@@ -140,7 +140,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </span>
         </div>
         <span
-          className={`${getStatusColor(order.currentStatus)} text-white px-3 py-1 rounded-full text-[10px] font-semibold`}>
+          className={`${getStatusColor(order.currentStatus)} text-white px-3 py-1 rounded-full text-xs font-semibold`}>
           {getStatusLabel(order.currentStatus)}
         </span>
       </div>
@@ -179,7 +179,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 )}
               </div>
               <span
-                className={`text-[9px] mt-1.5 font-medium whitespace-nowrap ${
+                className={`text-xs mt-1.5 font-medium whitespace-nowrap ${
                   isActive ? "text-gray-900 font-bold" : "text-gray-400"
                 }`}>
                 {step.label}
@@ -191,7 +191,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
       {/* Meta Grid */}
       <div className="grid grid-cols-1 gap-3 mt-1">
-        <div className="flex justify-between items-center text-[11px] text-gray-500 font-medium">
+        <div className="flex justify-between items-center text-xs text-gray-500 font-medium">
           <div className="flex items-center gap-1.5">
             <span className="text-gray-400">Ordered:</span>
             <span className="text-gray-900 font-semibold">{order.orderDate}</span>
@@ -205,7 +205,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-1.5">
             {order.isPriceEstimated && (
-              <span className="text-[10px] text-gray-400 font-medium leading-none mt-1">
+              <span className="text-xs text-gray-400 font-medium leading-none mt-1">
                 Estimated amount
               </span>
             )}
@@ -215,7 +215,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             </span>
           </div>
           <span
-            className={`px-2.5 py-0.5 rounded-full border text-[9px] font-semibold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
+            className={`px-2.5 py-0.5 rounded-full border text-xs font-semibold uppercase ${getPaymentStatusColor(order.paymentStatus)}`}>
             {order.paymentStatus}
           </span>
         </div>
@@ -223,7 +223,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         {order.note && (
           <div className="flex items-start gap-1.5">
             <MessageCircle className="w-3.5 h-3.5 text-gray-400 mt-0.5" />
-            <p className="text-[10px] text-gray-500 leading-tight">
+            <p className="text-xs text-gray-500 leading-tight">
               {order.note}
             </p>
           </div>

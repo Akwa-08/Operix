@@ -172,7 +172,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
                     <div className="flex gap-4 border-b border-gray-200">
                       <button
                         onClick={() => setActiveTab("all")}
-                        className={`pb-2 px-1 text-sm font-semibold transition-colors relative ${
+                        className={`pb-2 px-1 text-base font-semibold transition-colors relative ${
                           activeTab === "all"
                             ? "text-cyan-600"
                             : "text-gray-500 hover:text-gray-700"
@@ -185,7 +185,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
                       </button>
                       <button
                         onClick={() => setActiveTab("unread")}
-                        className={`pb-2 px-1 text-sm font-semibold transition-colors relative ${
+                        className={`pb-2 px-1 text-base font-semibold transition-colors relative ${
                           activeTab === "unread"
                             ? "text-cyan-600"
                             : "text-gray-500 hover:text-gray-700"
@@ -224,7 +224,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
                             </div>
                             <div className="flex-1 min-w-0">
                               <p
-                                className={`text-sm mb-1 ${
+                                className={`text-base mb-1 ${
                                   !notification.isRead
                                     ? "font-semibold text-gray-900"
                                     : "text-gray-700"
@@ -232,7 +232,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
                               >
                                 {notification.title}
                               </p>
-                              <p className="text-xs text-gray-500">
+                              <p className="text-sm text-gray-500">
                                 {notification.timestamp}
                               </p>
                             </div>
@@ -241,7 +241,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
                                 onClick={(e) =>
                                   handleMarkAsRead(notification.id, e)
                                 }
-                                className="text-xs text-cyan-600 hover:text-cyan-700 font-semibold hover:underline"
+                                className="text-sm text-cyan-600 hover:text-cyan-700 font-semibold hover:underline"
                               >
                                 Read
                               </button>
@@ -265,7 +265,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
                             prev.map((notif) => ({ ...notif, isRead: true }))
                           );
                         }}
-                        className="w-full text-sm text-cyan-600 hover:text-cyan-700 font-semibold"
+                        className="w-full text-base text-cyan-600 hover:text-cyan-700 font-semibold"
                       >
                         Mark all as read
                       </button>

@@ -31,7 +31,7 @@ export const Toast: React.FC<ToastProps> = ({message, isVisible, onClose, onActi
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold tracking-tight">{message}</p>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
+            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-0.5">
               Success
             </p>
           </div>

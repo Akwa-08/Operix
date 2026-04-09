@@ -29,7 +29,7 @@ export const RootLayout = () => {
         />
         <main
           className={`flex-1 pt-6 px-6 pb-0 mt-16 transition-all duration-300 ${
-            collapsed ? "lg:ml-[72px]" : "lg:ml-[160px]"
+            collapsed ? "lg:ml-[72px]" : "lg:ml-[180px]"
           }`}>
           <Outlet />
         </main>

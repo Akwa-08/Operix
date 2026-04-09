@@ -32,7 +32,7 @@ const DesignerPage = () => {
         />
         <main
           className={`flex-1 p-6 mt-16 transition-all duration-300 ${
-            collapsed ? "lg:ml-[72px]" : "lg:ml-[160px]"
+            collapsed ? "lg:ml-[72px]" : "lg:ml-[180px]"
           }`}>
           <Outlet />
         </main>

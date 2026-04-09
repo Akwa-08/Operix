@@ -43,18 +43,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <h3 className="text-xl font-extrabold text-gray-900 transition-colors duration-300">
               {product.title}
             </h3>
-            <span className="bg-gray-50 text-gray-400 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md border border-gray-100">
+            <span className="bg-gray-50 text-gray-500 text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg border border-gray-100">
               {product.variant}
             </span>
           </div>
-          <p className="text-sm text-gray-500 font-medium mb-1">
-            Dimensions: <span className="text-gray-900">{product.size}</span>
+          <p className="text-base text-gray-500 font-medium mb-1">
+            Dimensions: <span className="text-gray-900 font-semibold">{product.size}</span>
           </p>
         </div>
 
         <div className="mt-auto pt-6 border-t border-gray-50 flex flex-col gap-4">
           <div className="flex items-baseline gap-1">
-            <span className="text-gray-400 text-xs font-bold leading-none">
+            <span className="text-gray-400 text-sm font-bold leading-none">
               ₱
             </span>
             <span className="text-3xl font-black text-gray-900 tracking-tight">
@@ -66,7 +66,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <button
             onClick={handleAdd}
             disabled={isAdded}
-            className={`w-full relative overflow-hidden py-4 rounded-xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-3 transition-all duration-300 cursor-pointer shadow-lg
+            className={`w-full relative overflow-hidden py-4 rounded-xl font-bold text-base uppercase tracking-wider flex items-center justify-center gap-3 transition-all duration-300 cursor-pointer shadow-lg
               ${
                 isAdded
                   ? "bg-green-500 text-white shadow-green-100"

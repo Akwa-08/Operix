@@ -44,7 +44,7 @@ export const CartTable: React.FC<CartTableProps> = ({
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mb-6">
       <table className="w-full text-left">
         <thead className="bg-gray-50/50 border-b border-gray-200">
-          <tr className="text-gray-400 font-bold text-xs uppercase tracking-wider">
+          <tr className="text-gray-500 font-bold text-sm uppercase tracking-wider">
             <th className="p-6 w-12 text-center">
               <input
                 type="checkbox"
@@ -106,7 +106,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                       className="p-1 border border-gray-200 rounded hover:bg-gray-100 text-gray-400 transition-colors cursor-pointer">
                       <Minus className="w-4 h-4" />
                     </button>
-                    <span className="font-bold text-gray-900 w-6 text-center">
+                    <span className="font-bold text-gray-900 w-8 text-center text-lg">
                       {product.quantity || 1}
                     </span>
                     <button
@@ -130,11 +130,11 @@ export const CartTable: React.FC<CartTableProps> = ({
                     onClick={() => onOpenUpload(product.id, product.title)}
                     className="cursor-pointer transition-transform active:scale-95">
                     {product.fileUrl ? (
-                      <span className="px-3 py-1 bg-green-50 text-green-500 text-[10px] font-black uppercase tracking-widest rounded-md border border-green-200 hover:bg-green-100 transition-colors">
+                      <span className="px-3 py-1.5 bg-green-50 text-green-600 text-xs font-bold uppercase tracking-wider rounded-lg border border-green-200 hover:bg-green-100 transition-colors">
                         Uploaded
                       </span>
                     ) : (
-                      <span className="px-3 py-1 bg-orange-50 text-orange-400 text-[10px] font-black uppercase tracking-widest rounded-md border border-orange-200 hover:bg-orange-100 transition-colors">
+                      <span className="px-3 py-1.5 bg-orange-50 text-orange-500 text-xs font-bold uppercase tracking-wider rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors">
                         Missing
                       </span>
                     )}
@@ -142,12 +142,12 @@ export const CartTable: React.FC<CartTableProps> = ({
                 </td>
                 <td className="p-6">
                   <div className="flex justify-center gap-1">
-                    <button className="px-2 py-1 bg-cyan-400 text-white text-[10px] font-bold rounded hover:bg-cyan-500 transition-colors cursor-pointer">
+                    <button className="px-3 py-1.5 bg-cyan-400 text-white text-xs font-bold rounded-lg hover:bg-cyan-500 transition-colors cursor-pointer">
                       View
                     </button>
                     <button
                       onClick={() => onRemove(product.id)}
-                      className="px-2 py-1 bg-red-500 text-white text-[10px] font-bold rounded hover:bg-red-600 transition-colors cursor-pointer">
+                      className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
                       Delete
                     </button>
                   </div>
