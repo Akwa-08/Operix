@@ -1,7 +1,7 @@
 // src/Types/index.ts
 // Centralized type definitions for VTA Link Printing Services
 
-export type UserRole = "admin" | "cashier" | "designer" | "production";
+export type UserRole = "admin" | "cashier" | "designer" | "production" | "customer";
 
 export type OrderStatus =
   | "In Queue"

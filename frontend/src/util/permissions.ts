@@ -1,6 +1,6 @@
 // src\util\permissions.ts
 
-export type UserRole = 'admin' | 'cashier' | 'designer' | 'production';
+export type UserRole = 'admin' | 'cashier' | 'designer' | 'production' | 'customer';
 
 export interface InventoryPermissions {
   canViewAll: boolean;
@@ -190,7 +190,44 @@ export const permissions: Record<UserRole, RolePermissions> = {
       canManageSuppliers: false,
     },
   },
+  
+  customer: {
+    inventory: {
+      canViewAll: false,
+      canEditAllFields: false,
+      canEditStock: false,
+      canDelete: false,
+      canAdd: false,
+      canViewCost: false,
+      canCreateResupply: false,
+    },
+    orders: {
+      canViewAll: false,
+      canViewAssigned: false,
+      canCreate: true, // Customers can create orders via Cart/Checkout
+      canEditAll: false,
+      canEditStatus: false,
+      canAssignStaff: false,
+      canDelete: false,
+      canUploadDesign: true,
+      canUpdateDesignStatus: false,
+      canUpdateProductionStatus: false,
+    },
+    payroll: {
+      canView: false,
+      canEdit: false,
+      canExport: false,
+    },
+    management: {
+      canViewUsers: false,
+      canEditUsers: false,
+      canCreateUsers: false,
+      canDeactivateUsers: false,
+      canManageSuppliers: false,
+    },
+  },
 };
+
 
 // Helper function to check permissions
 export const hasPermission = (

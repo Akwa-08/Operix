@@ -1,0 +1,419 @@
+diff a/frontend/src/components/Shared/Orders/CreateOrderModal.tsx b/frontend/src/components/Shared/Orders/CreateOrderModal.tsx	(rejected hunks)
+@@ -21,247 +34,212 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
+   onSave,
+ }) => {
+   const perms = permissions[userRole].orders;
++  const [customers, setCustomers] = useState<FrontendUser[]>([]);
++  const [loadingCustomers, setLoadingCustomers] = useState(false);
++
++  // Determine scenario
++  const [customerScenario, setCustomerScenario] = useState<"registered" | "walkin" | "guest">("walkin");
+ 
+   // Form state
+   const [formData, setFormData] = useState({
+-    orderType: "walk-in",
+-    customerName: "",
+-    customerEmail: "",
+-    customerPhone: "",
++    customerId: "",       // Scenario 1: Registered
++    guestName: "",        // Scenario 2/3: Walkin/Guest
++    guestEmail: "",       // Scenario 3: Guest
++    guestPhone: "",       // Scenario 3: Guest
++    
+     productType: "",
+-    quantity: 0,
++    quantity: 1,
+     totalAmount: 0,
+-    paymentStatus: "Unpaid",
+     dueDate: "",
+     specialInstructions: "",
+     comments: "",
+   });
+ 
++  useEffect(() => {
++    if (isOpen) {
++      setLoadingCustomers(true);
++      db.getUsers({ role: 'Customer' }).then(users => {
++        setCustomers(users);
++        setLoadingCustomers(false);
++      }).catch(console.error);
++    }
++  }, [isOpen]);
++
+   const handleChange = (field: string, value: any) => {
+     setFormData((prev) => ({ ...prev, [field]: value }));
+   };
+ 
+   const handleSubmit = () => {
+-    // Validate required fields
+-    if (
+-      !formData.customerName ||
+-      !formData.productType ||
+-      !formData.quantity ||
+-      !formData.dueDate
+-    ) {
+-      alert("Please fill in all required fields");
++    // Basic Validation
++    if (!formData.productType || !formData.quantity || !formData.dueDate) {
++      alert("Product Type, Quantity, and Due Date are required.");
+       return;
+     }
+ 
+-    onSave(formData);
+-    onClose();
+-  };
+-
+-  // Only admin and cashier can create orders
+-  if (!perms.canCreate) {
+-    return null;
+-  }
++    if (customerScenario === "registered" && !formData.customerId) {
++        alert("Please select a registered customer."); return;
++    }
++    if (customerScenario === "guest" && !formData.guestName) {
++        alert("Guest Client Name is required."); return;
++    }
+ 
+-  return (
+-    <Modal isOpen={isOpen} onClose={onClose} title="Create New Order" size="xl">
+-      <div className="space-y-5">
+-        {/* Customer Information */}
+-        <div className="space-y-4">
++    // Prepare payload
++    const payload: any = {
++      orderType: customerScenario === "registered" ? "online" : "walk-in",
++      productType: formData.productType,
++      quantity: formData.quantity,
++      totalAmount: formData.totalAmount,
++      dueDate: formData.dueDate,
++      specialInstructions: formData.specialInstructions,
++      comments: formData.comments,
++    };
++
++    if (customerScenario === "registered") {
++      payload.customerId = formData.customerId;
++    } else if (customerScenario === "walkin") {
++      payload.guestName = "Walk-in";
++    } else if (customerScenario === "guest") {
++      payload.guestName = formData.guestName;
++      payload.guestPhone = formData.guestPhone;
++      payload.guestEmail = formData.guestEmail;
++    }
+ 
+-          {/* Order Type Toggle */}
+-          <div className="flex gap-3 mb-4">
+-            <button type="button" onClick={() => handleChange("orderType", "walk-in")}
+-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${formData.orderType === 'walk-in' ? 'bg-cyan-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+-              Walk-in Customer
+-            </button>
+-            <button type="button" onClick={() => handleChange("orderType", "online")}
+-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${formData.orderType === 'online' ? 'bg-cyan-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+-              Online Order
+-            </button>
+-          </div>
++    onSave(payload);
++  };
+ 
+-          <h3 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2">
+-            Customer Information
+-          </h3>
++  if (!perms.canCreate) return null;
+ 
+-          <div className="grid grid-cols-2 gap-4">
+-            <div>
+-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+-                Customer Name *
+-              </label>
+-              <input
+-                type="text"
+-                value={formData.customerName}
+-                onChange={(e) => handleChange("customerName", e.target.value)}
+-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-                placeholder="John Doe"
+-              />
++  return (
++    <Modal isOpen={isOpen} onClose={onClose} title="Start New Work Order" size="2xl">
++      <div className="space-y-8 animate-in fade-in zoom-in duration-300">
++        
++        {/* HYBRID POS SELECTOR */}
++        <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 shadow-sm">
++            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-6 tracking-tight">Step 1: Customer Profile</h3>
++            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
++                <button type="button" onClick={() => setCustomerScenario("walkin")}
++                  className={`flex flex-col items-center justify-center p-6 rounded-2xl border-4 transition-all ${customerScenario === 'walkin' ? 'bg-cyan-100 border-cyan-500 text-cyan-900 dark:bg-cyan-900/50 dark:border-cyan-400 dark:text-cyan-100 shadow-xl scale-105' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:border-cyan-300'}`}>
++                  <User className="w-12 h-12 mb-3" />
++                  <span className="text-xl font-bold">Quick Walk-In</span>
++                  <span className="text-sm font-medium mt-1 opacity-80">(Standard over-the-counter)</span>
++                </button>
++                <button type="button" onClick={() => setCustomerScenario("guest")}
++                  className={`flex flex-col items-center justify-center p-6 rounded-2xl border-4 transition-all ${customerScenario === 'guest' ? 'bg-purple-100 border-purple-500 text-purple-900 dark:bg-purple-900/50 dark:border-purple-400 dark:text-purple-100 shadow-xl scale-105' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:border-purple-300'}`}>
++                  <UserPlus className="w-12 h-12 mb-3" />
++                  <span className="text-xl font-bold">New Client / Guest</span>
++                  <span className="text-sm font-medium mt-1 opacity-80">(Generate Tracking Code later)</span>
++                </button>
++                <button type="button" onClick={() => setCustomerScenario("registered")}
++                  className={`flex flex-col items-center justify-center p-6 rounded-2xl border-4 transition-all ${customerScenario === 'registered' ? 'bg-blue-100 border-blue-500 text-blue-900 dark:bg-blue-900/50 dark:border-blue-400 dark:text-blue-100 shadow-xl scale-105' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:border-blue-300'}`}>
++                  <Users className="w-12 h-12 mb-3" />
++                  <span className="text-xl font-bold">Registered Account</span>
++                  <span className="text-sm font-medium mt-1 opacity-80">(Link to user app profile)</span>
++                </button>
+             </div>
+ 
+-            <div>
+-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+-                Email
+-              </label>
+-              <input
+-                type="email"
+-                value={formData.customerEmail}
+-                onChange={(e) => handleChange("customerEmail", e.target.value)}
+-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-                placeholder="john@example.com"
+-              />
++            <div className="mt-8">
++                {customerScenario === "walkin" && (
++                    <div className="p-4 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-800 dark:text-cyan-200 rounded-xl font-bold text-lg border border-cyan-200 dark:border-cyan-800">
++                        Fastest option. No names recorded. Used for quick over-the-counter drop-offs.
++                    </div>
++                )}
++                
++                {customerScenario === "guest" && (
++                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 border-t-4 border-t-purple-500">
++                        <div className="md:col-span-2">
++                             <F label="Client Name (Required)" placeholder="Enter their full name" value={formData.guestName} onChange={(v: string) => handleChange("guestName", v)} />
++                        </div>
++                        <F label="Phone Number" placeholder="e.g. 0917..." type="tel" value={formData.guestPhone} onChange={(v: string) => handleChange("guestPhone", v)} />
++                        <F label="Email Address" placeholder="e.g. client@mail.com" type="email" value={formData.guestEmail} onChange={(v: string) => handleChange("guestEmail", v)} />
++                    </div>
++                )}
++
++                {customerScenario === "registered" && (
++                    <div className="p-6 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 border-t-4 border-t-blue-500">
++                        <label className="block text-xl font-bold text-slate-800 dark:text-slate-200 mb-4">Select Associated Customer Profile</label>
++                        <select
++                            value={formData.customerId}
++                            onChange={(e) => handleChange("customerId", e.target.value)}
++                            className="w-full px-5 py-4 border-2 border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/50 text-xl font-bold bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white cursor-pointer"
++                        >
++                            <option value="">ΓÇö Click to Select Customer ΓÇö</option>
++                            {loadingCustomers ? <option disabled>Loading records...</option> : customers.map(c => (
++                                <option key={c.id} value={c.id}>{c.firstName} {c.lastName} ({c.email})</option>
++                            ))}
++                        </select>
++                    </div>
++                )}
+             </div>
+-          </div>
+-
+-          <div>
+-            <label className="block text-sm font-semibold text-gray-700 mb-1">
+-              Phone Number
+-            </label>
+-            <input
+-              type="tel"
+-              value={formData.customerPhone}
+-              onChange={(e) => handleChange("customerPhone", e.target.value)}
+-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-              placeholder="+63 912 345 6789"
+-            />
+-          </div>
+         </div>
+ 
+-        {/* Order Details */}
+-        <div className="space-y-4">
+-          <h3 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2">
+-            Order Details
+-          </h3>
+-
+-          <div className="grid grid-cols-2 gap-4">
+-            <div>
+-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+-                Product Type *
+-              </label>
+-              <select
+-                value={formData.productType}
+-                onChange={(e) => handleChange("productType", e.target.value)}
+-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-              >
+-                <option value="">Select Product</option>
+-                <option value="Tarpaulin">Tarpaulin</option>
+-                <option value="T-Shirt">T-Shirt</option>
+-                <option value="Mug">Mug</option>
+-                <option value="Sticker">Sticker</option>
+-                <option value="Banner">Banner</option>
+-                <option value="ID Card">ID Card</option>
+-                <option value="Other">Other</option>
+-              </select>
+-            </div>
+-
+-            <div>
+-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+-                Quantity *
+-              </label>
+-              <input
+-                type="number"
+-                min="1"
+-                value={formData.quantity}
+-                onChange={(e) => handleChange("quantity", Number(e.target.value))}
+-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-                placeholder="0"
+-              />
++        {/* ORDER DETAILS SECTION */}
++        <div className="bg-slate-50 dark:bg-slate-900 p-6 rounded-2xl border-2 border-slate-200 dark:border-slate-800 shadow-sm">
++            <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-6 border-b-2 border-slate-200 dark:border-slate-800 pb-2 tracking-tight">Step 2: Order Specifications</h3>
++            
++            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
++                 <div>
++                    <label className="block text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">Category *</label>
++                    <select
++                        value={formData.productType}
++                        onChange={(e) => handleChange("productType", e.target.value)}
++                        className="w-full px-5 py-4 border-2 border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-4 focus:ring-cyan-500/50 text-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-bold cursor-pointer"
++                    >
++                        <option value="">Select Primary Product</option>
++                        <option value="Tarpaulin">Tarpaulin Print</option>
++                        <option value="T-Shirt">T-Shirt / Apparel</option>
++                        <option value="Mug">Mug / Souvenirs</option>
++                        <option value="Sticker">Stickers / Decals</option>
++                        <option value="Banner">Roll-up Banners</option>
++                        <option value="ID Card">ID Cards / Lanyards</option>
++                        <option value="Other">Other Custom Type</option>
++                    </select>
++                </div>
++                <F label="Total Quantity *" type="number" value={formData.quantity} onChange={(v: string) => handleChange("quantity", Number(v))} />
++                <F label="Total Charge (Γé▒) *" type="number" value={formData.totalAmount} onChange={(v: string) => handleChange("totalAmount", Number(v))} placeholder="0.00" />
++                <F label="Promised Due Date *" type="date" value={formData.dueDate} onChange={(v: string) => handleChange("dueDate", v)} />
+             </div>
+-          </div>
+ 
+-          <div className="grid grid-cols-2 gap-4">
+-            <div>
+-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+-                Total Amount (Γé▒) *
+-              </label>
+-              <input
+-                type="number"
+-                min="0"
+-                step="0.01"
+-                value={formData.totalAmount}
+-                onChange={(e) =>
+-                  handleChange("totalAmount", Number(e.target.value))
+-                }
+-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-                placeholder="0.00"
+-              />
+-            </div>
+-
+-            <div>
+-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+-                Payment Status *
+-              </label>
+-              <select
+-                value={formData.paymentStatus}
+-                onChange={(e) => handleChange("paymentStatus", e.target.value)}
+-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-              >
+-                <option value="Unpaid">Unpaid</option>
+-                <option value="Partial">Partial</option>
+-                <option value="Paid">Paid</option>
+-              </select>
+-            </div>
+-          </div>
+-
+-          <div>
+-            <label className="block text-sm font-semibold text-gray-700 mb-1">
+-              Due Date *
+-            </label>
+-            <input
+-              type="date"
+-              value={formData.dueDate}
+-              onChange={(e) => handleChange("dueDate", e.target.value)}
+-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+-            />
+-          </div>
+-
+-          <div>
+-            <label className="block text-sm font-semibold text-gray-700 mb-1">
+-              Special Instructions
+-            </label>
+-            <textarea
+-              value={formData.specialInstructions}
+-              onChange={(e) =>
+-                handleChange("specialInstructions", e.target.value)
+-              }
+-              rows={4}
+-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
+-              placeholder="Any special requirements or instructions..."
+-            />
+-          </div>
+-
+-          <div className="col-span-2">
+-              <label className="block text-sm font-semibold text-gray-700 mb-1">
+-                Internal Notes
+-              </label>
+-              <textarea
+-                value={formData.comments}
+-                onChange={(e) => handleChange("comments", e.target.value)}
+-                placeholder="e.g., Customer requested delivery, walk-in: Juan/09171234567"
+-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm min-h-[60px]"
+-              />
++            <div className="space-y-6">
++                <div>
++                   <label className="block text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">Special Instructions for Designer/Production</label>
++                    <textarea
++                        value={formData.specialInstructions}
++                        onChange={(e) => handleChange("specialInstructions", e.target.value)}
++                        rows={3}
++                        className="w-full px-5 py-4 border-2 border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-4 focus:ring-cyan-500/50 text-xl bg-white dark:bg-slate-900 text-slate-900 dark:text-white resize-none"
++                        placeholder="Type design requests, layout notes, sizes..."
++                    />
++                </div>
++                <div>
++                   <label className="block text-xl font-bold text-slate-800 dark:text-slate-200 mb-2">Internal Staff Comments (Hidden from customer)</label>
++                    <textarea
++                        value={formData.comments}
++                        onChange={(e) => handleChange("comments", e.target.value)}
++                        rows={2}
++                        className="w-full px-5 py-4 bg-yellow-50 dark:bg-yellow-900/10 border-2 border-yellow-200 dark:border-yellow-700/50 rounded-xl focus:outline-none focus:ring-4 focus:ring-yellow-500/50 text-xl text-yellow-900 dark:text-yellow-300 resize-none"
++                    />
++                </div>
+             </div>
+         </div>
+ 
+         {/* Info Note */}
+-       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+-        <p className="text-xs text-blue-900 font-medium flex items-start gap-1">
+-            <Info className="w-4 h-4 mt-[2px]" />
+-            <span>
+-            <strong>Note:</strong> The order will be created with status "In Queue".
+-            Designers and production staff will be assigned by admin.
+-            </span>
+-        </p>
++        <div className="bg-blue-100 dark:bg-blue-900/30 border-l-8 border-blue-500 rounded-xl p-5 flex items-start gap-3">
++          <Info className="w-8 h-8 text-blue-600 dark:text-blue-400 flex-shrink-0" />
++          <p className="text-xl text-blue-900 dark:text-blue-300 font-medium leading-relaxed">
++             This order will be created as <strong className="font-black text-blue-700 dark:text-blue-200">"In Queue"</strong>. It will be forwarded to the Designer and Production pipeline immediately upon save.
++          </p>
+         </div>
+ 
+-        {/* Action Buttons */}
+-        <div className="flex gap-3 pt-4 border-t border-gray-200">
+-          <Button variant="secondary" onClick={onClose} className="flex-1">
+-            Cancel
+-          </Button>
+-          <Button variant="primary" onClick={handleSubmit} className="flex-1">
+-            Create Order
+-          </Button>
++        {/* Massive Action Buttons */}
++        <div className="flex gap-4 pt-4 border-t-2 border-slate-200 dark:border-slate-800">
++            <button onClick={onClose} className="flex-1 px-6 py-6 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-100 font-black text-2xl rounded-2xl transition-all h-20">
++                Cancel
++            </button>
++            <button onClick={handleSubmit} className="flex-[2] px-6 py-6 bg-cyan-600 hover:bg-cyan-700 text-white font-black text-2xl rounded-2xl shadow-xl hover:shadow-cyan-500/30 transition-all flex items-center justify-center h-20 tracking-wider">
++                Create Live Order
++            </button>
+         </div>
++
+       </div>
+     </Modal>
+   );
