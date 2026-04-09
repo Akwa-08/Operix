@@ -42,7 +42,7 @@ const SharedSideBar = ({
 
   if (location.pathname === "/") return null;
 
-  const sidebarWidth = collapsed ? "w-[72px]" : "w-[160px]";
+  const sidebarWidth = collapsed ? "w-[72px]" : "w-[180px]";
 
   const handleLogoutClick = () => {
     setShowLogoutModal(true);
@@ -128,7 +128,7 @@ const SharedSideBar = ({
         {/* Top: Nav */}
         <div className="flex flex-col h-full">
           {/* Nav Links */}
-          <nav className="flex flex-col gap-[2px] px-2 pt-3 flex-1">
+          <nav className="flex flex-col gap-1 px-2 pt-3 flex-1">
             {items.map((item) => (
               <NavLink
                 key={item.label}
@@ -136,10 +136,10 @@ const SharedSideBar = ({
                 end={item.end}
                 onClick={() => setMobileOpen(false)}
                 className={({isActive}) =>
-                  `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150 cursor-pointer
+                  `flex flex-col items-center justify-center gap-1.5 py-3.5 px-2 rounded-xl transition-all duration-150 cursor-pointer
                   ${
                     isActive
-                      ? "bg-[#E80088] text-white"
+                      ? "bg-[#E80088] text-white shadow-md"
                       : "text-gray-700 hover:bg-gray-100"
                   }`
                 }
@@ -147,13 +147,13 @@ const SharedSideBar = ({
                 {({isActive}) => (
                   <>
                     <item.icon
-                      size={20}
+                      size={22}
                       strokeWidth={isActive ? 2.5 : 1.8}
                       className={isActive ? "text-white" : "text-gray-600"}
                     />
                     {!collapsed && (
                       <span
-                        className={`text-[11px] font-semibold text-center leading-tight ${
+                        className={`text-sm font-bold text-center leading-tight ${
                           isActive ? "text-white" : "text-gray-700"
                         }`}>
                         {item.label}
@@ -172,10 +172,10 @@ const SharedSideBar = ({
               to={profilePath}
               onClick={() => setMobileOpen(false)}
               className={({isActive}) =>
-                `flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg transition-all duration-150 cursor-pointer
+                `flex flex-col items-center justify-center gap-1.5 py-3.5 px-2 rounded-xl transition-all duration-150 cursor-pointer
                 ${
                   isActive
-                    ? "bg-[#E80088] text-white"
+                    ? "bg-[#E80088] text-white shadow-md"
                     : "text-gray-700 hover:bg-gray-100"
                 }`
               }
@@ -183,13 +183,13 @@ const SharedSideBar = ({
               {({isActive}) => (
                 <>
                   <CircleUserRound
-                    size={20}
+                    size={22}
                     strokeWidth={isActive ? 2.5 : 1.8}
                     className={isActive ? "text-white" : "text-gray-600"}
                   />
                   {!collapsed && (
                     <span
-                      className={`text-[11px] font-semibold ${
+                      className={`text-sm font-bold ${
                         isActive ? "text-white" : "text-gray-700"
                       }`}>
                       Profile
@@ -203,10 +203,10 @@ const SharedSideBar = ({
             <button
               onClick={handleLogoutClick}
               title={collapsed ? "Logout" : undefined}
-              className="flex flex-col items-center justify-center gap-1 py-3 px-1 rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-500 transition-all duration-150 w-full">
-              <LogOut size={20} strokeWidth={1.8} />
+              className="flex flex-col items-center justify-center gap-1.5 py-3.5 px-2 rounded-xl text-gray-700 hover:bg-red-50 hover:text-red-500 transition-all duration-150 w-full">
+              <LogOut size={22} strokeWidth={1.8} />
               {!collapsed && (
-                <span className="text-[11px] font-semibold">Logout</span>
+                <span className="text-sm font-bold">Logout</span>
               )}
             </button>
 
@@ -222,10 +222,10 @@ const SharedSideBar = ({
               />
               {!collapsed && (
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold text-gray-800 truncate">
+                  <p className="text-xs font-bold text-gray-800 truncate">
                     {name}
                   </p>
-                  {role && <p className="text-[9px] text-gray-500">{role}</p>}
+                  {role && <p className="text-[10px] text-gray-500">{role}</p>}
                 </div>
               )}
             </div>
@@ -243,7 +243,7 @@ const SharedSideBar = ({
           w-5 h-10 bg-white border border-gray-200 rounded-r-md shadow-sm
           hover:bg-gray-50 text-gray-500 hover:text-[#E80088]
           ${isMounted ? "transition-all duration-300 ease-in-out" : ""}
-          ${collapsed ? "left-[72px]" : "left-[160px]"}
+          ${collapsed ? "left-[72px]" : "left-[180px]"}
         `}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
         {collapsed ? (

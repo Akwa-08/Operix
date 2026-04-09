@@ -71,6 +71,9 @@ const AdminOrders = () => {
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
       customer_id: orderData.customerId || null,
+      guest_name: orderData.guestName || null,
+      guest_phone: orderData.guestPhone || null,
+      guest_email: orderData.guestEmail || null,
       order_type: orderData.orderType || "walk-in",
       items: [{ product_name: orderData.productType, quantity: orderData.quantity, unit_price: orderData.totalAmount / (orderData.quantity || 1), specifications: orderData.specialInstructions }],
       special_instructions: orderData.specialInstructions,

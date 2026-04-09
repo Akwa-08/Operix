@@ -246,6 +246,7 @@ export function useCartData() {
     items, totalItems, totalPrice, loading, error, refresh,
     addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow).then(() => refresh())); return r; },
     updateQuantity:  async (id: string, qty: number) =>         { const r = await safe(() => db.updateCartItem(id, { quantity: Math.max(1, qty) }).then(() => refresh())); return r; },
+    updateCartItem:  async (id: string, updates: { quantity?: number; specifications?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem:      async (id: string) =>                      { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart:       async () =>                                 { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
     checkout:        async (notes?: string, due?: string) =>    { try { const o = await db.checkout(notes, due); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
@@ -264,8 +265,17 @@ export function useOrdersData() {
   return {
     orders, stats, staffList, loading, error, refresh,
 
-    createOrder: async (data: { customer_id?: string | null; order_type: string; items: { product_name: string; quantity: number; unit_price: number; specifications?: string }[]; special_instructions?: string; due_date?: string; assigned_designer?: string | null; assigned_production?: string | null; comments?: string | null }) => {
-      const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined }).then(() => refresh()));
+    createOrder: async (data: { customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; items: { product_name: string; quantity: number; unit_price: number; specifications?: string }[]; special_instructions?: string; due_date?: string; assigned_designer?: string | null; assigned_production?: string | null; comments?: string | null }) => {
+      const r = await safe(() => db.createOrder({ 
+          ...data, 
+          assigned_designer: data.assigned_designer || undefined, 
+          assigned_production: data.assigned_production || undefined, 
+          comments: data.comments || undefined, 
+          customer_id: data.customer_id || undefined,
+          guest_name: data.guest_name || undefined,
+          guest_phone: data.guest_phone || undefined,
+          guest_email: data.guest_email || undefined,
+      }).then(() => refresh()));
       return r;
     },
     updateStatus: async (orderId: string, status: string) => {

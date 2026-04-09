@@ -179,7 +179,7 @@ export const db = {
   },
 
   async createOrder(order: {
-    customer_id?: string | null; order_type: string; special_instructions?: string;
+    customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; special_instructions?: string;
     due_date?: string; assigned_designer?: string; assigned_production?: string;
     comments?: string; items: { product_id?: string; product_name: string; quantity: number; unit_price: number; specifications?: string }[];
   }) {
@@ -200,6 +200,9 @@ export const db = {
     const { data: newOrder, error: orderErr } = await supabase.from('orders').insert([{
       order_number: orderNumber,
       customer_id: order.customer_id || null,
+      guest_name: order.guest_name || null,
+      guest_phone: order.guest_phone || null,
+      guest_email: order.guest_email || null,
       created_by: user.id,
       order_type: order.order_type || 'walk-in',
       status: 'in_queue',
@@ -341,6 +344,7 @@ export const db = {
         product_name: ci.product?.name || 'Unknown',
         quantity: ci.quantity,
         unit_price: parseFloat(ci.product?.final_price || '0'),
+        specifications: ci.specifications,
       })),
     });
 

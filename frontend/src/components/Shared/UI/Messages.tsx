@@ -245,8 +245,8 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-120px)]">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">{title}</h1>
+    <div className="max-w-7xl mx-auto h-[calc(100vh-120px)] animate-in fade-in zoom-in duration-300">
+      <h1 className="text-4xl font-black text-slate-900 mb-8 tracking-tight">{title}</h1>
 
       <div className="flex gap-6 h-[calc(100%-60px)]">
         {/* ── Left sidebar: conversation list ── */}
@@ -392,7 +392,7 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
               <div className="flex gap-3">
                 <input
                   type="text"
-                  placeholder="Type your message..."
+                  placeholder="Tap here to type a message..."
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyDown={handleKeyDown}

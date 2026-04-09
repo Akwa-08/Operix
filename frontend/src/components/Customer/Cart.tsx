@@ -31,7 +31,7 @@ export const Cart: React.FC = () => {
   const [uploadTarget, setUploadTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Live cart data from API (replaces Redux)
-  const { items, totalItems, loading, updateQuantity, removeItem, checkout } = useCartData();
+  const { items, totalItems, loading, updateQuantity, updateCartItem, removeItem, checkout } = useCartData();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Convert CartItem[] → Product[] for CartTable compatibility
@@ -71,9 +71,12 @@ export const Cart: React.FC = () => {
     setIsUploadModalOpen(true);
   };
 
-  const handleUploadComplete = (fileUrl: string) => {
+  const handleUploadComplete = async (fileUrl: string) => {
     // File uploads stored locally for now — Supabase Storage integration later
     console.log("File uploaded for:", uploadTarget?.id, fileUrl);
+    if (uploadTarget) {
+      await updateCartItem(uploadTarget.id, { specifications: `Uploaded file: ${fileUrl}` });
+    }
     setIsUploadModalOpen(false);
   };
 

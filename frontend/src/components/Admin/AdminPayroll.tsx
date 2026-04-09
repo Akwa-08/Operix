@@ -875,11 +875,11 @@ const AdminPayroll: React.FC = () => {
                       </p>
                       <div className="flex items-center gap-2">
                         <span
-                          className={`text-[10px] font-bold px-2 py-0.5 rounded ${update.badgeColor}`}
+                          className={`text-xs font-bold px-2 py-0.5 rounded ${update.badgeColor}`}
                         >
                           {update.badge}
                         </span>
-                        <span className="text-[10px] text-gray-400">
+                        <span className="text-xs text-gray-400">
                           {update.timestamp}
                         </span>
                       </div>
@@ -1093,25 +1093,25 @@ const AdminPayroll: React.FC = () => {
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
                       <div>Worked hrs.</div>
-                      <div className="text-[10px] text-gray-500 font-normal">
+                      <div className="text-xs text-gray-500 font-normal">
                         (Actual/Expected)
                       </div>
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
                       <div>Late</div>
-                      <div className="text-[10px] text-gray-500 font-normal">
+                      <div className="text-xs text-gray-500 font-normal">
                         (Timeslots)
                       </div>
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
                       <div>Early Leave</div>
-                      <div className="text-[10px] text-gray-500 font-normal">
+                      <div className="text-xs text-gray-500 font-normal">
                         (Timeslots)
                       </div>
                     </th>
                     <th className="px-4 py-3 text-center font-semibold text-gray-700">
                       <div>Overtime</div>
-                      <div className="text-[10px] text-gray-500 font-normal">
+                      <div className="text-xs text-gray-500 font-normal">
                         (Regular/Holiday)
                       </div>
                     </th>
@@ -1154,13 +1154,13 @@ const AdminPayroll: React.FC = () => {
                         <div className="font-semibold text-gray-900">
                           {employee.workedHrs}
                         </div>
-                        <div className="text-[10px] text-gray-500">160h</div>
+                        <div className="text-xs text-gray-500">160h</div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <div className="font-semibold text-gray-900">
                           {employee.lateTimeslots}
                         </div>
-                        <div className="text-[10px] text-gray-500">
+                        <div className="text-xs text-gray-500">
                           {employee.lateTimeslots > 0 ? "x30m" : "-"}
                         </div>
                       </td>
@@ -1168,7 +1168,7 @@ const AdminPayroll: React.FC = () => {
                         <div className="font-semibold text-gray-900">
                           {employee.earlyLeaveTimeslots}
                         </div>
-                        <div className="text-[10px] text-gray-500">
+                        <div className="text-xs text-gray-500">
                           {employee.earlyLeaveTimeslots > 0 ? "x30m" : "-"}
                         </div>
                       </td>
@@ -1176,7 +1176,7 @@ const AdminPayroll: React.FC = () => {
                         <div className="font-semibold text-gray-900">
                           {employee.overtimeHrs}h
                         </div>
-                        <div className="text-[10px] text-gray-500">8h / 0h</div>
+                        <div className="text-xs text-gray-500">8h / 0h</div>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-900">
                         {employee.businessTrip}
@@ -1852,7 +1852,7 @@ const AdminPayroll: React.FC = () => {
                                   ₱{employee.actualPay.toLocaleString()}
                                 </td>
                                 <td className="px-3 py-2 text-center">
-                                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded">
+                                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded">
                                     Paid
                                   </span>
                                 </td>
