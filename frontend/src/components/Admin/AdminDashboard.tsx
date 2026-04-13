@@ -83,7 +83,7 @@ const AdminDashboard = () => {
   const chartWidth = 800;
   const chartHeight = 200;
 
-  if (dashLoading) return <div className="max-w-[1400px] mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (dashLoading) return <div className="max-w-[1400px] mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /><p className="ml-4 text-base text-gray-500">Loading dashboard...</p></div>;
 
   return (
     <div className="max-w-[1400px] mx-auto">
@@ -171,7 +171,7 @@ const AdminDashboard = () => {
       <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
         <div className="mb-4">
           <h3 className="text-lg font-bold text-gray-900">Daily Sales Performance</h3>
-          <p className="text-xs text-gray-500">Revenue trend (sample data — will connect to live when daily tracking is available)</p>
+          <p className="text-sm text-gray-500">Revenue trend (sample data — will connect to live when daily tracking is available)</p>
         </div>
         <div className="relative" style={{ height: `${chartHeight}px` }}>
           <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-xs text-gray-500">
@@ -210,7 +210,7 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* Revenue by Product Type */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Revenue by Product Type</h3><p className="text-xs text-gray-500">Distribution across categories</p></div>
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Revenue by Product Type</h3><p className="text-sm text-gray-500">Distribution across categories</p></div>
           <div className="flex items-center justify-center mb-6">
             <div className="relative w-48 h-48">
               <svg viewBox="0 0 100 100" className="transform -rotate-90">
@@ -249,9 +249,9 @@ const AdminDashboard = () => {
 
         {/* Top Orders */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Recent Orders</h3><p className="text-xs text-gray-500">Latest orders from the system</p></div>
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Recent Orders</h3><p className="text-sm text-gray-500">Latest orders from the system</p></div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Customer</th>
                 <th className="px-3 py-2 text-right font-semibold text-gray-700">Amount</th>
@@ -264,11 +264,11 @@ const AdminDashboard = () => {
                   <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No recent orders</td></tr>
                 ) : topOrders.map((order) => (
                   <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2"><p className="font-semibold text-gray-900">{order.customer}</p><p className="text-gray-500 text-xs">{order.id}</p></td>
-                    <td className="px-3 py-2 text-right font-semibold text-gray-900">₱{order.amount.toLocaleString()}</td>
-                    <td className="px-3 py-2 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></td>
-                    <td className="px-3 py-2 text-center text-gray-600">{order.date}</td>
-                    <td className="px-3 py-2 text-center"><button onClick={() => handleViewOrder(order.id)} className="p-1 hover:bg-gray-200 rounded"><Eye size={14} className="text-gray-600" /></button></td>
+                    <td className="px-3 py-3"><p className="font-semibold text-gray-900">{order.customer}</p><p className="text-gray-500 text-sm">{order.id}</p></td>
+                    <td className="px-3 py-3 text-right font-semibold text-gray-900">₱{order.amount.toLocaleString()}</td>
+                    <td className="px-3 py-3 text-center"><span className={`px-2 py-1 rounded-full text-sm font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></td>
+                    <td className="px-3 py-3 text-center text-gray-600">{order.date}</td>
+                    <td className="px-3 py-3 text-center"><button onClick={() => handleViewOrder(order.id)} className="flex items-center gap-1 px-3 py-1.5 hover:bg-gray-200 rounded-lg text-sm text-cyan-600 font-semibold mx-auto"><Eye size={16} />View</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -281,9 +281,9 @@ const AdminDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Inventory Snapshot — LIVE DATA */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Inventory Alerts</h3><p className="text-xs text-gray-500">Materials at or below reorder point</p></div>
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Inventory Alerts</h3><p className="text-sm text-gray-500">Materials at or below reorder point</p></div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-3 py-2 text-left font-semibold text-gray-700">Material</th>
                 <th className="px-3 py-2 text-center font-semibold text-gray-700">Current</th>
@@ -292,13 +292,13 @@ const AdminDashboard = () => {
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {inventorySnapshot.length === 0 ? (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-green-600 font-semibold">All materials above reorder levels</td></tr>
+                  <tr><td colSpan={4} className="px-3 py-6 text-center text-green-600 font-semibold text-base">✅ All materials above reorder levels</td></tr>
                 ) : inventorySnapshot.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 text-gray-900">{item.materialName}</td>
                     <td className="px-3 py-2 text-center font-semibold text-gray-900">{item.currentQty} {item.unit}</td>
                     <td className="px-3 py-2 text-center text-gray-600">{item.reorderLevel} {item.unit}</td>
-                    <td className="px-3 py-2 text-center"><span className={`font-semibold ${getStatusColor(item.status)}`}>{item.status}</span></td>
+                    <td className="px-3 py-2 text-center"><span className={`font-semibold flex items-center justify-center gap-1 ${getStatusColor(item.status)}`}>{item.status === 'Low' ? '⚠️' : item.status === 'Warning' ? '⚡' : '✅'} {item.status}</span></td>
                   </tr>
                 ))}
               </tbody>
@@ -308,7 +308,7 @@ const AdminDashboard = () => {
 
         {/* Quick Stats */}
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Order Summary</h3><p className="text-xs text-gray-500">Current order pipeline breakdown</p></div>
+          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Order Summary</h3><p className="text-sm text-gray-500">Current order pipeline breakdown</p></div>
           <div className="space-y-3">
             {[
               { label: "In Queue", value: os?.inQueue || 0, color: "bg-blue-500" },

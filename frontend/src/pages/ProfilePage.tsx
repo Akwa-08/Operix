@@ -11,7 +11,7 @@ import authService from '../services/authService';
 import { db } from '../lib/database';
 
 export const ProfilePage = () => {
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -147,7 +147,7 @@ export const ProfilePage = () => {
           </div>
           <div>
             <h3 className="text-2xl font-bold mb-1">{fullName}</h3>
-            <p className="text-lg text-gray-600 mb-1">Customer</p>
+            <p className="text-lg text-gray-600 mb-1 capitalize">{user?.role || 'Member'}</p>
             {memberSince && <p className="text-gray-500">Member since {memberSince}</p>}
           </div>
         </div>
@@ -180,7 +180,7 @@ export const ProfilePage = () => {
               <div className="relative mt-2">
                 <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
                 <input type={showNew ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-3 text-base focus:outline-none focus:ring-2 focus:ring-sky-500" />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-2.5 text-gray-500">
                   {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -192,18 +192,18 @@ export const ProfilePage = () => {
               <div className="relative mt-2">
                 <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
                 <input type={showConfirm ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-3 text-base focus:outline-none focus:ring-2 focus:ring-sky-500" />
                 <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-2.5 text-gray-500">
                   {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            <div className="flex justify-end gap-4">
-              <button onClick={() => setShowPasswordModal(false)} className="px-5 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+            <div className="flex gap-3">
+              <button onClick={() => setShowPasswordModal(false)} className="flex-1 px-5 py-3 border border-gray-300 rounded-lg text-base font-semibold hover:bg-gray-50">Cancel</button>
               <button onClick={handlePasswordSave} disabled={isPasswordSaving}
-                className="bg-sky-500 text-white px-6 py-2 rounded-lg text-sm font-semibold hover:bg-sky-600 disabled:opacity-50">
-                {isPasswordSaving ? "Saving..." : "Save"}
+                className="flex-1 bg-sky-500 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-sky-600 disabled:opacity-50">
+                {isPasswordSaving ? "Saving..." : "Change Password"}
               </button>
             </div>
           </div>

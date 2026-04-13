@@ -88,46 +88,26 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
         notif.id === notificationId ? { ...notif, isRead: true } : notif
       )
     );
-    // TODO: API call to mark as read
-    console.log("Marked as read:", notificationId);
   };
 
   const handleNotificationClick = (notification: Notification) => {
-    // Mark as read
     setNotifications((prev) =>
       prev.map((notif) =>
         notif.id === notification.id ? { ...notif, isRead: true } : notif
       )
     );
-
-    // Close notifications dropdown
     setShowNotifications(false);
-
-    // Navigate based on notification type
     if (notification.type === "message" && notification.conversationId) {
-      // Navigate to messages and select the conversation
-      navigate("/admin/messages", {
-        state: {
-          conversationId: notification.conversationId,
-          userId: notification.userId,
-        },
-      });
-    } else if (notification.type === "order") {
-      // Navigate to orders
-      navigate("/admin/orders");
-    } else if (notification.type === "payment") {
-      // Navigate to relevant page
+      navigate("/admin/messages", { state: { conversationId: notification.conversationId, userId: notification.userId } });
+    } else if (notification.type === "order" || notification.type === "payment") {
       navigate("/admin/orders");
     }
-
-    // TODO: API call to mark as read
-    console.log("Notification clicked:", notification);
   };
 
   return (
     <>
       {/* Top Navbar */}
-      <div className="fixed top-0 left-0 w-full h-20 bg-white border-b border-gray-200 flex items-center px-10 justify-between z-50 transition-colors duration-300">
+      <div className="fixed top-0 left-0 w-full h-16 md:h-16 bg-white border-b border-gray-200 flex items-center px-4 sm:px-8 justify-between z-50 transition-colors duration-300">
         <div className="text-2xl font-black tracking-wider text-slate-900">OPERIX</div>
 
         <div className="flex items-center gap-6 relative">
@@ -155,7 +135,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName }) => {
                 />
 
                 {/* Notifications Dropdown */}
-                <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-white border border-gray-200 rounded-xl shadow-2xl z-50 overflow-hidden">
                   {/* Header */}
                   <div className="p-4 border-b border-gray-200">
                     <div className="flex items-center justify-between mb-3">

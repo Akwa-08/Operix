@@ -30,8 +30,8 @@ const CashierPage = () => {
           setCollapsed={setCollapsed}
         />
         <main
-          className={`flex-1 p-6 mt-16 transition-all duration-300 ${
-            collapsed ? "lg:ml-[72px]" : "lg:ml-[180px]"
+          className={`flex-1 p-4 md:p-6 mt-16 pb-24 lg:pb-6 transition-all duration-300 ${
+            collapsed ? "lg:ml-[72px]" : "lg:ml-[200px]"
           }`}>
           <Outlet />
         </main>

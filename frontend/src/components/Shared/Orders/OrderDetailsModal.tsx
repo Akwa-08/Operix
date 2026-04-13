@@ -41,17 +41,17 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} title="Order Details" size="xl">
       <div className="space-y-6">
         {/* Header Section */}
-        <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-6">
-          <div className="flex items-start justify-between mb-4">
+        <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-4 md:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900">
                 {order.orderId}
               </h2>
               <p className="text-gray-600 font-medium mt-1">
                 Ordered on {order.dateOrdered}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <OrderStatusBadge status={order.status} size="md" />
               {perms.canViewAll && (
                 <span
@@ -70,7 +70,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           </div>
 
           {/* Key Stats */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="flex items-center gap-2 mb-1">
                 <Package size={16} className="text-cyan-600" />
@@ -117,7 +117,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               <User size={20} className="text-cyan-600" />
               Customer Information
             </h3>
-            <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
               <InfoField label="Name" value={order.customerName || order.customer || "N/A"} />
               <InfoField label="Email" value={order.customerEmail || "N/A"} />
               <InfoField label="Phone" value={order.customerPhone || "N/A"} />
@@ -131,7 +131,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             <FileText size={20} className="text-purple-600" />
             Order Information
           </h3>
-          <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
             <InfoField label="Product Type" value={order.productType || order.product || ""} />
             <InfoField label="Quantity" value={`${order.quantity} pcs`} />
             {perms.canViewAll && (

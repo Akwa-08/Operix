@@ -125,7 +125,7 @@ const AdminOrders = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         <StatusCard title="Total" value={stats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
         <StatusCard title="In Queue" value={stats.inQueue} icon={<Clock size={18} />} iconColor="text-blue-600" />
         <StatusCard title="Designing" value={stats.designing} icon={<Package size={18} />} iconColor="text-purple-600" />
@@ -135,17 +135,17 @@ const AdminOrders = () => {
       </div>
 
       {/* Status Filters */}
-      <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+      <div className="flex flex-wrap gap-2 mb-4">
         {filters.map(f => (
           <button key={f} onClick={() => setActiveFilter(f)}
-            className={`px-5 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${activeFilter === f ? "bg-[#00BEF4] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
+            className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${activeFilter === f ? "bg-[#00BEF4] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
             {f}
           </button>
         ))}
       </div>
 
       {/* Period Filters */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         {periods.map(p => (
           <button key={p.value} onClick={() => setPeriodFilter(p.value)}
             className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${periodFilter === p.value ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
@@ -156,19 +156,23 @@ const AdminOrders = () => {
 
       {/* Search + View Toggle + Create */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row gap-3 items-center">
-          <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search by customer, order ID, product..." />
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            <button onClick={() => setViewMode("list")} title="List view"
-              className={`p-2 rounded-md transition-all ${viewMode === "list" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
-              <LayoutList size={18} />
-            </button>
-            <button onClick={() => setViewMode("cards")} title="Card view"
-              className={`p-2 rounded-md transition-all ${viewMode === "cards" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
-              <LayoutGrid size={18} />
-            </button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search by customer, order ID, product..." />
           </div>
-          <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>Create Order</Button>
+          <div className="flex gap-2 items-center">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              <button onClick={() => setViewMode("list")} title="List view"
+                className={`p-2 rounded-md transition-all ${viewMode === "list" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
+                <LayoutList size={18} />
+              </button>
+              <button onClick={() => setViewMode("cards")} title="Card view"
+                className={`p-2 rounded-md transition-all ${viewMode === "cards" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
+                <LayoutGrid size={18} />
+              </button>
+            </div>
+            <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>Create Order</Button>
+          </div>
         </div>
       </div>
 

@@ -22,10 +22,8 @@ const CashierDashboard = () => {
     <div className="max-w-7xl mx-auto">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Cashier Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Overview of today's operations
-        </p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Cashier Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">Overview of today's operations</p>
       </div>
 
       {/* Summary Cards */}
