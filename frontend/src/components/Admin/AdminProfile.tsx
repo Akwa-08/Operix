@@ -113,13 +113,13 @@ const AdminProfile: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col w-full max-w-5xl mx-auto mt-6 px-6">
-      <div className="text-4xl font-bold mb-8">{roleLabel} Account</div>
+    <div className="flex flex-col w-full max-w-3xl mx-auto mt-4 md:mt-6 px-4 md:px-6">
+      <div className="text-2xl md:text-4xl font-bold mb-5 md:mb-8">{roleLabel} Account</div>
 
-      <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-10">
+      <div className="bg-white rounded-2xl shadow-md border border-gray-200 p-5 md:p-10">
         {/* Header */}
-        <div className="flex justify-between items-center mb-10">
-          <h2 className="text-3xl font-bold tracking-wide">Personal Information</h2>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6 md:mb-10">
+          <h2 className="text-xl md:text-3xl font-bold tracking-wide">Personal Information</h2>
           <div className="flex gap-4">
             {isEditing && (
               <button
@@ -153,7 +153,7 @@ const AdminProfile: React.FC = () => {
         <hr className="border-t border-black my-8" />
 
         {/* Input Fields */}
-        <div className="grid grid-cols-2 gap-8 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 md:gap-8 mb-8 md:mb-10">
           <InputField label="First Name" icon={<User size={18} />} value={firstName} onChange={setFirstName} disabled={!isEditing} />
           <InputField label="Last Name" icon={<User size={18} />} value={lastName} onChange={setLastName} disabled={!isEditing} />
           <InputField label="Email Address" icon={<Mail size={18} />} value={email} onChange={setEmail} disabled={!isEditing} />
@@ -177,8 +177,8 @@ const AdminProfile: React.FC = () => {
 
         {/* Password Modal */}
         {showPasswordModal && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-            <div className="bg-white rounded-2xl p-10 w-[450px] shadow-xl">
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 md:p-10 w-full max-w-sm md:max-w-md shadow-xl">
               <h3 className="text-xl font-semibold mb-8">Change Password</h3>
 
               <PasswordField label="New Password" value={newPassword} setValue={setNewPassword} show={showNew} setShow={setShowNew} />

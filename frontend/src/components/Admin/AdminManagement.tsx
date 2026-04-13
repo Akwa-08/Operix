@@ -62,7 +62,7 @@ const AdminManagement: React.FC = () => {
   const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "" });
   const [flagNotes, setFlagNotes] = useState("");
 
-  const tabs = ["User Account Management", "Employee List Management", "Supplier List Management"];
+  const tabs = ["Users", "Employees", "Suppliers"];
   const accountRoles = ["Admin", "Cashier", "Designer", "Production", "Customer"];
   const statuses = ["Active", "Inactive"];
 
@@ -75,10 +75,10 @@ const AdminManagement: React.FC = () => {
 
   // ── Context-aware Create New ─────────────────────────────────────────
   const handleCreateNew = () => {
-    if (activeTab === "User Account Management") {
+    if (activeTab === "Users") {
       setUserForm({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "", password: "", confirmPassword: "" });
       setShowCreateUserModal(true);
-    } else if (activeTab === "Employee List Management") {
+    } else if (activeTab === "Employees") {
       setEmpForm({ employeeCode: "", fullName: "", position: "", baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
       setShowCreateEmpModal(true);
     } else {
@@ -337,52 +337,73 @@ const AdminManagement: React.FC = () => {
       </Modal>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <div className="flex items-start justify-between gap-3 mb-6 flex-col sm:flex-row">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage accounts, employee records, and suppliers</p>
-        </div>
-        <button onClick={handleCreateNew} className="px-6 py-2.5 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-lg whitespace-nowrap">Create New</button>
-      </div>
-
-      {/* TABS */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {tabs.map(tab => (
-          <button key={tab} onClick={() => { setActiveTab(tab); setSearchQuery(""); setSelectedRole("Select Role"); setSelectedStatus("Select Status"); }}
-            className={`px-4 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
-            {tab.replace(" Management", "")}
+      {/* Header + Tabs + Create button on same row */}
+      <div className="mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Management</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Manage accounts, employee records, and suppliers</p>
+          </div>
+          <button onClick={handleCreateNew}
+            className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap self-start sm:self-auto">
+            + Create New
           </button>
-        ))}
+        </div>
+
+        {/* TABS */}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          {tabs.map(tab => (
+            <button key={tab} onClick={() => { setActiveTab(tab); setSearchQuery(""); setSelectedRole("Select Role"); setSelectedStatus("Select Status"); }}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${
+                activeTab === tab ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}>
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* FILTERS */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input type="text" placeholder={activeTab.includes("Supplier") ? "Search suppliers..." : activeTab.includes("Employee") ? "Search employees..." : "Search accounts..."}
+      <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-sm mb-5">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex-1 min-w-[180px] relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input type="text"
+              placeholder={activeTab === "Suppliers" ? "Search suppliers..." : activeTab === "Employees" ? "Search employees..." : "Search accounts..."}
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
           </div>
-          {activeTab === "User Account Management" && (
+          {activeTab === "Users" && (
             <div className="relative">
-              <button onClick={() => setShowRoleDropdown(!showRoleDropdown)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]"><span>{selectedRole}</span><ChevronDown size={16} /></button>
+              <button onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 whitespace-nowrap">
+                <span>{selectedRole === "Select Role" ? "All Roles" : selectedRole}</span><ChevronDown size={14} />
+              </button>
               {showRoleDropdown && (
-                <div className="absolute top-full mt-1 w-full bg-white border rounded-lg shadow-lg z-10">
-                  <button onClick={() => { setSelectedRole("Select Role"); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All Roles</button>
-                  {accountRoles.map(r => <button key={r} onClick={() => { setSelectedRole(r); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{r}</button>)}
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowRoleDropdown(false)} />
+                  <div className="absolute top-full mt-1 w-40 bg-white border rounded-lg shadow-lg z-20">
+                    <button onClick={() => { setSelectedRole("Select Role"); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All Roles</button>
+                    {accountRoles.map(r => <button key={r} onClick={() => { setSelectedRole(r); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{r}</button>)}
+                  </div>
+                </>
               )}
             </div>
           )}
-          {activeTab === "Supplier List Management" && (
+          {activeTab === "Suppliers" && (
             <div className="relative">
-              <button onClick={() => setShowStatusDropdown(!showStatusDropdown)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]"><span>{selectedStatus}</span><ChevronDown size={16} /></button>
+              <button onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 whitespace-nowrap">
+                <span>{selectedStatus === "Select Status" ? "All Status" : selectedStatus}</span><ChevronDown size={14} />
+              </button>
               {showStatusDropdown && (
-                <div className="absolute top-full mt-1 w-full bg-white border rounded-lg shadow-lg z-10">
-                  <button onClick={() => { setSelectedStatus("Select Status"); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All</button>
-                  {statuses.map(s => <button key={s} onClick={() => { setSelectedStatus(s); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{s}</button>)}
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowStatusDropdown(false)} />
+                  <div className="absolute top-full mt-1 w-40 bg-white border rounded-lg shadow-lg z-20">
+                    <button onClick={() => { setSelectedStatus("Select Status"); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All</button>
+                    {statuses.map(s => <button key={s} onClick={() => { setSelectedStatus(s); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{s}</button>)}
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -390,7 +411,7 @@ const AdminManagement: React.FC = () => {
       </div>
 
       {/* ═══ USER ACCOUNTS ═══ */}
-      {activeTab === "User Account Management" && (
+      {activeTab === "Users" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 md:p-6 border-b"><h2 className="text-xl font-bold text-gray-900">User Accounts</h2><p className="text-sm text-gray-500 mt-1">All system login accounts ({filteredUsers.length} records)</p></div>
           {/* MOBILE */}
@@ -451,7 +472,7 @@ const AdminManagement: React.FC = () => {
 
 
       {/* ═══ EMPLOYEE RECORDS ═══ */}
-      {activeTab === "Employee List Management" && (
+      {activeTab === "Employees" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 md:p-6 border-b"><h2 className="text-xl font-bold text-gray-900">Employee Records</h2><p className="text-sm text-gray-500 mt-1">HR records for payroll ({filteredEmployees.length} records)</p></div>
           {/* MOBILE */}
@@ -510,7 +531,7 @@ const AdminManagement: React.FC = () => {
 
 
       {/* ═══ SUPPLIERS ═══ */}
-      {activeTab === "Supplier List Management" && (
+      {activeTab === "Suppliers" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="p-4 md:p-6 border-b"><h2 className="text-xl font-bold text-gray-900">Suppliers</h2><p className="text-sm text-gray-500 mt-1">Manage suppliers, contact info, and flags ({filteredSuppliers.length} records)</p></div>
           {/* MOBILE */}

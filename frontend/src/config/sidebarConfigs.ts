@@ -5,6 +5,7 @@ import {
   MessageCircleMore as MessageIcon,
   Users as UsersIcon,
   DollarSign as PayrollIcon,
+  Activity as ActivityIcon,
 } from "lucide-react";
 import type {SidebarItem} from "../components/Shared/UI/SharedSideBar";
 
@@ -22,6 +23,7 @@ export const adminSidebarItems: SidebarItem[] = [
   {label: "Inventory", icon: CartIcon, path: "/admin/inventory"},
   {label: "Payroll", icon: PayrollIcon, path: "/admin/payroll"},
   {label: "Messages", icon: MessageIcon, path: "/admin/messages"},
+  {label: "Logs", icon: ActivityIcon, path: "/admin/logs"},
 ];
 
 export const cashierSidebarItems: SidebarItem[] = [

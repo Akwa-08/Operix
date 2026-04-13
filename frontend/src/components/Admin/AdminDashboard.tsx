@@ -1,339 +1,647 @@
-import { useState } from "react";
-import { Search, TrendingUp, Package, AlertCircle, Trophy, Eye, ChevronDown, X } from "lucide-react";
+import { useState, useMemo } from "react";
+import {
+  RefreshCw, TrendingUp, DollarSign, CreditCard,
+  Package, AlertTriangle, CheckCircle, Clock,
+} from "lucide-react";
 import { useDashboardData } from "../../hooks/useSupabase";
 
-const AdminDashboard = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedPeriod, setSelectedPeriod] = useState("This Month");
-  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
-  const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+// ─── Types ────────────────────────────────────────────────────────────────────
+type Period = "today" | "week" | "month" | "3months" | "year" | "all";
+type ChartType = "revenue" | "volume" | "collection";
 
-  const { data: liveData, loading: dashLoading } = useDashboardData();
+// ─── Constants ────────────────────────────────────────────────────────────────
+const PERIODS: { key: Period; label: string }[] = [
+  { key: "today",   label: "Today" },
+  { key: "week",    label: "This Week" },
+  { key: "month",   label: "This Month" },
+  { key: "3months", label: "3 Months" },
+  { key: "year",    label: "This Year" },
+  { key: "all",     label: "All Time" },
+];
 
-  const periods = ["This Month", "Last Month", "Last 3 Months", "This Year"];
+const CHART_TYPES: { key: ChartType; label: string; color: string }[] = [
+  { key: "revenue",    label: "₱ Revenue",     color: "#0ea5e9" },
+  { key: "volume",     label: "Order Volume",  color: "#8b5cf6" },
+  { key: "collection", label: "Collection %",  color: "#10b981" },
+];
 
-  // ── Live metrics from API ──────────────────────────────────────────────
-  const os = liveData?.orderStats;
-  const inv = liveData?.inventoryStats;
+const PIPELINE_STAGES = [
+  { key: "in_queue",   label: "In Queue",         color: "#3b82f6", bg: "bg-blue-100 text-blue-700" },
+  { key: "designing",  label: "Designing",         color: "#8b5cf6", bg: "bg-purple-100 text-purple-700" },
+  { key: "payment",    label: "Payment",           color: "#f59e0b", bg: "bg-amber-100 text-amber-700" },
+  { key: "production", label: "Production",        color: "#f97316", bg: "bg-orange-100 text-orange-700" },
+  { key: "pickup",     label: "Ready for Pickup",  color: "#10b981", bg: "bg-green-100 text-green-700" },
+  { key: "completed",  label: "Completed",         color: "#6b7280", bg: "bg-gray-100 text-gray-700" },
+];
 
-  const metrics = {
-    totalRevenue: os?.totalRevenue || 0,
-    revenueChange: "+0%",
-    completedOrders: os?.completed || 0,
-    ordersChange: `${os?.total || 0} total`,
-    delayedPayments: os?.overdue || 0,
-    paymentsChange: `${os?.unpaid || 0} unpaid`,
-    topSellingProduct: "Tarpaulin",
-    productChange: `${os?.inQueue || 0} in queue`,
+// ─── Utility functions ────────────────────────────────────────────────────────
+function getPeriodStart(period: Period): Date {
+  const now = new Date();
+  const d = new Date(now);
+  switch (period) {
+    case "today":   d.setHours(0, 0, 0, 0); return d;
+    case "week":    d.setDate(now.getDate() - 6); d.setHours(0, 0, 0, 0); return d;
+    case "month":   d.setDate(1); d.setHours(0, 0, 0, 0); return d;
+    case "3months": d.setMonth(now.getMonth() - 2, 1); d.setHours(0, 0, 0, 0); return d;
+    case "year":    d.setMonth(0, 1); d.setHours(0, 0, 0, 0); return d;
+    default:        return new Date(0);
+  }
+}
+
+function filterByPeriod(orders: any[], period: Period): any[] {
+  if (period === "all") return orders;
+  const start = getPeriodStart(period);
+  return orders.filter(o => o.created_at && new Date(o.created_at) >= start);
+}
+
+function computeStats(orders: any[]) {
+  const now = new Date();
+  const revenue   = orders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
+  const collected = orders.reduce((s, o) => s + (Number(o.amount_paid)  || 0), 0);
+  return {
+    revenue,
+    collected,
+    outstanding:    Math.max(0, revenue - collected),
+    total:          orders.length,
+    completed:      orders.filter(o => o.status === "completed").length,
+    overdue:        orders.filter(o =>
+      o.due_date && new Date(o.due_date) < now &&
+      !["completed", "pickup", "cancelled"].includes(o.status)
+    ).length,
+    collectionRate: revenue > 0 ? Math.round((collected / revenue) * 100) : 0,
   };
+}
 
-  // ── Live inventory snapshot ────────────────────────────────────────────
-  const inventorySnapshot = (liveData?.lowStockItems || []).map(item => ({
-    id: item.id,
-    materialName: item.name,
-    currentQty: item.currentQty,
-    reorderLevel: item.reorderPoint,
-    unit: item.unit,
-    status: item.currentQty <= 0 ? "Low" : item.currentQty <= item.reorderPoint ? "Warning" : "Sufficient",
-  }));
+type Bucket = { label: string; start: Date; end: Date };
 
-  // ── Live top orders ────────────────────────────────────────────────────
-  const topOrders = (liveData?.recentOrders || []).map(o => ({
-    id: o.orderId,
-    customer: o.customerName,
-    amount: o.amount,
-    status: o.status === "completed" ? "Paid" : o.status === "cancelled" ? "Unpaid" : "Partial",
-    date: o.date,
-  }));
-
-  // ── Static chart data (no daily breakdown from API yet) ────────────────
-  const dailySalesData = [
-    { date: "Mar 1", revenue: 12500 }, { date: "Mar 3", revenue: 8300 },
-    { date: "Mar 6", revenue: 15200 }, { date: "Mar 9", revenue: 9800 },
-    { date: "Mar 12", revenue: 18500 }, { date: "Mar 15", revenue: 14200 },
-    { date: "Mar 18", revenue: 22000 }, { date: "Mar 20", revenue: 16500 },
-    { date: "Mar 22", revenue: 19800 }, { date: "Mar 25", revenue: 25000 },
-  ];
-
-  const productRevenue = [
-    { category: "Tarpaulin", amount: 65000, percentage: 37, color: "#0ea5e9" },
-    { category: "T-Shirts", amount: 48000, percentage: 27, color: "#8b5cf6" },
-    { category: "ID Cards", amount: 25000, percentage: 14, color: "#f59e0b" },
-    { category: "Documents", amount: 22000, percentage: 13, color: "#10b981" },
-    { category: "Others", amount: 15000, percentage: 9, color: "#6b7280" },
-  ];
-
-  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); };
-  const handleViewOrder = (orderId: string) => { setSelectedOrderId(orderId); setShowOrderDetails(true); };
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Paid": return "bg-green-100 text-green-700";
-      case "Unpaid": return "bg-red-100 text-red-700";
-      case "Partial": return "bg-yellow-100 text-yellow-700";
-      case "Low": return "text-red-600";
-      case "Warning": return "text-yellow-600";
-      case "Sufficient": return "text-green-600";
-      default: return "bg-gray-100 text-gray-700";
+function getBuckets(period: Period): Bucket[] {
+  const now = new Date();
+  if (period === "today") {
+    return Array.from({ length: 8 }).map((_, i) => {
+      const h = new Date(now); h.setHours(now.getHours() - (7 - i), 0, 0, 0);
+      const end = new Date(h); end.setMinutes(59, 59, 999);
+      return { label: h.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }), start: new Date(h), end };
+    });
+  }
+  if (period === "week") {
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(now); d.setDate(now.getDate() - (6 - i));
+      const start = new Date(d); start.setHours(0, 0, 0, 0);
+      const end   = new Date(d); end.setHours(23, 59, 59, 999);
+      return { label: d.toLocaleDateString("en-US", { weekday: "short" }), start, end };
+    });
+  }
+  if (period === "month") {
+    const dim  = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const step = Math.ceil(dim / 8);
+    const buckets: Bucket[] = [];
+    for (let day = 1; day <= dim; day += step) {
+      const start = new Date(now.getFullYear(), now.getMonth(), day);
+      const end   = new Date(now.getFullYear(), now.getMonth(), Math.min(day + step - 1, dim), 23, 59, 59);
+      buckets.push({ label: String(day), start, end });
     }
-  };
+    return buckets;
+  }
+  if (period === "3months") {
+    return Array.from({ length: 3 }).map((_, i) => {
+      const start = new Date(now.getFullYear(), now.getMonth() - (2 - i), 1);
+      const end   = new Date(now.getFullYear(), now.getMonth() - (2 - i) + 1, 0, 23, 59, 59);
+      return { label: start.toLocaleDateString("en-US", { month: "short", year: "2-digit" }), start, end };
+    });
+  }
+  if (period === "year") {
+    return Array.from({ length: 12 }).map((_, i) => {
+      const start = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+      const end   = new Date(now.getFullYear(), now.getMonth() - (11 - i) + 1, 0, 23, 59, 59);
+      return { label: start.toLocaleDateString("en-US", { month: "short" }), start, end };
+    });
+  }
+  // all → last 6 months
+  return Array.from({ length: 6 }).map((_, i) => {
+    const start = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+    const end   = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 0, 23, 59, 59);
+    return { label: start.toLocaleDateString("en-US", { month: "short", year: "2-digit" }), start, end };
+  });
+}
 
-  const maxRevenue = Math.max(...dailySalesData.map((d) => d.revenue));
-  // ── FIXED: Use viewBox with numeric points instead of percentage strings ──
-  const chartWidth = 800;
-  const chartHeight = 200;
+function buildChartData(orders: any[], period: Period, chartType: ChartType) {
+  return getBuckets(period).map(b => {
+    const bo = orders.filter(o => {
+      if (!o.created_at) return false;
+      const d = new Date(o.created_at);
+      return d >= b.start && d <= b.end;
+    });
+    let value = 0;
+    if (chartType === "revenue") {
+      value = bo.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
+    } else if (chartType === "volume") {
+      value = bo.length;
+    } else {
+      const rev = bo.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
+      const col = bo.reduce((s, o) => s + (Number(o.amount_paid)  || 0), 0);
+      value = rev > 0 ? Math.round((col / rev) * 100) : 0;
+    }
+    return { label: b.label, value };
+  });
+}
 
-  if (dashLoading) return <div className="max-w-[1400px] mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /><p className="ml-4 text-base text-gray-500">Loading dashboard...</p></div>;
+function fmtMoney(v: number) {
+  if (v >= 1_000_000) return `₱${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000)     return `₱${(v / 1_000).toFixed(0)}k`;
+  return `₱${v.toLocaleString()}`;
+}
+
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+const KpiCard: React.FC<{
+  title: string; value: string; sub?: string;
+  icon: React.ReactNode; iconBg: string; iconColor: string;
+  accent?: "red" | "green" | "yellow" | "blue" | "none";
+}> = ({ title, value, sub, icon, iconBg, iconColor, accent = "none" }) => {
+  const border = {
+    red:    "border-l-4 border-l-red-400",
+    green:  "border-l-4 border-l-green-400",
+    yellow: "border-l-4 border-l-amber-400",
+    blue:   "border-l-4 border-l-cyan-400",
+    none:   "",
+  }[accent];
+  return (
+    <div className={`bg-white rounded-xl border border-gray-200 p-4 shadow-sm ${border}`}>
+      <div className="flex items-start justify-between mb-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight">{title}</p>
+        <div className={`p-2 rounded-lg ${iconBg} ${iconColor}`}>{icon}</div>
+      </div>
+      <p className="text-2xl font-bold text-gray-900 mb-0.5 truncate">{value}</p>
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
+    </div>
+  );
+};
+
+// ─── Bar Chart ────────────────────────────────────────────────────────────────
+const BarChart: React.FC<{
+  data: { label: string; value: number }[];
+  chartType: ChartType;
+  color: string;
+}> = ({ data, chartType, color }) => {
+  const W = 560; const H = 160;
+  const PT = 18; const PB = 28; const PL = 6; const PR = 6; const GAP = 5;
+  const plotH = H - PT - PB;
+  const plotW = W - PL - PR;
+  const maxVal = Math.max(...data.map(d => d.value), 1);
+  const barW = Math.max(8, (plotW - GAP * (data.length - 1)) / data.length);
+
+  const fmt = (v: number) =>
+    chartType === "revenue"    ? fmtMoney(v) :
+    chartType === "collection" ? `${v}%`     : `${v}`;
 
   return (
-    <div className="max-w-[1400px] mx-auto">
-      {/* Order Details Modal */}
-      {showOrderDetails && selectedOrderId && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowOrderDetails(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8 relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setShowOrderDetails(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={24} className="text-gray-600" /></button>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Order Details</h2>
-            <p className="text-sm text-gray-500 mb-6">#{selectedOrderId}</p>
-            {(() => {
-              const order = topOrders.find(o => o.id === selectedOrderId);
-              if (!order) return <p className="text-gray-500">Order not found in current view.</p>;
-              return (
-                <div className="space-y-4">
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-gray-600">Customer:</span><span className="font-semibold">{order.customer}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">Amount:</span><span className="font-semibold">₱{order.amount.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">Status:</span><span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-600">Date:</span><span className="font-semibold">{order.date}</span></div>
-                  </div>
-                  <p className="text-xs text-gray-400">Full order details available in the Orders tab.</p>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" preserveAspectRatio="xMidYMid meet">
+      {/* Grid lines */}
+      {[0, 0.5, 1].map((f, i) => (
+        <line key={i}
+          x1={PL} y1={PT + f * plotH} x2={W - PR} y2={PT + f * plotH}
+          stroke={f === 1 ? "#d1d5db" : "#e5e7eb"} strokeWidth="1"
+          strokeDasharray={f === 0 ? undefined : "3 3"}
+        />
+      ))}
+      {/* Bars + labels */}
+      {data.map((d, i) => {
+        const x  = PL + i * (barW + GAP);
+        const bh = maxVal > 0 ? (d.value / maxVal) * plotH : 0;
+        const y  = PT + plotH - bh;
+        const rx = Math.min(3, barW / 3);
+        return (
+          <g key={i}>
+            {bh > 1 ? (
+              <rect x={x} y={y} width={barW} height={bh} rx={rx} fill={color} opacity={0.85}>
+                <title>{d.label}: {fmt(d.value)}</title>
+              </rect>
+            ) : (
+              <rect x={x} y={PT + plotH - 2} width={barW} height={2} rx={1} fill={color} opacity={0.25} />
+            )}
+            {bh > 10 && (
+              <text x={x + barW / 2} y={Math.max(y - 3, PT + 9)}
+                textAnchor="middle" fontSize={8} fill="#6b7280" fontWeight="600">
+                {fmt(d.value)}
+              </text>
+            )}
+            <text x={x + barW / 2} y={H - 4}
+              textAnchor="middle" fontSize={8.5} fill="#9ca3af">
+              {d.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+};
 
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
-        <p className="text-base text-gray-500">Monitor overall performance, sales trends, and inventory status</p>
+// ─── Main Component ───────────────────────────────────────────────────────────
+const AdminDashboard = () => {
+  const [period, setPeriod]       = useState<Period>("month");
+  const [chartType, setChartType] = useState<ChartType>("revenue");
+  const { data: liveData, loading, refresh } = useDashboardData();
+
+  // Raw orders for client-side period filtering
+  const rawOrders = useMemo<any[]>(() => (liveData as any)?.rawOrders || [], [liveData]);
+
+  // Period-scoped data
+  const periodOrders = useMemo(() => filterByPeriod(rawOrders, period), [rawOrders, period]);
+  const stats        = useMemo(() => computeStats(periodOrders), [periodOrders]);
+  const chartData    = useMemo(
+    () => buildChartData(periodOrders, period, chartType),
+    [periodOrders, period, chartType]
+  );
+
+  // All-time pipeline counts (current operational state)
+  const pipeline = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const o of rawOrders) counts[o.status] = (counts[o.status] || 0) + 1;
+    return PIPELINE_STAGES.map(s => ({ ...s, count: counts[s.key] || 0 }));
+  }, [rawOrders]);
+  const pipelineMax = Math.max(...pipeline.map(p => p.count), 1);
+
+  // Overdue attention list
+  const overdueList = useMemo(() => {
+    const now = new Date();
+    return rawOrders
+      .filter(o =>
+        o.due_date && new Date(o.due_date) < now &&
+        !["completed", "pickup", "cancelled"].includes(o.status)
+      )
+      .slice(0, 5)
+      .map(o => ({
+        orderId:  o.order_number || o.id,
+        customer: o.customer
+          ? (`${o.customer.first_name || ""} ${o.customer.last_name || ""}`.trim() || "Walk-in")
+          : "Walk-in",
+        product:  o.order_items?.[0]?.product_name || "—",
+        dueDate:  o.due_date ? new Date(o.due_date).toLocaleDateString() : "",
+        status:   o.status,
+      }));
+  }, [rawOrders]);
+
+  const lowStockItems  = useMemo(() => (liveData?.lowStockItems || []).slice(0, 5), [liveData]);
+  const recentOrders   = useMemo(() => (liveData as any)?.recentOrders || [], [liveData]);
+  const activeChart    = CHART_TYPES.find(c => c.key === chartType)!;
+  const periodLabel    = PERIODS.find(p => p.key === period)?.label ?? "";
+  const dateStr        = new Date().toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+
+  if (loading) return (
+    <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
+      <p className="ml-4 text-gray-500">Loading dashboard...</p>
+    </div>
+  );
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-5 overflow-x-hidden">
+
+      {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{dateStr}</p>
+        </div>
+        <button
+          onClick={() => refresh?.()}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm self-start sm:self-auto"
+        >
+          <RefreshCw size={14} /> Refresh
+        </button>
       </div>
 
-      {/* Search and Filter */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
-        <div className="flex gap-3">
-          <form onSubmit={handleSearch} className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-            <input type="text" placeholder="Search orders or customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-          </form>
-          <div className="relative">
-            <button onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]">
-              <span>{selectedPeriod}</span><ChevronDown size={16} />
+      {/* ── 2. PERIOD SELECTOR ─────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-1.5 shadow-sm">
+        <div className="flex gap-1 overflow-x-auto">
+          {PERIODS.map(p => (
+            <button
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
+              className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                period === p.key
+                  ? "bg-cyan-500 text-white shadow-sm"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+            >
+              {p.label}
             </button>
-            {showPeriodDropdown && (
-              <><div className="fixed inset-0 z-10" onClick={() => setShowPeriodDropdown(false)} />
-              <div className="absolute top-full mt-1 right-0 w-full bg-white border rounded-lg shadow-lg z-20">
-                {periods.map(p => (<button key={p} onClick={() => { setSelectedPeriod(p); setShowPeriodDropdown(false); }}
-                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${selectedPeriod === p ? "bg-gray-50 font-semibold" : ""}`}>{p}</button>))}
-              </div></>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 3. KPI CARDS ───────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <KpiCard
+          title="Revenue"
+          value={fmtMoney(stats.revenue)}
+          sub={`${periodLabel} billed`}
+          icon={<TrendingUp size={16} />} iconBg="bg-cyan-100" iconColor="text-cyan-600"
+          accent="blue"
+        />
+        <KpiCard
+          title="Collected"
+          value={fmtMoney(stats.collected)}
+          sub={`${stats.collectionRate}% collection rate`}
+          icon={<DollarSign size={16} />} iconBg="bg-green-100" iconColor="text-green-600"
+          accent="green"
+        />
+        <KpiCard
+          title="Outstanding"
+          value={fmtMoney(stats.outstanding)}
+          sub="Uncollected payments"
+          icon={<CreditCard size={16} />} iconBg="bg-amber-100" iconColor="text-amber-600"
+          accent={stats.outstanding > 0 ? "yellow" : "green"}
+        />
+        <KpiCard
+          title="Orders"
+          value={`${stats.total}`}
+          sub={`Placed — ${periodLabel}`}
+          icon={<Package size={16} />} iconBg="bg-purple-100" iconColor="text-purple-600"
+        />
+        <KpiCard
+          title="Completed"
+          value={`${stats.completed}`}
+          sub={stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}% fulfillment rate` : "of period orders"}
+          icon={<CheckCircle size={16} />} iconBg="bg-green-100" iconColor="text-green-600"
+          accent="green"
+        />
+        <KpiCard
+          title="Overdue"
+          value={`${stats.overdue}`}
+          sub="Need immediate action"
+          icon={<AlertTriangle size={16} />} iconBg="bg-red-100" iconColor="text-red-600"
+          accent={stats.overdue > 0 ? "red" : "none"}
+        />
+      </div>
+
+      {/* ── 4. CHART + PIPELINE ────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+
+        {/* Chart — 3/5 cols */}
+        <div className="lg:col-span-3 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+            <div>
+              <h3 className="text-base font-bold text-gray-900">Performance Chart</h3>
+              <p className="text-xs text-gray-400">{periodLabel} · {activeChart.label}</p>
+            </div>
+            {/* Chart type selector — wraps on mobile */}
+            <div className="flex flex-wrap gap-1 bg-gray-100 rounded-lg p-1 self-start">
+              {CHART_TYPES.map(ct => (
+                <button
+                  key={ct.key}
+                  onClick={() => setChartType(ct.key)}
+                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                    chartType === ct.key
+                      ? "bg-white shadow-sm text-gray-900"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {ct.key === "revenue" ? "Revenue" : ct.key === "volume" ? "Volume" : "Collection"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {chartData.every(d => d.value === 0) ? (
+            <div className="flex items-center justify-center h-44 text-gray-400 text-sm bg-gray-50 rounded-lg">
+              No data for this period
+            </div>
+          ) : (
+            <BarChart data={chartData} chartType={chartType} color={activeChart.color} />
+          )}
+
+          {/* Footer summary row */}
+          <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100 text-center">
+            <div>
+              <p className="text-lg font-bold text-gray-900">{fmtMoney(stats.revenue)}</p>
+              <p className="text-xs text-gray-400">Revenue</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-gray-900">{fmtMoney(stats.collected)}</p>
+              <p className="text-xs text-gray-400">Collected</p>
+            </div>
+            <div>
+              <p className="text-lg font-bold text-gray-900">{stats.collectionRate}%</p>
+              <p className="text-xs text-gray-400">Collection Rate</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Order Pipeline — 2/5 cols */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <div className="mb-4">
+            <h3 className="text-base font-bold text-gray-900">Order Pipeline</h3>
+            <p className="text-xs text-gray-400">Current state of all orders</p>
+          </div>
+          <div className="space-y-3">
+            {pipeline.map(stage => (
+              <div key={stage.key}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm text-gray-700">{stage.label}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${stage.bg}`}>
+                    {stage.count}
+                  </span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div
+                    className="h-2 rounded-full transition-all duration-500"
+                    style={{
+                      width: `${(stage.count / pipelineMax) * 100}%`,
+                      backgroundColor: stage.color,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center text-sm">
+            <span className="text-gray-500">Active (excl. completed)</span>
+            <span className="font-bold text-gray-900">
+              {pipeline.filter(s => s.key !== "completed").reduce((s, p) => s + p.count, 0)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 5. ATTENTION ALERTS + RECENT ORDERS ────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+        {/* Attention Panel */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-5">
+          <h3 className="text-base font-bold text-gray-900">Needs Attention</h3>
+
+          {/* Overdue orders */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={15} className="text-red-500" />
+              <span className="text-sm font-semibold text-gray-700">Overdue Orders</span>
+              {overdueList.length > 0 && (
+                <span className="ml-auto px-2 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-full">
+                  {overdueList.length}
+                </span>
+              )}
+            </div>
+            {overdueList.length === 0 ? (
+              <p className="text-sm text-green-600 font-medium bg-green-50 rounded-lg px-3 py-2">
+                ✅ No overdue orders
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {overdueList.map((o, i) => (
+                  <div key={i} className="flex items-start justify-between p-3 bg-red-50 rounded-lg gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{o.orderId}</p>
+                      <p className="text-xs text-gray-500 truncate">{o.customer} · {o.product}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-xs text-red-600 font-semibold">Due {o.dueDate}</p>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                        PIPELINE_STAGES.find(s => s.key === o.status)?.bg || "bg-gray-100 text-gray-700"
+                      }`}>
+                        {PIPELINE_STAGES.find(s => s.key === o.status)?.label || o.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Low stock */}
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex items-center gap-2 mb-3">
+              <Package size={15} className="text-amber-500" />
+              <span className="text-sm font-semibold text-gray-700">Low Stock Alerts</span>
+              {lowStockItems.length > 0 && (
+                <span className="ml-auto px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-full">
+                  {lowStockItems.length}
+                </span>
+              )}
+            </div>
+            {lowStockItems.length === 0 ? (
+              <p className="text-sm text-green-600 font-medium bg-green-50 rounded-lg px-3 py-2">
+                ✅ All materials sufficient
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {lowStockItems.map((item: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
+                      <p className="text-xs text-gray-500">Reorder at {item.reorderPoint} {item.unit}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-bold text-amber-700">{item.currentQty} {item.unit}</p>
+                      <p className="text-xs text-amber-500">remaining</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Top Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Total Revenue</p><TrendingUp size={20} className="text-green-600" /></div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">₱{metrics.totalRevenue.toLocaleString()}</p>
-          <p className="text-sm text-green-600 font-semibold">{metrics.revenueChange}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Completed Orders</p><Package size={20} className="text-blue-600" /></div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">{metrics.completedOrders}</p>
-          <p className="text-sm text-blue-600 font-semibold">{metrics.ordersChange}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Overdue Orders</p><AlertCircle size={20} className="text-red-600" /></div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">{metrics.delayedPayments}</p>
-          <p className="text-sm text-red-600 font-semibold">{metrics.paymentsChange}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2"><p className="text-base text-gray-600">Inventory Status</p><Trophy size={20} className="text-yellow-600" /></div>
-          <p className="text-3xl font-bold text-gray-900 mb-1">{inv?.total || 0}</p>
-          <p className="text-sm font-semibold" style={{color: (inv?.lowStock || 0) > 0 ? '#dc2626' : '#16a34a'}}>{inv?.lowStock || 0} low stock, {inv?.available || 0} available</p>
-        </div>
-      </div>
+        {/* Recent Orders */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h3 className="text-base font-bold text-gray-900">Recent Orders</h3>
+            <p className="text-xs text-gray-400">Last 8 orders in the system</p>
+          </div>
 
-      {/* Daily Sales Chart — FIXED polyline */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm mb-6">
-        <div className="mb-4">
-          <h3 className="text-lg font-bold text-gray-900">Daily Sales Performance</h3>
-          <p className="text-sm text-gray-500">Revenue trend (sample data — will connect to live when daily tracking is available)</p>
-        </div>
-        <div className="relative" style={{ height: `${chartHeight}px` }}>
-          <div className="absolute left-0 top-0 bottom-0 w-12 flex flex-col justify-between text-xs text-gray-500">
-            <span>₱{(maxRevenue / 1000).toFixed(0)}k</span>
-            <span>₱{((maxRevenue * 0.5) / 1000).toFixed(0)}k</span>
-            <span>₱0k</span>
-          </div>
-          <div className="absolute left-14 right-0 top-0 bottom-8">
-            {/* FIXED: Use viewBox with numeric coords instead of % strings */}
-            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} preserveAspectRatio="none" width="100%" height="100%" className="overflow-visible">
-              {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
-                <line key={`h-${i}`} x1="0" y1={f * chartHeight} x2={chartWidth} y2={f * chartHeight} stroke="#e5e7eb" strokeWidth="1" />
-              ))}
-              <polyline
-                fill="none" stroke="#0ea5e9" strokeWidth="2.5" strokeLinejoin="round"
-                points={dailySalesData.map((d, i) => {
-                  const x = (i / (dailySalesData.length - 1)) * chartWidth;
-                  const y = ((maxRevenue - d.revenue) / maxRevenue) * chartHeight;
-                  return `${x},${y}`;
-                }).join(" ")}
-              />
-              {dailySalesData.map((d, i) => {
-                const x = (i / (dailySalesData.length - 1)) * chartWidth;
-                const y = ((maxRevenue - d.revenue) / maxRevenue) * chartHeight;
-                return <circle key={i} cx={x} cy={y} r="4" fill="#0ea5e9" />;
-              })}
-            </svg>
-          </div>
-          <div className="absolute left-14 right-0 bottom-0 h-8 flex justify-between text-xs text-gray-500">
-            {dailySalesData.filter((_, i) => i % 2 === 0).map((d, i) => (<span key={i}>{d.date}</span>))}
-          </div>
-        </div>
-      </div>
-
-      {/* Revenue Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Revenue by Product Type */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Revenue by Product Type</h3><p className="text-sm text-gray-500">Distribution across categories</p></div>
-          <div className="flex items-center justify-center mb-6">
-            <div className="relative w-48 h-48">
-              <svg viewBox="0 0 100 100" className="transform -rotate-90">
-                {(() => {
-                  let cum = 0;
-                  return productRevenue.map((item, i) => {
-                    const start = (cum * 360) / 100;
-                    const end = ((cum + item.percentage) * 360) / 100;
-                    cum += item.percentage;
-                    const sr = (start * Math.PI) / 180; const er = (end * Math.PI) / 180;
-                    const x1 = 50 + 40 * Math.cos(sr); const y1 = 50 + 40 * Math.sin(sr);
-                    const x2 = 50 + 40 * Math.cos(er); const y2 = 50 + 40 * Math.sin(er);
-                    return <path key={i} d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${item.percentage > 50 ? 1 : 0} 1 ${x2} ${y2} Z`} fill={item.color} />;
-                  });
-                })()}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-2xl font-bold text-gray-900">{productRevenue.length}</p>
-                <p className="text-xs text-gray-500">Categories</p>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-2">
-            {productRevenue.map((item, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} /><span className="text-sm text-gray-700">{item.category}</span></div>
-                <span className="text-sm font-semibold text-gray-900">₱{(item.amount / 1000).toFixed(0)}k</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 pt-4 border-t text-center">
-            <p className="text-lg font-bold text-gray-900">₱{(os?.totalRevenue ? (os.totalRevenue / 1000).toFixed(0) : "0")}k</p>
-            <p className="text-xs text-gray-500">Total Revenue (from orders)</p>
-          </div>
-        </div>
-
-        {/* Top Orders */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Recent Orders</h3><p className="text-sm text-gray-500">Latest orders from the system</p></div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b"><tr>
-                <th className="px-3 py-2 text-left font-semibold text-gray-700">Customer</th>
-                <th className="px-3 py-2 text-right font-semibold text-gray-700">Amount</th>
-                <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
-                <th className="px-3 py-2 text-center font-semibold text-gray-700">Date</th>
-                <th className="px-3 py-2 text-center font-semibold text-gray-700">Action</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {topOrders.length === 0 ? (
-                  <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-400">No recent orders</td></tr>
-                ) : topOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-3"><p className="font-semibold text-gray-900">{order.customer}</p><p className="text-gray-500 text-sm">{order.id}</p></td>
-                    <td className="px-3 py-3 text-right font-semibold text-gray-900">₱{order.amount.toLocaleString()}</td>
-                    <td className="px-3 py-3 text-center"><span className={`px-2 py-1 rounded-full text-sm font-semibold ${getStatusColor(order.status)}`}>{order.status}</span></td>
-                    <td className="px-3 py-3 text-center text-gray-600">{order.date}</td>
-                    <td className="px-3 py-3 text-center"><button onClick={() => handleViewOrder(order.id)} className="flex items-center gap-1 px-3 py-1.5 hover:bg-gray-200 rounded-lg text-sm text-cyan-600 font-semibold mx-auto"><Eye size={16} />View</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* Inventory Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Inventory Snapshot — LIVE DATA */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Inventory Alerts</h3><p className="text-sm text-gray-500">Materials at or below reorder point</p></div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b"><tr>
-                <th className="px-3 py-2 text-left font-semibold text-gray-700">Material</th>
-                <th className="px-3 py-2 text-center font-semibold text-gray-700">Current</th>
-                <th className="px-3 py-2 text-center font-semibold text-gray-700">Reorder At</th>
-                <th className="px-3 py-2 text-center font-semibold text-gray-700">Status</th>
-              </tr></thead>
-              <tbody className="divide-y divide-gray-100">
-                {inventorySnapshot.length === 0 ? (
-                  <tr><td colSpan={4} className="px-3 py-6 text-center text-green-600 font-semibold text-base">✅ All materials above reorder levels</td></tr>
-                ) : inventorySnapshot.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 text-gray-900">{item.materialName}</td>
-                    <td className="px-3 py-2 text-center font-semibold text-gray-900">{item.currentQty} {item.unit}</td>
-                    <td className="px-3 py-2 text-center text-gray-600">{item.reorderLevel} {item.unit}</td>
-                    <td className="px-3 py-2 text-center"><span className={`font-semibold flex items-center justify-center gap-1 ${getStatusColor(item.status)}`}>{item.status === 'Low' ? '⚠️' : item.status === 'Warning' ? '⚡' : '✅'} {item.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Quick Stats */}
-        <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-          <div className="mb-4"><h3 className="text-lg font-bold text-gray-900">Order Summary</h3><p className="text-sm text-gray-500">Current order pipeline breakdown</p></div>
-          <div className="space-y-3">
-            {[
-              { label: "In Queue", value: os?.inQueue || 0, color: "bg-blue-500" },
-              { label: "Designing", value: os?.designing || 0, color: "bg-purple-500" },
-              { label: "In Production", value: os?.production || 0, color: "bg-orange-500" },
-              { label: "Ready for Pickup", value: os?.pickup || 0, color: "bg-green-500" },
-              { label: "Completed", value: os?.completed || 0, color: "bg-gray-400" },
-              { label: "Overdue", value: os?.overdue || 0, color: "bg-red-500" },
-            ].map((item) => (
-              <div key={item.label} className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                <span className="text-sm text-gray-700 flex-1">{item.label}</span>
-                <span className="text-sm font-bold text-gray-900">{item.value}</span>
-                <div className="w-24 bg-gray-100 rounded-full h-2">
-                  <div className={`h-2 rounded-full ${item.color}`} style={{ width: `${os?.total ? (item.value / os.total) * 100 : 0}%` }} />
+          {/* MOBILE: stacked cards */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {recentOrders.length === 0 ? (
+              <p className="px-5 py-8 text-center text-gray-400 text-sm">No orders yet</p>
+            ) : recentOrders.map((o: any, i: number) => (
+              <div key={i} className="p-4 space-y-1.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm truncate">{o.orderId}</p>
+                    <p className="text-xs text-gray-500 truncate">{o.customerName} · {o.product}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                      PIPELINE_STAGES.find(s => s.key === o.status)?.bg || "bg-gray-100 text-gray-700"
+                    }`}>
+                      {PIPELINE_STAGES.find(s => s.key === o.status)?.label || o.status || "—"}
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                      o.paymentStatus === "paid"    ? "bg-green-100 text-green-700" :
+                      o.paymentStatus === "partial" ? "bg-yellow-100 text-yellow-700" :
+                      "bg-red-100 text-red-700"
+                    }`}>
+                      {o.paymentStatus
+                        ? o.paymentStatus.charAt(0).toUpperCase() + o.paymentStatus.slice(1)
+                        : "Unpaid"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold text-gray-900">₱{(o.amount || 0).toLocaleString()}</span>
+                  <span className="text-xs text-gray-400">{o.date}</span>
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-4 pt-4 border-t flex justify-between text-sm">
-            <span className="text-gray-600">Total Collected:</span>
-            <span className="font-bold text-green-600">₱{(os?.totalCollected || 0).toLocaleString()}</span>
+
+          {/* DESKTOP: table */}
+          <div className="hidden md:block overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Order</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
+                  <th className="px-4 py-3 text-right font-semibold text-gray-700">Amount</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {recentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-gray-400">No orders yet</td>
+                  </tr>
+                ) : recentOrders.map((o: any, i: number) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <p className="font-mono text-xs text-gray-700">{o.orderId}</p>
+                      <p className="text-xs text-gray-400">{o.date}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900 truncate max-w-[120px]">{o.customerName}</p>
+                      <p className="text-xs text-gray-400 truncate max-w-[120px]">{o.product}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                      ₱{(o.amount || 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                        PIPELINE_STAGES.find(s => s.key === o.status)?.bg || "bg-gray-100 text-gray-700"
+                      }`}>
+                        {PIPELINE_STAGES.find(s => s.key === o.status)?.label || o.status || "—"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                        o.paymentStatus === "paid"    ? "bg-green-100 text-green-700" :
+                        o.paymentStatus === "partial" ? "bg-yellow-100 text-yellow-700" :
+                        "bg-red-100 text-red-700"
+                      }`}>
+                        {o.paymentStatus
+                          ? o.paymentStatus.charAt(0).toUpperCase() + o.paymentStatus.slice(1)
+                          : "Unpaid"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
+
     </div>
   );
 };

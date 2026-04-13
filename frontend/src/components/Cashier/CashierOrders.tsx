@@ -13,9 +13,7 @@ const CashierOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [payForm, setPayForm] = useState({ amount: "", method: "cash", reference: "", notes: "" });
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
   const { orders, stats, loading, createOrder, recordPayment } = useOrdersData();
@@ -33,24 +31,6 @@ const CashierOrders = () => {
   };
 
   const handleViewOrder = (order: Order) => { setSelectedOrder(order); setShowDetailsModal(true); };
-
-  const openPayment = (order: Order) => {
-    setSelectedOrder(order);
-    const remaining = (order.totalAmount || 0) - ((order as any).amountPaid || 0);
-    setPayForm({ amount: remaining > 0 ? String(remaining) : "", method: "cash", reference: "", notes: "" });
-    setShowPaymentModal(true);
-  };
-
-  const handleRecordPayment = async () => {
-    if (!selectedOrder) return;
-    if (!payForm.amount || Number(payForm.amount) <= 0) { alert("Enter a valid amount"); return; }
-    const r = await recordPayment(selectedOrder.id, {
-      amount: Number(payForm.amount), payment_method: payForm.method,
-      reference_number: payForm.reference || undefined, notes: payForm.notes || undefined,
-    });
-    if (r.success) { alert("Payment recorded!"); setShowPaymentModal(false); }
-    else alert("Error: " + r.error);
-  };
 
   if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
 
@@ -115,8 +95,7 @@ const CashierOrders = () => {
                   <span className="text-gray-400 text-xs">{o.dateOrdered}</span>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => handleViewOrder(o)} className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold"><Package size={14}/> View</button>
-                  {o.paymentStatus !== 'Paid' && <button onClick={() => openPayment(o)} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 hover:bg-green-100 rounded-lg text-sm text-green-700 font-semibold"><DollarSign size={14}/> Pay</button>}
+                  <button onClick={() => handleViewOrder(o)} className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold w-full justify-center"><Package size={14}/> Manage Order</button>
                 </div>
               </div>
             ))}
@@ -145,8 +124,7 @@ const CashierOrders = () => {
                     <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${payColor(o.paymentStatus)}`}>{o.paymentStatus}</span></td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{o.dateOrdered}</td>
                     <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
-                      <button onClick={() => handleViewOrder(o)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View"><Package size={16} className="text-cyan-600" /></button>
-                      {o.paymentStatus !== 'Paid' && <button onClick={() => openPayment(o)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Pay"><DollarSign size={16} className="text-green-600" /></button>}
+                      <button onClick={() => handleViewOrder(o)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="Manage"><Package size={16} className="text-cyan-600" /></button>
                     </div></td>
                   </tr>
                 ))}
@@ -163,52 +141,6 @@ const CashierOrders = () => {
 
       {selectedOrder && (
         <OrderDetailsModal isOpen={showDetailsModal} order={selectedOrder} userRole="cashier" onClose={() => setShowDetailsModal(false)} />
-      )}
-
-      {/* Payment Modal */}
-      {showPaymentModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPaymentModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8 relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowPaymentModal(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Record Payment</h3>
-            <p className="text-sm text-gray-500 mb-6">{(selectedOrder as any).orderId} — ₱{selectedOrder.totalAmount?.toLocaleString()} total</p>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (₱) *</label>
-                <input type="number" value={payForm.amount} onChange={e => setPayForm({...payForm, amount: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0.00" />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Method *</label>
-                <select value={payForm.method} onChange={e => setPayForm({...payForm, method: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base bg-white">
-                  <option value="cash">Cash</option>
-                  <option value="gcash">GCash</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="maya">Maya</option>
-                </select>
-              </div>
-              {payForm.method !== "cash" && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Reference Number</label>
-                  <input type="text" value={payForm.reference} onChange={e => setPayForm({...payForm, reference: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base" placeholder="e.g., GC-2026-0001" />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Notes</label>
-                <input type="text" value={payForm.notes} onChange={e => setPayForm({...payForm, notes: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base" placeholder="Optional" />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setShowPaymentModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-              <button onClick={handleRecordPayment} className="flex-1 px-4 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
-                <DollarSign size={18} />Record Payment
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );

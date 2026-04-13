@@ -245,12 +245,15 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-120px)] animate-in fade-in zoom-in duration-300">
-      <h1 className="text-4xl font-black text-slate-900 mb-8 tracking-tight">{title}</h1>
+    <div className="max-w-7xl mx-auto">
+      <h1 className="text-2xl md:text-4xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight">{title}</h1>
 
-      <div className="flex gap-6 h-[calc(100%-60px)]">
-        {/* ── Left sidebar: conversation list ── */}
-        <div className="w-80 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+      {/* Outer shell: single panel mobile, side-by-side md+ */}
+      <div className="flex gap-4 md:gap-6 overflow-hidden" style={{ height: "calc(100vh - 180px)", minHeight: 360 }}>
+        {/* ── LEFT: conversation list — full width mobile (shows when no chat open), fixed width md+ */}
+        <div className={`flex-col ${
+          selectedConv ? "hidden md:flex" : "flex"
+        } w-full md:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden`}>
           <div className="p-4 border-b">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">
@@ -344,11 +347,17 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
           </div>
         </div>
 
-        {/* ── Right: chat area ── */}
+        {/* ── RIGHT: chat area — full screen on mobile when open ── */}
         {selectedConv ? (
-          <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
-            {/* Header */}
-            <div className="p-6 border-b flex items-center gap-3">
+          <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col min-w-0">
+            {/* Header with back button on mobile */}
+            <div className="p-4 md:p-6 border-b flex items-center gap-3">
+              <button
+                onClick={() => setSelectedConv(null)}
+                className="md:hidden p-2 -ml-1 hover:bg-gray-100 rounded-lg"
+                aria-label="Back to conversations">
+                <ArrowLeft size={20} className="text-gray-600" />
+              </button>
               <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
                 <span className="text-lg font-semibold text-gray-600">{getInitials(selectedConv.userName)}</span>
               </div>
