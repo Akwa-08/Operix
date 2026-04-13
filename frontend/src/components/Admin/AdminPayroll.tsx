@@ -1,1208 +1,596 @@
 import { useState, useRef } from "react";
 import {
-  Download,
-  Calendar,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  Upload,
-  Printer,
-  Mail,
-  Eye,
-  Search,
-  ChevronDown,
-  ChevronUp,
-  X,
-  Edit2,
+  Calendar, CheckCircle2, Clock, AlertCircle,
+  Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
+  X, Edit2, RefreshCw, Plus,
 } from "lucide-react";
+import { supabase } from "../../config/supabaseClient";
+import {
+  usePayrollData,
+  type AttendanceLog, type PayrollRecord, type PayrollPeriod,
+} from "../../hooks/useSupabase";
 
-// Types for backend integration
-interface Employee {
-  id: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  department: string;
-  position: string;
-  dailyRate: number;
-  daysPresent: number;
-  workedHrs: number;
-  lateTimeslots: number;
-  earlyLeaveTimeslots: number;
-  overtimeHrs: number;
-  businessTrip: number;
-  absence: number;
-  onLeave: number;
-  additionalPay: number;
-  deduction: number;
-  actualPay: number;
+// ─── Formatters ───────────────────────────────────────────────────────────────
+const fmt = (n: number) =>
+  `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const periodLabel = (p: PayrollPeriod) => {
+  const s = new Date(p.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+  const e = new Date(p.periodEnd).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  return `${s} – ${e}`;
+};
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+function StatCard({ label, value, sub, color = "text-gray-900" }: {
+  label: string; value: string; sub?: string; color?: string;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+      <h3 className="text-sm font-semibold text-gray-700 mb-2">{label}</h3>
+      <p className={`text-3xl font-bold mb-1 ${color}`}>{value}</p>
+      {sub && <p className="text-xs text-gray-400">{sub}</p>}
+    </div>
+  );
 }
 
-interface SalaryComputation {
-  employeeId: string;
-  name: string;
-  department: string;
-  position: string;
-  dailyRate: number;
-  daysPresent: number;
-  basicPay: number;
-  regularHolidayPay: number;
-  specialHolidayPay: number;
-  regularOvertime: number;
-  holidayOvertime: number;
-  specialOvertime: number;
-  grossIncome: number;
-  tardyDeductions: number;
-  undertimeDeductions: number;
-  sss: number;
-  philhealth: number;
-  hdmf: number;
-  withholdingTax: number;
-  cashAdvance: number;
-  totalDeductions: number;
-  netPay: number;
-  taxableIncome: number;
-  taxRateApplied: string;
-}
+// ─── Create Period Modal ──────────────────────────────────────────────────────
+function CreatePeriodModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (d: { period_start: string; period_end: string; pay_date?: string }) => Promise<any>;
+}) {
+  const [form, setForm] = useState({ period_start: "", period_end: "", pay_date: "" });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
 
-interface PayrollRecord {
-  id: string;
-  date: string;
-  payDate: string;
-  employees: number;
-  grossIncome: number;
-  deductions: number;
-  netPay: number;
-  status: "Complete" | "Pending" | "Processing";
-}
-
-const AdminPayroll: React.FC = () => {
-  const [activePayrollTab, setActivePayrollTab] = useState("Payroll Dashboard");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("All Departments");
-  const [selectedPeriod, setSelectedPeriod] = useState("Current");
-  const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
-  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
-  const [selectedEmployeeForEdit, setSelectedEmployeeForEdit] = useState<SalaryComputation | null>(null);
-  const [editedDailyRate, setEditedDailyRate] = useState("");
-  const [showPayslipModal, setShowPayslipModal] = useState(false);
-  const [selectedPayslip, setSelectedPayslip] = useState<SalaryComputation | null>(null);
-  const [expandedPayrollRecords, setExpandedPayrollRecords] = useState<Set<string>>(new Set());
-  
-  const payrollTabs = [
-    "Payroll Dashboard",
-    "Attendance Logs",
-    "Salary Computation",
-    "Salary History",
-  ];
-
-  const departments = ["All Departments", "Admin", "Staff", "Design", "Production"];
-  const periods = ["Current", "Previous"];
-
-  // DUMMY DATA
-  const attendanceData: Employee[] = [
-    {
-      id: "E001",
-      firstName: "Cen",
-      lastName: "Tino",
-      role: "Admin",
-      department: "Admin",
-      position: "Admin",
-      dailyRate: 650,
-      daysPresent: 22,
-      workedHrs: 159,
-      lateTimeslots: 2,
-      earlyLeaveTimeslots: 1,
-      overtimeHrs: 8,
-      businessTrip: 0,
-      absence: 1,
-      onLeave: 0,
-      additionalPay: 1000,
-      deduction: 500,
-      actualPay: 15750,
-    },
-    {
-      id: "E002",
-      firstName: "Mary Jane",
-      lastName: "Centino",
-      role: "Admin",
-      department: "Admin",
-      position: "Admin",
-      dailyRate: 680,
-      daysPresent: 22,
-      workedHrs: 162,
-      lateTimeslots: 0,
-      earlyLeaveTimeslots: 0,
-      overtimeHrs: 12,
-      businessTrip: 2,
-      absence: 0,
-      onLeave: 0,
-      additionalPay: 1500,
-      deduction: 200,
-      actualPay: 18300,
-    },
-    {
-      id: "E003",
-      firstName: "Cache",
-      lastName: "Yir",
-      role: "Cashier",
-      department: "Staff",
-      position: "Cashier",
-      dailyRate: 550,
-      daysPresent: 22,
-      workedHrs: 155,
-      lateTimeslots: 3,
-      earlyLeaveTimeslots: 2,
-      overtimeHrs: 6,
-      businessTrip: 0,
-      absence: 2,
-      onLeave: 1,
-      additionalPay: 800,
-      deduction: 750,
-      actualPay: 14200,
-    },
-    {
-      id: "E004",
-      firstName: "Des",
-      lastName: "Igner",
-      role: "Designer",
-      department: "Design",
-      position: "Designer",
-      dailyRate: 720,
-      daysPresent: 22,
-      workedHrs: 164,
-      lateTimeslots: 1,
-      earlyLeaveTimeslots: 0,
-      overtimeHrs: 16,
-      businessTrip: 1,
-      absence: 0,
-      onLeave: 0,
-      additionalPay: 2000,
-      deduction: 300,
-      actualPay: 19500,
-    },
-    {
-      id: "E005",
-      firstName: "Del",
-      lastName: "Sayner",
-      role: "Designer",
-      department: "Design",
-      position: "Designer",
-      dailyRate: 700,
-      daysPresent: 22,
-      workedHrs: 159,
-      lateTimeslots: 0,
-      earlyLeaveTimeslots: 1,
-      overtimeHrs: 10,
-      businessTrip: 0,
-      absence: 0,
-      onLeave: 1,
-      additionalPay: 1200,
-      deduction: 400,
-      actualPay: 16800,
-    },
-    {
-      id: "E006",
-      firstName: "John",
-      lastName: "Doe",
-      role: "Production",
-      department: "Production",
-      position: "Production",
-      dailyRate: 580,
-      daysPresent: 22,
-      workedHrs: 160,
-      lateTimeslots: 2,
-      earlyLeaveTimeslots: 0,
-      overtimeHrs: 8,
-      businessTrip: 0,
-      absence: 0,
-      onLeave: 0,
-      additionalPay: 1000,
-      deduction: 250,
-      actualPay: 16750,
-    },
-    {
-      id: "E007",
-      firstName: "John",
-      lastName: "Cena",
-      role: "Production",
-      department: "Production",
-      position: "Production",
-      dailyRate: 590,
-      daysPresent: 22,
-      workedHrs: 161,
-      lateTimeslots: 0,
-      earlyLeaveTimeslots: 1,
-      overtimeHrs: 5,
-      businessTrip: 0,
-      absence: 1,
-      onLeave: 0,
-      additionalPay: 600,
-      deduction: 500,
-      actualPay: 14100,
-    },
-  ];
-
-  const salaryComputationData: SalaryComputation = {
-    employeeId: "MJ001",
-    name: "Mary Jane",
-    department: "Staff",
-    position: "Cashier",
-    dailyRate: 650,
-    daysPresent: 22,
-    basicPay: 14300,
-    regularHolidayPay: 2800,
-    specialHolidayPay: 945,
-    regularOvertime: 812.5,
-    holidayOvertime: 520,
-    specialOvertime: 211.25,
-    grossIncome: 19288.75,
-    tardyDeductions: 10625,
-    undertimeDeductions: 81.25,
-    sss: 581.3,
-    philhealth: 200,
-    hdmf: 200,
-    withholdingTax: 0,
-    cashAdvance: 1300,
-    totalDeductions: 2663.175,
-    netPay: 16625.575,
-    taxableIncome: 18247.45,
-    taxRateApplied: "0%",
+  const handleSubmit = async () => {
+    if (!form.period_start || !form.period_end) { setErr("Start and end date required."); return; }
+    setSaving(true);
+    const r = await onCreate({ ...form, pay_date: form.pay_date || undefined });
+    if (!r.success) setErr(r.error || "Failed");
+    else onClose();
+    setSaving(false);
   };
-
-  const payrollHistory: PayrollRecord[] = [
-    {
-      id: "PR001",
-      date: "June 1-15, 2025",
-      payDate: "June 16, 2025",
-      employees: 8,
-      grossIncome: 125450,
-      deductions: 26690,
-      netPay: 98760,
-      status: "Complete",
-    },
-    {
-      id: "PR002",
-      date: "May 16-31, 2025",
-      payDate: "June 1, 2025",
-      employees: 8,
-      grossIncome: 118750,
-      deductions: 24890,
-      netPay: 93860,
-      status: "Complete",
-    },
-    {
-      id: "PR003",
-      date: "May 1-15, 2025",
-      payDate: "May 16, 2025",
-      employees: 8,
-      grossIncome: 122300,
-      deductions: 25680,
-      netPay: 96620,
-      status: "Complete",
-    },
-  ];
-
-  const payrollBreakdown = [
-    { label: "Basic Pay", amount: "₱89,600" },
-    { label: "Holiday Pay", amount: "₱12,450" },
-    { label: "Overtime Pay", amount: "₱18,200" },
-    { label: "Bonuses", amount: "₱5,200" },
-    { label: "Total Deductions", amount: "-₱26,690", isDeduction: true },
-  ];
-
-  const recentUpdates = [
-    {
-      icon: Calendar,
-      title: "3 new Attendance Records added",
-      subtitle: "Mary Jane, VC, Junny - June 15, 2025",
-      badge: "New",
-      badgeColor: "bg-green-100 text-green-700",
-      timestamp: "2 hours ago",
-      targetTab: "Attendance Logs",
-    },
-    {
-      icon: CheckCircle2,
-      title: "Payroll Computed for 8 Employees",
-      subtitle: "All salary computations completed for current period",
-      badge: "Complete",
-      badgeColor: "bg-green-500 text-white",
-      timestamp: "1 day ago",
-      targetTab: "Salary Computation",
-    },
-    {
-      icon: Clock,
-      title: "Updated Salary History for June 2025",
-      subtitle: "Historical records updated with latest payroll data",
-      badge: "Updated",
-      badgeColor: "bg-purple-200 text-purple-700",
-      timestamp: "1 day ago",
-      targetTab: "Salary History",
-    },
-    {
-      icon: AlertCircle,
-      title: "2 Overtime Records Pending Review",
-      subtitle: "Nathaniel and Des - Special holiday overtime",
-      badge: "Pending",
-      badgeColor: "bg-yellow-100 text-yellow-700",
-      timestamp: "1 day ago",
-      targetTab: "Attendance Logs",
-    },
-  ];
-
-  // Handler functions
-  const handleImportBiometrics = () => {
-    console.log("Import biometrics clicked");
-    alert("Import Biometrics functionality - ready for backend integration");
-  };
-
-  const handlePrintReport = () => {
-    window.print();
-  };
-
-  const handleExportReports = () => {
-    console.log("Export reports clicked");
-    alert("Export Reports functionality - ready for backend integration");
-  };
-
-  const handleSendEmail = () => {
-    console.log("Send email clicked");
-    alert("Send to Email functionality - ready for backend integration");
-  };
-
-  const handlePrintPayslip = () => {
-    window.print();
-  };
-
-  const handleExportAll = () => {
-    console.log("Export all clicked");
-    alert("Export All functionality - ready for backend integration");
-  };
-
-  const handleExportHistory = () => {
-    console.log("Export history clicked");
-    alert("Export History functionality - ready for backend integration");
-  };
-
-  const handlePrintHistory = () => {
-    window.print();
-  };
-
-  const handleViewEmployeeInAttendance = (employeeId: string) => {
-    console.log("Navigate to Salary Computation for employee:", employeeId);
-    setActivePayrollTab("Salary Computation");
-    // TODO: Load specific employee data in Salary Computation
-  };
-
-  const handleUpdateClick = (targetTab: string) => {
-    setActivePayrollTab(targetTab);
-  };
-
-  const handleEditDailyRate = (employee: SalaryComputation) => {
-    setSelectedEmployeeForEdit(employee);
-    setEditedDailyRate(employee.dailyRate.toString());
-  };
-
-  const handleSaveDailyRate = () => {
-    console.log("Save daily rate:", editedDailyRate, "for employee:", selectedEmployeeForEdit?.employeeId);
-    // TODO: API call to update daily rate
-    alert(`Daily rate updated to ₱${editedDailyRate}`);
-    setSelectedEmployeeForEdit(null);
-  };
-
-  const handleViewPayslip = (employee: Employee) => {
-    // Convert Employee to SalaryComputation format for display
-    const payslipData: SalaryComputation = {
-      employeeId: employee.id,
-      name: `${employee.firstName} ${employee.lastName}`,
-      department: employee.department,
-      position: employee.position,
-      dailyRate: employee.dailyRate,
-      daysPresent: employee.daysPresent,
-      basicPay: employee.dailyRate * employee.daysPresent,
-      regularHolidayPay: 2800,
-      specialHolidayPay: 945,
-      regularOvertime: 812.5,
-      holidayOvertime: 520,
-      specialOvertime: 211.25,
-      grossIncome: employee.actualPay * 1.3,
-      tardyDeductions: 625,
-      undertimeDeductions: 81.25,
-      sss: 581.3,
-      philhealth: 200,
-      hdmf: 200,
-      withholdingTax: 0,
-      cashAdvance: 1300,
-      totalDeductions: employee.deduction * 5,
-      netPay: employee.actualPay,
-      taxableIncome: employee.actualPay * 1.2,
-      taxRateApplied: "0%",
-    };
-    setSelectedPayslip(payslipData);
-    setShowPayslipModal(true);
-  };
-
-  const handleDownloadPayslip = (employee: Employee) => {
-    console.log("Download payslip for:", employee.id);
-    // TODO: Generate PDF and download
-    alert(`Downloading payslip for ${employee.firstName} ${employee.lastName}`);
-  };
-
-  const handlePrintPayslipForEmployee = (employee: Employee) => {
-    console.log("Print payslip for:", employee.id);
-    // TODO: Open print dialog for specific payslip
-    alert(`Printing payslip for ${employee.firstName} ${employee.lastName}`);
-  };
-
-  const togglePayrollRecordExpansion = (recordId: string) => {
-    const newExpanded = new Set(expandedPayrollRecords);
-    if (newExpanded.has(recordId)) {
-      newExpanded.delete(recordId);
-    } else {
-      newExpanded.add(recordId);
-    }
-    setExpandedPayrollRecords(newExpanded);
-  };
-
-  const filteredAttendanceData = attendanceData.filter((employee) => {
-    const matchesSearch =
-      employee.firstName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      employee.lastName.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesDepartment =
-      selectedDepartment === "All Departments" ||
-      employee.department === selectedDepartment;
-    return matchesSearch && matchesDepartment;
-  });
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Edit Daily Rate Modal */}
-      {selectedEmployeeForEdit && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-          onClick={() => setSelectedEmployeeForEdit(null)}
-        >
-          <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 animate-in fade-in zoom-in duration-200 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close Button */}
-            <button
-              onClick={() => setSelectedEmployeeForEdit(null)}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              aria-label="Close"
-            >
-              <X size={20} className="text-gray-600" />
-            </button>
-            
-            <h3 className="text-2xl font-bold text-gray-900 mb-6">
-              Employee Information
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-base text-gray-600">Employee ID:</span>
-                <span className="text-base font-bold text-gray-900">
-                  {selectedEmployeeForEdit.employeeId}
-                </span>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">New Payroll Period</h3>
+        <div className="space-y-4">
+          {[
+            { label: "Period Start", key: "period_start" },
+            { label: "Period End", key: "period_end" },
+            { label: "Pay Date (optional)", key: "pay_date" },
+          ].map(({ label, key }) => (
+            <div key={key}>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+              <input type="date" value={(form as any)[key]}
+                onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+            </div>
+          ))}
+          {err && <p className="text-sm text-red-600">{err}</p>}
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
+            {saving ? "Creating…" : "Create Period"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Attendance Edit Modal ────────────────────────────────────────────────────
+function AttendanceEditModal({ log, periodId, onClose, onSave }: {
+  log: AttendanceLog; periodId: string;
+  onClose: () => void;
+  onSave: (d: any) => Promise<any>;
+}) {
+  const [form, setForm] = useState({
+    worked_hours:           log.workedHours,
+    late_timeslots:         log.lateTimeslots,
+    early_leave_timeslots:  log.earlyLeaveTimeslots,
+    regular_overtime_hours: log.regularOvertimeHours,
+    holiday_overtime_hours: log.holidayOvertimeHours,
+    special_overtime_hours: log.specialOvertimeHours,
+    business_trip_days:     log.businessTripDays,
+    absences:               log.absences,
+    on_leave_days:          log.onLeaveDays,
+    additional_pay:         log.additionalPay,
+    deduction_amount:       log.deductionAmount,
+  });
+  const [saving, setSaving] = useState(false);
+
+  const field = (label: string, key: keyof typeof form, step = 1) => (
+    <div key={key} className="flex items-center justify-between">
+      <span className="text-sm text-gray-600">{label}</span>
+      <input type="number" step={step} value={(form as any)[key]}
+        onChange={e => setForm(f => ({ ...f, [key]: parseFloat(e.target.value) || 0 }))}
+        className="w-28 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+    </div>
+  );
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave({ employee_id: log.employeeId, payroll_period_id: periodId, ...form });
+    setSaving(false);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 my-8 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        <h3 className="text-xl font-bold text-gray-900 mb-1">Edit Attendance</h3>
+        <p className="text-sm text-gray-500 mb-6">{log.fullName}</p>
+        <div className="space-y-3">
+          {field("Worked Hours", "worked_hours", 0.5)}
+          {field("Late (timeslots × 30min)", "late_timeslots")}
+          {field("Early Leave (timeslots × 30min)", "early_leave_timeslots")}
+          {field("Regular OT Hours", "regular_overtime_hours", 0.5)}
+          {field("Holiday OT Hours", "holiday_overtime_hours", 0.5)}
+          {field("Special OT Hours", "special_overtime_hours", 0.5)}
+          {field("Business Trip Days", "business_trip_days")}
+          {field("Absences", "absences")}
+          {field("On Leave Days", "on_leave_days")}
+          {field("Additional Pay (₱)", "additional_pay", 0.01)}
+          {field("Cash Advance / Deductions (₱)", "deduction_amount", 0.01)}
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
+            {saving ? "Saving…" : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Payslip Modal ────────────────────────────────────────────────────────────
+function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () => void }) {
+  const rows = (label: string, val: number, color = "text-gray-900") => (
+    <div key={label} className="flex justify-between text-sm">
+      <span className="text-gray-600">{label}:</span>
+      <span className={`font-semibold ${color}`}>{fmt(val)}</span>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b">
+          <h3 className="text-xl font-bold text-gray-900">Payslip Preview</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        </div>
+
+        <div className="p-8 bg-gray-50" style={{ fontFamily: "Courier New, monospace" }}>
+          <div className="bg-white p-8 shadow-lg">
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h2 className="text-xl font-bold mb-2">VTA LINK PRINTING SERVICES</h2>
+                <p className="font-bold text-sm">BILLED TO:</p>
+                <p className="text-sm">{record.employeeName}</p>
+                <p className="text-sm">Code: {record.employeeCode}</p>
               </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base text-gray-600">Name:</span>
-                <span className="text-base font-bold text-gray-900">
-                  {selectedEmployeeForEdit.name}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base text-gray-600">Department:</span>
-                <span className="text-base font-bold text-gray-900">
-                  {selectedEmployeeForEdit.department}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base text-gray-600">Position:</span>
-                <span className="text-base font-bold text-gray-900">
-                  {selectedEmployeeForEdit.position}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base text-gray-600">Daily Rate:</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-gray-900">₱</span>
-                  <input
-                    type="number"
-                    value={editedDailyRate}
-                    onChange={(e) => setEditedDailyRate(e.target.value)}
-                    className="w-24 px-3 py-1 border border-gray-300 rounded-lg text-right font-bold"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-base text-gray-600">Days Present:</span>
-                <span className="text-base font-bold text-gray-900">
-                  {selectedEmployeeForEdit.daysPresent} days
-                </span>
+              <div className="text-right text-sm">
+                <p className="text-lg font-bold">{new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                <p className="font-bold mt-2">Position:</p>
+                <p>{record.position}</p>
               </div>
             </div>
-            <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => setSelectedEmployeeForEdit(null)}
-                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveDailyRate}
-                className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors"
-              >
-                Save
-              </button>
+
+            <div className="grid grid-cols-2 gap-8 mb-8">
+              <div>
+                <h3 className="font-bold text-sm mb-3">EMPLOYEE INFORMATION</h3>
+                <div className="space-y-1 text-sm">
+                  <p>Name: {record.employeeName}</p>
+                  <p>Position: {record.position}</p>
+                  <p>Daily Rate: {fmt(record.dailyRate)}</p>
+                  <p>Days Present: {record.daysPresent}</p>
+                </div>
+              </div>
+              <div>
+                <h3 className="font-bold text-sm mb-3">EARNINGS BREAKDOWN</h3>
+                <div className="space-y-1">
+                  {rows("Basic Pay", record.basicPay)}
+                  {rows("Regular Holiday Pay", record.regularHolidayPay)}
+                  {rows("Special Holiday Pay", record.specialHolidayPay)}
+                  {rows("Regular OT", record.regularOvertime)}
+                  {rows("Holiday OT", record.holidayOvertime)}
+                  {rows("Special OT", record.specialOvertime)}
+                  <div className="flex justify-between font-bold border-t pt-1 mt-1 text-sm">
+                    <span>GROSS INCOME:</span><span>{fmt(record.grossIncome)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-8">
+              <div>
+                <h3 className="font-bold text-sm mb-3">DEDUCTIONS</h3>
+                <div className="space-y-1">
+                  {rows("Tardy Deductions", record.tardyDeductions, "text-red-600")}
+                  {rows("Undertime Deductions", record.undertimeDeductions, "text-red-600")}
+                  {rows("SSS", record.sss, "text-blue-600")}
+                  {rows("PhilHealth", record.philhealth, "text-blue-600")}
+                  {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
+                  {rows("Withholding Tax", record.withholdingTax, "text-yellow-600")}
+                  {rows("Cash Advance", record.cashAdvance, "text-yellow-600")}
+                  <div className="flex justify-between font-bold border-t pt-1 mt-1 text-sm">
+                    <span>TOTAL DEDUCTIONS:</span>
+                    <span className="text-red-600">-{fmt(record.totalDeductions)}</span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 className="font-bold text-sm mb-3">PAY SUMMARY</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between"><span>Gross Income:</span><span className="text-green-600 font-semibold">{fmt(record.grossIncome)}</span></div>
+                  <div className="flex justify-between"><span>Total Deductions:</span><span className="text-red-600 font-semibold">-{fmt(record.totalDeductions)}</span></div>
+                  <div className="bg-green-100 p-3 rounded font-bold flex justify-between">
+                    <span>Net Pay</span><span className="text-green-700">{fmt(record.netPay)}</span>
+                  </div>
+                  <div className="pt-2 border-t space-y-1 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500">Taxable Income:</span><span>{fmt(record.taxableIncome)}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Tax Rate:</span><span>0%</span></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Payslip Modal */}
-      {showPayslipModal && selectedPayslip && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto"
-          onClick={() => setShowPayslipModal(false)}
-        >
-          <div 
-            className="bg-white rounded-xl shadow-2xl max-w-3xl w-full my-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-xl font-bold text-gray-900">Payslip Preview</h3>
-              <button
-                onClick={() => setShowPayslipModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
+        <div className="flex gap-3 p-6 border-t bg-white">
+          <button onClick={onClose} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
+            <X size={16} /> Close
+          </button>
+          <button onClick={() => window.print()} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-semibold hover:bg-cyan-600">
+            <Printer size={16} /> Print
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-            {/* Payslip Content - Receipt Style */}
-            <div className="p-8 bg-gray-50" style={{ fontFamily: "Courier New, monospace" }}>
-              <div className="bg-white p-8 shadow-lg">
-                {/* Header */}
-                <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h2 className="text-xl font-bold mb-2">
-                      VTA LINK PRINTING SERVICES
-                    </h2>
-                    <div className="text-sm space-y-1">
-                      <p className="font-bold">BILLED TO:</p>
-                      <p>John Smith</p>
-                      <p>Phone No.: 0909-123-4567</p>
-                      <p>Cagniog, Surigao, Surigao Del Norte</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold mb-4">30 August 2025</p>
-                    <div className="text-sm space-y-1">
-                      <p className="font-bold">PAYABLE TO:</p>
-                      <p>ABC Bank</p>
-                      <p>Account Name: John Smith</p>
-                      <p>Account No.: 0909-123-4567</p>
-                    </div>
-                  </div>
-                </div>
+// ─── Biometrics Upload Button ─────────────────────────────────────────────────
+function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [err, setErr] = useState("");
 
-                {/* Employee Info and Earnings */}
-                <div className="grid grid-cols-2 gap-8 mb-8">
-                  <div>
-                    <h3 className="font-bold text-sm mb-3">EMPLOYEE INFORMATION</h3>
-                    <div className="space-y-1 text-sm">
-                      <p>Name: {selectedPayslip.name}</p>
-                      <p>Department: {selectedPayslip.department}</p>
-                      <p>Position: {selectedPayslip.position}</p>
-                      <p>Daily Rate: ₱{selectedPayslip.dailyRate}</p>
-                      <p>Days Present: {selectedPayslip.daysPresent} days</p>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm mb-3">EARNINGS BREAKDOWN</h3>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span>Basic Pay:</span>
-                        <span>₱{selectedPayslip.basicPay.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Regular Holiday Pay:</span>
-                        <span>₱{selectedPayslip.regularHolidayPay.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Special Holiday Pay:</span>
-                        <span>₱{selectedPayslip.specialHolidayPay.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Regular OT:</span>
-                        <span>₱{selectedPayslip.regularOvertime.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Holiday OT:</span>
-                        <span>₱{selectedPayslip.holidayOvertime.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Special Holiday OT:</span>
-                        <span>₱{selectedPayslip.specialOvertime.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between font-bold border-t pt-1 mt-1">
-                        <span>GROSS INCOME:</span>
-                        <span>₱{selectedPayslip.grossIncome.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.name.match(/\.(xls|xlsx)$/i)) { setErr("Only .xls or .xlsx files accepted."); return; }
 
-                {/* Deductions and Pay Summary */}
-                <div className="grid grid-cols-2 gap-8">
-                  <div>
-                    <h3 className="font-bold text-sm mb-3">DEDUCTIONS BREAKDOWN</h3>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <p className="font-bold text-xs mb-1">Time-Based deductions</p>
-                        <div className="flex justify-between pl-2">
-                          <span>Undertime(1h):</span>
-                          <span>₱{selectedPayslip.undertimeDeductions.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between pl-2">
-                          <span>Tardy Deduction(0.5h):</span>
-                          <span>₱{selectedPayslip.tardyDeductions.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs mb-1">Government Contributions:</p>
-                        <div className="flex justify-between pl-2">
-                          <span>PhilHealth:</span>
-                          <span>₱{selectedPayslip.philhealth.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between pl-2">
-                          <span>HDMF:</span>
-                          <span>₱{selectedPayslip.hdmf.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="font-bold text-xs mb-1">Other Deductions</p>
-                        <div className="flex justify-between pl-2">
-                          <span>Cash Advance:</span>
-                          <span>₱{selectedPayslip.cashAdvance.toLocaleString()}</span>
-                        </div>
-                        <div className="flex justify-between pl-2">
-                          <span>Withholding Tax:</span>
-                          <span>₱{selectedPayslip.withholdingTax.toLocaleString()}</span>
-                        </div>
-                      </div>
-                      <div className="flex justify-between font-bold border-t pt-1 mt-1">
-                        <span>GROSS INCOME:</span>
-                        <span>₱{selectedPayslip.totalDeductions.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm mb-3">PAY SUMMARY</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Gross Income:</span>
-                        <span className="text-green-600">
-                          ₱{selectedPayslip.grossIncome.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Total Deductions:</span>
-                        <span className="text-red-600">
-                          -₱{selectedPayslip.totalDeductions.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="bg-green-100 p-3 rounded font-bold flex justify-between">
-                        <span>Net Pay</span>
-                        <span className="text-green-700">
-                          ₱{selectedPayslip.netPay.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+    setUploading(true); setErr(""); setResult(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Not authenticated");
 
-            {/* Modal Footer */}
-            <div className="flex gap-3 p-6 border-t bg-white">
-              <button
-                onClick={() => handleDownloadPayslip({ id: selectedPayslip.employeeId } as Employee)}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                <Download size={16} />
-                Download PDF
-              </button>
-              <button
-                onClick={handlePrintPayslip}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-cyan-500 text-white rounded-lg text-sm font-semibold hover:bg-cyan-600"
-              >
-                <Printer size={16} />
-                Print
-              </button>
-            </div>
-          </div>
+      const formData = new FormData();
+      formData.append("attendance_file", file);
+
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/api/payroll/upload-attendance`,
+        { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body: formData }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Upload failed");
+      setResult(json);
+      onSuccess();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={handleFile} />
+      <button onClick={() => inputRef.current?.click()} disabled={uploading}
+        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors">
+        <Upload size={16} className={uploading ? "animate-bounce" : ""} />
+        {uploading ? "Importing…" : "Import Biometrics (.xls)"}
+      </button>
+      {err && <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
+      {result && (
+        <div className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-1">
+          <p className="font-bold">✓ Import complete — {result.period?.start} to {result.period?.end}</p>
+          <p>{result.summary?.matched} employees matched · {result.summary?.syncedToAttendance} synced to payroll</p>
+          {result.summary?.unmatched > 0 && (
+            <p className="text-orange-600 font-semibold">
+              ⚠ {result.summary.unmatched} unmatched employee numbers: {result.summary.unmatchedEmployeeNos?.join(", ")}
+            </p>
+          )}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Payroll Management</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage employee payroll, attendance, and salary computations
-        </p>
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════════
+const AdminPayroll: React.FC = () => {
+  const [activeTab, setActiveTab]         = useState("Payroll Dashboard");
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [showPeriodDrop, setShowPeriodDrop] = useState(false);
+  const [showCreatePeriod, setShowCreatePeriod] = useState(false);
+  const [editingLog, setEditingLog]       = useState<AttendanceLog | null>(null);
+  const [viewingRecord, setViewingRecord] = useState<PayrollRecord | null>(null);
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
+
+  const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History"];
+
+  const {
+    periods, currentPeriod, activePeriodId, setSelectedPeriodId,
+    attendanceLogs, payrollRecords, dashboardStats,
+    loading, error, computing, refresh,
+    createPeriod, updateAttendanceLog, computePayroll,
+    updatePayrollRecord, markPeriodComplete, markAllPaid,
+  } = usePayrollData();
+
+  const filteredLogs = attendanceLogs.filter(l =>
+    l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    l.employeeCode.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredRecords = payrollRecords.filter(r =>
+    r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    r.employeeCode.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const toggleExpand = (id: string) => {
+    const s = new Set(expandedPeriods);
+    s.has(id) ? s.delete(id) : s.add(id);
+    setExpandedPeriods(s);
+  };
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (loading && periods.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Loading payroll data…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+
+      {/* ── Modals ── */}
+      {showCreatePeriod && (
+        <CreatePeriodModal onClose={() => setShowCreatePeriod(false)} onCreate={createPeriod} />
+      )}
+      {editingLog && activePeriodId && (
+        <AttendanceEditModal
+          log={editingLog} periodId={activePeriodId}
+          onClose={() => setEditingLog(null)}
+          onSave={async d => { const r = await updateAttendanceLog(d); return r; }}
+        />
+      )}
+      {viewingRecord && (
+        <PayslipModal record={viewingRecord} onClose={() => setViewingRecord(null)} />
+      )}
+
+      {/* ── Page Header ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Payroll Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage employee payroll, attendance, and salary computations</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button onClick={refresh} className="p-2 hover:bg-gray-100 rounded-lg" title="Refresh">
+            <RefreshCw size={18} className={`text-gray-600 ${loading ? "animate-spin" : ""}`} />
+          </button>
+          <button onClick={() => setShowCreatePeriod(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold shadow-sm">
+            <Plus size={16} /> New Period
+          </button>
+        </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {payrollTabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActivePayrollTab(tab)}
-            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${
-              activePayrollTab === tab
-                ? "bg-cyan-500 text-white shadow-md"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
+      {/* ── Period Selector ── */}
+      {periods.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-gray-700">Active Period:</span>
+          <div className="relative">
+            <button onClick={() => setShowPeriodDrop(v => !v)}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 hover:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-[240px]">
+              {currentPeriod ? periodLabel(currentPeriod) : "Select a period"}
+              <ChevronDown size={16} className="ml-auto" />
+            </button>
+            {showPeriodDrop && (
+              <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-20 overflow-hidden">
+                {periods.map(p => (
+                  <button key={p.id} onClick={() => { setSelectedPeriodId(p.id); setShowPeriodDrop(false); }}
+                    className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${p.id === activePeriodId ? "bg-cyan-50 font-semibold text-cyan-700" : ""}`}>
+                    {periodLabel(p)}
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${p.status === "complete" ? "bg-green-100 text-green-700" : p.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
+                      {p.status}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {currentPeriod && (
+            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${currentPeriod.status === "complete" ? "bg-green-100 text-green-700" : currentPeriod.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
+              {currentPeriod.status.charAt(0).toUpperCase() + currentPeriod.status.slice(1)}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* ── Empty state ── */}
+      {periods.length === 0 && (
+        <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
+          <Calendar size={40} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-500 font-medium mb-4">No payroll periods yet</p>
+          <button onClick={() => setShowCreatePeriod(true)}
+            className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold">
+            Create First Period
+          </button>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{error}</div>
+      )}
+
+      {/* ── Tab Navigation ── */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {tabs.map(tab => (
+          <button key={tab} onClick={() => setActiveTab(tab)}
+            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
             {tab}
           </button>
         ))}
       </div>
 
-      {/* PAYROLL DASHBOARD TAB */}
-      {activePayrollTab === "Payroll Dashboard" && (
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB: PAYROLL DASHBOARD
+      ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "Payroll Dashboard" && (
         <div className="space-y-6">
-          {/* Payroll Overview Card with Description */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                Payroll Dashboard
-              </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                Used to manage and track employee payroll, attendance, and salary computations. Updated for every payroll period.
-              </p>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Top Buttons and Filters:</strong>
-              </p>
-              <ul className="text-xs text-gray-500 list-disc ml-5 mt-1">
-                <li>Payroll Dashboard – Main overview of payroll metrics</li>
-                <li>Attendance Logs – Track attendance records</li>
-                <li>Salary Computation – Compute salaries for the period</li>
-                <li>Salary History – View past payroll data</li>
-              </ul>
-            </div>
-            
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div>
-                <p className="text-xs text-gray-400">
-                  Current Period: June 1-15, 2025
-                </p>
-                <p className="text-xs text-gray-400">
-                  Last Updated: September 5, 2025
-                </p>
-              </div>
-              <button
-                onClick={handleExportReports}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <Download size={16} />
-                Export Reports
-              </button>
-            </div>
-          </div>
-
-          {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                Total Employees
-              </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">8</p>
-              <p className="text-xs text-gray-400">Active Payroll</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                Gross Payroll
-              </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">₱125,450</p>
-              <p className="text-xs text-gray-400">Current Period</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                Net Payroll
-              </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">₱98,760</p>
-              <p className="text-xs text-gray-400">After deductions</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                Total Deductions
-              </h3>
-              <p className="text-3xl font-bold text-gray-900 mb-1">₱26,690</p>
-              <p className="text-xs text-gray-400">Taxes & benefits</p>
-            </div>
+            <StatCard label="Total Employees" value={String(dashboardStats.totalEmployees)} sub="In this period" />
+            <StatCard label="Gross Payroll" value={fmt(dashboardStats.grossPayroll)} sub="Current period" color="text-blue-600" />
+            <StatCard label="Net Payroll" value={fmt(dashboardStats.netPayroll)} sub="After deductions" color="text-green-600" />
+            <StatCard label="Total Deductions" value={fmt(dashboardStats.totalDeductions)} sub="Taxes & benefits" color="text-red-500" />
           </div>
 
-          {/* Bottom Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Payroll Breakdown */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-5">
-                Recent Updates
-              </h3>
-              <div className="space-y-4">
-                {recentUpdates.map((update, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleUpdateClick(update.targetTab)}
-                    className="w-full flex items-start gap-4 pb-4 border-b border-gray-100 last:border-0 last:pb-0 hover:bg-gray-50 p-2 rounded-lg transition-colors text-left"
-                  >
-                    <div className="flex-shrink-0 mt-1">
-                      <update.icon
-                        size={20}
-                        className="text-gray-600"
-                        strokeWidth={2}
-                      />
+              <h3 className="text-lg font-bold text-gray-900 mb-5">Payroll Breakdown</h3>
+              {payrollRecords.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-gray-400 mb-3">No payroll computed yet for this period.</p>
+                  {attendanceLogs.length > 0 && (
+                    <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing}
+                      className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                      {computing ? "Computing…" : "Compute Payroll"}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {[
+                    { label: "Basic Pay", val: payrollRecords.reduce((s, r) => s + r.basicPay, 0) },
+                    { label: "OT & Holiday Pay", val: payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0) },
+                    { label: "Total Deductions", val: payrollRecords.reduce((s, r) => s + r.totalDeductions, 0), isDeduction: true },
+                  ].map(({ label, val, isDeduction }) => (
+                    <div key={label} className="flex items-center justify-between px-4 py-3 rounded-lg bg-gray-50">
+                      <span className="text-sm font-semibold text-gray-700">{label}</span>
+                      <span className={`text-sm font-bold ${isDeduction ? "text-red-600" : "text-gray-900"}`}>
+                        {isDeduction ? "-" : ""}{fmt(val)}
+                      </span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 mb-0.5">
-                        {update.title}
-                      </p>
-                      <p className="text-xs text-gray-500 mb-2">
-                        {update.subtitle}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded ${update.badgeColor}`}
-                        >
-                          {update.badge}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {update.timestamp}
-                        </span>
-                      </div>
+                  ))}
+                  <div className="flex items-center justify-between px-4 py-4 rounded-lg bg-green-200 border-2 border-green-300">
+                    <span className="text-base font-bold text-green-900">Net Payroll</span>
+                    <span className="text-lg font-black text-green-900">{fmt(dashboardStats.netPayroll)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-900 mb-5">Quick Actions</h3>
+              <div className="space-y-3">
+                {[
+                  { icon: RefreshCw, color: "text-blue-600", bg: "hover:bg-blue-50 hover:border-blue-300", label: "Compute Payroll", sub: "Auto-calculate salaries from attendance logs", action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 },
+                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid", sub: "Mark all payroll records as disbursed", action: () => activePeriodId && markAllPaid(activePeriodId), disabled: !activePeriodId || payrollRecords.length === 0 },
+                  { icon: Calendar, color: "text-purple-600", bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period", sub: "Mark this payroll period as complete", action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || currentPeriod?.status === "complete" },
+                ].map(({ icon: Icon, color, bg, label, sub, action, disabled }) => (
+                  <button key={label} onClick={action} disabled={disabled}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 ${bg} transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed`}>
+                    <Icon size={18} className={color} />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{label}</p>
+                      <p className="text-xs text-gray-500">{sub}</p>
                     </div>
                   </button>
                 ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-gray-900 mb-5">
-                Payroll Breakdown
-              </h3>
-              <div className="space-y-3">
-                {payrollBreakdown.map((item, index) => (
-                  <div
-                    key={index}
-                    className={`flex items-center justify-between px-4 py-3 rounded-lg ${
-                      item.label === "Net Payroll"
-                        ? "bg-green-100"
-                        : "bg-gray-50"
-                    }`}
-                  >
-                    <span
-                      className={`text-sm font-semibold ${
-                        item.label === "Net Payroll"
-                          ? "text-green-900"
-                          : "text-gray-700"
-                      }`}
-                    >
-                      {item.label}
-                    </span>
-                    <span
-                      className={`text-sm font-bold ${
-                        item.label === "Net Payroll"
-                          ? "text-green-900"
-                          : item.isDeduction
-                          ? "text-red-600"
-                          : "text-gray-900"
-                      }`}
-                    >
-                      {item.amount}
-                    </span>
-                  </div>
-                ))}
-                <div className="flex items-center justify-between px-4 py-4 rounded-lg bg-green-200 border-2 border-green-300 mt-4">
-                  <span className="text-base font-bold text-green-900">
-                    Net Payroll
-                  </span>
-                  <span className="text-lg font-black text-green-900">
-                    ₱98,760
-                  </span>
-                </div>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ATTENDANCE LOGS TAB */}
-      {activePayrollTab === "Attendance Logs" && (
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB: ATTENDANCE LOGS
+      ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "Attendance Logs" && (
         <div className="space-y-6">
-          {/* Header Card with Description */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                Attendance Logs
-              </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                Used to track and manage employee attendance records, updated every 15 days.
-              </p>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Top Buttons and Filters:</strong>
-              </p>
-              <ul className="text-xs text-gray-500 list-disc ml-5 mt-1">
-                <li>Import Biometrics – Upload attendance logs via biometric system</li>
-                <li>Search – Search by employee name or ID</li>
-                <li>Select Period – Current or Previous</li>
-                <li>Departments – Filters which department</li>
-              </ul>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Table Columns:</strong> First Name | Last Name | Role | Worked hrs. (Actual/Required) | Late (Times/Min) | Early Leave (Times/Min) | Overtime (Regular/Special) | Business Trip | Absence | On Leave | Additional Pay | Deduction | Actual Pay | Actions
-              </p>
-            </div>
-            
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div>
-                <p className="text-xs text-gray-400">
-                  Date: 2025/06/01 - 06/30
-                </p>
-                <p className="text-xs text-gray-400">
-                  Total Records: 8 employees
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleImportBiometrics}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <Upload size={16} />
-                  Import Biometrics
-                </button>
-                <button
-                  onClick={handlePrintReport}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <Printer size={16} />
-                  Print Report
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Search and Filters */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-1 relative">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
-                <input
-                  type="text"
-                  placeholder="Search by name or department..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input type="text" placeholder="Search by name or code…" value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
-              
-              {/* Department Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setShowDepartmentDropdown(!showDepartmentDropdown);
-                    setShowPeriodDropdown(false);
-                  }}
-                  className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[180px]"
-                >
-                  <span>{selectedDepartment}</span>
-                  <ChevronDown size={16} />
-                </button>
-                {showDepartmentDropdown && (
-                  <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-10 overflow-hidden">
-                    {departments.map((dept) => (
-                      <button
-                        key={dept}
-                        onClick={() => {
-                          setSelectedDepartment(dept);
-                          setShowDepartmentDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedDepartment === dept ? "bg-gray-50 font-semibold" : ""
-                        }`}
-                      >
-                        {dept}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Period Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => {
-                    setShowPeriodDropdown(!showPeriodDropdown);
-                    setShowDepartmentDropdown(false);
-                  }}
-                  className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center justify-between gap-2 min-w-[150px]"
-                >
-                  <span>{selectedPeriod}</span>
-                  <ChevronDown size={16} />
-                </button>
-                {showPeriodDropdown && (
-                  <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-10 overflow-hidden">
-                    {periods.map((period) => (
-                      <button
-                        key={period}
-                        onClick={() => {
-                          setSelectedPeriod(period);
-                          setShowPeriodDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
-                        }`}
-                      >
-                        {period}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <BiometricsUploadButton onSuccess={refresh} />
+              <button onClick={() => window.print()}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                <Printer size={16} /> Print
+              </button>
             </div>
           </div>
 
-          {/* Attendance Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                      First Name
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Last Name
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Role
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      <div>Worked hrs.</div>
-                      <div className="text-xs text-gray-500 font-normal">
-                        (Actual/Expected)
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      <div>Late</div>
-                      <div className="text-xs text-gray-500 font-normal">
-                        (Timeslots)
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      <div>Early Leave</div>
-                      <div className="text-xs text-gray-500 font-normal">
-                        (Timeslots)
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      <div>Overtime</div>
-                      <div className="text-xs text-gray-500 font-normal">
-                        (Regular/Holiday)
-                      </div>
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Business Trip
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Absence
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      On Leave
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Additional Pay
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Deduction
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Actual Pay
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Actions
-                    </th>
+                    {["Employee", "Position", "Worked Hrs", "Daily Rate", "Late", "Early Leave", "OT (R/H/S)", "Biz Trip", "Absent", "On Leave", "Add. Pay", "Deduction", "Actions"].map(h => (
+                      <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredAttendanceData.map((employee) => (
-                    <tr key={employee.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-900">
-                        {employee.firstName}
-                      </td>
-                      <td className="px-4 py-3 text-gray-900">
-                        {employee.lastName}
-                      </td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {employee.role}
-                      </td>
+                  {filteredLogs.length === 0 ? (
+                    <tr><td colSpan={13} className="text-center py-12 text-gray-400 text-sm">
+                      {attendanceLogs.length === 0
+                        ? 'No data yet. Import a biometrics .xls file to populate attendance.'
+                        : "No results match your search."}
+                    </td></tr>
+                  ) : filteredLogs.map(log => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{log.fullName}</td>
+                      <td className="px-4 py-3 text-gray-500 text-xs">{log.position}</td>
                       <td className="px-4 py-3 text-center">
-                        <div className="font-semibold text-gray-900">
-                          {employee.workedHrs}
-                        </div>
-                        <div className="text-xs text-gray-500">160h</div>
+                        <span className="font-semibold">{log.workedHours}</span>
+                        <span className="text-xs text-gray-400 block">{log.requiredHours}h req.</span>
                       </td>
+                      <td className="px-4 py-3 text-center text-xs">{fmt(log.dailyRate)}</td>
+                      <td className="px-4 py-3 text-center">{log.lateTimeslots}<span className="text-xs text-gray-400 block">×30m</span></td>
+                      <td className="px-4 py-3 text-center">{log.earlyLeaveTimeslots}<span className="text-xs text-gray-400 block">×30m</span></td>
+                      <td className="px-4 py-3 text-center text-xs whitespace-nowrap">{log.regularOvertimeHours}h / {log.holidayOvertimeHours}h / {log.specialOvertimeHours}h</td>
+                      <td className="px-4 py-3 text-center">{log.businessTripDays}</td>
+                      <td className="px-4 py-3 text-center">{log.absences}</td>
+                      <td className="px-4 py-3 text-center">{log.onLeaveDays}</td>
+                      <td className="px-4 py-3 text-center text-green-700 text-xs">{fmt(log.additionalPay)}</td>
+                      <td className="px-4 py-3 text-center text-red-600 text-xs">{fmt(log.deductionAmount)}</td>
                       <td className="px-4 py-3 text-center">
-                        <div className="font-semibold text-gray-900">
-                          {employee.lateTimeslots}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {employee.lateTimeslots > 0 ? "x30m" : "-"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="font-semibold text-gray-900">
-                          {employee.earlyLeaveTimeslots}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {employee.earlyLeaveTimeslots > 0 ? "x30m" : "-"}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="font-semibold text-gray-900">
-                          {employee.overtimeHrs}h
-                        </div>
-                        <div className="text-xs text-gray-500">8h / 0h</div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.businessTrip}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.absence}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.onLeave}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        ₱{employee.additionalPay.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-900">
-                        {employee.deduction}
-                      </td>
-                      <td className="px-4 py-3 text-center font-semibold text-gray-900">
-                        ₱{employee.actualPay.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => handleViewEmployeeInAttendance(employee.id)}
-                          className="p-1.5 hover:bg-cyan-100 rounded-lg transition-colors"
-                          title="View in Salary Computation"
-                        >
-                          <Eye size={18} className="text-cyan-600" />
+                        <button onClick={() => setEditingLog(log)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="Edit">
+                          <Edit2 size={16} className="text-cyan-600" />
                         </button>
                       </td>
                     </tr>
@@ -1212,692 +600,236 @@ const AdminPayroll: React.FC = () => {
             </div>
           </div>
 
-          {/* Summary Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-blue-600 mb-2">1276</p>
-              <p className="text-sm text-gray-600">Total Work Hours</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-green-600 mb-2">108</p>
-              <p className="text-sm text-gray-600">Total Overtime Hours</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-red-600 mb-2">4</p>
-              <p className="text-sm text-gray-600">Total Absences</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-gray-900 mb-2">
-                ₱132,650
-              </p>
-              <p className="text-sm text-gray-600">Total Actual Pay</p>
-            </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Total Work Hours" value={String(dashboardStats.totalWorkHours)} color="text-blue-600" />
+            <StatCard label="Total OT Hours" value={String(dashboardStats.totalOvertimeHours)} color="text-green-600" />
+            <StatCard label="Total Absences" value={String(dashboardStats.totalAbsences)} color="text-red-500" />
+            <StatCard label="Employees Tracked" value={String(attendanceLogs.length)} />
           </div>
         </div>
       )}
 
-      {/* SALARY COMPUTATION TAB */}
-      {activePayrollTab === "Salary Computation" && (
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB: SALARY COMPUTATION
+      ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "Salary Computation" && (
         <div className="space-y-6">
-          {/* Header Card with Description */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                Salary Computation
-              </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                This tab is used to calculate employee salaries based on configured rules and attendance.
-              </p>
-              <p className="text-xs text-gray-500 mt-3">
-                <strong>Export Options:</strong>
-              </p>
-              <ul className="text-xs text-gray-500 list-disc ml-5 mt-1">
-                <li>Print Payslip</li>
-                <li>Send to Employee Emails</li>
-                <li>Export PDF</li>
-              </ul>
-            </div>
-            
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div>
-                <p className="text-xs text-gray-400">
-                  Period: June 1-15, 2025
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleSendEmail}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <Mail size={16} />
-                  Send to Email
-                </button>
-                <button
-                  onClick={handlePrintPayslip}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <Printer size={16} />
-                  Print Payslip
-                </button>
-                <button
-                  onClick={handleExportAll}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <Download size={16} />
-                  Export PDF
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Search and Filter */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div className="flex gap-3">
+            <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-1 relative">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
-                <input
-                  type="text"
-                  placeholder="Search by name or department..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input type="text" placeholder="Search employee…" value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
-              <div className="relative">
-                <button
-                  onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center gap-2 min-w-[150px]"
-                >
-                  <span>{selectedPeriod}</span>
-                  <ChevronDown size={16} />
-                </button>
-                {showPeriodDropdown && (
-                  <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-10 overflow-hidden">
-                    {periods.map((period) => (
-                      <button
-                        key={period}
-                        onClick={() => {
-                          setSelectedPeriod(period);
-                          setShowPeriodDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
-                        }`}
-                      >
-                        {period}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <button onClick={() => activePeriodId && computePayroll(activePeriodId)}
+                disabled={computing || attendanceLogs.length === 0 || !activePeriodId}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                <RefreshCw size={16} className={computing ? "animate-spin" : ""} />
+                {computing ? "Computing…" : "Recompute All"}
+              </button>
+              <button onClick={() => window.print()}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                <Printer size={16} /> Print All
+              </button>
             </div>
           </div>
 
-          {/* Computation Details Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Employee Information */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4 pb-2 border-b">
-                <h3 className="text-base font-bold text-gray-900">
-                  EMPLOYEE INFORMATION
-                </h3>
-                <button
-                  onClick={() => handleEditDailyRate(salaryComputationData)}
-                  className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Edit Daily Rate"
-                >
-                  <Edit2 size={16} className="text-gray-600" />
-                </button>
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Employee ID:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.employeeId}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Name:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.name}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Department:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.department}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Position:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.position}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Daily Rate:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.dailyRate}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Days Present:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {salaryComputationData.daysPresent} Days
-                  </span>
-                </div>
-              </div>
+          {payrollRecords.length === 0 ? (
+            <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
+              <AlertCircle size={36} className="mx-auto text-gray-300 mb-3" />
+              <p className="text-gray-500 font-medium mb-1">No payroll computed yet</p>
+              <p className="text-sm text-gray-400 mb-4">Add employees with attendance logs first, then compute.</p>
+              <button onClick={() => activePeriodId && computePayroll(activePeriodId)}
+                disabled={computing || attendanceLogs.length === 0}
+                className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                {computing ? "Computing…" : "Compute Payroll Now"}
+              </button>
             </div>
-
-            {/* Earnings Breakdown */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
-                EARNINGS BREAKDOWN
-              </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Basic Pay:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.basicPay.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Regular Holiday Pay:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.regularHolidayPay.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Special Holiday Pay:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.specialHolidayPay.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Regular Overtime:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.regularOvertime.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Holiday Overtime:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.holidayOvertime.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">
-                    Special Overtime:
-                  </span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{salaryComputationData.specialOvertime.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-3 border-t">
-                  <span className="text-sm font-bold text-gray-900">
-                    Gross Income:
-                  </span>
-                  <span className="text-sm font-bold text-green-600">
-                    ₱{salaryComputationData.grossIncome.toLocaleString()}
-                  </span>
+          ) : (
+            <>
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        {["Employee", "Position", "Daily Rate", "Days", "Basic Pay", "OT Pay", "Gross", "Deductions", "Net Pay", "Status", "Actions"].map(h => (
+                          <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filteredRecords.map(rec => (
+                        <tr key={rec.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{rec.employeeName}</td>
+                          <td className="px-4 py-3 text-gray-500 text-xs">{rec.position}</td>
+                          <td className="px-4 py-3 text-xs">{fmt(rec.dailyRate)}</td>
+                          <td className="px-4 py-3 text-center">{rec.daysPresent}</td>
+                          <td className="px-4 py-3 text-xs">{fmt(rec.basicPay)}</td>
+                          <td className="px-4 py-3 text-xs">{fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td>
+                          <td className="px-4 py-3 font-semibold text-blue-700 text-xs">{fmt(rec.grossIncome)}</td>
+                          <td className="px-4 py-3 text-red-600 text-xs">-{fmt(rec.totalDeductions)}</td>
+                          <td className="px-4 py-3 font-bold text-green-700 text-xs">{fmt(rec.netPay)}</td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                              {rec.status === "paid" ? "Paid" : "Pending"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => setViewingRecord(rec)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View payslip">
+                                <Eye size={15} className="text-cyan-600" />
+                              </button>
+                              {rec.status !== "paid" && (
+                                <button onClick={() => updatePayrollRecord(rec.id, { status: "paid" })}
+                                  className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid">
+                                  <CheckCircle2 size={15} className="text-green-600" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            </div>
 
-            {/* Deductions Breakdown */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
-                DEDUCTIONS BREAKDOWN
-              </h3>
-              <div className="space-y-3">
-                <div className="bg-red-50 px-3 py-2 rounded">
-                  <p className="text-xs font-semibold text-red-900 mb-2">
-                    Time-based Deductions
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Tardy to Work (1h):</span>
-                      <span className="text-red-600 font-semibold">
-                        ₱{salaryComputationData.tardyDeductions.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Under time (1h):</span>
-                      <span className="text-red-600 font-semibold">
-                        ₱
-                        {salaryComputationData.undertimeDeductions.toLocaleString()}
-                      </span>
-                    </div>
+              {/* Formula reference */}
+              <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                <h3 className="text-base font-bold text-gray-900 mb-4">Computation Formulas</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Earnings:</p>
+                    <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                      <li>Basic Pay = Daily Rate × Days Present</li>
+                      <li>Regular Holiday = Daily Rate × 200%</li>
+                      <li>Special Holiday = Daily Rate × 130%</li>
+                      <li>Regular OT = Hourly Rate × 125%</li>
+                      <li>Holiday OT = Hourly Rate × 130%</li>
+                      <li>Special OT = Hourly Rate × 195%</li>
+                    </ul>
                   </div>
-                </div>
-
-                <div className="bg-blue-50 px-3 py-2 rounded">
-                  <p className="text-xs font-semibold text-blue-900 mb-2">
-                    Government Contributions
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">SSS:</span>
-                      <span className="text-blue-600 font-semibold">
-                        ₱{salaryComputationData.sss.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">PhilHealth:</span>
-                      <span className="text-blue-600 font-semibold">
-                        ₱{salaryComputationData.philhealth.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">HDMF (Pag-IBIG):</span>
-                      <span className="text-blue-600 font-semibold">
-                        ₱{salaryComputationData.hdmf.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-yellow-50 px-3 py-2 rounded">
-                  <p className="text-xs font-semibold text-yellow-900 mb-2">
-                    Other Deductions
-                  </p>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Withholding Tax:</span>
-                      <span className="text-yellow-600 font-semibold">₱0</span>
-                    </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-gray-600">Cash Advance:</span>
-                      <span className="text-yellow-600 font-semibold">
-                        ₱{salaryComputationData.cashAdvance.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between pt-3 border-t">
-                  <span className="text-sm font-bold text-gray-900">
-                    Total Deductions:
-                  </span>
-                  <span className="text-sm font-bold text-red-600">
-                    -₱{salaryComputationData.totalDeductions.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Pay Summary */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-              <h3 className="text-base font-bold text-gray-900 mb-4 pb-2 border-b">
-                PAY SUMMARY
-              </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-gray-900">
-                    Gross Income:
-                  </span>
-                  <span className="text-sm font-bold text-green-600">
-                    ₱{salaryComputationData.grossIncome.toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm font-semibold text-gray-900">
-                    Total Deductions:
-                  </span>
-                  <span className="text-sm font-bold text-red-600">
-                    -₱{salaryComputationData.totalDeductions.toLocaleString()}
-                  </span>
-                </div>
-                <div className="bg-green-100 px-4 py-4 rounded-lg flex justify-between items-center">
-                  <span className="text-base font-bold text-green-900">
-                    NET PAY:
-                  </span>
-                  <span className="text-xl font-black text-green-900">
-                    ₱{salaryComputationData.netPay.toLocaleString()}
-                  </span>
-                </div>
-
-                <div className="pt-4 border-t space-y-2">
-                  <p className="text-xs font-semibold text-gray-700">
-                    Tax Information
-                  </p>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-600">Taxable Income:</span>
-                    <span className="text-gray-900 font-semibold">
-                      ₱{salaryComputationData.taxableIncome.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-gray-600">Tax Rate Applied:</span>
-                    <span className="text-gray-900 font-semibold">
-                      {salaryComputationData.taxRateApplied}
-                    </span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Deductions:</p>
+                    <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                      <li>Tardy/Undertime = (Daily Rate ÷ 8) × 0.5h per timeslot</li>
+                      <li>PhilHealth = ₱200 (Fixed)</li>
+                      <li>HDMF = ₱200 (Fixed)</li>
+                      <li>SSS = Based on salary bracket</li>
+                      <li>Cash Advance from attendance deduction field</li>
+                    </ul>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Computation Formulas */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <h3 className="text-base font-bold text-gray-900 mb-4">
-              COMPUTATION FORMULAS
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <p className="text-sm font-semibold text-gray-700 mb-2">
-                  Earnings:
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
-                  <li>Basic Pay = Daily Rate × Days Present</li>
-                  <li>Regular Holiday = Daily Rate × 200%</li>
-                  <li>Special Holiday = Daily Rate × 130%</li>
-                  <li>Regular Overtime = Hourly Rate × 125%</li>
-                  <li>Holiday Overtime = Hourly Rate × 130%</li>
-                  <li>Special Overtime = Hourly Rate × 195%</li>
-                </ul>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-700 mb-2">
-                  Deductions:
-                </p>
-                <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
-                  <li>Tardy/Undertime = (Daily Rate ÷ 8) × Hours</li>
-                  <li>PhilHealth = ₱200 (Fixed Rate)</li>
-                  <li>HDMF = ₱200 (Fixed Rate)</li>
-                  <li>SSS = Based on salary bracket</li>
-                  <li>Withholding Tax = Based on tax table</li>
-                  <li>Cash Advance = Max ₱2,000 per period</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 
-      {/* SALARY HISTORY TAB */}
-      {activePayrollTab === "Salary History" && (
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB: SALARY HISTORY
+      ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "Salary History" && (
         <div className="space-y-6">
-          {/* Header Card with Description */}
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                Salary History
-              </h2>
-              <p className="text-sm text-gray-700 mb-2">
-                A searchable archive of previous salary records for all employees.
-              </p>
-            </div>
-            
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div>
-                <p className="text-xs text-gray-400">
-                  Total Periods: 3 | Total Records: 24
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleExportHistory}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <Download size={16} />
-                  Export History
-                </button>
-                <button
-                  onClick={handlePrintHistory}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  <Printer size={16} />
-                  Print History
-                </button>
-              </div>
-            </div>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">{periods.length} payroll period{periods.length !== 1 ? "s" : ""} total</p>
+            <button onClick={() => window.print()}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
+              <Printer size={16} /> Print History
+            </button>
           </div>
 
-          {/* Search and Filter */}
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div className="flex gap-3">
-              <div className="flex-1 relative">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={18}
-                />
-                <input
-                  type="text"
-                  placeholder="Search by name or ID..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-              <div className="relative">
-                <button
-                  onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white flex items-center gap-2 min-w-[150px]"
-                >
-                  <span>{selectedPeriod}</span>
-                  <ChevronDown size={16} />
-                </button>
-                {showPeriodDropdown && (
-                  <div className="absolute top-full mt-1 right-0 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-10 overflow-hidden">
-                    {periods.map((period) => (
-                      <button
-                        key={period}
-                        onClick={() => {
-                          setSelectedPeriod(period);
-                          setShowPeriodDropdown(false);
-                        }}
-                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
-                          selectedPeriod === period ? "bg-gray-50 font-semibold" : ""
-                        }`}
-                      >
-                        {period}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+          {periods.length === 0 ? (
+            <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
+              <Clock size={36} className="mx-auto text-gray-300 mb-3" />
+              <p className="text-gray-500">No payroll periods found.</p>
             </div>
-          </div>
-
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-blue-600 mb-2">₱386,500</p>
-              <p className="text-sm text-gray-600">Total Gross Income</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-red-600 mb-2">₱77,260</p>
-              <p className="text-sm text-gray-600">Total Deductions</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-green-600 mb-2">₱280,240</p>
-              <p className="text-sm text-gray-600">Total Net Pay</p>
-            </div>
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm text-center">
-              <p className="text-3xl font-bold text-gray-900 mb-2">24</p>
-              <p className="text-sm text-gray-600">Total Employee Records</p>
-            </div>
-          </div>
-
-          {/* Payroll Records */}
-          <div className="space-y-4">
-            {payrollHistory.map((record) => {
-              const isExpanded = expandedPayrollRecords.has(record.id);
-              
-              return (
-                <div
-                  key={record.id}
-                  className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-                >
-                  {/* Period Header */}
-                  <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Calendar size={20} className="text-gray-600" />
-                      <div>
-                        <p className="text-sm font-bold text-gray-900">
-                          {record.date}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          Pay Date: {record.payDate}
-                        </p>
+          ) : (
+            <div className="space-y-4">
+              {periods.map(period => {
+                const isExpanded = expandedPeriods.has(period.id);
+                // Get records for this specific period from the currently loaded ones
+                // (full history would need a separate query — shown as period summary)
+                return (
+                  <div key={period.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Calendar size={20} className="text-gray-500" />
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">{periodLabel(period)}</p>
+                          {period.payDate && (
+                            <p className="text-xs text-gray-500">Pay Date: {new Date(period.payDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</p>
+                          )}
+                          <p className="text-xs text-gray-400">Created: {period.createdAt}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${period.status === "complete" ? "bg-green-100 text-green-700" : period.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
+                          {period.status.charAt(0).toUpperCase() + period.status.slice(1)}
+                        </span>
+                        <button onClick={() => { setSelectedPeriodId(period.id); setActiveTab("Salary Computation"); }}
+                          className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View computation">
+                          <Eye size={18} className="text-cyan-600" />
+                        </button>
+                        <button onClick={() => toggleExpand(period.id)}
+                          className="p-1.5 hover:bg-gray-200 rounded-lg">
+                          {isExpanded ? <ChevronUp size={18} className="text-gray-600" /> : <ChevronDown size={18} className="text-gray-600" />}
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                        {record.status}
-                      </span>
-                      <button
-                        onClick={() => togglePayrollRecordExpansion(record.id)}
-                        className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                        title={isExpanded ? "Collapse" : "Expand"}
-                      >
-                        {isExpanded ? (
-                          <ChevronUp size={18} className="text-gray-600" />
-                        ) : (
-                          <Eye size={18} className="text-gray-600" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
 
-                  {/* Summary Grid */}
-                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <div className="grid grid-cols-4 gap-4">
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Employees</p>
-                        <p className="text-sm font-bold text-gray-900">
-                          {record.employees}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">
-                          Gross Income
-                        </p>
-                        <p className="text-sm font-bold text-blue-600">
-                          ₱{record.grossIncome.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Deductions</p>
-                        <p className="text-sm font-bold text-red-600">
-                          ₱{record.deductions.toLocaleString()}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Net Pay</p>
-                        <p className="text-sm font-bold text-green-600">
-                          ₱{record.netPay.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Employee Payslips Table - Only show when expanded */}
-                  {isExpanded && (
-                    <div className="p-6">
-                      <h4 className="text-sm font-bold text-gray-900 mb-3">
-                        Individual Employee Payslips
-                      </h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                                EMPLOYEE
-                              </th>
-                              <th className="px-3 py-2 text-left font-semibold text-gray-700">
-                                DEPARTMENT
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                                GROSS INCOME
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                                DEDUCTIONS
-                              </th>
-                              <th className="px-3 py-2 text-right font-semibold text-gray-700">
-                                NET PAY
-                              </th>
-                              <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                                STATUS
-                              </th>
-                              <th className="px-3 py-2 text-center font-semibold text-gray-700">
-                                ACTIONS
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100">
-                            {attendanceData.slice(0, 6).map((employee) => (
-                              <tr key={employee.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 text-gray-900">
-                                  {employee.firstName} {employee.lastName}
-                                </td>
-                                <td className="px-3 py-2 text-gray-600">
-                                  {employee.department}
-                                </td>
-                                <td className="px-3 py-2 text-right text-blue-600 font-semibold">
-                                  ₱{(employee.actualPay * 1.3).toFixed(0)}
-                                </td>
-                                <td className="px-3 py-2 text-right text-red-600 font-semibold">
-                                  ₱{(employee.deduction * 5).toFixed(0)}
-                                </td>
-                                <td className="px-3 py-2 text-right text-green-600 font-semibold">
-                                  ₱{employee.actualPay.toLocaleString()}
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded">
-                                    Paid
-                                  </span>
-                                </td>
-                                <td className="px-3 py-2 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => handleViewPayslip(employee)}
-                                      className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                      title="View Payslip"
-                                    >
+                    {isExpanded && period.id === activePeriodId && payrollRecords.length > 0 && (
+                      <div className="p-6">
+                        <h4 className="text-sm font-bold text-gray-900 mb-3">Employee Payslips — {periodLabel(period)}</h4>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                              <tr>
+                                {["Employee", "Position", "Gross Income", "Deductions", "Net Pay", "Status", "Actions"].map(h => (
+                                  <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {payrollRecords.map(rec => (
+                                <tr key={rec.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 font-medium text-gray-900">{rec.employeeName}</td>
+                                  <td className="px-3 py-2 text-gray-500">{rec.position}</td>
+                                  <td className="px-3 py-2 text-blue-600 font-semibold">{fmt(rec.grossIncome)}</td>
+                                  <td className="px-3 py-2 text-red-600 font-semibold">-{fmt(rec.totalDeductions)}</td>
+                                  <td className="px-3 py-2 text-green-600 font-semibold">{fmt(rec.netPay)}</td>
+                                  <td className="px-3 py-2">
+                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                      {rec.status === "paid" ? "Paid" : "Pending"}
+                                    </span>
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <button onClick={() => setViewingRecord(rec)} className="p-1 hover:bg-gray-200 rounded" title="View payslip">
                                       <Eye size={14} className="text-gray-600" />
                                     </button>
-                                    <button
-                                      onClick={() => handleDownloadPayslip(employee)}
-                                      className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                      title="Download PDF"
-                                    >
-                                      <Download
-                                        size={14}
-                                        className="text-gray-600"
-                                      />
-                                    </button>
-                                    <button
-                                      onClick={() => handlePrintPayslipForEmployee(employee)}
-                                      className="p-1 hover:bg-gray-200 rounded transition-colors"
-                                      title="Print"
-                                    >
-                                      <Printer
-                                        size={14}
-                                        className="text-gray-600"
-                                      />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    )}
+                    {isExpanded && period.id !== activePeriodId && (
+                      <div className="p-6 text-center">
+                        <p className="text-sm text-gray-400 mb-3">Switch to this period to view detailed records.</p>
+                        <button onClick={() => { setSelectedPeriodId(period.id); setActiveTab("Salary Computation"); }}
+                          className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold">
+                          View This Period
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
