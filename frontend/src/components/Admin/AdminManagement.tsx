@@ -12,7 +12,7 @@ type Supplier = FrontendSupplier;
     <div>
       <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
       <input type={type} placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm" />
+        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-base" />
     </div>
   );
 
@@ -56,6 +56,8 @@ const AdminManagement: React.FC = () => {
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [showCreateEmpModal, setShowCreateEmpModal] = useState(false);
   const [showViewEmpModal, setShowViewEmpModal] = useState(false);
+  const [showDeactivateEmpModal, setShowDeactivateEmpModal] = useState(false);
+  const [empToDeactivate, setEmpToDeactivate] = useState<EmployeeRecord | null>(null);
   const [showCreateSupplierModal, setShowCreateSupplierModal] = useState(false);
   const [showSupplierInfoModal, setShowSupplierInfoModal] = useState(false);
   const [showFlagNotesModal, setShowFlagNotesModal] = useState(false);
@@ -85,7 +87,7 @@ const AdminManagement: React.FC = () => {
   const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "" });
   const [flagNotes, setFlagNotes] = useState("");
 
-  const tabs = ["User Account Management", "Employee List Management", "Supplier List Management"];
+  const tabs = ["Users", "Employees", "Suppliers"];
   const accountRoles = ["Admin", "Cashier", "Designer", "Production", "Customer"];
   const employeeRoles = ["Admin", "Cashier", "Designer", "Production", "Other"];
   const statuses = ["Active", "Inactive"];
@@ -99,11 +101,11 @@ const AdminManagement: React.FC = () => {
 
   // ── Context-aware Create New ─────────────────────────────────────────
   const handleCreateNew = () => {
-    if (activeTab === "User Account Management") {
+    if (activeTab === "Users") {
       setUserForm({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "", password: "", confirmPassword: "" });
       setShowCreateUserModal(true);
-    } else if (activeTab === "Employee List Management") {
-      setEmpForm({ employeeCode: "", fullName: "", position: "", role: "", baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
+    } else if (activeTab === "Employees") {
+      setEmpForm({ employeeCode: "", fullName: "", position: "", baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
       setShowCreateEmpModal(true);
     } else {
       setSupplierForm({ name: "", phone: "", email: "" });
@@ -192,6 +194,13 @@ const AdminManagement: React.FC = () => {
     });
     if (r.success) { alert("Employee updated!"); setShowViewEmpModal(false); }
     else alert("Error: " + r.error);
+  };
+
+  const handleDeactivateEmp = async () => {
+    if (!empToDeactivate) return;
+    await deactivateEmployee(empToDeactivate.id);
+    setShowDeactivateEmpModal(false);
+    setEmpToDeactivate(null);
   };
 
   // ── Supplier handlers ────────────────────────────────────────────────
@@ -430,76 +439,124 @@ const AdminManagement: React.FC = () => {
         </div>
       </Modal>
 
+      {/* ═══ DEACTIVATE EMPLOYEE CONFIRM ═══ */}
+      <Modal show={showDeactivateEmpModal && !!empToDeactivate} onClose={() => setShowDeactivateEmpModal(false)} title="" width="max-w-md">
+        <div className="flex items-center gap-3 mb-4 -mt-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center"><Trash2 size={24} className="text-red-600" /></div>
+          <div><h3 className="text-xl font-bold">Deactivate Employee?</h3><p className="text-sm text-gray-500">This will mark the employee as inactive</p></div>
+        </div>
+        {empToDeactivate && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-1 text-sm">
+            <div className="flex justify-between"><span className="text-gray-600">Name:</span><span className="font-semibold">{empToDeactivate.fullName}</span></div>
+            <div className="flex justify-between"><span className="text-gray-600">Position:</span><span className="font-semibold">{empToDeactivate.position}</span></div>
+          </div>
+        )}
+        <div className="flex gap-3">
+          <button onClick={() => setShowDeactivateEmpModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">No, Go Back</button>
+          <button onClick={handleDeactivateEmp} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl">Yes, Deactivate</button>
+        </div>
+      </Modal>
+
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* PAGE HEADER */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Management</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage accounts, employee records, and suppliers</p>
-      </div>
-
-      <div className="flex justify-end gap-3 mb-6">
-        <button onClick={handleCreateNew} className="px-6 py-2.5 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-lg">Create New</button>
-      </div>
-
-      {/* TABS */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {tabs.map(tab => (
-          <button key={tab} onClick={() => { setActiveTab(tab); setSearchQuery(""); setSelectedRole("Select Role"); setSelectedStatus("Select Status"); }}
-            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
-            {tab.replace(" Management", "")}
+      {/* Header + Tabs + Create button on same row */}
+      <div className="mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Management</h1>
+            <p className="text-sm text-gray-500 mt-0.5">Manage accounts, employee records, and suppliers</p>
+          </div>
+          <button onClick={handleCreateNew}
+            className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap self-start sm:self-auto">
+            + Create New
           </button>
-        ))}
+        </div>
+
+        {/* TABS */}
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+          {tabs.map(tab => (
+            <button key={tab} onClick={() => { setActiveTab(tab); setSearchQuery(""); setSelectedRole("Select Role"); setSelectedStatus("Select Status"); }}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all ${
+                activeTab === tab ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+              }`}>
+              {tab}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* FILTERS */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row gap-3">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+      <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-sm mb-5">
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex-1 min-w-[180px] relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input type="text"
-              placeholder={activeTab.includes("Supplier") ? "Search suppliers..." : activeTab.includes("Employee") ? "Search employees..." : "Search accounts..."}
+              placeholder={activeTab === "Suppliers" ? "Search suppliers..." : activeTab === "Employees" ? "Search employees..." : "Search accounts..."}
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
           </div>
-          {activeTab === "User Account Management" && (
+          {activeTab === "Users" && (
             <div className="relative">
               <button onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]">
-                <span>{selectedRole}</span><ChevronDown size={16} />
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 whitespace-nowrap">
+                <span>{selectedRole === "Select Role" ? "All Roles" : selectedRole}</span><ChevronDown size={14} />
               </button>
               {showRoleDropdown && (
-                <div className="absolute top-full mt-1 w-full bg-white border rounded-lg shadow-lg z-10">
-                  <button onClick={() => { setSelectedRole("Select Role"); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All Roles</button>
-                  {accountRoles.map(r => <button key={r} onClick={() => { setSelectedRole(r); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{r}</button>)}
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowRoleDropdown(false)} />
+                  <div className="absolute top-full mt-1 w-40 bg-white border rounded-lg shadow-lg z-20">
+                    <button onClick={() => { setSelectedRole("Select Role"); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All Roles</button>
+                    {accountRoles.map(r => <button key={r} onClick={() => { setSelectedRole(r); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{r}</button>)}
+                  </div>
+                </>
               )}
             </div>
           )}
-          {activeTab === "Supplier List Management" && (
+          {activeTab === "Suppliers" && (
             <div className="relative">
               <button onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]">
-                <span>{selectedStatus}</span><ChevronDown size={16} />
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 whitespace-nowrap">
+                <span>{selectedStatus === "Select Status" ? "All Status" : selectedStatus}</span><ChevronDown size={14} />
               </button>
               {showStatusDropdown && (
-                <div className="absolute top-full mt-1 w-full bg-white border rounded-lg shadow-lg z-10">
-                  <button onClick={() => { setSelectedStatus("Select Status"); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All</button>
-                  {statuses.map(s => <button key={s} onClick={() => { setSelectedStatus(s); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{s}</button>)}
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowStatusDropdown(false)} />
+                  <div className="absolute top-full mt-1 w-40 bg-white border rounded-lg shadow-lg z-20">
+                    <button onClick={() => { setSelectedStatus("Select Status"); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All</button>
+                    {statuses.map(s => <button key={s} onClick={() => { setSelectedStatus(s); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{s}</button>)}
+                  </div>
+                </>
               )}
             </div>
           )}
         </div>
       </div>
 
-      {/* ═══ USER ACCOUNTS TABLE ═══ */}
-      {activeTab === "User Account Management" && (
+      {/* ═══ USER ACCOUNTS ═══ */}
+      {activeTab === "Users" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold text-gray-900">User Accounts</h2>
-            <p className="text-sm text-gray-500 mt-1">All system login accounts — staff and customers ({filteredUsers.length} records)</p>
+          <div className="p-4 md:p-6 border-b"><h2 className="text-xl font-bold text-gray-900">User Accounts</h2><p className="text-sm text-gray-500 mt-1">All system login accounts ({filteredUsers.length} records)</p></div>
+          {/* MOBILE */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredUsers.length === 0 ? <p className="px-4 py-8 text-center text-gray-400">No accounts found</p>
+            : filteredUsers.map(u => (
+              <div key={u.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div><p className="font-bold text-gray-900">{u.firstName} {u.lastName}</p><p className="text-sm text-gray-500">@{u.userName || '—'}</p></div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{u.role}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{u.isActive ? 'Active' : 'Inactive'}</span>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-600">{u.email}{u.contactNumber && <span> · {u.contactNumber}</span>}</div>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => handleViewUser(u)} className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold"><Eye size={14}/> View</button>
+                  {u.isActive && <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-600 font-semibold"><Trash2 size={14}/> Deactivate</button>}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="overflow-x-auto">
+          {/* DESKTOP */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
@@ -529,18 +586,10 @@ const AdminManagement: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{u.createdAt}</td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleViewUser(u)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View/Edit">
-                          <Eye size={18} className="text-cyan-600" />
-                        </button>
-                        {u.isActive && (
-                          <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="p-1.5 hover:bg-red-100 rounded-lg" title="Deactivate">
-                            <Trash2 size={18} className="text-red-500" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
+                      <button onClick={() => handleViewUser(u)} className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-cyan-100 rounded-lg text-sm text-cyan-600 font-semibold"><Eye size={16}/> View</button>
+                      {u.isActive && <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-100 rounded-lg text-sm text-red-500 font-semibold"><Trash2 size={16}/> Deactivate</button>}
+                    </div></td>
                   </tr>
                 ))}
                 {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
@@ -550,14 +599,33 @@ const AdminManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ═══ EMPLOYEE RECORDS TABLE ═══ */}
-      {activeTab === "Employee List Management" && (
+
+      {/* ═══ EMPLOYEE RECORDS ═══ */}
+      {activeTab === "Employees" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold text-gray-900">Employee Records</h2>
-            <p className="text-sm text-gray-500 mt-1">HR records for payroll and record-keeping ({filteredEmployees.length} records)</p>
+          <div className="p-4 md:p-6 border-b"><h2 className="text-xl font-bold text-gray-900">Employee Records</h2><p className="text-sm text-gray-500 mt-1">HR records for payroll ({filteredEmployees.length} records)</p></div>
+          {/* MOBILE */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredEmployees.length === 0 ? <p className="px-4 py-8 text-center text-gray-400">No employee records found</p>
+            : filteredEmployees.map(e => (
+              <div key={e.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div><p className="font-bold text-gray-900">{e.fullName}</p><p className="text-sm text-gray-500">{e.position} · <span className="font-mono text-xs">{e.employeeCode}</span></p></div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{e.isActive ? 'Active' : 'Inactive'}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 text-sm">
+                  <div><span className="text-gray-400">Rate:</span> <span className="font-semibold">₱{e.baseHourlyRate.toFixed(2)}/hr</span></div>
+                  <div><span className="text-gray-400">Hired:</span> <span className="text-gray-700">{e.hireDate}</span></div>
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => handleViewEmp(e)} className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold"><Eye size={14}/> View</button>
+                  {e.isActive && <button onClick={() => { setEmpToDeactivate(e); setShowDeactivateEmpModal(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 rounded-lg text-sm text-red-600 font-semibold"><Trash2 size={14}/> Deactivate</button>}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="overflow-x-auto">
+          {/* DESKTOP */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Code</th>
@@ -586,25 +654,11 @@ const AdminManagement: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 text-right font-semibold">₱{e.baseHourlyRate.toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-600">{e.hireDate}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {e.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleViewEmp(e)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View/Edit">
-                          <Eye size={18} className="text-cyan-600" />
-                        </button>
-                        {e.isActive && (
-                          <button onClick={async () => {
-                            if (window.confirm(`Deactivate ${e.fullName}?`)) await deactivateEmployee(e.id);
-                          }} className="p-1.5 hover:bg-red-100 rounded-lg" title="Deactivate">
-                            <Trash2 size={18} className="text-red-500" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+                    <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{e.isActive ? 'Active' : 'Inactive'}</span></td>
+                    <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
+                      <button onClick={() => handleViewEmp(e)} className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-cyan-100 rounded-lg text-sm text-cyan-600 font-semibold"><Eye size={16}/> View</button>
+                      {e.isActive && <button onClick={() => { setEmpToDeactivate(e); setShowDeactivateEmpModal(true); }} className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-red-100 rounded-lg text-sm text-red-500 font-semibold"><Trash2 size={16}/> Deactivate</button>}
+                    </div></td>
                   </tr>
                 ))}
                 {filteredEmployees.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No employee records found</td></tr>}
@@ -614,14 +668,31 @@ const AdminManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ═══ SUPPLIERS TABLE ═══ */}
-      {activeTab === "Supplier List Management" && (
+
+      {/* ═══ SUPPLIERS ═══ */}
+      {activeTab === "Suppliers" && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold text-gray-900">Suppliers</h2>
-            <p className="text-sm text-gray-500 mt-1">Manage suppliers, contact info, and flags ({filteredSuppliers.length} records)</p>
+          <div className="p-4 md:p-6 border-b"><h2 className="text-xl font-bold text-gray-900">Suppliers</h2><p className="text-sm text-gray-500 mt-1">Manage suppliers, contact info, and flags ({filteredSuppliers.length} records)</p></div>
+          {/* MOBILE */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredSuppliers.length === 0 ? <p className="px-4 py-8 text-center text-gray-400">No suppliers found</p>
+            : filteredSuppliers.map(s => (
+              <div key={s.id} className="p-4 space-y-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div><p className="font-bold text-gray-900">{s.supplierName}{s.isFlagged && <span className="ml-2 text-xs text-red-600 font-bold">⚑ Flagged</span>}</p></div>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${s.supplierStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.supplierStatus}</span>
+                </div>
+                <div className="text-sm text-gray-600">{s.email && <p>{s.email}</p>}{s.contactNumber && <p>{s.contactNumber}</p>}</div>
+                <div className="flex gap-2 flex-wrap">
+                  <button onClick={() => handleViewSupplier(s)} className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold"><Eye size={14}/> View</button>
+                  <button onClick={() => handleToggleFlag(s.id)} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-semibold ${s.isFlagged ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}><Flag size={14}/> {s.isFlagged ? 'Unflag' : 'Flag'}</button>
+                  <button onClick={() => { setSelectedSupplier(s); setFlagNotes(s.flagNotes); setShowFlagNotesModal(true); }} className="flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 font-semibold"><FileText size={14}/> Notes</button>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="overflow-x-auto">
+          {/* DESKTOP */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Supplier Name</th>
@@ -634,7 +705,7 @@ const AdminManagement: React.FC = () => {
               <tbody className="divide-y divide-gray-100">
                 {filteredSuppliers.map(s => (
                   <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{s.supplierName}</td>
+                    <td className="px-4 py-3 font-medium">{s.supplierName}{s.isFlagged && <span className="ml-2 text-xs text-red-600 font-bold">⚑</span>}</td>
                     <td className="px-4 py-3 text-gray-600">{s.email || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{s.contactNumber || '—'}</td>
                     <td className="px-4 py-3">
@@ -643,17 +714,11 @@ const AdminManagement: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{s.createdAt}</td>
-                    <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleViewSupplier(s)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View"><Eye size={16} className="text-cyan-600" /></button>
-                        <button onClick={() => handleToggleFlag(s.id)} className={`p-1.5 rounded-lg ${s.isFlagged ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-red-100'}`} title={s.isFlagged ? 'Flagged' : 'Flag'}>
-                          <Flag size={16} className={s.isFlagged ? 'text-red-600 fill-red-600' : 'text-gray-500'} />
-                        </button>
-                        <button onClick={() => { setSelectedSupplier(s); setFlagNotes(s.flagNotes); setShowFlagNotesModal(true); }} className="p-1.5 hover:bg-gray-200 rounded-lg" title="Notes">
-                          <FileText size={16} className="text-gray-500" />
-                        </button>
-                      </div>
-                    </td>
+                    <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
+                      <button onClick={() => handleViewSupplier(s)} className="p-1.5 hover:bg-cyan-100 rounded-lg"><Eye size={16} className="text-cyan-600"/></button>
+                      <button onClick={() => handleToggleFlag(s.id)} className={`p-1.5 rounded-lg ${s.isFlagged ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-red-100'}`}><Flag size={16} className={s.isFlagged ? 'text-red-600 fill-red-600' : 'text-gray-500'}/></button>
+                      <button onClick={() => { setSelectedSupplier(s); setFlagNotes(s.flagNotes); setShowFlagNotesModal(true); }} className="p-1.5 hover:bg-gray-200 rounded-lg"><FileText size={16} className="text-gray-500"/></button>
+                    </div></td>
                   </tr>
                 ))}
                 {filteredSuppliers.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No suppliers found</td></tr>}
@@ -665,5 +730,6 @@ const AdminManagement: React.FC = () => {
     </div>
   );
 };
+
 
 export default AdminManagement;

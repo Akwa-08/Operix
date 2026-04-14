@@ -447,15 +447,24 @@ const AdminPayroll: React.FC = () => {
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{error}</div>
-      )}
+      {/* Page Header */}
+      <div className="mb-5">
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Payroll Management</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Manage employee payroll, attendance, and salary computations</p>
+      </div>
 
-      {/* ── Tab Navigation ── */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
+      {/* Tab Navigation */}
+      <div className="flex gap-1 mb-5 overflow-x-auto pb-1 scrollbar-none bg-gray-100 rounded-xl p-1 w-fit max-w-full">
+        {payrollTabs.map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActivePayrollTab(tab)}
+            className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${
+              activePayrollTab === tab
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
             {tab}
           </button>
         ))}

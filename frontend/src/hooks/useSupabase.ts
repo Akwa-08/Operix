@@ -210,6 +210,58 @@ export function useInventoryData() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// LOGS & ACTIVITY - useLogsData()
+// ═══════════════════════════════════════════════════════════════════════════════
+export function useLogsData() {
+  const fetchLogs = async () => {
+    // 1. Fetch order logs
+    const { data: ordLogs } = await supabase
+      .from('order_logs')
+      .select('id, created_at, status, note, user:users!order_logs_updated_by_fkey(id, first_name, last_name, role)')
+      .order('created_at', { ascending: false });
+    
+    // 2. Fetch notifications (system activities)
+    const { data: notifLogs } = await supabase
+      .from('notifications')
+      .select('id, created_at, title, message, related_module, user:users!notifications_user_id_fkey(id, first_name, last_name, role)')
+      .order('created_at', { ascending: false });
+
+    const logs: any[] = [];
+    
+    if (ordLogs) {
+      ordLogs.forEach((l: any) => logs.push({
+        id: "ord_" + l.id,
+        date: new Date(l.created_at).toLocaleString(),
+        timestamp: new Date(l.created_at).getTime(),
+        module: 'Orders',
+        action: `Status Update: ${l.status}`,
+        details: l.note || '',
+        user: l.user ? `${l.user.first_name || ''} ${l.user.last_name || ''} (${l.user.role})`.trim() : 'System',
+        role: l.user?.role || 'System',
+      }));
+    }
+    
+    if (notifLogs) {
+      notifLogs.forEach((l: any) => logs.push({
+        id: "notif_" + l.id,
+        date: new Date(l.created_at).toLocaleString(),
+        timestamp: new Date(l.created_at).getTime(),
+        module: l.related_module ? l.related_module.charAt(0).toUpperCase() + l.related_module.slice(1) : 'System',
+        action: l.title || '',
+        details: l.message || '',
+        user: l.user ? `${l.user.first_name || ''} ${l.user.last_name || ''} (${l.user.role})`.trim() : 'System',
+        role: l.user?.role || 'System',
+      }));
+    }
+
+    logs.sort((a, b) => b.timestamp - a.timestamp);
+    return logs;
+  };
+
+  return useQuery(fetchLogs);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PRODUCT CATALOG — useProductCatalog()
 // Used by: HomePage
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -291,7 +343,7 @@ export function useOrdersData() {
       const r = await safe(() => db.deleteOrder(orderId).then(() => refresh()));
       return r;
     },
-    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
+    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; receipt_number?: string; notes?: string }) => {
       const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh()));
       return r;
     },
@@ -389,7 +441,7 @@ export function useManagementData() {
 // DASHBOARD (aggregated)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useDashboard() {
-  const { orders, stats: orderStats, loading: oL } = useOrders();
+  const { orders, stats: orderStats, loading: oL, refresh } = useOrders();
   const { data: inventory, loading: iL } = useQuery(() => db.getInventoryItems(), []);
   const items = inventory || [];
 
@@ -405,14 +457,15 @@ export function useDashboard() {
     .filter((i: any) => Number(i.current_quantity) > 0 && Number(i.current_quantity) <= Number(i.reorder_point))
     .map((i: any) => ({ id: i.id, name: i.name, currentQty: Number(i.current_quantity), reorderPoint: Number(i.reorder_point), unit: i.unit_of_measure }));
 
-  const recentOrders = orders.slice(0, 5).map((o: any) => {
+  const recentOrders = orders.slice(0, 8).map((o: any) => {
     const c = o.customer;
     return {
       id: o.id, orderId: o.order_number,
       customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in',
       product: o.order_items?.[0]?.product_name || 'Multiple',
       amount: Number(o.total_amount) || 0,
-      status: o.status, date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
+      status: o.status, paymentStatus: o.payment_status,
+      date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
     };
   });
 
@@ -420,14 +473,15 @@ export function useDashboard() {
   const totalCollected = orders.reduce((s: number, o: any) => s + (Number(o.amount_paid) || 0), 0);
   const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, unpaid: orderStats.pendingPayment };
 
-  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL };
+  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, rawOrders: orders, refresh };
 }
 
 export function useDashboardData() {
-  const { orderStats, invStats, lowStockItems, recentOrders, loading } = useDashboard();
+  const { orderStats, invStats, lowStockItems, recentOrders, loading, rawOrders, refresh } = useDashboard();
   return {
-    data: { orderStats, inventoryStats: invStats, lowStockItems, recentOrders },
+    data: { orderStats, inventoryStats: invStats, lowStockItems, recentOrders, rawOrders },
     loading,
+    refresh,
   };
 }
 

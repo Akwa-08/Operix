@@ -8,6 +8,25 @@ import { supabase } from '../config/supabaseClient';
 // USERS (own profile — admin CRUD uses backend /api/admin/*)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// GLOBAL LOGGING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+export async function logSystemAction(module: string, title: string, message: string) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('notifications').insert([{
+      user_id: user.id,
+      related_module: module,
+      title: title,
+      message: message,
+      is_read: true // auto-read for logs
+    }]);
+  } catch (err) {
+    console.error("SysLog Error:", err);
+  }
+}
+
 export const db = {
 
   // ── Profile ────────────────────────────────────────────────────────────
@@ -22,6 +41,7 @@ export const db = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // Sync name to auth metadata so AuthContext stays fresh
     if (updates.first_name !== undefined || updates.last_name !== undefined) {
       await supabase.auth.updateUser({
         data: { first_name: updates.first_name, last_name: updates.last_name }
@@ -58,13 +78,14 @@ export const db = {
     return data || [];
   },
 
-  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; role?:  "Cashier" | "Designer" | "Production" | "Admin" | "Other"; base_hourly_rate?: number; hire_date?: string }) {
+  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; base_hourly_rate?: number; hire_date?: string }) {
     const { data, error } = await supabase.from('employees').insert([{
       ...emp, is_active: true,
       base_hourly_rate: emp.base_hourly_rate || 0,
       hire_date: emp.hire_date || new Date().toISOString().split('T')[0],
     }]).select().single();
     if (error) throw error;
+    await logSystemAction('management', `Created Employee: ${emp.full_name}`, `Code: ${emp.employee_code || 'N/A'} - Postion: ${emp.position}`);
     return data;
   },
 
@@ -86,6 +107,7 @@ export const db = {
   async createSupplier(s: { name: string; contact_person?: string; phone?: string; email?: string; address?: string }) {
     const { data, error } = await supabase.from('suppliers').insert([{ ...s, is_active: true, is_flagged: false }]).select().single();
     if (error) throw error;
+    await logSystemAction('inventory', `Created Supplier: ${s.name}`, `Contact: ${s.contact_person || 'N/A'}`);
     return data;
   },
 
@@ -110,6 +132,7 @@ export const db = {
   async createInventoryItem(item: { name: string; unit_of_measure: string; current_quantity?: number; reorder_point?: number; unit_cost?: number; description?: string }) {
     const { data, error } = await supabase.from('inventory_items').insert([{ ...item, is_active: true }]).select().single();
     if (error) throw error;
+    await logSystemAction('inventory', `Added Inventory Item: ${item.name}`, `Initial Qty: ${item.current_quantity || 0}`);
     return data;
   },
 
@@ -134,6 +157,7 @@ export const db = {
   async createProduct(p: Record<string, any>) {
     const { data, error } = await supabase.from('products').insert([{ ...p, is_active: true }]).select().single();
     if (error) throw error;
+    await logSystemAction('management', `Created Product: ${p.name || p.product_type}`, `Category: ${p.category || 'N/A'}`);
     return data;
   },
 
@@ -185,6 +209,7 @@ export const db = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // Generate order number
     let orderNumber: string;
     try {
       const { data: seq } = await supabase.rpc('get_next_order_seq');
@@ -216,6 +241,7 @@ export const db = {
 
     if (orderErr) throw orderErr;
 
+    // Insert items
     const items = order.items.map(i => ({
       order_id: newOrder.id,
       product_id: i.product_id || null,
@@ -227,6 +253,7 @@ export const db = {
     }));
 
     await supabase.from('order_items').insert(items);
+    await logSystemAction('orders', `Created Order: ${orderNumber}`, `Items: ${items.length} | Total: ₱${totalAmount.toLocaleString()}`);
     return newOrder;
   },
 
@@ -237,28 +264,47 @@ export const db = {
   },
 
   async deleteOrder(id: string) {
+    const { data: order } = await supabase.from('orders').select('order_number').eq('id', id).single();
     await supabase.from('payments').delete().eq('order_id', id);
     await supabase.from('order_items').delete().eq('order_id', id);
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) throw error;
+    if (order) await logSystemAction('orders', `Deleted Order: ${order.order_number}`, 'Order permanently removed.');
   },
 
   // ── Payments ─────────────────────────────────────────────────────────
-  async recordPayment(orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) {
+  async recordPayment(orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; receipt_number?: string; notes?: string }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // Insert payment
     const { error: payErr } = await supabase.from('payments').insert([{
       order_id: orderId, ...payment, received_by: user.id,
     }]);
     if (payErr) throw payErr;
 
-    const { data: order } = await supabase.from('orders').select('amount_paid, total_amount').eq('id', orderId).single();
+    // Log the payment
+    const methodStr = payment.payment_method.toUpperCase();
+    const refs = [];
+    if (payment.reference_number) refs.push(`Ref: ${payment.reference_number}`);
+    if (payment.receipt_number) refs.push(`Receipt: ${payment.receipt_number}`);
+    await logSystemAction('payment', `Payment Received: ₱${payment.amount.toLocaleString()}`, `Method: ${methodStr} ${refs.length ? '(' + refs.join(', ') + ')' : ''}`);
+
+    // Update order totals
+    const { data: order } = await supabase.from('orders').select('amount_paid, total_amount, order_id').eq('id', orderId).single();
     if (order) {
       const newPaid = parseFloat(order.amount_paid) + payment.amount;
       const total = parseFloat(order.total_amount);
       const ps = newPaid >= total ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
       await supabase.from('orders').update({ amount_paid: newPaid, payment_status: ps }).eq('id', orderId);
+      
+      // Also write to order_logs for order-specific trail
+      await supabase.from('order_logs').insert([{
+        order_id: orderId,
+        updated_by: user.id,
+        status: ps,
+        note: `Payment of ₱${payment.amount.toLocaleString()} received via ${methodStr}.`
+      }]);
     }
   },
 
@@ -285,24 +331,21 @@ export const db = {
     if (!user) throw new Error('Not authenticated');
 
     if (!forceNewRow) {
-      const { data: existingList, error: queryErr } = await supabase
-        .from('cart_items').select('id, quantity')
-        .eq('customer_id', user.id).eq('product_id', productId)
-        .order('created_at', { ascending: false }).limit(1);
-
+      // Find the most recent matching item to increment safely
+      let query = supabase.from('cart_items').select('id, quantity').eq('customer_id', user.id).eq('product_id', productId);
+      
+      const { data: existingList, error: queryErr } = await query.order('created_at', { ascending: false }).limit(1);
+      
       if (!queryErr && existingList && existingList.length > 0) {
         const existing = existingList[0];
-        const { data, error } = await supabase.from('cart_items')
-          .update({ quantity: existing.quantity + quantity, specifications })
-          .eq('id', existing.id).select().single();
+        const { data, error } = await supabase.from('cart_items').update({ quantity: existing.quantity + quantity, specifications }).eq('id', existing.id).select().single();
         if (error) throw error;
         return data;
       }
     }
 
-    const { data, error } = await supabase.from('cart_items')
-      .insert([{ customer_id: user.id, product_id: productId, quantity, specifications }])
-      .select().single();
+    // Insert as a new row (e.g., completely different design intent or brand new cart entry)
+    const { data, error } = await supabase.from('cart_items').insert([{ customer_id: user.id, product_id: productId, quantity, specifications }]).select().single();
     if (error) throw error;
     return data;
   },
@@ -397,6 +440,7 @@ export const db = {
       const { error: bErr } = await supabase.from('product_supply_mapping').insert(rows);
       if (bErr) throw bErr;
     }
+    await logSystemAction('management', `Created Product (BOM): ${product.name}`, `BOM items: ${bom.length}`);
     return p;
   },
 
@@ -409,6 +453,7 @@ export const db = {
     if (error) throw error;
 
     if (bom !== undefined) {
+      // Replace all BOM rows
       await supabase.from('product_supply_mapping').delete().eq('product_id', id);
       if (bom.length > 0) {
         const rows = bom.map(b => ({ product_id: id, ...b }));
@@ -459,12 +504,14 @@ export const db = {
     return data;
   },
 
+  /** Confirm delivery receipt: update status + auto-restock inventory */
   async confirmDeliveryReceipt(id: string, receipt: {
     received_quantity: number; receipt_reference_number: string;
   }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // 1. Update delivery record
     const { data: delivery, error: dErr } = await supabase.from('deliveries').update({
       status: 'received',
       received_quantity: receipt.received_quantity,
@@ -474,6 +521,7 @@ export const db = {
     }).eq('id', id).select('*, inventory_item:inventory_item_id(id, conversion_rate, current_quantity)').single();
     if (dErr) throw dErr;
 
+    // 2. Auto-restock: received_qty * conversion_rate → add to current_quantity
     const item = delivery.inventory_item;
     const conversionRate = Number(item.conversion_rate) || 1;
     const addQty = receipt.received_quantity * conversionRate;
@@ -484,6 +532,7 @@ export const db = {
       .eq('id', item.id);
     if (iErr) throw iErr;
 
+    // 3. Log inventory change
     await supabase.from('inventory_changes').insert([{
       inventory_item_id: item.id,
       change_type: 'Manual Adjustment',
@@ -494,6 +543,7 @@ export const db = {
       changed_by: user.id,
     }]);
 
+    await logSystemAction('inventory', `Delivery Received`, `Added ${addQty} units to ${item.id} from receipt ${receipt.receipt_reference_number}`);
     return delivery;
   },
 
@@ -501,6 +551,11 @@ export const db = {
   // CHAT
   // ═══════════════════════════════════════════════════════════════════════════
   chat: {
+    /**
+     * Returns a deduplicated list of conversations for the current user.
+     * Each conversation represents a unique "other person" the user has
+     * exchanged messages with.
+     */
     async getConversations() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -508,7 +563,11 @@ export const db = {
       const { data, error } = await supabase
         .from('chat_messages')
         .select(`
-          id, sender_id, receiver_id, message, sent_at,
+          id,
+          sender_id,
+          receiver_id,
+          message,
+          sent_at,
           sender:sender_id(id, first_name, last_name, role),
           receiver:receiver_id(id, first_name, last_name, role)
         `)
@@ -518,39 +577,60 @@ export const db = {
       if (error) throw error;
       if (!data) return [];
 
+      // Build a Map keyed on the OTHER person's user id.
+      // We iterate newest-first so the first occurrence IS the latest message.
       const conversationsMap = new Map<string, any>();
 
       for (const msg of data as any[]) {
-        const isSender    = msg.sender_id === user.id;
+        const isSender = msg.sender_id === user.id;
+        // Try to use the joined object; fall back to just the id if RLS hid the profile.
         const otherProfile = isSender ? msg.receiver : msg.sender;
-        const otherId      = isSender ? msg.receiver_id : msg.sender_id;
+        const otherId = isSender ? msg.receiver_id : msg.sender_id;
 
         if (!otherId) continue;
-        if (conversationsMap.has(otherId)) continue;
+        if (conversationsMap.has(otherId)) continue; // already captured the latest
 
         conversationsMap.set(otherId, {
-          id: otherId, userId: otherId,
+          id: otherId,
+          userId: otherId,
           userName: otherProfile
             ? `${otherProfile.first_name || ''} ${otherProfile.last_name || ''}`.trim()
             : 'Unknown User',
           userRole: otherProfile?.role || 'user',
           lastMessage: msg.message,
-          lastMessageTime: new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          unreadCount: 0, isActive: true, messages: [],
+          lastMessageTime: new Date(msg.sent_at).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          unreadCount: 0,
+          isActive: true,
+          messages: [],
         });
       }
 
       return Array.from(conversationsMap.values());
     },
 
+    /**
+     * Returns the full message history between the current user and otherUserId,
+     * ordered oldest-first so the UI can render top-to-bottom.
+     */
     async getMessages(otherUserId: string) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
 
       const { data, error } = await supabase
         .from('chat_messages')
-        .select(`id, sender_id, message, sent_at, sender:sender_id(first_name, last_name, role)`)
-        .or(`and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id})`)
+        .select(`
+          id,
+          sender_id,
+          message,
+          sent_at,
+          sender:sender_id(first_name, last_name, role)
+        `)
+        .or(
+          `and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id})`
+        )
         .order('sent_at', { ascending: true });
 
       if (error) throw error;
@@ -559,36 +639,63 @@ export const db = {
       const STAFF_ROLES = ['admin', 'cashier', 'designer', 'production'];
 
       return data.map((msg: any) => ({
-        id: msg.id, senderId: msg.sender_id,
+        id: msg.id,
+        senderId: msg.sender_id,
         senderName: msg.sender
           ? `${msg.sender.first_name || ''} ${msg.sender.last_name || ''}`.trim()
           : 'Unknown',
         content: msg.message,
-        timestamp: new Date(msg.sent_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        timestamp: new Date(msg.sent_at).toLocaleTimeString([], {
+          hour: 'numeric',
+          minute: '2-digit',
+        }),
         isFromAdmin: STAFF_ROLES.includes((msg.sender?.role || '').toLowerCase()),
       }));
     },
 
+    /**
+     * Inserts a new message row. RLS enforces sender_id === auth.uid().
+     */
     async sendMessage(receiverId: string, message: string, orderId?: string) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
         .from('chat_messages')
-        .insert([{ sender_id: user.id, receiver_id: receiverId, message, order_id: orderId || null }])
-        .select().single();
+        .insert([{
+          sender_id: user.id,
+          receiver_id: receiverId,
+          message,
+          order_id: orderId || null,
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
       return data;
     },
 
+    /**
+     * Opens a Supabase Realtime channel and calls `callback` whenever
+     * a new row is inserted into chat_messages.
+     * Returns the channel so the caller can `.unsubscribe()` on cleanup.
+     */
     subscribeToMessages(callback: (payload: any) => void) {
       return supabase
         .channel('chat_messages_realtime')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, callback)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+          callback
+        )
         .subscribe();
     },
 
+    /**
+     * Returns the list of users that the current user is allowed to message.
+     * Staff/Admins see ALL active users.
+     * Customers only see active staff/admin users.
+     */
     async getPotentialRecipients(currentUserRole: string) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
@@ -600,8 +707,9 @@ export const db = {
         .from('users')
         .select('id, first_name, last_name, role')
         .eq('is_active', true)
-        .neq('id', user.id);
+        .neq('id', user.id); // never show yourself
 
+      // Customers may only discover staff, not other customers
       if (!isStaff) {
         query = query.in('role', ['admin', 'cashier', 'designer', 'production', 'Admin', 'Cashier', 'Designer', 'Production']);
       }
@@ -615,173 +723,6 @@ export const db = {
         userName: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
         userRole: u.role,
       }));
-    },
-  },
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // PAYROLL
-  // ═══════════════════════════════════════════════════════════════════════════
-  payroll: {
-
-    async getPeriods() {
-      const { data, error } = await supabase
-        .from('payroll_periods')
-        .select('*')
-        .order('period_start', { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-
-    async createPeriod(period: { period_start: string; period_end: string; pay_date?: string }) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      const { data, error } = await supabase
-        .from('payroll_periods')
-        .insert([{ ...period, status: 'draft', created_by: user.id }])
-        .select().single();
-      if (error) throw error;
-      return data;
-    },
-
-    async updatePeriod(id: string, updates: Record<string, any>) {
-      const { data, error } = await supabase
-        .from('payroll_periods')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id).select().single();
-      if (error) throw error;
-      return data;
-    },
-
-    async getAttendanceLogs(periodId: string) {
-      const { data, error } = await supabase
-        .from('attendance_logs')
-        .select(`
-          *,
-          employee:employee_id(
-            id, employee_code, full_name, position,
-            base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier
-          )
-        `)
-        .eq('payroll_period_id', periodId)
-        .order('created_at');
-      if (error) throw error;
-      return data || [];
-    },
-
-    async upsertAttendanceLog(log: {
-      employee_id: string; payroll_period_id: string;
-      worked_hours?: number; required_hours?: number;
-      late_timeslots?: number; early_leave_timeslots?: number;
-      regular_overtime_hours?: number; holiday_overtime_hours?: number;
-      special_overtime_hours?: number; business_trip_days?: number;
-      absences?: number; on_leave_days?: number;
-      additional_pay?: number; deduction_amount?: number;
-    }) {
-      const { data, error } = await supabase
-        .from('attendance_logs')
-        .upsert([{ ...log, updated_at: new Date().toISOString() }], {
-          onConflict: 'employee_id,payroll_period_id',
-        })
-        .select().single();
-      if (error) throw error;
-      return data;
-    },
-
-    async getPayrollRecords(periodId: string) {
-      const { data, error } = await supabase
-        .from('payroll_records')
-        .select(`
-          *,
-          employee:employee_id(id, employee_code, full_name, position)
-        `)
-        .eq('payroll_period_id', periodId)
-        .order('created_at');
-      if (error) throw error;
-      return data || [];
-    },
-
-    async updatePayrollRecord(id: string, updates: Record<string, any>) {
-      const { data, error } = await supabase
-        .from('payroll_records')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', id).select().single();
-      if (error) throw error;
-      return data;
-    },
-
-    async computePayroll(periodId: string) {
-      const { data: logs, error } = await supabase
-        .from('attendance_logs')
-        .select(`
-          *,
-          employee:employee_id(
-            id, base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier
-          )
-        `)
-        .eq('payroll_period_id', periodId);
-      if (error) throw error;
-
-      const results = [];
-
-      for (const log of logs || []) {
-        const emp = log.employee;
-        if (!emp) continue;
-
-        const hourlyRate  = Number(emp.base_hourly_rate) || 0;
-        const dailyRate   = hourlyRate * 8;
-        const daysPresent = log.worked_hours > 0
-          ? Math.round(Number(log.worked_hours) / 8) : 0;
-
-        const basicPay          = dailyRate * daysPresent;
-        const regularOT         = hourlyRate * 1.25 * Number(log.regular_overtime_hours || 0);
-        const holidayOT         = hourlyRate * 1.30 * Number(log.holiday_overtime_hours || 0);
-        const specialOT         = hourlyRate * 1.95 * Number(log.special_overtime_hours || 0);
-        const grossIncome       = basicPay + regularOT + holidayOT + specialOT
-                                  + Number(log.additional_pay || 0);
-        const tardyDeductions   = (hourlyRate / 2) * Number(log.late_timeslots || 0);
-        const undertimeDeduct   = (hourlyRate / 2) * Number(log.early_leave_timeslots || 0);
-        const philhealth        = 200;
-        const hdmf              = 200;
-        const sss               = grossIncome < 5000 ? 135
-                                : grossIncome < 10000 ? 270 : 581.30;
-        const cashAdvance       = Number(log.deduction_amount || 0);
-        const totalDeductions   = tardyDeductions + undertimeDeduct
-                                  + philhealth + hdmf + sss + cashAdvance;
-        const netPay            = grossIncome - totalDeductions;
-        const taxableIncome     = grossIncome - philhealth - hdmf - sss;
-
-        const { data: saved, error: saveErr } = await supabase
-          .from('payroll_records')
-          .upsert([{
-            payroll_period_id:    periodId,
-            employee_id:          emp.id,
-            daily_rate:           dailyRate,
-            days_present:         daysPresent,
-            basic_pay:            basicPay,
-            regular_holiday_pay:  0,
-            special_holiday_pay:  0,
-            regular_overtime:     regularOT,
-            holiday_overtime:     holidayOT,
-            special_overtime:     specialOT,
-            gross_income:         grossIncome,
-            tardy_deductions:     tardyDeductions,
-            undertime_deductions: undertimeDeduct,
-            sss, philhealth, hdmf,
-            withholding_tax:      0,
-            cash_advance:         cashAdvance,
-            total_deductions:     totalDeductions,
-            net_pay:              netPay,
-            taxable_income:       taxableIncome,
-            status:               'pending',
-            updated_at:           new Date().toISOString(),
-          }], { onConflict: 'employee_id,payroll_period_id' })
-          .select().single();
-
-        if (saveErr) throw saveErr;
-        results.push(saved);
-      }
-
-      return results;
     },
   },
 };

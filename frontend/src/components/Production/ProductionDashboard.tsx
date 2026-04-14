@@ -33,10 +33,8 @@ const ProductionDashboard = () => {
     <div className="max-w-7xl mx-auto">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Production Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage production orders and inventory
-        </p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Production Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">Manage production orders and inventory</p>
       </div>
 
       {/* Summary Cards */}
@@ -84,7 +82,7 @@ const ProductionDashboard = () => {
           {productionQueue.map((order) => (
             <div
               key={order.orderId}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
@@ -103,13 +101,11 @@ const ProductionDashboard = () => {
                       style={{ width: `${order.progress}%` }}
                     />
                   </div>
-                  <span className="text-xs font-semibold text-gray-600">
-                    {order.progress}%
-                  </span>
+                  <span className="text-xs font-semibold text-gray-600">{order.progress}%</span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Due: {order.dueDate}</p>
               </div>
-              <button className="ml-4 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
+              <button className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
                 Mark Complete
               </button>
             </div>
