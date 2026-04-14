@@ -7,10 +7,11 @@ import { useDashboardData } from "../../hooks/useSupabase";
 
 // ─── Utility functions ────────────────────────────────────────────────────────
 
-function fmtMoney(v: number) {
-  if (v >= 1_000_000) return `₱${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000)     return `₱${(v / 1_000).toFixed(0)}k`;
-  return `₱${v.toLocaleString()}`;
+function fmtMoney(v: number | undefined | null) {
+  const val = Number(v) || 0;
+  if (val >= 1_000_000) return `₱${(val / 1_000_000).toFixed(1)}M`;
+  if (val >= 1_000)     return `₱${(val / 1_000).toFixed(0)}k`;
+  return `₱${val.toLocaleString()}`;
 }
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
