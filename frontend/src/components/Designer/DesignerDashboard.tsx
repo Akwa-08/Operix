@@ -33,10 +33,8 @@ const DesignerDashboard = () => {
     <div className="max-w-7xl mx-auto">
       {/* Page Header */}
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Designer Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Manage your assigned design projects
-        </p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Designer Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">Manage your assigned design projects</p>
       </div>
 
       {/* Summary Cards */}
@@ -85,34 +83,30 @@ const DesignerDashboard = () => {
           {assignedOrders.map((order) => (
             <div
               key={order.orderId}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
             >
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-1">
                   <p className="font-bold text-gray-900">{order.orderId}</p>
                   <span
                     className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      order.hasDesign
-                        ? "bg-green-100 text-green-700"
-                        : "bg-orange-100 text-orange-700"
+                      order.hasDesign ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
                     }`}
                   >
                     {order.hasDesign ? "Design Uploaded" : "Pending Design"}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mb-1">
-                  {order.customer} • {order.product}
-                </p>
+                <p className="text-sm text-gray-600 mb-1">{order.customer} • {order.product}</p>
                 <p className="text-xs text-gray-500">Due: {order.dueDate}</p>
               </div>
               {!order.hasDesign && (
-                <button className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
+                <button className="w-full sm:w-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
                   <Upload size={16} />
                   Upload Design
                 </button>
               )}
               {order.hasDesign && (
-                <button className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold rounded-lg transition-colors">
+                <button className="w-full sm:w-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold rounded-lg transition-colors">
                   View Details
                 </button>
               )}

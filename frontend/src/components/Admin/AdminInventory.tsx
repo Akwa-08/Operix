@@ -167,7 +167,7 @@ const AdminInventory = () => {
     return map[status] || "bg-gray-100 text-gray-600";
   };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /><p className="ml-4 text-base text-gray-500">Loading...</p></div>;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -176,10 +176,10 @@ const AdminInventory = () => {
         <p className="text-sm text-gray-500 mt-1">Manage materials, products, and incoming deliveries</p>
       </div>
 
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+      <div className="flex flex-wrap gap-2 mb-6">
         {tabs.map(tab => (
           <button key={tab} onClick={() => { setActiveTab(tab); setSearchQuery(""); }}
-            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-[#00BEF4] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
+            className={`px-5 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-[#00BEF4] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
             {tab}
           </button>
         ))}
@@ -190,7 +190,7 @@ const AdminInventory = () => {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "Materials" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
             <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
             <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" />
@@ -240,7 +240,7 @@ const AdminInventory = () => {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "Products" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
             <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
             <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
@@ -267,7 +267,7 @@ const AdminInventory = () => {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "Deliveries" && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" />
             <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" />
             <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" />
@@ -282,9 +282,38 @@ const AdminInventory = () => {
             </div>
           </div>
 
-          {/* Deliveries Table */}
+          {/* Deliveries — mobile cards + desktop table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* MOBILE CARDS */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                <p className="px-4 py-8 text-center text-gray-400">No deliveries found</p>
+              ) : deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).map(d => (
+                <div key={d.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="font-bold text-gray-900">{d.materialName}</p>
+                      <p className="text-sm text-gray-500">{d.supplierName}</p>
+                    </div>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusBadge(d.status)}`}>{d.status.replace("_", " ")}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                    <div><span className="text-gray-400">Qty:</span> <span className="font-semibold">{d.requestedQuantity} {d.materialUnit}</span></div>
+                    <div><span className="text-gray-400">Expected:</span> <span className="text-gray-700">{d.expectedArrivalDate || '—'}</span></div>
+                    <div><span className="text-gray-400">By:</span> <span className="text-gray-700">{d.requestedByName}</span></div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {d.status === "requested" && <button onClick={() => handleUpdateDeliveryStatus(d.id, "ordered")} className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-semibold">Mark Ordered</button>}
+                    {d.status === "ordered"   && <button onClick={() => handleUpdateDeliveryStatus(d.id, "en_route")} className="text-xs px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-semibold">Mark En Route</button>}
+                    {d.status === "en_route"  && <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-semibold">Confirm Receipt</button>}
+                    {d.status === "received"  && <button onClick={() => handleUpdateDeliveryStatus(d.id, "completed")} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold">Complete</button>}
+                    {d.status === "completed" && <span className="text-xs text-gray-400">Done</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* DESKTOP TABLE */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -331,7 +360,8 @@ const AdminInventory = () => {
                 </tbody>
               </table>
             </div>
-          </div>
+            </div>
+
 
           {/* Create Delivery Modal */}
           <Modal show={showCreateDelivery} onClose={() => setShowCreateDelivery(false)} title="Request Restock">
