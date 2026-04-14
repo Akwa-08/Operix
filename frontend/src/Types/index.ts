@@ -88,7 +88,12 @@ export interface Employee extends User {
   department: string;
   role: UserRole;
   hireDate: string;
+  baseHourlyRate?: number;
+  holidayRateMultiplier?: number;
+  overtimeRateMultiplier?: number;
 }
+
+
 
 export interface Supplier {
   id: string;
@@ -127,6 +132,8 @@ export interface FrontendSupplier {
   createdAt: string;
 }
 
+export type EmployeeRole = "Cashier" | "Designer" | "Production" | "Admin" | "Other";
+
 export interface EmployeeRecord {
   id: string;
   employeeCode: string;
@@ -139,6 +146,7 @@ export interface EmployeeRecord {
   hireDate: string;
   isActive: boolean;
 }
+
 
 export interface CatalogProduct {
   id: string;

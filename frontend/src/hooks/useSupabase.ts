@@ -13,7 +13,7 @@ import { adminApi } from '../lib/adminApi';
 import type {
   Order, MaterialStatus, Material, UserRole,
   FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
-  AdminProduct, BOMItem, Delivery, DeliveryStatus,
+  AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole
 } from '../Types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -374,7 +374,6 @@ export function useManagementData() {
   return {
     users, employees, suppliers, loading: uL || eL || sL,
 
-    // User ops (adminApi — service_role)
     createUser: async (data: { firstName: string; lastName: string; email: string; username: string; password: string; role: string; phoneNumber?: string }) => {
       const r = await safe(() => adminApi.createUser({ email: data.email, password: data.password, role: data.role.toLowerCase(), first_name: data.firstName, last_name: data.lastName, username: data.username, contact_number: data.phoneNumber }).then(() => refreshUsers()));
       return r;
@@ -395,6 +394,7 @@ export function useManagementData() {
     },
     updateEmployee: async (id: string, data: { fullName?: string; position?: string; role?: UserRole; baseHourlyRate?: number; holidayMultiplier?: number; overtimeMultiplier?: number }) => {
       const updates: Record<string, any> = {};
+      if (data.role !== undefined) updates.role = data.role;
       if (data.fullName !== undefined) updates.full_name = data.fullName;
       if (data.position !== undefined) updates.position = data.position;
       if (data.role !== undefined) updates.role = data.role;
@@ -409,7 +409,6 @@ export function useManagementData() {
       return r;
     },
 
-    // Supplier ops (direct db — RLS)
     createSupplier: async (data: { name: string; phone?: string; email?: string }) => {
       const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email }).then(() => refreshSups()));
       return r;
@@ -458,7 +457,6 @@ export function useDashboard() {
   return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, rawOrders: orders, refresh };
 }
 
-// Alias for AdminDashboard: wraps useDashboard into { data, loading } shape
 export function useDashboardData() {
   const { orderStats, invStats, lowStockItems, recentOrders, loading, rawOrders, refresh } = useDashboard();
   return {
@@ -581,6 +579,259 @@ export function useDeliveries() {
     },
     confirmReceipt: async (id: string, receipt: { received_quantity: number; receipt_reference_number: string }) => {
       const r = await safe(() => db.confirmDeliveryReceipt(id, receipt).then(() => q.refresh()));
+      return r;
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAYROLL TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface PayrollPeriod {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  payDate: string;
+  status: 'draft' | 'processing' | 'complete';
+  createdAt: string;
+}
+
+export interface AttendanceLog {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  fullName: string;
+  position: string;
+  dailyRate: number;
+  workedHours: number;
+  requiredHours: number;
+  lateTimeslots: number;
+  earlyLeaveTimeslots: number;
+  regularOvertimeHours: number;
+  holidayOvertimeHours: number;
+  specialOvertimeHours: number;
+  businessTripDays: number;
+  absences: number;
+  onLeaveDays: number;
+  additionalPay: number;
+  deductionAmount: number;
+}
+
+export interface PayrollRecord {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeCode: string;
+  position: string;
+  dailyRate: number;
+  daysPresent: number;
+  basicPay: number;
+  regularHolidayPay: number;
+  specialHolidayPay: number;
+  regularOvertime: number;
+  holidayOvertime: number;
+  specialOvertime: number;
+  grossIncome: number;
+  tardyDeductions: number;
+  undertimeDeductions: number;
+  sss: number;
+  philhealth: number;
+  hdmf: number;
+  withholdingTax: number;
+  cashAdvance: number;
+  totalDeductions: number;
+  netPay: number;
+  taxableIncome: number;
+  status: 'pending' | 'paid';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAYROLL MAPPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function mapPeriod(raw: any): PayrollPeriod {
+  return {
+    id: raw.id,
+    periodStart: raw.period_start,
+    periodEnd: raw.period_end,
+    payDate: raw.pay_date || '',
+    status: raw.status,
+    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+  };
+}
+
+function mapAttendanceLog(raw: any): AttendanceLog {
+  const emp = raw.employee;
+  const hourlyRate = Number(emp?.base_hourly_rate) || 0;
+  return {
+    id: raw.id,
+    employeeId: raw.employee_id,
+    employeeCode: emp?.employee_code || '',
+    fullName: emp?.full_name || '',
+    position: emp?.position || '',
+    dailyRate: hourlyRate * 8,
+    workedHours: Number(raw.worked_hours) || 0,
+    requiredHours: Number(raw.required_hours) || 160,
+    lateTimeslots: Number(raw.late_timeslots) || 0,
+    earlyLeaveTimeslots: Number(raw.early_leave_timeslots) || 0,
+    regularOvertimeHours: Number(raw.regular_overtime_hours) || 0,
+    holidayOvertimeHours: Number(raw.holiday_overtime_hours) || 0,
+    specialOvertimeHours: Number(raw.special_overtime_hours) || 0,
+    businessTripDays: Number(raw.business_trip_days) || 0,
+    absences: Number(raw.absences) || 0,
+    onLeaveDays: Number(raw.on_leave_days) || 0,
+    additionalPay: Number(raw.additional_pay) || 0,
+    deductionAmount: Number(raw.deduction_amount) || 0,
+  };
+}
+
+function mapPayrollRecord(raw: any): PayrollRecord {
+  const emp = raw.employee;
+  return {
+    id: raw.id,
+    employeeId: raw.employee_id,
+    employeeName: emp?.full_name || '',
+    employeeCode: emp?.employee_code || '',
+    position: emp?.position || '',
+    dailyRate: Number(raw.daily_rate) || 0,
+    daysPresent: Number(raw.days_present) || 0,
+    basicPay: Number(raw.basic_pay) || 0,
+    regularHolidayPay: Number(raw.regular_holiday_pay) || 0,
+    specialHolidayPay: Number(raw.special_holiday_pay) || 0,
+    regularOvertime: Number(raw.regular_overtime) || 0,
+    holidayOvertime: Number(raw.holiday_overtime) || 0,
+    specialOvertime: Number(raw.special_overtime) || 0,
+    grossIncome: Number(raw.gross_income) || 0,
+    tardyDeductions: Number(raw.tardy_deductions) || 0,
+    undertimeDeductions: Number(raw.undertime_deductions) || 0,
+    sss: Number(raw.sss) || 0,
+    philhealth: Number(raw.philhealth) || 0,
+    hdmf: Number(raw.hdmf) || 0,
+    withholdingTax: Number(raw.withholding_tax) || 0,
+    cashAdvance: Number(raw.cash_advance) || 0,
+    totalDeductions: Number(raw.total_deductions) || 0,
+    netPay: Number(raw.net_pay) || 0,
+    taxableIncome: Number(raw.taxable_income) || 0,
+    status: raw.status || 'pending',
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PAYROLL — usePayrollData()
+// Used by: AdminPayroll
+// ═══════════════════════════════════════════════════════════════════════════════
+export function usePayrollData() {
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+  const [computing, setComputing] = useState(false);
+
+  const periodsQ = useQuery(() => db.payroll.getPeriods(), []);
+  const periods: PayrollPeriod[] = (periodsQ.data || []).map(mapPeriod);
+
+  // Auto-select most recent period
+  const activePeriodId = selectedPeriodId || periods[0]?.id || null;
+  const currentPeriod  = periods.find(p => p.id === activePeriodId) || null;
+
+  const attendanceQ = useQuery(
+    () => activePeriodId
+      ? db.payroll.getAttendanceLogs(activePeriodId)
+      : Promise.resolve([]),
+    [activePeriodId]
+  );
+
+  const payrollQ = useQuery(
+    () => activePeriodId
+      ? db.payroll.getPayrollRecords(activePeriodId)
+      : Promise.resolve([]),
+    [activePeriodId]
+  );
+
+  const attendanceLogs: AttendanceLog[]  = (attendanceQ.data || []).map(mapAttendanceLog);
+  const payrollRecords: PayrollRecord[]  = (payrollQ.data  || []).map(mapPayrollRecord);
+
+  const dashboardStats = {
+    totalEmployees:    attendanceLogs.length,
+    grossPayroll:      payrollRecords.reduce((s, r) => s + r.grossIncome, 0),
+    netPayroll:        payrollRecords.reduce((s, r) => s + r.netPay, 0),
+    totalDeductions:   payrollRecords.reduce((s, r) => s + r.totalDeductions, 0),
+    totalWorkHours:    attendanceLogs.reduce((s, l) => s + l.workedHours, 0),
+    totalOvertimeHours: attendanceLogs.reduce((s, l) =>
+      s + l.regularOvertimeHours + l.holidayOvertimeHours + l.specialOvertimeHours, 0),
+    totalAbsences:     attendanceLogs.reduce((s, l) => s + l.absences, 0),
+  };
+
+  const loading = periodsQ.loading || attendanceQ.loading || payrollQ.loading;
+  const error   = periodsQ.error   || attendanceQ.error   || payrollQ.error;
+
+  const refresh = useCallback(() => {
+    periodsQ.refresh();
+    attendanceQ.refresh();
+    payrollQ.refresh();
+  }, [activePeriodId]);
+
+  return {
+    // Data
+    periods, currentPeriod, activePeriodId, attendanceLogs, payrollRecords,
+    dashboardStats, loading, error, computing,
+
+    // Period selector
+    setSelectedPeriodId,
+
+    // Refresh
+    refresh,
+
+    // Mutations
+    createPeriod: async (data: { period_start: string; period_end: string; pay_date?: string }) => {
+      const r = await safe(() => db.payroll.createPeriod(data).then(() => periodsQ.refresh()));
+      return r;
+    },
+
+    updateAttendanceLog: async (log: {
+      employee_id: string; payroll_period_id: string;
+      worked_hours?: number; required_hours?: number;
+      late_timeslots?: number; early_leave_timeslots?: number;
+      regular_overtime_hours?: number; holiday_overtime_hours?: number;
+      special_overtime_hours?: number; business_trip_days?: number;
+      absences?: number; on_leave_days?: number;
+      additional_pay?: number; deduction_amount?: number;
+    }) => {
+      const r = await safe(() =>
+        db.payroll.upsertAttendanceLog(log).then(() => attendanceQ.refresh())
+      );
+      return r;
+    },
+
+    computePayroll: async (periodId: string) => {
+      setComputing(true);
+      const r = await safe(() =>
+        db.payroll.computePayroll(periodId).then(() => payrollQ.refresh())
+      );
+      setComputing(false);
+      return r;
+    },
+
+    updatePayrollRecord: async (id: string, updates: Record<string, any>) => {
+      const r = await safe(() =>
+        db.payroll.updatePayrollRecord(id, updates).then(() => payrollQ.refresh())
+      );
+      return r;
+    },
+
+    markPeriodComplete: async (periodId: string) => {
+      const r = await safe(() =>
+        db.payroll.updatePeriod(periodId, { status: 'complete' }).then(() => periodsQ.refresh())
+      );
+      return r;
+    },
+
+    markAllPaid: async (periodId: string) => {
+      const r = await safe(async () => {
+        const records = await db.payroll.getPayrollRecords(periodId);
+        for (const rec of records) {
+          await db.payroll.updatePayrollRecord(rec.id, { status: 'paid' });
+        }
+        payrollQ.refresh();
+      });
       return r;
     },
   };

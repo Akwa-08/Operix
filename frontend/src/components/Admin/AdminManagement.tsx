@@ -14,6 +14,18 @@ type Supplier = FrontendSupplier;
     </div>
   );
 
+  // ── Reusable select ──────────────────────────────────────────────────
+  const S = ({ label, value, onChange, options, placeholder = "Select...", disabled = false }: any) => (
+    <div>
+      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+      <select value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
+        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm bg-white">
+        <option value="">{placeholder}</option>
+        {options.map((o: string) => <option key={o} value={o.toLowerCase()}>{o}</option>)}
+      </select>
+    </div>
+  );
+
   // ── Modal wrapper ────────────────────────────────────────────────────
   const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
     if (!show) return null;
@@ -64,6 +76,7 @@ const AdminManagement: React.FC = () => {
 
   const tabs = ["Users", "Employees", "Suppliers"];
   const accountRoles = ["Admin", "Cashier", "Designer", "Production", "Customer"];
+  const employeeRoles = ["Admin", "Cashier", "Designer", "Production", "Other"];
   const statuses = ["Active", "Inactive"];
 
   const {
@@ -169,17 +182,32 @@ const AdminManagement: React.FC = () => {
     const mr = selectedRole === "Select Role" || u.role === selectedRole;
     return ms && mr;
   });
-  const filteredEmployees = employees.filter(e => !searchQuery || [e.fullName, e.position, e.employeeCode].some(f => f.toLowerCase().includes(searchQuery.toLowerCase())));
+  const filteredEmployees = employees.filter(e =>
+    !searchQuery || [e.fullName, e.position, e.employeeCode, (e as any).role || ''].some(f => f.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
   const filteredSuppliers = suppliers.filter(s => {
     const ms = !searchQuery || [s.supplierName, s.email].some(f => f.toLowerCase().includes(searchQuery.toLowerCase()));
     const mst = selectedStatus === "Select Status" || s.supplierStatus === selectedStatus;
     return ms && mst;
   });
 
-  // ── Loading ──────────────────────────────────────────────────────────
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  // ── Role badge color helper ───────────────────────────────────────────
+  const roleBadge = (role: string) => {
+    const colors: Record<string, string> = {
+      admin:      'bg-purple-100 text-purple-700',
+      cashier:    'bg-blue-100 text-blue-700',
+      designer:   'bg-pink-100 text-pink-700',
+      production: 'bg-orange-100 text-orange-700',
+      other:      'bg-gray-100 text-gray-600',
+    };
+    return colors[role?.toLowerCase()] || 'bg-gray-100 text-gray-600';
+  };
 
-
+  if (loading) return (
+    <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -194,7 +222,7 @@ const AdminManagement: React.FC = () => {
           <F label="Username *" value={userForm.username} onChange={(v: string) => setUserForm({...userForm, username: v})} />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
-            <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+            <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               <option value="">Select Role</option>
               {accountRoles.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
@@ -218,15 +246,18 @@ const AdminManagement: React.FC = () => {
           <F label="Username" value={editUserForm.username} onChange={(v: string) => setEditUserForm({...editUserForm, username: v})} />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-            <select value={editUserForm.role} onChange={e => setEditUserForm({...editUserForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
+            <select value={editUserForm.role} onChange={e => setEditUserForm({...editUserForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               {accountRoles.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowViewUserModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={() => { if (selectedUser) { setUserToDeactivate(selectedUser); setShowViewUserModal(false); setShowDeactivateModal(true); }}} className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl">Deactivate</button>
-          <button onClick={handleUpdateUser} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2"><Check size={18} />Save</button>
+          <button onClick={() => { if (selectedUser) { setUserToDeactivate(selectedUser); setShowViewUserModal(false); setShowDeactivateModal(true); }}}
+            className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl">Deactivate</button>
+          <button onClick={handleUpdateUser} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+            <Check size={18} />Save
+          </button>
         </div>
       </Modal>
 
@@ -255,6 +286,24 @@ const AdminManagement: React.FC = () => {
           <F label="Employee Code" value={empForm.employeeCode} onChange={(v: string) => setEmpForm({...empForm, employeeCode: v})} placeholder="EMP-008" />
           <F label="Full Name *" value={empForm.fullName} onChange={(v: string) => setEmpForm({...empForm, fullName: v})} />
           <F label="Position *" value={empForm.position} onChange={(v: string) => setEmpForm({...empForm, position: v})} placeholder="e.g., Printer Operator" />
+
+          {/* ── NEW: Role dropdown ── */}
+<div>
+  <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
+  <select
+    value={empForm.role}
+    onChange={(e) => setEmpForm({ ...empForm, role: e.target.value as EmployeeRole })}
+    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+  >
+    <option value="">Select Role</option>
+    {employeeRoles.map((r) => (
+      <option key={r} value={r}>{r}</option>  
+    ))}
+  </select>
+  <p className="text-xs text-gray-400 mt-1">Used for payroll department grouping</p>
+</div>
+
+
           <F label="Base Hourly Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({...empForm, baseHourlyRate: v})} placeholder="0.00" />
           <F label="Hire Date" type="date" value={empForm.hireDate} onChange={(v: string) => setEmpForm({...empForm, hireDate: v})} />
           <div>
@@ -296,7 +345,9 @@ const AdminManagement: React.FC = () => {
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowViewEmpModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={handleUpdateEmp} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2"><Check size={18} />Save</button>
+          <button onClick={handleUpdateEmp} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+            <Check size={18} />Save
+          </button>
         </div>
       </Modal>
 
@@ -332,8 +383,11 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ FLAG NOTES MODAL ═══ */}
       <Modal show={showFlagNotesModal && !!selectedSupplier} onClose={() => setShowFlagNotesModal(false)} title={`Flag Notes — ${selectedSupplier?.supplierName || ''}`}>
-        <textarea value={flagNotes} onChange={e => setFlagNotes(e.target.value)} placeholder="Add notes about this supplier..." className="w-full min-h-[150px] p-4 bg-gray-100 rounded-lg border-none resize-none focus:outline-none mb-6 text-sm" />
-        <div className="flex justify-end"><button onClick={handleSaveFlagNotes} className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl">Save Notes</button></div>
+        <textarea value={flagNotes} onChange={e => setFlagNotes(e.target.value)} placeholder="Add notes about this supplier..."
+          className="w-full min-h-[150px] p-4 bg-gray-100 rounded-lg border-none resize-none focus:outline-none mb-6 text-sm" />
+        <div className="flex justify-end">
+          <button onClick={handleSaveFlagNotes} className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl">Save Notes</button>
+        </div>
       </Modal>
 
       {/* ═══ DEACTIVATE EMPLOYEE CONFIRM ═══ */}
@@ -472,8 +526,16 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3 text-gray-600">{u.userName || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{u.email}</td>
                     <td className="px-4 py-3 text-gray-600">{u.contactNumber || '—'}</td>
-                    <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{u.role}</span></td>
-                    <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{u.isActive ? 'Active' : 'Inactive'}</span></td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                        {u.role}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {u.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{u.createdAt}</td>
                     <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
                       <button onClick={() => handleViewUser(u)} className="flex items-center gap-1 px-2.5 py-1.5 hover:bg-cyan-100 rounded-lg text-sm text-cyan-600 font-semibold"><Eye size={16}/> View</button>
@@ -542,7 +604,7 @@ const AdminManagement: React.FC = () => {
                     </div></td>
                   </tr>
                 ))}
-                {filteredEmployees.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No employee records found</td></tr>}
+                {filteredEmployees.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No employee records found</td></tr>}
               </tbody>
             </table>
           </div>
@@ -589,7 +651,11 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3 font-medium">{s.supplierName}{s.isFlagged && <span className="ml-2 text-xs text-red-600 font-bold">⚑</span>}</td>
                     <td className="px-4 py-3 text-gray-600">{s.email || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{s.contactNumber || '—'}</td>
-                    <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${s.supplierStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{s.supplierStatus}</span></td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${s.supplierStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {s.supplierStatus}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-600">{s.createdAt}</td>
                     <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
                       <button onClick={() => handleViewSupplier(s)} className="p-1.5 hover:bg-cyan-100 rounded-lg"><Eye size={16} className="text-cyan-600"/></button>
