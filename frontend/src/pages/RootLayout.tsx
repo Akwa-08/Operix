@@ -21,6 +21,8 @@ export const RootLayout = () => {
       <div className="flex flex-1">
         <SharedSideBar
           name={displayName}
+          email={user?.email}
+          role="Customer"
           items={customerSidebarItems}
           profilePath="/profile"
           onLogout={() => { signOut(); navigate('/'); }}
