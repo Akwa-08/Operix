@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Search, Send, PlusCircle, ArrowLeft } from "lucide-react";
-import { useAuth } from "../../../context/AuthContext";
-import { db } from "../../../lib/database";
+import React, {useState, useRef, useEffect, useCallback} from "react";
+import {Search, Send, PlusCircle, ArrowLeft} from "lucide-react";
+import {useAuth} from "../../../context/AuthContext";
+import {db} from "../../../lib/database";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 export interface Message {
@@ -30,8 +30,8 @@ interface MessagesProps {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
-  const { user } = useAuth();
+const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
+  const {user} = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
@@ -53,11 +53,18 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
   }, [selectedConv]);
 
   const STAFF_ROLES = ["admin", "cashier", "designer", "production"];
-  const isStaff = user ? STAFF_ROLES.includes((user.role || "").toLowerCase()) : false;
+  const isStaff = user
+    ? STAFF_ROLES.includes((user.role || "").toLowerCase())
+    : false;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const getInitials = (name: string) =>
-    name.split(" ").map((n) => n[0]).join("").toUpperCase().substring(0, 2);
+    name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
 
   // ── Load conversations ─────────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
@@ -77,7 +84,7 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
   const openConversation = useCallback(async (conv: Conversation) => {
     try {
       const messages = await db.chat.getMessages(conv.userId);
-      const full = { ...conv, messages };
+      const full = {...conv, messages};
       setSelectedConv(full);
       // Sync ref immediately so the realtime handler sees the updated value
       selectedConvRef.current = full;
@@ -120,7 +127,7 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
           newMsg.receiver_id === current.userId)
       ) {
         const fresh = await db.chat.getMessages(current.userId);
-        setSelectedConv((prev) => (prev ? { ...prev, messages: fresh } : null));
+        setSelectedConv((prev) => (prev ? {...prev, messages: fresh} : null));
       }
     });
 
@@ -132,7 +139,7 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
 
   // ── Scroll to bottom on new messages ──────────────────────────────────────
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({behavior: "smooth"});
   }, [selectedConv?.messages]);
 
   // ── Discovery ──────────────────────────────────────────────────────────────
@@ -196,7 +203,7 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
     };
 
     setSelectedConv((prev) =>
-      prev ? { ...prev, messages: [...prev.messages, optimistic] } : null
+      prev ? {...prev, messages: [...prev.messages, optimistic]} : null,
     );
 
     try {
@@ -209,9 +216,7 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
         const real = freshList.find((c) => c.userId === selectedConv.userId);
         if (real) {
           // Keep existing optimistic messages while updating the id
-          setSelectedConv((prev) =>
-            prev ? { ...prev, id: real.id } : null
-          );
+          setSelectedConv((prev) => (prev ? {...prev, id: real.id} : null));
         }
       }
     } catch (err) {
@@ -219,8 +224,11 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
       // Revert the optimistic message on failure
       setSelectedConv((prev) =>
         prev
-          ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) }
-          : null
+          ? {
+              ...prev,
+              messages: prev.messages.filter((m) => m.id !== optimistic.id),
+            }
+          : null,
       );
     }
   };
@@ -234,11 +242,11 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
 
   // ── Filtered views ─────────────────────────────────────────────────────────
   const filteredConversations = conversations.filter((c) =>
-    c.userName.toLowerCase().includes(searchQuery.toLowerCase())
+    c.userName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const filteredRecipients = potentialRecipients.filter((r) =>
-    r.userName.toLowerCase().includes(discoverySearch.toLowerCase())
+    r.userName.toLowerCase().includes(discoverySearch.toLowerCase()),
   );
 
   if (!user) return null;
@@ -261,7 +269,10 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
               </h2>
               {isDiscovering ? (
                 <button
-                  onClick={() => { setIsDiscovering(false); setDiscoverySearch(""); }}
+                  onClick={() => {
+                    setIsDiscovering(false);
+                    setDiscoverySearch("");
+                  }}
                   className="p-1 px-2 text-xs font-semibold text-cyan-600 bg-cyan-50 rounded-lg hover:bg-cyan-100 transition-colors flex items-center gap-1">
                   <ArrowLeft size={14} /> Back
                 </button>
@@ -276,13 +287,20 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
             </div>
 
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                size={18}
+              />
               <input
                 type="text"
-                placeholder={isDiscovering ? "Search users..." : "Search conversations..."}
+                placeholder={
+                  isDiscovering ? "Search users..." : "Search conversations..."
+                }
                 value={isDiscovering ? discoverySearch : searchQuery}
                 onChange={(e) =>
-                  isDiscovering ? setDiscoverySearch(e.target.value) : setSearchQuery(e.target.value)
+                  isDiscovering
+                    ? setDiscoverySearch(e.target.value)
+                    : setSearchQuery(e.target.value)
                 }
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
               />
@@ -293,7 +311,9 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
             {isDiscovering ? (
               // ── Discovery list ──
               filteredRecipients.length === 0 ? (
-                <p className="p-4 text-center text-sm text-gray-500">No users found</p>
+                <p className="p-4 text-center text-sm text-gray-500">
+                  No users found
+                </p>
               ) : (
                 filteredRecipients.map((r) => (
                   <button
@@ -301,11 +321,17 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
                     onClick={() => handleSelectDiscoveryUser(r)}
                     className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100 text-left">
                     <div className="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-semibold text-cyan-700">{getInitials(r.userName)}</span>
+                      <span className="text-sm font-semibold text-cyan-700">
+                        {getInitials(r.userName)}
+                      </span>
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-gray-900">{r.userName}</p>
-                      <p className="text-xs text-gray-500 capitalize">{r.userRole}</p>
+                      <p className="text-sm font-bold text-gray-900">
+                        {r.userName}
+                      </p>
+                      <p className="text-xs text-gray-500 capitalize">
+                        {r.userRole}
+                      </p>
                     </div>
                   </button>
                 ))
@@ -313,7 +339,9 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
             ) : loading ? (
               <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
             ) : filteredConversations.length === 0 ? (
-              <p className="p-4 text-center text-sm text-gray-500">No active conversations</p>
+              <p className="p-4 text-center text-sm text-gray-500">
+                No active conversations
+              </p>
             ) : (
               // ── Conversation list ──
               filteredConversations.map((conv) => (
@@ -326,20 +354,30 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
                       : ""
                   }`}>
                   <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-semibold text-gray-600">{getInitials(conv.userName)}</span>
+                    <span className="text-sm font-semibold text-gray-600">
+                      {getInitials(conv.userName)}
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-sm font-bold text-gray-900 truncate">{conv.userName}</p>
+                      <p className="text-sm font-bold text-gray-900 truncate">
+                        {conv.userName}
+                      </p>
                       {conv.unreadCount > 0 && (
                         <span className="ml-2 px-2 py-0.5 bg-cyan-500 text-white text-xs font-bold rounded-full">
                           {conv.unreadCount}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 mb-1 capitalize">{conv.userRole}</p>
-                    <p className="text-xs text-gray-600 truncate">{conv.lastMessage}</p>
-                    <p className="text-xs text-gray-400 mt-1">{conv.lastMessageTime}</p>
+                    <p className="text-xs text-gray-500 mb-1 capitalize">
+                      {conv.userRole}
+                    </p>
+                    <p className="text-xs text-gray-600 truncate">
+                      {conv.lastMessage}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {conv.lastMessageTime}
+                    </p>
                   </div>
                 </button>
               ))
@@ -359,13 +397,21 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
                 <ArrowLeft size={20} className="text-gray-600" />
               </button>
               <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                <span className="text-lg font-semibold text-gray-600">{getInitials(selectedConv.userName)}</span>
+                <span className="text-lg font-semibold text-gray-600">
+                  {getInitials(selectedConv.userName)}
+                </span>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">{selectedConv.userName}</h3>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {selectedConv.userName}
+                </h3>
                 <div className="flex items-center gap-2">
-                  <p className="text-sm text-gray-600 capitalize">{selectedConv.userRole}</p>
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded">Online</span>
+                  <p className="text-sm text-gray-600 capitalize">
+                    {selectedConv.userRole}
+                  </p>
+                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded">
+                    Online
+                  </span>
                 </div>
               </div>
             </div>
@@ -373,20 +419,27 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
               {selectedConv.messages.length === 0 && (
-                <p className="text-center text-sm text-gray-400 mt-8">No messages yet. Say hello!</p>
+                <p className="text-center text-sm text-gray-400 mt-8">
+                  No messages yet. Say hello!
+                </p>
               )}
               {selectedConv.messages.map((msg) => {
                 const isMine = msg.senderId === user.id;
                 return (
-                  <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                  <div
+                    key={msg.id}
+                    className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                     <div
                       className={`max-w-md px-4 py-2 rounded-2xl shadow-sm ${
                         isMine
                           ? "bg-cyan-500 text-white rounded-br-sm"
                           : "bg-white text-gray-900 rounded-bl-sm border border-gray-200"
                       }`}>
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                      <p className={`text-[10px] mt-1 text-right ${isMine ? "text-cyan-100" : "text-gray-400"}`}>
+                      <p className="text-sm whitespace-pre-wrap">
+                        {msg.content}
+                      </p>
+                      <p
+                        className={`text-[10px] mt-1 text-right ${isMine ? "text-cyan-100" : "text-gray-400"}`}>
                         {msg.timestamp}
                       </p>
                     </div>
@@ -397,7 +450,7 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
             </div>
 
             {/* Input */}
-            <div className="p-4 border-t bg-white">
+            <div className="p-4 border-t border-gray-200 bg-white">
               <div className="flex gap-3">
                 <input
                   type="text"
@@ -422,7 +475,9 @@ const Messages: React.FC<MessagesProps> = ({ title = "Messages" }) => {
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search size={24} className="text-gray-400" />
               </div>
-              <p className="text-gray-500 text-lg">Select a conversation to start messaging</p>
+              <p className="text-gray-500 text-lg">
+                Select a conversation to start messaging
+              </p>
             </div>
           </div>
         )}
