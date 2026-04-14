@@ -78,14 +78,15 @@ export const db = {
     return data || [];
   },
 
-  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; base_hourly_rate?: number; hire_date?: string }) {
+  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; role?: string; base_hourly_rate?: number; hire_date?: string }) {
     const { data, error } = await supabase.from('employees').insert([{
       ...emp, is_active: true,
       base_hourly_rate: emp.base_hourly_rate || 0,
       hire_date: emp.hire_date || new Date().toISOString().split('T')[0],
+      role: emp.role || 'Production' // Default to Production if not specified
     }]).select().single();
     if (error) throw error;
-    await logSystemAction('management', `Created Employee: ${emp.full_name}`, `Code: ${emp.employee_code || 'N/A'} - Postion: ${emp.position}`);
+    await logSystemAction('management', `Created Employee: ${emp.full_name}`, `Code: ${emp.employee_code || 'N/A'} - Position: ${emp.position} - Role: ${emp.role || 'Production'}`);
     return data;
   },
 

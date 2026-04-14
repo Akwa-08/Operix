@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, X, DollarSign, LayoutGrid, LayoutList, Package, Clock, CheckCircle } from "lucide-react";
+import { Plus, DollarSign, LayoutGrid, LayoutList, Package, Clock, CheckCircle } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";

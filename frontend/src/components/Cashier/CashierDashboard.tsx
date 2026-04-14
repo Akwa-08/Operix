@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import {
   RefreshCw, TrendingUp, DollarSign, CreditCard,
   Package, AlertTriangle, CheckCircle, Clock,
@@ -76,7 +76,6 @@ const CashierDashboard = () => {
   }, [rawOrders]);
 
   const stats = useMemo(() => {
-    const now = new Date();
     const revenue   = todayOrders.reduce((s, o) => s + (Number(o.total_amount) || 0), 0);
     const collected = todayOrders.reduce((s, o) => s + (Number(o.amount_paid)  || 0), 0);
     

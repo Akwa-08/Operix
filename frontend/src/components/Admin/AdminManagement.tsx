@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Search, Eye, Flag, FileText, ChevronDown, X, Check, Trash2 } from "lucide-react";
 import { useManagementData } from "../../hooks/useSupabase";
-import type { FrontendUser, FrontendSupplier, EmployeeRecord } from "../../Types";
+import type { FrontendUser, FrontendSupplier, EmployeeRecord, UserRole } from "../../Types";
 
 type Supplier = FrontendSupplier;
 
@@ -57,8 +57,8 @@ const AdminManagement: React.FC = () => {
   // Forms
   const [userForm, setUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "", password: "", confirmPassword: "" });
   const [editUserForm, setEditUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "" });
-  const [empForm, setEmpForm] = useState({ employeeCode: "", fullName: "", position: "", baseHourlyRate: "", hireDate: "" });
-  const [editEmpForm, setEditEmpForm] = useState({ fullName: "", position: "", baseHourlyRate: "", holidayMultiplier: "", overtimeMultiplier: "" });
+  const [empForm, setEmpForm] = useState({ employeeCode: "", fullName: "", position: "", role: "production" as UserRole, baseHourlyRate: "", hireDate: "" });
+  const [editEmpForm, setEditEmpForm] = useState({ fullName: "", position: "", role: "" as UserRole, baseHourlyRate: "", holidayMultiplier: "", overtimeMultiplier: "" });
   const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "" });
   const [flagNotes, setFlagNotes] = useState("");
 
@@ -79,7 +79,7 @@ const AdminManagement: React.FC = () => {
       setUserForm({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "", password: "", confirmPassword: "" });
       setShowCreateUserModal(true);
     } else if (activeTab === "Employees") {
-      setEmpForm({ employeeCode: "", fullName: "", position: "", baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
+      setEmpForm({ employeeCode: "", fullName: "", position: "", role: "production", baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
       setShowCreateEmpModal(true);
     } else {
       setSupplierForm({ name: "", phone: "", email: "" });
@@ -118,19 +118,19 @@ const AdminManagement: React.FC = () => {
   // ── Employee handlers ────────────────────────────────────────────────
   const handleViewEmp = (e: EmployeeRecord) => {
     setSelectedEmployee(e);
-    setEditEmpForm({ fullName: e.fullName, position: e.position, baseHourlyRate: String(e.baseHourlyRate), holidayMultiplier: String(e.holidayRateMultiplier), overtimeMultiplier: String(e.overtimeRateMultiplier) });
+    setEditEmpForm({ fullName: e.fullName, position: e.position, role: e.role, baseHourlyRate: String(e.baseHourlyRate), holidayMultiplier: String(e.holidayRateMultiplier), overtimeMultiplier: String(e.overtimeRateMultiplier) });
     setShowViewEmpModal(true);
   };
 
   const handleSubmitCreateEmp = async () => {
     if (!empForm.fullName || !empForm.position) { alert("Full name and position required"); return; }
-    const r = await createEmployee({ employeeCode: empForm.employeeCode, fullName: empForm.fullName, position: empForm.position, baseHourlyRate: Number(empForm.baseHourlyRate) || 0, hireDate: empForm.hireDate });
+    const r = await createEmployee({ employeeCode: empForm.employeeCode, fullName: empForm.fullName, position: empForm.position, role: empForm.role, baseHourlyRate: Number(empForm.baseHourlyRate) || 0, hireDate: empForm.hireDate });
     if (r.success) { alert("Employee record created!"); setShowCreateEmpModal(false); } else alert("Error: " + r.error);
   };
 
   const handleUpdateEmp = async () => {
     if (!selectedEmployee) return;
-    const r = await updateEmployee(selectedEmployee.id, { fullName: editEmpForm.fullName, position: editEmpForm.position, baseHourlyRate: Number(editEmpForm.baseHourlyRate) || 0, holidayMultiplier: Number(editEmpForm.holidayMultiplier) || 2.0, overtimeMultiplier: Number(editEmpForm.overtimeMultiplier) || 1.5 });
+    const r = await updateEmployee(selectedEmployee.id, { fullName: editEmpForm.fullName, position: editEmpForm.position, role: editEmpForm.role, baseHourlyRate: Number(editEmpForm.baseHourlyRate) || 0, holidayMultiplier: Number(editEmpForm.holidayMultiplier) || 2.0, overtimeMultiplier: Number(editEmpForm.overtimeMultiplier) || 1.5 });
     if (r.success) { alert("Employee updated!"); setShowViewEmpModal(false); } else alert("Error: " + r.error);
   };
 
@@ -257,6 +257,15 @@ const AdminManagement: React.FC = () => {
           <F label="Position *" value={empForm.position} onChange={(v: string) => setEmpForm({...empForm, position: v})} placeholder="e.g., Printer Operator" />
           <F label="Base Hourly Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({...empForm, baseHourlyRate: v})} placeholder="0.00" />
           <F label="Hire Date" type="date" value={empForm.hireDate} onChange={(v: string) => setEmpForm({...empForm, hireDate: v})} />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
+            <select value={empForm.role} onChange={(e) => setEmpForm({...empForm, role: e.target.value as UserRole})}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-base bg-white">
+              <option value="production">Production</option>
+              <option value="staff">General Staff</option>
+              <option value="manager">Manager</option>
+            </select>
+          </div>
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowCreateEmpModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
@@ -270,6 +279,15 @@ const AdminManagement: React.FC = () => {
           <F label="Employee Code" value={selectedEmployee?.employeeCode || ''} onChange={() => {}} disabled />
           <F label="Full Name" value={editEmpForm.fullName} onChange={(v: string) => setEditEmpForm({...editEmpForm, fullName: v})} />
           <F label="Position" value={editEmpForm.position} onChange={(v: string) => setEditEmpForm({...editEmpForm, position: v})} />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+            <select value={editEmpForm.role} onChange={(e) => setEditEmpForm({...editEmpForm, role: e.target.value as UserRole})}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-base bg-white">
+              <option value="production">Production</option>
+              <option value="staff">General Staff</option>
+              <option value="manager">Manager</option>
+            </select>
+          </div>
           <F label="Base Hourly Rate (₱)" type="number" value={editEmpForm.baseHourlyRate} onChange={(v: string) => setEditEmpForm({...editEmpForm, baseHourlyRate: v})} />
           <F label="Holiday Multiplier" type="number" value={editEmpForm.holidayMultiplier} onChange={(v: string) => setEditEmpForm({...editEmpForm, holidayMultiplier: v})} />
           <F label="Overtime Multiplier" type="number" value={editEmpForm.overtimeMultiplier} onChange={(v: string) => setEditEmpForm({...editEmpForm, overtimeMultiplier: v})} />
@@ -502,6 +520,7 @@ const AdminManagement: React.FC = () => {
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Code</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Full Name</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Position</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Role</th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-700">Hourly Rate</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Hire Date</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
@@ -513,6 +532,7 @@ const AdminManagement: React.FC = () => {
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{e.employeeCode}</td>
                     <td className="px-4 py-3 font-medium">{e.fullName}</td>
                     <td className="px-4 py-3 text-gray-600">{e.position}</td>
+                    <td className="px-4 py-3 text-gray-600"><span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold">{e.role}</span></td>
                     <td className="px-4 py-3 text-right font-semibold">₱{e.baseHourlyRate.toFixed(2)}</td>
                     <td className="px-4 py-3 text-gray-600">{e.hireDate}</td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{e.isActive ? 'Active' : 'Inactive'}</span></td>

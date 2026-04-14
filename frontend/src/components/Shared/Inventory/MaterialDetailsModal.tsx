@@ -4,7 +4,7 @@
 import { Modal } from "../UI/Modal";
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
-import { Package, TrendingUp, Calendar, AlertCircle } from "lucide-react";
+import { Package, TrendingUp, AlertCircle } from "lucide-react";
 
 interface MaterialDetailsModalProps {
   isOpen: boolean;

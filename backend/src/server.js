@@ -152,6 +152,10 @@ app.delete('/api/admin/users/:id', requireAdmin, async (req, res) => {
 // ═════════════════════════════════════════════════════════════════════════════
 // Start
 // ═════════════════════════════════════════════════════════════════════════════
-app.listen(PORT, () => {
-  console.log(`\n  OPERIX ADMIN API | Port ${PORT} | 3 routes: create / update / delete user\n`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`\n  OPERIX ADMIN API | Port ${PORT} | 3 routes: create / update / delete user\n`);
+  });
+}
+
+module.exports = app;

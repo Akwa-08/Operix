@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ArrowRight, Search } from "lucide-react";
+import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
@@ -59,7 +59,7 @@ const AdminInventory = () => {
 
   const tabs = ["Materials", "Products", "Deliveries"];
   const { materials, stats: materialStats, loading: matLoading, refresh: refreshMat } = useInventoryData();
-  const { products, stats: prodStats, materials: rawMaterials, loading: prodLoading, refresh: refreshProd, createProduct, updateProduct, deleteProduct } = useProductsData();
+  const { products, stats: prodStats, materials: rawMaterials, loading: prodLoading, createProduct, updateProduct, deleteProduct } = useProductsData();
   const { deliveries, stats: delStats, materials: delMaterials, suppliers, loading: delLoading, createDelivery, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
   const loading = activeTab === "Materials" ? matLoading : activeTab === "Products" ? prodLoading : delLoading;

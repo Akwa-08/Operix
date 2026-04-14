@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import {
   RefreshCw, TrendingUp, DollarSign, CreditCard,
-  Package, AlertTriangle, CheckCircle, Clock,
+  Package, AlertTriangle, CheckCircle,
 } from "lucide-react";
 import { useDashboardData } from "../../hooks/useSupabase";
 

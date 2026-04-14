@@ -77,10 +77,7 @@ const AdminOrders = () => {
   const [selectedOrder, setSelectedOrder]       = useState<Order | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
 
-  const { orders, stats, staffList, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment } = useOrdersData();
-
-  const designers      = staffList.filter(s => s.role === "designer");
-  const productionStaff = staffList.filter(s => s.role === "production");
+  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment } = useOrdersData();
 
   const statusOptions = ["All", "In Queue", "Active", "Completed", "Overdue"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
@@ -230,7 +227,7 @@ const AdminOrders = () => {
             <select value={assignForm.designer} onChange={e => setAssignForm({ ...assignForm, designer: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {designers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
+              {designers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div>
@@ -238,7 +235,7 @@ const AdminOrders = () => {
             <select value={assignForm.production} onChange={e => setAssignForm({ ...assignForm, production: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {productionStaff.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+              {productionStaff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>
