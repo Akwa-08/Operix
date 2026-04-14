@@ -27,7 +27,7 @@ interface OrderDetailsModalProps {
   onUploadDesign?: () => void;
   onUpdateStatus?: (newStatus: string) => void;
   onEdit?: () => void;
-  onRecordPayment?: (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => Promise<{ success: boolean; error?: string }>;
+  onRecordPayment?: (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; receipt_number?: string; notes?: string }) => Promise<{ success: boolean; error: string | null }>;
 }
 
 export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({

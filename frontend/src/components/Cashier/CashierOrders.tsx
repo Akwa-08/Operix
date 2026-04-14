@@ -140,7 +140,9 @@ const CashierOrders = () => {
       <CreateOrderModal isOpen={showCreateModal} userRole="cashier" onClose={() => setShowCreateModal(false)} onSave={handleCreateOrder} />
 
       {selectedOrder && (
-        <OrderDetailsModal isOpen={showDetailsModal} order={selectedOrder} userRole="cashier" onClose={() => setShowDetailsModal(false)} />
+        <OrderDetailsModal isOpen={showDetailsModal} order={selectedOrder} userRole="cashier" 
+          onClose={() => setShowDetailsModal(false)}
+          onRecordPayment={recordPayment} />
       )}
     </div>
   );
