@@ -2,12 +2,17 @@ import { useState, useRef } from "react";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
-  X, Edit2, RefreshCw, Plus,
+  X, Edit2, RefreshCw, Plus, ThumbsUp, ThumbsDown,
+  Banknote, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "../../config/supabaseClient";
 import {
   usePayrollData,
-  type AttendanceLog, type PayrollRecord, type PayrollPeriod,
+  useCashAdvances,
+  useEmployees,
+  usePendingCashAdvances,
+  type AttendanceLog, type PayrollRecord, type PayrollPeriod, type CashAdvance,
+  type PendingCashAdvance,
 } from "../../hooks/useSupabase";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -258,6 +263,371 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
   );
 }
 
+// ─── Cash Advance Modal ───────────────────────────────────────────────────────
+function CashAdvanceModal({ employees, onClose, onCreate }: {
+  employees: any[];
+  onClose: () => void;
+  onCreate: (d: { employee_id: string; amount: number; date_issued?: string; reason?: string }) => Promise<any>;
+}) {
+  const [form, setForm] = useState({
+    employee_id: '',
+    amount: '',
+    date_issued: new Date().toISOString().split('T')[0],
+    reason: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handleSubmit = async () => {
+    if (!form.employee_id) { setErr('Select an employee.'); return; }
+    if (!form.amount || Number(form.amount) <= 0) { setErr('Enter a valid amount.'); return; }
+    setSaving(true);
+    const r = await onCreate({
+      employee_id: form.employee_id,
+      amount:      Number(form.amount),
+      date_issued: form.date_issued,
+      reason:      form.reason || undefined,
+    });
+    if (!r.success) setErr(r.error || 'Failed');
+    else onClose();
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        <h3 className="text-xl font-bold text-gray-900 mb-6">Record Cash Advance</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Employee *</label>
+            <select value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+              <option value="">Select employee…</option>
+              {employees.map((emp: any) => (
+                <option key={emp.id} value={emp.id}>{emp.full_name} — {emp.employee_code}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (₱) *</label>
+            <input type="number" min="1" step="0.01" value={form.amount}
+              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              placeholder="0.00" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Date Issued</label>
+            <input type="date" value={form.date_issued}
+              onChange={e => setForm(f => ({ ...f, date_issued: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Reason (optional)</label>
+            <textarea value={form.reason}
+              onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
+              rows={3} placeholder="e.g. Medical emergency, personal loan…"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none" />
+          </div>
+          {err && <p className="text-sm text-red-600">{err}</p>}
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
+          <button onClick={handleSubmit} disabled={saving}
+            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
+            {saving ? 'Saving…' : 'Record Advance'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Decline Reason Modal ─────────────────────────────────────────────────────
+function DeclineReasonModal({ advance, onClose, onDecline }: {
+  advance: PendingCashAdvance;
+  onClose: () => void;
+  onDecline: (id: string, reason: string) => Promise<any>;
+}) {
+  const [reason, setReason] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const handleDecline = async () => {
+    if (!reason.trim()) { setErr('Please provide a reason for declining.'); return; }
+    setSaving(true);
+    const r = await onDecline(advance.id, reason.trim());
+    if (!r.success) setErr(r.error || 'Failed to decline');
+    else onClose();
+    setSaving(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+            <ThumbsDown size={18} className="text-red-600" />
+          </div>
+          <h3 className="text-lg font-bold text-gray-900">Decline Cash Advance</h3>
+        </div>
+        <p className="text-sm text-gray-500 mb-5">
+          Declining {fmt(advance.amount)} request from <strong>{advance.employeeName}</strong>. Please provide a reason.
+        </p>
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-1">Reason for Decline *</label>
+          <textarea
+            value={reason}
+            onChange={e => { setReason(e.target.value); setErr(''); }}
+            rows={4}
+            placeholder="e.g. Already has a pending advance, exceeds allowable limit…"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+            autoFocus
+          />
+          {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
+        </div>
+        <div className="flex gap-3 mt-5">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">
+            Cancel
+          </button>
+          <button onClick={handleDecline} disabled={saving}
+            className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm disabled:opacity-50">
+            {saving ? 'Declining…' : 'Confirm Decline'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cash Advance Approval Panel ──────────────────────────────────────────────
+function CashAdvanceApprovalPanel() {
+  const { pendingAdvances, loading, refresh, approveAdvance, declineAdvance } = usePendingCashAdvances();
+  const [decliningAdvance, setDecliningAdvance] = useState<PendingCashAdvance | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<{ id: string; type: 'approved' | 'declined' } | null>(null);
+
+  const handleApprove = async (adv: PendingCashAdvance) => {
+    setApprovingId(adv.id);
+    const r = await approveAdvance(adv.id);
+    if (r.success) setActionResult({ id: adv.id, type: 'approved' });
+    setApprovingId(null);
+  };
+
+  const handleDeclineSubmit = async (id: string, reason: string) => {
+    const r = await declineAdvance(id, reason);
+    if (r.success) setActionResult({ id, type: 'declined' });
+    return r;
+  };
+
+  // Clear flash result after 2s
+  if (actionResult) {
+    setTimeout(() => setActionResult(null), 2000);
+  }
+
+  const exceedsLimit = (adv: PendingCashAdvance) => adv.amount > adv.remainingAllowed;
+
+  return (
+    <>
+      {decliningAdvance && (
+        <DeclineReasonModal
+          advance={decliningAdvance}
+          onClose={() => setDecliningAdvance(null)}
+          onDecline={handleDeclineSubmit}
+        />
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        {/* Panel header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-amber-50">
+          <div className="flex items-center gap-2">
+            <Banknote size={18} className="text-amber-600" />
+            <h3 className="text-base font-bold text-gray-900">Cash Advance Requests</h3>
+            {pendingAdvances.length > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
+                {pendingAdvances.length}
+              </span>
+            )}
+          </div>
+          <button onClick={refresh} className="p-1.5 hover:bg-amber-100 rounded-lg" title="Refresh">
+            <RefreshCw size={15} className={`text-amber-600 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+
+        {/* Empty state */}
+        {!loading && pendingAdvances.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+            <CheckCircle2 size={32} className="mb-2 text-green-400" />
+            <p className="text-sm font-medium text-gray-500">No pending cash advance requests</p>
+            <p className="text-xs text-gray-400 mt-0.5">All requests have been processed</p>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="p-4 space-y-3">
+            {[1, 2].map(i => (
+              <div key={i} className="h-16 bg-gray-100 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        )}
+
+        {/* Table */}
+        {!loading && pendingAdvances.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {[
+                    "ID / Employee",
+                    "Position",
+                    "Reason",
+                    "Requested",
+                    "Allowed Limit",
+                    "Remaining Allowed",
+                    "Requested By",
+                    "Actions",
+                  ].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {pendingAdvances.map(adv => {
+                  const over = exceedsLimit(adv);
+                  const isApproving = approvingId === adv.id;
+                  const justActed = actionResult?.id === adv.id;
+
+                  return (
+                    <tr
+                      key={adv.id}
+                      className={`transition-colors ${
+                        justActed
+                          ? actionResult?.type === 'approved'
+                            ? 'bg-green-50'
+                            : 'bg-red-50'
+                          : over
+                          ? 'bg-orange-50 hover:bg-orange-100/60'
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      {/* ID / Employee */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <p className="font-semibold text-gray-900 text-sm">{adv.employeeName}</p>
+                        <p className="text-xs text-gray-400 font-mono">{adv.employeeCode}</p>
+                      </td>
+
+                      {/* Position */}
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {adv.employeePosition}
+                      </td>
+
+                      {/* Reason */}
+                      <td className="px-4 py-3 max-w-[180px]">
+                        <p className="text-xs text-gray-600 truncate" title={adv.reason}>
+                          {adv.reason || <span className="italic text-gray-300">No reason provided</span>}
+                        </p>
+                      </td>
+
+                      {/* Requested amount */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`font-bold text-sm ${over ? 'text-orange-600' : 'text-gray-900'}`}>
+                          {fmt(adv.amount)}
+                        </span>
+                        {over && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <AlertTriangle size={11} className="text-orange-500 flex-shrink-0" />
+                            <span className="text-[10px] text-orange-500 font-semibold">Exceeds limit</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Allowed limit */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="text-xs text-gray-700 font-semibold">{fmt(adv.allowedLimit)}</span>
+                        <p className="text-[10px] text-gray-400 mt-0.5">50% of semi-monthly pay</p>
+                      </td>
+
+                      {/* Remaining allowed */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className={`text-sm font-bold ${adv.remainingAllowed <= 0 ? 'text-red-600' : 'text-green-700'}`}>
+                          {fmt(adv.remainingAllowed)}
+                        </span>
+                        {adv.pendingTotal > 0 && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {fmt(adv.pendingTotal)} already pending
+                          </p>
+                        )}
+                      </td>
+
+                      {/* Requested by / date */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <p className="text-xs text-gray-600">{adv.issuedByName}</p>
+                        <p className="text-[10px] text-gray-400">{adv.dateIssued}</p>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        {justActed ? (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${
+                            actionResult?.type === 'approved'
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            <CheckCircle2 size={12} />
+                            {actionResult?.type === 'approved' ? 'Approved' : 'Declined'}
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {/* Confirm / Approve */}
+                            <button
+                              onClick={() => handleApprove(adv)}
+                              disabled={isApproving}
+                              title="Approve cash advance"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition-colors"
+                            >
+                              <ThumbsUp size={13} />
+                              {isApproving ? '…' : 'Approve'}
+                            </button>
+                            {/* Decline */}
+                            <button
+                              onClick={() => setDecliningAdvance(adv)}
+                              disabled={isApproving}
+                              title="Decline cash advance"
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-lg transition-colors"
+                            >
+                              <ThumbsDown size={13} />
+                              Decline
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Footer legend */}
+        {pendingAdvances.length > 0 && (
+          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-6 text-[11px] text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-orange-200 inline-block" />
+              Exceeds allowed limit
+            </span>
+            <span>Allowed limit = 50% of 13-day semi-monthly gross pay</span>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ─── Biometrics Upload Button ─────────────────────────────────────────────────
 function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -329,8 +699,11 @@ const AdminPayroll: React.FC = () => {
   const [editingLog, setEditingLog]       = useState<AttendanceLog | null>(null);
   const [viewingRecord, setViewingRecord] = useState<PayrollRecord | null>(null);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
+  const [showCashAdvanceModal, setShowCashAdvanceModal] = useState(false);
+  const [caStatusFilter, setCaStatusFilter] = useState<string>('all');
+  const [caSearchQuery, setCaSearchQuery] = useState('');
 
-  const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History"];
+  const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History", "Cash Advances"];
 
   const {
     periods, currentPeriod, activePeriodId, setSelectedPeriodId,
@@ -339,6 +712,14 @@ const AdminPayroll: React.FC = () => {
     createPeriod, updateAttendanceLog, computePayroll,
     updatePayrollRecord, markPeriodComplete, markAllPaid,
   } = usePayrollData();
+
+  const { employees: rawEmployees } = useEmployees();
+
+  const {
+    advances, stats: caStats,
+    loading: caLoading, refresh: caRefresh,
+    createAdvance, cancelAdvance,
+  } = useCashAdvances();
 
   const filteredLogs = attendanceLogs.filter(l =>
     l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -384,6 +765,13 @@ const AdminPayroll: React.FC = () => {
       )}
       {viewingRecord && (
         <PayslipModal record={viewingRecord} onClose={() => setViewingRecord(null)} />
+      )}
+      {showCashAdvanceModal && (
+        <CashAdvanceModal
+          employees={(rawEmployees as any[]).filter(e => e.is_active)}
+          onClose={() => setShowCashAdvanceModal(false)}
+          onCreate={createAdvance}
+        />
       )}
 
       {/* ── Page Header ── */}
@@ -530,6 +918,9 @@ const AdminPayroll: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* ── Cash Advance Approval Panel ── */}
+          <CashAdvanceApprovalPanel />
         </div>
       )}
 
@@ -697,28 +1088,100 @@ const AdminPayroll: React.FC = () => {
 
               {/* Formula reference */}
               <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-                <h3 className="text-base font-bold text-gray-900 mb-4">Computation Formulas</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <h3 className="text-base font-bold text-gray-900 mb-1">Computation Formulas</h3>
+                <p className="text-xs text-gray-400 mb-5">Based on VTA Link Printing Services Payroll Register — 15-day period</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* EARNINGS */}
                   <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Earnings:</p>
-                    <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
-                      <li>Basic Pay = Daily Rate × Days Present</li>
-                      <li>Regular Holiday = Daily Rate × 200%</li>
-                      <li>Special Holiday = Daily Rate × 130%</li>
-                      <li>Regular OT = Hourly Rate × 125%</li>
-                      <li>Holiday OT = Hourly Rate × 130%</li>
-                      <li>Special OT = Hourly Rate × 195%</li>
-                    </ul>
+                    <p className="text-sm font-bold text-gray-800 mb-3 pb-1 border-b border-gray-200">📊 EARNINGS</p>
+                    <div className="space-y-2.5 text-xs text-gray-600">
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="font-semibold text-gray-800 mb-1">Daily Rate</p>
+                        <p className="font-mono">= Base Hourly Rate × 8 hrs</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="font-semibold text-gray-800 mb-1">Days Present</p>
+                        <p className="font-mono">= Biometric Worked Hours ÷ 8</p>
+                        <p className="text-gray-400 mt-1">Source: XLS Summary "Work Hrs. Actual" column (HH.MM format converted to decimal)</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="font-semibold text-gray-800 mb-1">Basic Pay</p>
+                        <p className="font-mono">= Daily Rate × Days Present</p>
+                      </div>
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <p className="font-semibold text-blue-800 mb-1">Holiday Pay</p>
+                        <p className="font-mono">Regular Holiday = Daily Rate × 2.00</p>
+                        <p className="font-mono">Special Holiday = Daily Rate × 1.30</p>
+                        <p className="text-blue-500 mt-1">(+100% and +30% on top of regular rate)</p>
+                      </div>
+                      <div className="bg-green-50 rounded-lg p-3">
+                        <p className="font-semibold text-green-800 mb-1">Overtime Pay</p>
+                        <p className="font-mono">Regular Day OT     = Hourly Rate × 1.25</p>
+                        <p className="font-mono">Regular Holiday OT = Hourly Rate × 1.60</p>
+                        <p className="font-mono">Special Holiday OT = Hourly Rate × 1.30</p>
+                        <p className="text-green-600 mt-1">Source: XLS Summary "Overtime" columns</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3 border-t-2 border-gray-300">
+                        <p className="font-bold text-gray-900 mb-1">TOTAL GROSS INCOME</p>
+                        <p className="font-mono">= Basic Pay + Holiday Pay + OT Pay + Additional Pay</p>
+                      </div>
+                    </div>
                   </div>
+
+                  {/* DEDUCTIONS */}
                   <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-2">Deductions:</p>
-                    <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
-                      <li>Tardy/Undertime = (Daily Rate ÷ 8) × 0.5h per timeslot</li>
-                      <li>PhilHealth = ₱200 (Fixed)</li>
-                      <li>HDMF = ₱200 (Fixed)</li>
-                      <li>SSS = Based on salary bracket</li>
-                      <li>Cash Advance from attendance deduction field</li>
-                    </ul>
+                    <p className="text-sm font-bold text-gray-800 mb-3 pb-1 border-b border-gray-200">📉 DEDUCTIONS</p>
+                    <div className="space-y-2.5 text-xs text-gray-600">
+                      <div className="bg-red-50 rounded-lg p-3">
+                        <p className="font-semibold text-red-800 mb-1">Tardy / Undertime</p>
+                        <p className="font-mono">= (Daily Rate ÷ 8) × (Late Minutes ÷ 60)</p>
+                        <p className="font-mono">= Hourly Rate × 0.5h × Timeslots</p>
+                        <p className="text-red-500 mt-1">1 timeslot = 30 minutes · Source: XLS Exceptional sheet</p>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-3">
+                        <p className="font-semibold text-orange-800 mb-1">PhilHealth</p>
+                        <p className="font-mono">= (Daily Rate × 26 days) × 3% ÷ 2</p>
+                        <p className="font-mono">= Monthly Basic × 1.5%  (rounded to ₱5)</p>
+                        <p className="text-orange-500 mt-1">Employee semi-monthly share · e.g. ₱635/day → ₱250</p>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-3">
+                        <p className="font-semibold text-orange-800 mb-1">HDMF (Pag-IBIG)</p>
+                        <p className="font-mono">= ₱200.00 (fixed per period)</p>
+                      </div>
+                      <div className="bg-yellow-50 rounded-lg p-3">
+                        <p className="font-semibold text-yellow-800 mb-1">Withholding Tax</p>
+                        <p className="font-mono">= ₱0.00 (below ₱20,833/mo threshold)</p>
+                        <p className="text-yellow-600 mt-1">BIR tax table applies for higher earners</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3 opacity-60">
+                        <p className="font-semibold text-gray-700 mb-1">💤 Cash Advance <span className="text-xs font-normal text-gray-400">(pending enablement)</span></p>
+                        <p className="font-mono line-through">= Sum of all Pending advances for this employee</p>
+                        <p className="text-gray-400 mt-1">Tracked in Cash Advances tab · auto-deducted when enabled</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-3 opacity-60">
+                        <p className="font-semibold text-gray-700 mb-1">SSS <span className="text-xs font-normal text-gray-400">(not in this payroll format)</span></p>
+                        <p className="font-mono line-through">Excluded per VTA Link payroll register</p>
+                      </div>
+                      <div className="bg-gray-100 rounded-lg p-3 border-t-2 border-gray-400">
+                        <p className="font-bold text-gray-900 mb-1">TOTAL DEDUCTIONS</p>
+                        <p className="font-mono">= Tardy + Undertime + Withholding Tax + PhilHealth + HDMF</p>
+                        <p className="font-mono mt-1 font-bold">NET PAY = Gross Income − Total Deductions</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Data source note */}
+                <div className="mt-5 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-700">
+                  <p className="font-semibold mb-1">📁 Data Sources (XLS Summary Tab)</p>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1 mt-1">
+                    <span><span className="font-mono bg-blue-100 px-1 rounded">Work Hrs. Actual</span> → Worked hours (HH.MM biometric format)</span>
+                    <span><span className="font-mono bg-blue-100 px-1 rounded">Late Times / Min</span> → Tardy timeslots</span>
+                    <span><span className="font-mono bg-blue-100 px-1 rounded">Overtime Regular</span> → Regular OT hours</span>
+                    <span><span className="font-mono bg-blue-100 px-1 rounded">Overtime Special</span> → Special Holiday OT hours</span>
+                    <span><span className="font-mono bg-blue-100 px-1 rounded">Absence</span> → Absent days</span>
+                    <span><span className="font-mono bg-blue-100 px-1 rounded">On Leave</span> → Leave days</span>
                   </div>
                 </div>
               </div>
@@ -749,8 +1212,6 @@ const AdminPayroll: React.FC = () => {
             <div className="space-y-4">
               {periods.map(period => {
                 const isExpanded = expandedPeriods.has(period.id);
-                // Get records for this specific period from the currently loaded ones
-                // (full history would need a separate query — shown as period summary)
                 return (
                   <div key={period.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -830,6 +1291,134 @@ const AdminPayroll: React.FC = () => {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          TAB: CASH ADVANCES
+      ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "Cash Advances" && (
+        <div className="space-y-6">
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Total Advances" value={String(caStats.total)} />
+            <StatCard label="Pending" value={String(caStats.pending)} color="text-yellow-600" />
+            <StatCard label="Deducted" value={String(caStats.deducted)} color="text-green-600" />
+            <StatCard label="Total Pending Amount" value={fmt(caStats.totalPending)} color="text-red-500" />
+          </div>
+
+          {/* Controls */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input type="text" placeholder="Search by employee name…"
+                  value={caSearchQuery} onChange={e => setCaSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+              </div>
+              <select value={caStatusFilter} onChange={e => setCaStatusFilter(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-[150px]">
+                <option value="all">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="deducted">Deducted</option>
+                <option value="declined">Declined</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <button onClick={() => setShowCashAdvanceModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold">
+                <Plus size={16} /> Record Advance
+              </button>
+              <button onClick={caRefresh}
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                <RefreshCw size={16} className={caLoading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          {/* Info banner */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">
+            <p className="font-semibold mb-1">How Cash Advances work:</p>
+            <p>Record a cash advance here — it will be automatically deducted from the employee's next payroll computation. Once <strong>Compute Payroll</strong> runs, all <span className="font-semibold">Pending</span> advances are summed and deducted, then marked as <span className="font-semibold">Deducted</span>.</p>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    {["Employee", "Position", "Amount", "Date Issued", "Reason", "Status", "Deducted In", "Issued By", "Actions"].map(h => (
+                      <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {advances
+                    .filter(a => {
+                      const matchSearch = !caSearchQuery || a.employeeName.toLowerCase().includes(caSearchQuery.toLowerCase());
+                      const matchStatus = caStatusFilter === 'all' || a.status === caStatusFilter;
+                      return matchSearch && matchStatus;
+                    })
+                    .map(a => (
+                      <tr key={a.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                          <div>{a.employeeName}</div>
+                          <div className="text-xs text-gray-400">{a.employeeCode}</div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{a.employeePosition}</td>
+                        <td className="px-4 py-3 font-bold text-red-600">{fmt(a.amount)}</td>
+                        <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{a.dateIssued}</td>
+                        <td className="px-4 py-3 text-gray-500 max-w-[200px]">
+                          <span className="truncate block">{a.reason || '—'}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            a.status === 'pending'   ? 'bg-yellow-100 text-yellow-700' :
+                            a.status === 'approved'  ? 'bg-cyan-100 text-cyan-700'     :
+                            a.status === 'deducted'  ? 'bg-green-100 text-green-700'   :
+                            a.status === 'declined'  ? 'bg-red-100 text-red-700'       :
+                                                       'bg-gray-100 text-gray-500'
+                          }`}>
+                            {a.status.charAt(0).toUpperCase() + a.status.slice(1)}
+                          </span>
+                          {a.status === 'declined' && a.declineReason && (
+                            <p className="text-[10px] text-red-500 mt-0.5 max-w-[160px] truncate" title={a.declineReason}>
+                              {a.declineReason}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-400 text-xs">
+                          {a.payrollPeriodId ? 'Period linked' : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{a.issuedByName}</td>
+                        <td className="px-4 py-3 text-center">
+                          {a.status === 'pending' && (
+                            <button
+                              onClick={async () => {
+                                if (window.confirm(`Cancel ₱${a.amount.toLocaleString()} advance for ${a.employeeName}?`)) {
+                                  await cancelAdvance(a.id);
+                                }
+                              }}
+                              className="p-1.5 hover:bg-red-100 rounded-lg" title="Cancel advance">
+                              <X size={15} className="text-red-500" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  {advances.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="text-center py-12 text-gray-400 text-sm">
+                        No cash advances recorded yet. Click "Record Advance" to add one.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
     </div>

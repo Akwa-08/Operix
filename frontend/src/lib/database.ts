@@ -58,7 +58,7 @@ export const db = {
     return data || [];
   },
 
-  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; role?:  "Cashier" | "Designer" | "Production" | "Admin" | "Other"; base_hourly_rate?: number; hire_date?: string }) {
+  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; role?: string; base_hourly_rate?: number; hire_date?: string }) {
     const { data, error } = await supabase.from('employees').insert([{
       ...emp, is_active: true,
       base_hourly_rate: emp.base_hourly_rate || 0,
@@ -715,7 +715,7 @@ export const db = {
         .select(`
           *,
           employee:employee_id(
-            id, base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier
+            id, employee_code, base_hourly_rate
           )
         `)
         .eq('payroll_period_id', periodId);
@@ -727,28 +727,50 @@ export const db = {
         const emp = log.employee;
         if (!emp) continue;
 
-        const hourlyRate  = Number(emp.base_hourly_rate) || 0;
-        const dailyRate   = hourlyRate * 8;
-        const daysPresent = log.worked_hours > 0
-          ? Math.round(Number(log.worked_hours) / 8) : 0;
+        const hourlyRate = Number(emp.base_hourly_rate) || 0;
+        const dailyRate  = hourlyRate * 8;
 
-        const basicPay          = dailyRate * daysPresent;
-        const regularOT         = hourlyRate * 1.25 * Number(log.regular_overtime_hours || 0);
-        const holidayOT         = hourlyRate * 1.30 * Number(log.holiday_overtime_hours || 0);
-        const specialOT         = hourlyRate * 1.95 * Number(log.special_overtime_hours || 0);
-        const grossIncome       = basicPay + regularOT + holidayOT + specialOT
-                                  + Number(log.additional_pay || 0);
-        const tardyDeductions   = (hourlyRate / 2) * Number(log.late_timeslots || 0);
-        const undertimeDeduct   = (hourlyRate / 2) * Number(log.early_leave_timeslots || 0);
-        const philhealth        = 200;
-        const hdmf              = 200;
-        const sss               = grossIncome < 5000 ? 135
-                                : grossIncome < 10000 ? 270 : 581.30;
-        const cashAdvance       = Number(log.deduction_amount || 0);
-        const totalDeductions   = tardyDeductions + undertimeDeduct
-                                  + philhealth + hdmf + sss + cashAdvance;
-        const netPay            = grossIncome - totalDeductions;
-        const taxableIncome     = grossIncome - philhealth - hdmf - sss;
+        const daysPresent = Number(log.worked_hours) > 0
+          ? Math.round(Number(log.worked_hours) / 8)
+          : 0;
+
+        const basicPay = dailyRate * daysPresent;
+
+        const regularHolidayPay = 0;
+        const specialHolidayPay = 0;
+
+        const regularOT = hourlyRate * 1.25 * Number(log.regular_overtime_hours || 0);
+        const holidayOT = hourlyRate * 1.60 * Number(log.holiday_overtime_hours || 0);
+        const specialOT = hourlyRate * 1.30 * Number(log.special_overtime_hours || 0);
+
+        const grossIncome = basicPay
+          + regularHolidayPay
+          + specialHolidayPay
+          + regularOT
+          + holidayOT
+          + specialOT
+          + Number(log.additional_pay || 0);
+
+        const tardyDeductions    = hourlyRate * 0.5 * Number(log.late_timeslots || 0);
+        const undertimeDeductions = hourlyRate * 0.5 * Number(log.early_leave_timeslots || 0);
+
+        const monthlyBasic = dailyRate * 26;
+        const philhealth   = Math.round(monthlyBasic * 0.015 / 5) * 5;
+
+        const hdmf = 200;
+        const withholdingTax = 0;
+        const sss = 0;
+        const cashAdvance = 0;
+
+        const totalDeductions = tardyDeductions
+          + undertimeDeductions
+          + withholdingTax
+          + cashAdvance
+          + philhealth
+          + hdmf;
+
+        const netPay       = grossIncome - totalDeductions;
+        const taxableIncome = grossIncome - philhealth - hdmf;
 
         const { data: saved, error: saveErr } = await supabase
           .from('payroll_records')
@@ -758,16 +780,18 @@ export const db = {
             daily_rate:           dailyRate,
             days_present:         daysPresent,
             basic_pay:            basicPay,
-            regular_holiday_pay:  0,
-            special_holiday_pay:  0,
+            regular_holiday_pay:  regularHolidayPay,
+            special_holiday_pay:  specialHolidayPay,
             regular_overtime:     regularOT,
             holiday_overtime:     holidayOT,
             special_overtime:     specialOT,
             gross_income:         grossIncome,
             tardy_deductions:     tardyDeductions,
-            undertime_deductions: undertimeDeduct,
-            sss, philhealth, hdmf,
-            withholding_tax:      0,
+            undertime_deductions: undertimeDeductions,
+            sss,
+            philhealth,
+            hdmf,
+            withholding_tax:      withholdingTax,
             cash_advance:         cashAdvance,
             total_deductions:     totalDeductions,
             net_pay:              netPay,
@@ -782,6 +806,124 @@ export const db = {
       }
 
       return results;
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CASH ADVANCES
+  // ═══════════════════════════════════════════════════════════════════════════
+  cashAdvances: {
+
+    async getAll(filters?: { employee_id?: string; status?: string }) {
+      let query = supabase
+        .from('cash_advances')
+        .select(`
+          *,
+          employee:employee_id(id, employee_code, full_name, position),
+          issuer:issued_by(id, first_name, last_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (filters?.employee_id) query = query.eq('employee_id', filters.employee_id);
+      if (filters?.status)      query = query.eq('status', filters.status);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+
+    async create(advance: {
+      employee_id: string;
+      amount: number;
+      date_issued?: string;
+      reason?: string;
+    }) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .insert([{
+          ...advance,
+          date_issued: advance.date_issued || new Date().toISOString().split('T')[0],
+          status:      'pending',
+          issued_by:   user.id,
+        }])
+        .select(`
+          *,
+          employee:employee_id(id, employee_code, full_name, position),
+          issuer:issued_by(id, first_name, last_name)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+
+    async cancel(id: string) {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    // ── NEW: Approve a pending cash advance ──────────────────────────────────
+    async approve(id: string) {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .update({ status: 'approved', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    // ── NEW: Decline a pending cash advance with a reason ────────────────────
+    async decline(id: string, declineReason: string) {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .update({
+          status:         'declined',
+          decline_reason: declineReason,
+          updated_at:     new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    // ── NEW: Fetch only pending advances (for the dashboard approval panel) ──
+    async getPendingRequests() {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .select(`
+          *,
+          employee:employee_id(
+            id, employee_code, full_name, position, base_hourly_rate
+          ),
+          issuer:issued_by(id, first_name, last_name)
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+
+    async getPendingTotal(employeeId: string): Promise<number> {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .select('amount')
+        .eq('employee_id', employeeId)
+        .eq('status', 'pending');
+      if (error) throw error;
+      return (data || []).reduce((s, a) => s + Number(a.amount), 0);
     },
   },
 };

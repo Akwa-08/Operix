@@ -328,20 +328,7 @@ const AdminManagement: React.FC = () => {
           <F label="Position *" value={empForm.position} onChange={(v: string) => setEmpForm({...empForm, position: v})} placeholder="e.g., Printer Operator" />
 
           {/* ── NEW: Role dropdown ── */}
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
-  <select
-    value={empForm.role}
-    onChange={(e) => setEmpForm({ ...empForm, role: e.target.value as EmployeeRole })}
-    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-  >
-    <option value="">Select Role</option>
-    {employeeRoles.map((r) => (
-      <option key={r} value={r}>{r}</option>  
-    ))}
-  </select>
-  <p className="text-xs text-gray-400 mt-1">Used for payroll department grouping</p>
-</div>
+        <S label="Role *" value={empForm.role} onChange={(v: string) => setEmpForm({...empForm, role: v})} options={employeeRoles} placeholder="Select Role" />
 
 
           <F label="Base Hourly Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({...empForm, baseHourlyRate: v})} placeholder="0.00" />
@@ -361,21 +348,7 @@ const AdminManagement: React.FC = () => {
           <F label="Position" value={editEmpForm.position} onChange={(v: string) => setEditEmpForm({...editEmpForm, position: v})} />
 
           {/* ── NEW: Role dropdown ── */}
-<div>
-  <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-  <select
-    value={editEmpForm.role}
-    onChange={(e) => setEditEmpForm({ ...editEmpForm, role: e.target.value as EmployeeRole })}
-    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-  >
-    <option value="">Select Role</option>
-    {employeeRoles.map((r) => (
-      <option key={r} value={r}>{r}</option>  
-    ))}
-  </select>
-</div>
-
-
+          <S label="Role" value={editEmpForm.role} onChange={(v: string) => setEditEmpForm({...editEmpForm, role: v})} options={employeeRoles} placeholder="Select Role" />
 
           <F label="Base Hourly Rate (₱)" type="number" value={editEmpForm.baseHourlyRate} onChange={(v: string) => setEditEmpForm({...editEmpForm, baseHourlyRate: v})} />
           <F label="Holiday Multiplier" type="number" value={editEmpForm.holidayMultiplier} onChange={(v: string) => setEditEmpForm({...editEmpForm, holidayMultiplier: v})} />

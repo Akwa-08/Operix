@@ -13,7 +13,7 @@ import { adminApi } from '../lib/adminApi';
 import type {
   Order, OrderStatus, PaymentStatus, MaterialStatus, Material,
   FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
-  AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole
+  AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole,
 } from '../Types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -336,35 +336,17 @@ export function useManagementData() {
       return r;
     },
 
-   createEmployee: async (data: { 
-  employeeCode?: string; 
-  fullName: string; 
-  position: string; 
-  role?: EmployeeRole;  
-  baseHourlyRate?: number; 
-  hireDate?: string 
-}) => {
-  const r = await safe(() => 
-    db.createEmployee({ 
-      employee_code: data.employeeCode, 
-      full_name: data.fullName, 
-      position: data.position, 
-      role: data.role, 
-      base_hourly_rate: data.baseHourlyRate, 
-      hire_date: data.hireDate 
-    }).then(() => refreshEmps())
-  );
-  return r;
-},
-
-
+    createEmployee: async (data: { employeeCode?: string; fullName: string; position: string; role?: EmployeeRole; baseHourlyRate?: number; hireDate?: string }) => {
+      const r = await safe(() => db.createEmployee({ employee_code: data.employeeCode, full_name: data.fullName, position: data.position, role: data.role, base_hourly_rate: data.baseHourlyRate, hire_date: data.hireDate }).then(() => refreshEmps()));
+      return r;
+    },
     updateEmployee: async (id: string, data: { fullName?: string; position?: string; role?: string; baseHourlyRate?: number; holidayMultiplier?: number; overtimeMultiplier?: number }) => {
       const updates: Record<string, any> = {};
-      if (data.role !== undefined) updates.role = data.role;
-      if (data.fullName !== undefined) updates.full_name = data.fullName;
-      if (data.position !== undefined) updates.position = data.position;
-      if (data.baseHourlyRate !== undefined) updates.base_hourly_rate = data.baseHourlyRate;
-      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier = data.holidayMultiplier;
+      if (data.role !== undefined)             updates.role                  = data.role;
+      if (data.fullName !== undefined)         updates.full_name             = data.fullName;
+      if (data.position !== undefined)         updates.position              = data.position;
+      if (data.baseHourlyRate !== undefined)   updates.base_hourly_rate      = data.baseHourlyRate;
+      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier  = data.holidayMultiplier;
       if (data.overtimeMultiplier !== undefined) updates.overtime_rate_multiplier = data.overtimeMultiplier;
       const r = await safe(() => db.updateEmployee(id, updates).then(() => refreshEmps()));
       return r;
@@ -544,6 +526,173 @@ export function useDeliveries() {
     },
     confirmReceipt: async (id: string, receipt: { received_quantity: number; receipt_reference_number: string }) => {
       const r = await safe(() => db.confirmDeliveryReceipt(id, receipt).then(() => q.refresh()));
+      return r;
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CASH ADVANCES — useCashAdvances()
+// Used by: AdminPayroll (Cash Advances tab)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type CashAdvanceStatus = 'pending' | 'deducted' | 'cancelled' | 'approved' | 'declined';
+
+export interface CashAdvance {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  employeePosition: string;
+  amount: number;
+  dateIssued: string;
+  reason: string;
+  status: CashAdvanceStatus;
+  payrollPeriodId: string | null;
+  issuedByName: string;
+  createdAt: string;
+  declineReason?: string;
+}
+
+// ── NEW: Pending request shape for the dashboard panel ─────────────────────
+export interface PendingCashAdvance {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  employeePosition: string;
+  dailyRate: number;
+  /** Requested amount */
+  amount: number;
+  /** Soft cap: 50 % of one semi-monthly gross (daily × 8 × 13 × 0.5) */
+  allowedLimit: number;
+  /** Already-pending total for this employee (excluding this request) */
+  pendingTotal: number;
+  /** allowedLimit − pendingTotal */
+  remainingAllowed: number;
+  reason: string;
+  dateIssued: string;
+  issuedByName: string;
+}
+
+function mapCashAdvance(raw: any): CashAdvance {
+  const emp    = raw.employee;
+  const issuer = raw.issuer;
+  return {
+    id:               raw.id,
+    employeeId:       raw.employee_id,
+    employeeCode:     emp?.employee_code || '',
+    employeeName:     emp?.full_name || '',
+    employeePosition: emp?.position || '',
+    amount:           Number(raw.amount) || 0,
+    dateIssued:       raw.date_issued || '',
+    reason:           raw.reason || '',
+    status:           raw.status as CashAdvanceStatus,
+    payrollPeriodId:  raw.payroll_period_id || null,
+    issuedByName:     issuer
+                        ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim()
+                        : '—',
+    createdAt:        raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    declineReason:    raw.decline_reason || '',
+  };
+}
+
+function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
+  const emp        = raw.employee;
+  const hourlyRate = Number(emp?.base_hourly_rate) || 0;
+  const dailyRate  = hourlyRate * 8;
+  // Allowed limit: half of a 13-day semi-monthly pay (conservative cap)
+  const allowedLimit = Math.round(dailyRate * 13 * 0.5);
+  // Sum of all OTHER pending advances for this employee
+  const pendingTotal = allPending
+    .filter(a => a.employee_id === raw.employee_id && a.id !== raw.id)
+    .reduce((s: number, a: any) => s + Number(a.amount), 0);
+  const remainingAllowed = Math.max(0, allowedLimit - pendingTotal);
+  const issuer = raw.issuer;
+
+  return {
+    id:               raw.id,
+    employeeId:       raw.employee_id,
+    employeeCode:     emp?.employee_code || '',
+    employeeName:     emp?.full_name || '',
+    employeePosition: emp?.position || '',
+    dailyRate,
+    amount:           Number(raw.amount) || 0,
+    allowedLimit,
+    pendingTotal,
+    remainingAllowed,
+    reason:           raw.reason || '',
+    dateIssued:       raw.date_issued || '',
+    issuedByName:     issuer
+                        ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim()
+                        : '—',
+  };
+}
+
+export function useCashAdvances(filters?: { employee_id?: string; status?: string }) {
+  const q = useQuery(
+    () => db.cashAdvances.getAll(filters),
+    [filters?.employee_id, filters?.status]
+  );
+
+  const advances: CashAdvance[] = (q.data || []).map(mapCashAdvance);
+
+  const stats = {
+    total:     advances.length,
+    pending:   advances.filter(a => a.status === 'pending').length,
+    deducted:  advances.filter(a => a.status === 'deducted').length,
+    cancelled: advances.filter(a => a.status === 'cancelled').length,
+    totalPending: advances
+      .filter(a => a.status === 'pending')
+      .reduce((s, a) => s + a.amount, 0),
+  };
+
+  return {
+    advances, stats,
+    loading: q.loading, error: q.error, refresh: q.refresh,
+
+    createAdvance: async (data: {
+      employee_id: string;
+      amount: number;
+      date_issued?: string;
+      reason?: string;
+    }) => {
+      const r = await safe(() => db.cashAdvances.create(data).then(() => q.refresh()));
+      return r;
+    },
+
+    cancelAdvance: async (id: string) => {
+      const r = await safe(() => db.cashAdvances.cancel(id).then(() => q.refresh()));
+      return r;
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PENDING CASH ADVANCES — usePendingCashAdvances()
+// Used by: AdminPayroll Payroll Dashboard tab (approval panel)
+// ═══════════════════════════════════════════════════════════════════════════════
+export function usePendingCashAdvances() {
+  const q = useQuery(() => db.cashAdvances.getPendingRequests(), []);
+  const rawAll = q.data || [];
+
+  const pendingAdvances: PendingCashAdvance[] = rawAll.map((raw: any) =>
+    mapPendingCashAdvance(raw, rawAll)
+  );
+
+  return {
+    pendingAdvances,
+    loading: q.loading,
+    error:   q.error,
+    refresh: q.refresh,
+
+    approveAdvance: async (id: string) => {
+      const r = await safe(() => db.cashAdvances.approve(id).then(() => q.refresh()));
+      return r;
+    },
+
+    declineAdvance: async (id: string, reason: string) => {
+      const r = await safe(() => db.cashAdvances.decline(id, reason).then(() => q.refresh()));
       return r;
     },
   };
