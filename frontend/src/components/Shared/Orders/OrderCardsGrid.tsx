@@ -66,9 +66,9 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete }: {
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-gray-900 truncate">{order.customerName || "Walk-in"}</h3>
-          <p className="text-[10px] text-gray-400 font-medium">{order.orderId}</p>
+          <p className="text-xs text-gray-400 font-medium">{order.orderId}</p>
         </div>
-        <span className={`${getStatusColor(cardStatus)} text-white px-2.5 py-0.5 rounded-full text-[10px] font-semibold`}>{order.status}</span>
+        <span className={`${getStatusColor(cardStatus)} text-white px-2.5 py-0.5 rounded-full text-xs font-semibold`}>{order.status}</span>
       </div>
 
       {/* Product + qty */}
@@ -101,10 +101,10 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete }: {
       <div className="flex justify-between items-center">
         <div>
           <span className="text-lg font-bold text-amber-500">₱{order.totalAmount.toLocaleString()}</span>
-          <span className={`ml-2 px-2 py-0.5 rounded-full border text-[9px] font-semibold ${getPaymentColor(order.paymentStatus)}`}>{order.paymentStatus}</span>
+          <span className={`ml-2 px-2 py-0.5 rounded-full border text-xs font-semibold ${getPaymentColor(order.paymentStatus)}`}>{order.paymentStatus}</span>
         </div>
       </div>
-      <div className="flex justify-between text-[10px] text-gray-400">
+      <div className="flex justify-between text-xs text-gray-400">
         <span><Clock size={10} className="inline mr-1" />{order.dateOrdered}</span>
         {order.dueDate && <span className="text-red-400"><Clock size={10} className="inline mr-1" />Due: {order.dueDate}</span>}
       </div>

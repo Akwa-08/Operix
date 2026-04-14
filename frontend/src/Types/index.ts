@@ -1,7 +1,7 @@
 // src/Types/index.ts
 // Centralized type definitions for VTA Link Printing Services
 
-export type UserRole = "admin" | "cashier" | "designer" | "production";
+export type UserRole = "admin" | "cashier" | "designer" | "production" | "customer";
 
 export type OrderStatus =
   | "In Queue"
@@ -87,7 +87,12 @@ export interface Employee extends User {
   position: string;
   department: string;
   hireDate: string;
+  baseHourlyRate?: number;
+  holidayRateMultiplier?: number;
+  overtimeRateMultiplier?: number;
 }
+
+
 
 export interface Supplier {
   id: string;
@@ -126,17 +131,21 @@ export interface FrontendSupplier {
   createdAt: string;
 }
 
+export type EmployeeRole = "Cashier" | "Designer" | "Production" | "Admin" | "Other";
+
 export interface EmployeeRecord {
   id: string;
   employeeCode: string;
   fullName: string;
   position: string;
+  role?: EmployeeRole;   // ✅ strongly typed
   baseHourlyRate: number;
   holidayRateMultiplier: number;
   overtimeRateMultiplier: number;
   hireDate: string;
   isActive: boolean;
 }
+
 
 export interface CatalogProduct {
   id: string;

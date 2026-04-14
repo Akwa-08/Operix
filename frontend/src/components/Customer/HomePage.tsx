@@ -108,7 +108,7 @@ export default function HomePage() {
           <motion.div
             initial={{opacity: 0, scale: 0.9}}
             animate={{opacity: 1, scale: 1}}
-            className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-100/50 border border-cyan-200 rounded-full text-cyan-600 text-[11px] font-black uppercase tracking-widest mb-6">
+            className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-100/50 border border-cyan-200 rounded-full text-cyan-600 text-xs font-bold uppercase tracking-widest mb-6">
             <Sparkles className="w-3.5 h-3.5" />
             <span>Welcome  to Operix</span>
           </motion.div>
@@ -138,7 +138,7 @@ export default function HomePage() {
               <h2 className="text-2xl font-black text-gray-900 tracking-tight">
                 Available Products
               </h2>
-              <p className="text-gray-500 font-bold uppercase text-[11px] tracking-widest mt-1">
+              <p className="text-gray-500 font-bold uppercase text-xs tracking-widest mt-1">
                 Showing {pagedProducts.length} of {filteredProducts.length}{" "}
                 items
               </p>

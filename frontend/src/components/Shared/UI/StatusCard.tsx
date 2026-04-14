@@ -18,12 +18,12 @@ export const StatusCard: React.FC<StatusCardProps> = ({
   className = '',
 }) => {
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-6 shadow-sm ${className}`}>
+    <div className={`bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm ${className}`}>
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm text-gray-600 font-medium">{title}</p>
         <div className={iconColor}>{icon}</div>
       </div>
-      <p className="text-3xl font-bold text-gray-900 mb-1">
+      <p className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
         {typeof value === 'number' && !title.toLowerCase().includes('total') && !title.toLowerCase().includes('count')
           ? `₱${value.toLocaleString()}`
           : value}

@@ -37,9 +37,9 @@ export const Modal: React.FC<ModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {(title || showCloseButton) && (
-          <div className="sticky top-0 bg-white border-b border-gray-200 p-6 rounded-t-2xl flex items-center justify-between z-10">
+          <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 md:px-6 rounded-t-2xl flex items-center justify-between z-10">
             {title && (
-              <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900">{title}</h2>
             )}
             {showCloseButton && (
               <button
@@ -52,7 +52,7 @@ export const Modal: React.FC<ModalProps> = ({
             )}
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="p-4 md:p-6">{children}</div>
       </div>
     </div>
   );

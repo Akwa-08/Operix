@@ -11,6 +11,7 @@ import { useAuth } from '../context/AuthContext';
 
 const DesignerPage = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const displayName = user?.firstName
@@ -19,7 +20,7 @@ const DesignerPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <TopNavBar />
+      <TopNavBar userName={displayName} onMenuClick={() => setMobileOpen(o => !o)} />
       <div className="flex flex-1">
         <SharedSideBar
           name={displayName}
@@ -29,10 +30,12 @@ const DesignerPage = () => {
           onLogout={() => { signOut(); navigate('/'); }}
           collapsed={collapsed}
           setCollapsed={setCollapsed}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
         />
         <main
-          className={`flex-1 p-6 mt-16 transition-all duration-300 ${
-            collapsed ? "lg:ml-[72px]" : "lg:ml-[160px]"
+          className={`flex-1 p-4 md:p-6 mt-16 lg:pb-6 transition-all duration-300 ${
+            collapsed ? "lg:ml-[72px]" : "lg:ml-[200px]"
           }`}>
           <Outlet />
         </main>

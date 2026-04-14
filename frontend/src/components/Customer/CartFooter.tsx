@@ -19,14 +19,14 @@ export const CartFooter: React.FC<CartFooterProps> = ({
       <button
         onClick={onRemoveSelected}
         disabled={selectedCount === 0}
-        className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-[12px] font-bold tracking-wider cursor-pointer group">
+        className="flex items-center gap-2 text-gray-400 hover:text-red-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase text-sm font-bold tracking-wider cursor-pointer group">
         <Trash2 className="w-5 h-5 group-hover:scale-110 transition-transform" />
         <span>Remove Selected ({selectedCount})</span>
       </button>
 
       <div className="flex items-center gap-12">
         <div className="text-right">
-          <p className="text-[12px] font-bold text-gray-400 tracking-widest uppercase mb-1">
+          <p className="text-sm font-bold text-gray-400 tracking-widest uppercase mb-1">
             Total Initial Price:
           </p>
           <p className="text-3xl font-black text-gray-900 leading-none">

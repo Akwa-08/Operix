@@ -8,6 +8,25 @@ import { supabase } from '../config/supabaseClient';
 // USERS (own profile — admin CRUD uses backend /api/admin/*)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// GLOBAL LOGGING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+export async function logSystemAction(module: string, title: string, message: string) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('notifications').insert([{
+      user_id: user.id,
+      related_module: module,
+      title: title,
+      message: message,
+      is_read: true // auto-read for logs
+    }]);
+  } catch (err) {
+    console.error("SysLog Error:", err);
+  }
+}
+
 export const db = {
 
   // ── Profile ────────────────────────────────────────────────────────────
@@ -66,6 +85,7 @@ export const db = {
       hire_date: emp.hire_date || new Date().toISOString().split('T')[0],
     }]).select().single();
     if (error) throw error;
+    await logSystemAction('management', `Created Employee: ${emp.full_name}`, `Code: ${emp.employee_code || 'N/A'} - Postion: ${emp.position}`);
     return data;
   },
 
@@ -87,6 +107,7 @@ export const db = {
   async createSupplier(s: { name: string; contact_person?: string; phone?: string; email?: string; address?: string }) {
     const { data, error } = await supabase.from('suppliers').insert([{ ...s, is_active: true, is_flagged: false }]).select().single();
     if (error) throw error;
+    await logSystemAction('inventory', `Created Supplier: ${s.name}`, `Contact: ${s.contact_person || 'N/A'}`);
     return data;
   },
 
@@ -111,6 +132,7 @@ export const db = {
   async createInventoryItem(item: { name: string; unit_of_measure: string; current_quantity?: number; reorder_point?: number; unit_cost?: number; description?: string }) {
     const { data, error } = await supabase.from('inventory_items').insert([{ ...item, is_active: true }]).select().single();
     if (error) throw error;
+    await logSystemAction('inventory', `Added Inventory Item: ${item.name}`, `Initial Qty: ${item.current_quantity || 0}`);
     return data;
   },
 
@@ -135,6 +157,7 @@ export const db = {
   async createProduct(p: Record<string, any>) {
     const { data, error } = await supabase.from('products').insert([{ ...p, is_active: true }]).select().single();
     if (error) throw error;
+    await logSystemAction('management', `Created Product: ${p.name || p.product_type}`, `Category: ${p.category || 'N/A'}`);
     return data;
   },
 
@@ -179,7 +202,7 @@ export const db = {
   },
 
   async createOrder(order: {
-    customer_id?: string | null; order_type: string; special_instructions?: string;
+    customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; special_instructions?: string;
     due_date?: string; assigned_designer?: string; assigned_production?: string;
     comments?: string; items: { product_id?: string; product_name: string; quantity: number; unit_price: number; specifications?: string }[];
   }) {
@@ -200,6 +223,9 @@ export const db = {
     const { data: newOrder, error: orderErr } = await supabase.from('orders').insert([{
       order_number: orderNumber,
       customer_id: order.customer_id || null,
+      guest_name: order.guest_name || null,
+      guest_phone: order.guest_phone || null,
+      guest_email: order.guest_email || null,
       created_by: user.id,
       order_type: order.order_type || 'walk-in',
       status: 'in_queue',
@@ -227,6 +253,7 @@ export const db = {
     }));
 
     await supabase.from('order_items').insert(items);
+    await logSystemAction('orders', `Created Order: ${orderNumber}`, `Items: ${items.length} | Total: ₱${totalAmount.toLocaleString()}`);
     return newOrder;
   },
 
@@ -237,14 +264,16 @@ export const db = {
   },
 
   async deleteOrder(id: string) {
+    const { data: order } = await supabase.from('orders').select('order_number').eq('id', id).single();
     await supabase.from('payments').delete().eq('order_id', id);
     await supabase.from('order_items').delete().eq('order_id', id);
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) throw error;
+    if (order) await logSystemAction('orders', `Deleted Order: ${order.order_number}`, 'Order permanently removed.');
   },
 
   // ── Payments ─────────────────────────────────────────────────────────
-  async recordPayment(orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) {
+  async recordPayment(orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; receipt_number?: string; notes?: string }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
@@ -254,13 +283,28 @@ export const db = {
     }]);
     if (payErr) throw payErr;
 
+    // Log the payment
+    const methodStr = payment.payment_method.toUpperCase();
+    const refs = [];
+    if (payment.reference_number) refs.push(`Ref: ${payment.reference_number}`);
+    if (payment.receipt_number) refs.push(`Receipt: ${payment.receipt_number}`);
+    await logSystemAction('payment', `Payment Received: ₱${payment.amount.toLocaleString()}`, `Method: ${methodStr} ${refs.length ? '(' + refs.join(', ') + ')' : ''}`);
+
     // Update order totals
-    const { data: order } = await supabase.from('orders').select('amount_paid, total_amount').eq('id', orderId).single();
+    const { data: order } = await supabase.from('orders').select('amount_paid, total_amount, order_id').eq('id', orderId).single();
     if (order) {
       const newPaid = parseFloat(order.amount_paid) + payment.amount;
       const total = parseFloat(order.total_amount);
       const ps = newPaid >= total ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid';
       await supabase.from('orders').update({ amount_paid: newPaid, payment_status: ps }).eq('id', orderId);
+      
+      // Also write to order_logs for order-specific trail
+      await supabase.from('order_logs').insert([{
+        order_id: orderId,
+        updated_by: user.id,
+        status: ps,
+        note: `Payment of ₱${payment.amount.toLocaleString()} received via ${methodStr}.`
+      }]);
     }
   },
 
@@ -341,6 +385,7 @@ export const db = {
         product_name: ci.product?.name || 'Unknown',
         quantity: ci.quantity,
         unit_price: parseFloat(ci.product?.final_price || '0'),
+        specifications: ci.specifications,
       })),
     });
 
@@ -395,6 +440,7 @@ export const db = {
       const { error: bErr } = await supabase.from('product_supply_mapping').insert(rows);
       if (bErr) throw bErr;
     }
+    await logSystemAction('management', `Created Product (BOM): ${product.name}`, `BOM items: ${bom.length}`);
     return p;
   },
 
@@ -497,6 +543,7 @@ export const db = {
       changed_by: user.id,
     }]);
 
+    await logSystemAction('inventory', `Delivery Received`, `Added ${addQty} units to ${item.id} from receipt ${receipt.receipt_reference_number}`);
     return delivery;
   },
 
@@ -678,4 +725,4 @@ export const db = {
       }));
     },
   },
-};
+};
