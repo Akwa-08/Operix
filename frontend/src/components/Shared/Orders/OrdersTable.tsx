@@ -5,6 +5,7 @@ import { Eye, Edit2, Trash2, Upload, CheckCircle } from "lucide-react";
 import type { UserRole, Order } from "../../../Types";
 import { permissions } from "../../../util/permissions";
 import { OrderStatusBadge } from "./OrderStatusBadge";
+import { getPaymentStatusColor } from "../../../util/formatters";
 
 interface OrdersTableProps {
   orders: Order[];
@@ -17,14 +18,7 @@ interface OrdersTableProps {
   searchQuery?: string;
 }
 
-const paymentColor = (status: string) => {
-  switch (status) {
-    case "Paid":    return "bg-green-100 text-green-700 border-green-200";
-    case "Unpaid":  return "bg-red-100 text-red-700 border-red-200";
-    case "Partial": return "bg-yellow-100 text-yellow-700 border-yellow-200";
-    default:        return "bg-gray-100 text-gray-700 border-gray-200";
-  }
-};
+const paymentColor = getPaymentStatusColor;
 
 export const OrdersTable: React.FC<OrdersTableProps> = ({
   orders, userRole, onViewDetails, onEdit, onDelete,
