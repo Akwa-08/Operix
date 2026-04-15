@@ -3,6 +3,9 @@ import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock } from "luci
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { getDeliveryStatusColor } from "../../util/formatters";
 import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
 import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
@@ -158,23 +161,13 @@ const AdminInventory = () => {
     else toast.error(r.error || "Failed");
   };
 
-  const getDeliveryStatusBadge = (status: DeliveryStatus) => {
-    const map: Record<DeliveryStatus, string> = {
-      requested: "bg-yellow-100 text-yellow-700", ordered: "bg-blue-100 text-blue-700",
-      en_route: "bg-purple-100 text-purple-700", received: "bg-green-100 text-green-700",
-      returned: "bg-red-100 text-red-700", completed: "bg-gray-100 text-gray-600",
-    };
-    return map[status] || "bg-gray-100 text-gray-600";
-  };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /><p className="ml-4 text-base text-gray-500">Loading...</p></div>;
+
+  if (loading) return <LoadingSpinner message="Loading..." />;
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage materials, products, and incoming deliveries</p>
-      </div>
+      <PageHeader title="Inventory" subtitle="Manage materials, products, and incoming deliveries" />
 
       <div className="flex flex-wrap gap-2 mb-6">
         {tabs.map(tab => (
@@ -295,7 +288,7 @@ const AdminInventory = () => {
                       <p className="font-bold text-gray-900">{d.materialName}</p>
                       <p className="text-sm text-gray-500">{d.supplierName}</p>
                     </div>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusBadge(d.status)}`}>{d.status.replace("_", " ")}</span>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                     <div><span className="text-gray-400">Qty:</span> <span className="font-semibold">{d.requestedQuantity} {d.materialUnit}</span></div>
@@ -335,7 +328,7 @@ const AdminInventory = () => {
                       <td className="px-4 py-3 text-gray-600">{d.supplierName}</td>
                       <td className="px-4 py-3 text-center font-semibold">{d.requestedQuantity}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{d.expectedArrivalDate || "—"}</td>
-                      <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusBadge(d.status)}`}>{d.status.replace("_", " ")}</span></td>
+                      <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span></td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{d.requestedByName}<br /><span className="text-gray-400">{d.createdAt}</span></td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">

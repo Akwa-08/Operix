@@ -1,116 +1,151 @@
-import { StatusCard } from "../Shared/UI/StatusCard";
-import { Package, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { useMemo } from "react";
+import { Package, Clock, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
+import { KpiCard } from "../Shared/UI/KpiCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { useOrdersData, useInventoryData } from "../../hooks/useSupabase";
 
 const ProductionDashboard = () => {
-  // DUMMY DATA - Only assigned production orders
-  const stats = {
-    assignedOrders: 4,
-    inProduction: 2,
-    completedToday: 1,
-    lowStockAlerts: 3,
-  };
+  const { orders, loading: ordersLoading, refresh } = useOrdersData();
+  const { stats: materialStats, loading: matLoading } = useInventoryData();
+  const loading = ordersLoading || matLoading;
 
-  const productionQueue = [
-    {
-      orderId: "ORD-004",
-      customer: "Bob Johnson",
-      product: "Mug (100pcs)",
-      dueDate: "2025-03-02",
-      status: "Production",
-      progress: 60,
-    },
-    {
-      orderId: "ORD-006",
-      customer: "Charlie Davis",
-      product: "Sticker",
-      dueDate: "2025-03-08",
-      status: "Production",
-      progress: 30,
-    },
-  ];
+  const stats = useMemo(() => ({
+    assigned:       orders.length,
+    inProduction:   orders.filter(o => o.status === "Production").length,
+    completedToday: orders.filter(o => {
+      if (o.status !== "Pickup" && o.status !== "Completed") return false;
+      if (!o.dateOrdered) return false;
+      return new Date(o.dateOrdered).toDateString() === new Date().toDateString();
+    }).length,
+    lowStockAlerts: materialStats?.lowStock || 0,
+  }), [orders, materialStats]);
+
+  const productionQueue = useMemo(
+    () => orders.filter(o => o.status === "Production").slice(0, 6),
+    [orders]
+  );
+
+  const dateStr = new Date().toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+
+  if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Production Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage production orders and inventory</p>
-      </div>
+    <div className="max-w-7xl mx-auto space-y-5 overflow-x-hidden">
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatusCard
+      <PageHeader title="Production Dashboard" subtitle={dateStr}>
+        <button onClick={() => refresh?.()} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm">
+          <RefreshCw size={14} /> Refresh
+        </button>
+      </PageHeader>
+
+      {/* ── KPI CARDS ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard
           title="Assigned to Me"
-          value={stats.assignedOrders}
-          icon={<Package size={18} />}
-          iconColor="text-orange-600"
+          value={`${stats.assigned}`}
+          sub="Total orders"
+          icon={<Package size={16} />} iconBg="bg-orange-100" iconColor="text-orange-600"
+          accent="blue"
         />
-        <StatusCard
+        <KpiCard
           title="In Production"
-          value={stats.inProduction}
-          icon={<Clock size={18} />}
-          iconColor="text-blue-600"
+          value={`${stats.inProduction}`}
+          sub="Currently producing"
+          icon={<Clock size={16} />} iconBg="bg-blue-100" iconColor="text-blue-600"
+          accent="yellow"
         />
-        <StatusCard
+        <KpiCard
           title="Completed Today"
-          value={stats.completedToday}
-          icon={<CheckCircle size={18} />}
-          iconColor="text-green-600"
+          value={`${stats.completedToday}`}
+          sub="Marked ready"
+          icon={<CheckCircle size={16} />} iconBg="bg-green-100" iconColor="text-green-600"
+          accent="green"
         />
-        <StatusCard
+        <KpiCard
           title="Low Stock Alerts"
-          value={stats.lowStockAlerts}
-          icon={<AlertTriangle size={18} />}
-          iconColor="text-red-600"
+          value={`${stats.lowStockAlerts}`}
+          sub="Materials running low"
+          icon={<AlertTriangle size={16} />} iconBg="bg-red-100" iconColor="text-red-600"
+          accent={stats.lowStockAlerts > 0 ? "red" : "none"}
         />
       </div>
 
-      {/* Info Note */}
-      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-orange-900 font-medium">
-          🏭 <strong>Production Role:</strong> View assigned orders, update
-          production status, and create resupply requests when materials run low.
-        </p>
-      </div>
+      <InfoBanner color="orange">
+        🏭 <strong>Production Role:</strong> View assigned orders, update production status, and create resupply requests when materials run low.
+      </InfoBanner>
 
-      {/* Production Queue */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
-          My Production Queue
-        </h2>
-        <div className="space-y-3">
-          {productionQueue.map((order) => (
-            <div
-              key={order.orderId}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <p className="font-bold text-gray-900">{order.orderId}</p>
-                  <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
-                    In Production
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mb-2">
-                  {order.customer} • {order.product}
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-orange-600 h-2 rounded-full"
-                      style={{ width: `${order.progress}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-semibold text-gray-600">{order.progress}%</span>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">Due: {order.dueDate}</p>
-              </div>
-              <button className="w-full sm:w-auto px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-lg transition-colors">
-                Mark Complete
-              </button>
-            </div>
-          ))}
+      {/* ── PRODUCTION QUEUE ────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-gray-900">My Production Queue</h3>
+            <p className="text-xs text-gray-400">Orders currently in production</p>
+          </div>
+          <a href="/production/orders" className="text-xs font-semibold text-cyan-600 hover:text-cyan-700">View All</a>
         </div>
+
+        {productionQueue.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 text-sm">No active production orders</div>
+        ) : (
+          <>
+            {/* MOBILE: stacked cards */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {productionQueue.map((order: any) => (
+                <div key={order.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 text-sm truncate">{order.orderId}</p>
+                      <p className="text-xs text-gray-500 truncate">{order.customerName} · {order.productType}</p>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-700 flex-shrink-0">
+                      In Production
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Qty: {order.quantity}</span>
+                    <span className="text-xs text-gray-400">Due: {order.dueDate || "—"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* DESKTOP: table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Order</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Product</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Qty</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Due</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {productionQueue.map((order: any) => (
+                    <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-700">{order.orderId}</td>
+                      <td className="px-4 py-3">{order.customerName}</td>
+                      <td className="px-4 py-3 text-gray-600">{order.productType}</td>
+                      <td className="px-4 py-3 text-center">{order.quantity}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                          In Production
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{order.dueDate || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

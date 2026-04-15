@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { Search, Eye, Flag, FileText, ChevronDown, X, Check, Trash2 } from "lucide-react";
 import { useManagementData } from "../../hooks/useSupabase";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { getRoleColor } from "../../util/formatters";
 import type { FrontendUser, FrontendSupplier, EmployeeRecord, UserRole } from "../../Types";
 
 type Supplier = FrontendSupplier;
@@ -191,23 +194,9 @@ const AdminManagement: React.FC = () => {
     return ms && mst;
   });
 
-  // ── Role badge color helper ───────────────────────────────────────────
-  const roleBadge = (role: string) => {
-    const colors: Record<string, string> = {
-      admin:      'bg-purple-100 text-purple-700',
-      cashier:    'bg-blue-100 text-blue-700',
-      designer:   'bg-pink-100 text-pink-700',
-      production: 'bg-orange-100 text-orange-700',
-      other:      'bg-gray-100 text-gray-600',
-    };
-    return colors[role?.toLowerCase()] || 'bg-gray-100 text-gray-600';
-  };
+  const roleBadge = getRoleColor;
 
-  if (loading) return (
-    <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
-    </div>
-  );
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -410,18 +399,14 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* Header + Tabs + Create button on same row */}
-      <div className="mb-5">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Management</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage accounts, employee records, and suppliers</p>
-          </div>
-          <button onClick={handleCreateNew}
-            className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap self-start sm:self-auto">
-            + Create New
-          </button>
-        </div>
+      <PageHeader title="Management" subtitle="Manage accounts, employee records, and suppliers">
+        <button onClick={handleCreateNew}
+          className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg text-sm whitespace-nowrap">
+          + Create New
+        </button>
+      </PageHeader>
 
+      <div className="mb-5">
         {/* TABS */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
           {tabs.map(tab => (

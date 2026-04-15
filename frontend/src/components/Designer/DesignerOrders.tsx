@@ -1,7 +1,12 @@
 import { useState } from "react";
-import { Upload, Package, Clock, CheckCircle, LayoutGrid, LayoutList } from "lucide-react";
+import { Upload, Package, Clock, CheckCircle } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { ViewToggle } from "../Shared/UI/ViewToggle";
+import { getOrderStatusColor } from "../../util/formatters";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import type { Order } from "../../Types";
@@ -36,16 +41,13 @@ const DesignerOrders = () => {
     else alert("Error: " + r.error);
   };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <LoadingSpinner />;
 
-  const statusColor = (s: string) => s === 'Designing' ? 'bg-purple-100 text-purple-700' : s === 'Completed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700';
+
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Design Orders</h1>
-        <p className="text-sm text-gray-500 mt-1">Orders assigned to you for design work</p>
-      </div>
+      <PageHeader title="My Design Orders" subtitle="Orders assigned to you for design work" />
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <StatusCard title="Assigned" value={stats.assigned} icon={<Package size={18} />} iconColor="text-purple-600" />
@@ -56,17 +58,14 @@ const DesignerOrders = () => {
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1"><SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search orders..." /></div>
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 self-start">
-            <button onClick={() => setViewMode("list")} className={`p-2 rounded-md transition-all ${viewMode === "list" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500"}`}><LayoutList size={18} /></button>
-            <button onClick={() => setViewMode("cards")} className={`p-2 rounded-md transition-all ${viewMode === "cards" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500"}`}><LayoutGrid size={18} /></button>
-          </div>
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>
 
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6 flex items-start gap-3">
-        <Upload size={20} className="text-purple-600 flex-shrink-0 mt-0.5" />
-        <p className="text-sm text-purple-900 font-medium"><strong>Designer Workspace:</strong> View your assigned orders. Upload designs when ready, then advance status to "Payment".</p>
-      </div>
+      <InfoBanner color="purple">
+        <Upload size={16} className="inline mr-1" />
+        <strong>Designer Workspace:</strong> View your assigned orders. Upload designs when ready, then advance status to "Payment".
+      </InfoBanner>
 
       {viewMode === "list" ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -80,7 +79,7 @@ const DesignerOrders = () => {
                     <p className="font-bold text-gray-900">{o.orderId}</p>
                     <p className="text-sm text-gray-500">{o.customerName} · {o.productType}</p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor(o.status)}`}>{o.status}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>{o.status}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm text-gray-500">
                   <span>Qty: {o.quantity}</span>
@@ -114,7 +113,7 @@ const DesignerOrders = () => {
                     <td className="px-4 py-3">{o.customerName}</td>
                     <td className="px-4 py-3 text-gray-600">{o.productType}</td>
                     <td className="px-4 py-3 text-center">{o.quantity}</td>
-                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor(o.status)}`}>{o.status}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>{o.status}</span></td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{o.dueDate}</td>
                     <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
                       <button onClick={() => handleViewOrder(o)} className="p-1.5 hover:bg-cyan-100 rounded-lg"><Package size={16} className="text-cyan-600" /></button>

@@ -9,6 +9,7 @@ import type { Order as CardOrder } from "../components/Customer/OrderCard";
 import { OrderDetailsModal } from "../components/Shared/Orders/OrderDetailsModal";
 import type { Order } from "../Types";
 import { useOrdersData } from "../hooks/useSupabase";
+import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
 
 // Map backend status → customer card status
 const mapCardStatus = (status: string): CardOrder["currentStatus"] => {
@@ -89,7 +90,7 @@ export const OrdersPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="w-full bg-gray-50 flex flex-col min-h-screen p-10">
