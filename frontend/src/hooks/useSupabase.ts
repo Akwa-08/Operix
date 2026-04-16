@@ -13,7 +13,7 @@ import { adminApi } from '../lib/adminApi';
 import type {
   Order, OrderStatus, PaymentStatus, MaterialStatus, Material,
   FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
-  AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole
+  AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole,
 } from '../Types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -99,7 +99,9 @@ function mapSupplier(raw: any): FrontendSupplier {
 function mapEmployee(raw: any): EmployeeRecord {
   return {
     id: raw.id, employeeCode: raw.employee_code || '', fullName: raw.full_name || '',
-    position: raw.position || '', baseHourlyRate: Number(raw.base_hourly_rate) || 0,
+    position: raw.position || '',
+    role: raw.role ? (raw.role.charAt(0).toUpperCase() + raw.role.slice(1)) as EmployeeRole : undefined,
+    baseHourlyRate: Number(raw.base_hourly_rate) || 0,
     holidayRateMultiplier: Number(raw.holiday_rate_multiplier) || 2.0,
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
     hireDate: raw.hire_date ? new Date(raw.hire_date).toLocaleDateString() : '',
@@ -210,58 +212,6 @@ export function useInventoryData() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// LOGS & ACTIVITY - useLogsData()
-// ═══════════════════════════════════════════════════════════════════════════════
-export function useLogsData() {
-  const fetchLogs = async () => {
-    // 1. Fetch order logs
-    const { data: ordLogs } = await supabase
-      .from('order_logs')
-      .select('id, created_at, status, note, user:users!order_logs_updated_by_fkey(id, first_name, last_name, role)')
-      .order('created_at', { ascending: false });
-    
-    // 2. Fetch notifications (system activities)
-    const { data: notifLogs } = await supabase
-      .from('notifications')
-      .select('id, created_at, title, message, related_module, user:users!notifications_user_id_fkey(id, first_name, last_name, role)')
-      .order('created_at', { ascending: false });
-
-    const logs: any[] = [];
-    
-    if (ordLogs) {
-      ordLogs.forEach((l: any) => logs.push({
-        id: "ord_" + l.id,
-        date: new Date(l.created_at).toLocaleString(),
-        timestamp: new Date(l.created_at).getTime(),
-        module: 'Orders',
-        action: `Status Update: ${l.status}`,
-        details: l.note || '',
-        user: l.user ? `${l.user.first_name || ''} ${l.user.last_name || ''} (${l.user.role})`.trim() : 'System',
-        role: l.user?.role || 'System',
-      }));
-    }
-    
-    if (notifLogs) {
-      notifLogs.forEach((l: any) => logs.push({
-        id: "notif_" + l.id,
-        date: new Date(l.created_at).toLocaleString(),
-        timestamp: new Date(l.created_at).getTime(),
-        module: l.related_module ? l.related_module.charAt(0).toUpperCase() + l.related_module.slice(1) : 'System',
-        action: l.title || '',
-        details: l.message || '',
-        user: l.user ? `${l.user.first_name || ''} ${l.user.last_name || ''} (${l.user.role})`.trim() : 'System',
-        role: l.user?.role || 'System',
-      }));
-    }
-
-    logs.sort((a, b) => b.timestamp - a.timestamp);
-    return logs;
-  };
-
-  return useQuery(fetchLogs);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // PRODUCT CATALOG — useProductCatalog()
 // Used by: HomePage
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -343,7 +293,7 @@ export function useOrdersData() {
       const r = await safe(() => db.deleteOrder(orderId).then(() => refresh()));
       return r;
     },
-    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; receipt_number?: string; notes?: string }) => {
+    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
       const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh()));
       return r;
     },
@@ -388,35 +338,17 @@ export function useManagementData() {
       return r;
     },
 
-   createEmployee: async (data: { 
-  employeeCode?: string; 
-  fullName: string; 
-  position: string; 
-  role?: EmployeeRole;  
-  baseHourlyRate?: number; 
-  hireDate?: string 
-}) => {
-  const r = await safe(() => 
-    db.createEmployee({ 
-      employee_code: data.employeeCode, 
-      full_name: data.fullName, 
-      position: data.position, 
-      role: data.role, 
-      base_hourly_rate: data.baseHourlyRate, 
-      hire_date: data.hireDate 
-    }).then(() => refreshEmps())
-  );
-  return r;
-},
-
-
+    createEmployee: async (data: { employeeCode?: string; fullName: string; position: string; role?: EmployeeRole; baseHourlyRate?: number; hireDate?: string }) => {
+      const r = await safe(() => db.createEmployee({ employee_code: data.employeeCode, full_name: data.fullName, position: data.position, role: data.role, base_hourly_rate: data.baseHourlyRate, hire_date: data.hireDate }).then(() => refreshEmps()));
+      return r;
+    },
     updateEmployee: async (id: string, data: { fullName?: string; position?: string; role?: string; baseHourlyRate?: number; holidayMultiplier?: number; overtimeMultiplier?: number }) => {
       const updates: Record<string, any> = {};
-      if (data.role !== undefined) updates.role = data.role;
-      if (data.fullName !== undefined) updates.full_name = data.fullName;
-      if (data.position !== undefined) updates.position = data.position;
-      if (data.baseHourlyRate !== undefined) updates.base_hourly_rate = data.baseHourlyRate;
-      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier = data.holidayMultiplier;
+      if (data.role !== undefined)             updates.role                  = data.role;
+      if (data.fullName !== undefined)         updates.full_name             = data.fullName;
+      if (data.position !== undefined)         updates.position              = data.position;
+      if (data.baseHourlyRate !== undefined)   updates.base_hourly_rate      = data.baseHourlyRate;
+      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier  = data.holidayMultiplier;
       if (data.overtimeMultiplier !== undefined) updates.overtime_rate_multiplier = data.overtimeMultiplier;
       const r = await safe(() => db.updateEmployee(id, updates).then(() => refreshEmps()));
       return r;
@@ -441,7 +373,7 @@ export function useManagementData() {
 // DASHBOARD (aggregated)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useDashboard() {
-  const { orders, stats: orderStats, loading: oL, refresh } = useOrders();
+  const { orders, stats: orderStats, loading: oL } = useOrders();
   const { data: inventory, loading: iL } = useQuery(() => db.getInventoryItems(), []);
   const items = inventory || [];
 
@@ -457,15 +389,14 @@ export function useDashboard() {
     .filter((i: any) => Number(i.current_quantity) > 0 && Number(i.current_quantity) <= Number(i.reorder_point))
     .map((i: any) => ({ id: i.id, name: i.name, currentQty: Number(i.current_quantity), reorderPoint: Number(i.reorder_point), unit: i.unit_of_measure }));
 
-  const recentOrders = orders.slice(0, 8).map((o: any) => {
+  const recentOrders = orders.slice(0, 5).map((o: any) => {
     const c = o.customer;
     return {
       id: o.id, orderId: o.order_number,
       customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in',
       product: o.order_items?.[0]?.product_name || 'Multiple',
       amount: Number(o.total_amount) || 0,
-      status: o.status, paymentStatus: o.payment_status,
-      date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
+      status: o.status, date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
     };
   });
 
@@ -473,15 +404,14 @@ export function useDashboard() {
   const totalCollected = orders.reduce((s: number, o: any) => s + (Number(o.amount_paid) || 0), 0);
   const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, unpaid: orderStats.pendingPayment };
 
-  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, rawOrders: orders, refresh };
+  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL };
 }
 
 export function useDashboardData() {
-  const { orderStats, invStats, lowStockItems, recentOrders, loading, rawOrders, refresh } = useDashboard();
+  const { orderStats, invStats, lowStockItems, recentOrders, loading } = useDashboard();
   return {
-    data: { orderStats, inventoryStats: invStats, lowStockItems, recentOrders, rawOrders },
+    data: { orderStats, inventoryStats: invStats, lowStockItems, recentOrders },
     loading,
-    refresh,
   };
 }
 
@@ -604,6 +534,160 @@ export function useDeliveries() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CASH ADVANCES — useCashAdvances() + usePendingCashAdvances()
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type CashAdvanceStatus = 'pending' | 'approved' | 'deducted' | 'declined' | 'cancelled';
+
+export interface CashAdvance {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  employeePosition: string;
+  amount: number;
+  dateIssued: string;
+  reason: string;
+  status: CashAdvanceStatus;
+  payrollPeriodId: string | null;
+  issuedByName: string;
+  createdAt: string;
+  declineReason?: string;
+}
+
+export interface PendingCashAdvance {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  employeePosition: string;
+  dailyRate: number;
+  amount: number;
+  /** 50% of 13-day semi-monthly pay */
+  allowedLimit: number;
+  /** Sum of other pending advances for this employee */
+  pendingTotal: number;
+  /** allowedLimit − pendingTotal */
+  remainingAllowed: number;
+  reason: string;
+  dateIssued: string;
+  issuedByName: string;
+}
+
+function mapCashAdvance(raw: any): CashAdvance {
+  const emp    = raw.employee;
+  const issuer = raw.issuer;
+  return {
+    id:               raw.id,
+    employeeId:       raw.employee_id,
+    employeeCode:     emp?.employee_code || '',
+    employeeName:     emp?.full_name || '',
+    employeePosition: emp?.position || '',
+    amount:           Number(raw.amount) || 0,
+    dateIssued:       raw.date_issued || '',
+    reason:           raw.reason || '',
+    status:           raw.status as CashAdvanceStatus,
+    payrollPeriodId:  raw.payroll_period_id || null,
+    issuedByName:     issuer
+                        ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim()
+                        : '—',
+    createdAt:        raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    declineReason:    raw.decline_reason || '',
+  };
+}
+
+function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
+  const emp        = raw.employee;
+  const dailyRate  = Number(emp?.base_hourly_rate) || 0; // stored as daily rate
+  const allowedLimit = Math.round(dailyRate * 13 * 0.5); // 50% of semi-monthly pay
+  const pendingTotal = allPending
+    .filter(a => a.employee_id === raw.employee_id && a.id !== raw.id)
+    .reduce((s: number, a: any) => s + Number(a.amount), 0);
+  const issuer = raw.issuer;
+  return {
+    id:               raw.id,
+    employeeId:       raw.employee_id,
+    employeeCode:     emp?.employee_code || '',
+    employeeName:     emp?.full_name || '',
+    employeePosition: emp?.position || '',
+    dailyRate,
+    amount:           Number(raw.amount) || 0,
+    allowedLimit,
+    pendingTotal,
+    remainingAllowed: Math.max(0, allowedLimit - pendingTotal),
+    reason:           raw.reason || '',
+    dateIssued:       raw.date_issued || '',
+    issuedByName:     issuer
+                        ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim()
+                        : '—',
+  };
+}
+
+export function useCashAdvances(filters?: { employee_id?: string; status?: string }) {
+  const q = useQuery(
+    () => db.cashAdvances.getAll(filters),
+    [filters?.employee_id, filters?.status]
+  );
+
+  const advances: CashAdvance[] = (q.data || []).map(mapCashAdvance);
+
+  const stats = {
+    total:     advances.length,
+    pending:   advances.filter(a => a.status === 'pending').length,
+    approved:  advances.filter(a => a.status === 'approved').length,
+    deducted:  advances.filter(a => a.status === 'deducted').length,
+    cancelled: advances.filter(a => a.status === 'cancelled').length,
+    totalPending: advances
+      .filter(a => a.status === 'pending')
+      .reduce((s, a) => s + a.amount, 0),
+  };
+
+  return {
+    advances, stats,
+    loading: q.loading, error: q.error, refresh: q.refresh,
+
+    createAdvance: async (data: {
+      employee_id: string; amount: number; date_issued?: string; reason?: string;
+    }) => {
+      const r = await safe(() => db.cashAdvances.create(data).then(() => q.refresh()));
+      return r;
+    },
+
+    cancelAdvance: async (id: string) => {
+      const r = await safe(() => db.cashAdvances.cancel(id).then(() => q.refresh()));
+      return r;
+    },
+  };
+}
+
+// ── usePendingCashAdvances — for the admin dashboard approval panel ──────────
+export function usePendingCashAdvances() {
+  const q = useQuery(() => db.cashAdvances.getPendingRequests(), []);
+  const rawAll = (q.data || []) as any[];
+
+  const pendingAdvances: PendingCashAdvance[] = rawAll.map(raw =>
+    mapPendingCashAdvance(raw, rawAll)
+  );
+
+  return {
+    pendingAdvances,
+    loading: q.loading,
+    error:   q.error,
+    refresh: q.refresh,
+
+    approveAdvance: async (id: string) => {
+      const r = await safe(() => db.cashAdvances.approve(id).then(() => q.refresh()));
+      return r;
+    },
+
+    declineAdvance: async (id: string, reason: string) => {
+      const r = await safe(() => db.cashAdvances.decline(id, reason).then(() => q.refresh()));
+      return r;
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PAYROLL TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -682,14 +766,14 @@ function mapPeriod(raw: any): PayrollPeriod {
 
 function mapAttendanceLog(raw: any): AttendanceLog {
   const emp = raw.employee;
-  const hourlyRate = Number(emp?.base_hourly_rate) || 0;
+  const dailyRate = Number(emp?.base_hourly_rate) || 0; // stored as daily rate
   return {
     id: raw.id,
     employeeId: raw.employee_id,
     employeeCode: emp?.employee_code || '',
     fullName: emp?.full_name || '',
     position: emp?.position || '',
-    dailyRate: hourlyRate * 8,
+    dailyRate: dailyRate,
     workedHours: Number(raw.worked_hours) || 0,
     requiredHours: Number(raw.required_hours) || 160,
     lateTimeslots: Number(raw.late_timeslots) || 0,
@@ -854,4 +938,34 @@ export function usePayrollData() {
       return r;
     },
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUDIT LOGS — useLogsData()
+// Used by: AdminAuditLogs
+// ═══════════════════════════════════════════════════════════════════════════════
+export function useLogsData() {
+  const q = useQuery(async () => {
+    const { data, error } = await supabase
+      .from('order_logs')
+      .select(`*, updated_by_user:updated_by(id, first_name, last_name, role)`)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data || [];
+  }, []);
+
+  const logs = (q.data || []).map((raw: any) => ({
+    id:        raw.id,
+    orderId:   raw.order_id,
+    updatedBy: raw.updated_by_user
+                 ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim()
+                 : '—',
+    role:      raw.updated_by_user?.role || '—',
+    status:    raw.status || '',
+    note:      raw.note || '',
+    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+  }));
+
+  return { logs, loading: q.loading, error: q.error, refresh: q.refresh };
 }
