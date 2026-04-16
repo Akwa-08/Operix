@@ -1,10 +1,10 @@
 // src/pages/OrdersPage.tsx
 // Customer orders page — fetches real data from Supabase via useOrdersData()
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, PackageOpen, Search, Package, Clock, CheckCircle } from "lucide-react";
-import { OrderDetailsModal } from "../components/Shared/Orders/OrderDetailsModal";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Search, Package, Clock, CheckCircle } from "lucide-react";
+import { CustomerOrderDetailsModal } from "../components/Customer/CustomerOrderDetailsModal";
 import { OrderCardsGrid } from "../components/Shared/Orders/OrderCardsGrid";
 import { KpiCard } from "../components/Shared/UI/KpiCard";
 import { FilterDropdown } from "../components/Shared/UI/FilterDropdown";
@@ -20,7 +20,16 @@ export const OrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const itemsPerPage = 6;
 
-  const { orders, loading } = useOrdersData();
+  const { orders, loading, refresh } = useOrdersData();
+
+  // When orders re-fetches (e.g. after a file upload), sync selectedOrder
+  // so the modal receives the latest data (including new designFile URLs).
+  useEffect(() => {
+    if (selectedOrder) {
+      const fresh = orders.find(o => o.id === selectedOrder.id);
+      if (fresh) setSelectedOrder(fresh);
+    }
+  }, [orders]);
 
   const statusOptions = ["All", "In Queue", "Active", "Completed"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
@@ -126,8 +135,12 @@ export const OrdersPage: React.FC = () => {
 
       {/* Details Modal */}
       {selectedOrder && (
-        <OrderDetailsModal isOpen={showDetails} order={selectedOrder} userRole="customer"
-          onClose={() => setShowDetails(false)} />
+        <CustomerOrderDetailsModal 
+          isOpen={showDetails} 
+          order={selectedOrder} 
+          onClose={() => setShowDetails(false)}
+          onRefresh={refresh} // Need to pass refresh from useOrdersData
+        />
       )}
     </div>
   );

@@ -68,7 +68,7 @@ function mapOrder(raw: any): Order {
     status: mapStatus(raw.status), paymentStatus: mapPayment(raw.payment_status),
     dateOrdered: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
     dueDate: raw.due_date ? new Date(raw.due_date).toLocaleDateString() : '',
-    specialInstructions: raw.special_instructions || '', designFile: raw.design_file_url || '',
+    specialInstructions: raw.special_instructions || '', designFile: raw.design_file_url || items[0]?.file_url || '',
     assignedDesigner: raw.assigned_designer || '', assignedProduction: raw.assigned_production || '',
     designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
     productionName: raw.production_staff ? `${raw.production_staff.first_name || ''} ${raw.production_staff.last_name || ''}`.trim() : '',

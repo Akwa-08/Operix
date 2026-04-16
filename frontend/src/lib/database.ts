@@ -110,17 +110,35 @@ export async function uploadOrderFile(file: File): Promise<string> {
     fileToUpload = await compressImage(file);
   }
 
-  // 3. Upload to Supabase Storage
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  // 3. Resolve session from localStorage (no network call)
+  const { data: sessionData } = await supabase.auth.getSession();
+  console.log('[uploadOrderFile] session:', sessionData?.session?.user?.id ?? 'NO SESSION');
 
-  const ext = fileToUpload.name.split('.').pop() || 'bin';
-  const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  if (!sessionData?.session?.user) {
+    throw new Error('Your session has expired. Please refresh the page and log in again.');
+  }
+  const userId = sessionData.session.user.id;
 
-  const { error } = await supabase.storage
+  const ext = fileToUpload.name.split('.').pop() || 'jpg';
+  const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  console.log('[uploadOrderFile] path:', fileName);
+
+  // 4. Upload to Supabase Storage
+  const { data: uploadData, error: uploadError } = await supabase.storage
     .from('order-files')
     .upload(fileName, fileToUpload, { upsert: false });
-  if (error) throw error;
+
+  console.log('[uploadOrderFile] result:', uploadData, uploadError);
+
+  if (uploadError) {
+    // "Failed to fetch" means the browser could not reach the server at all
+    const isNetworkError = uploadError.message?.toLowerCase().includes('failed to fetch')
+      || uploadError.message?.toLowerCase().includes('network');
+    if (isNetworkError) {
+      throw new Error('No internet connection. Please check your network and try again.');
+    }
+    throw new Error(`Upload failed: ${uploadError.message}`);
+  }
 
   const { data: urlData } = supabase.storage
     .from('order-files')
@@ -128,6 +146,7 @@ export async function uploadOrderFile(file: File): Promise<string> {
 
   return urlData.publicUrl;
 }
+
 
 export const db = {
 
@@ -278,7 +297,7 @@ export const db = {
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, first_name, last_name),
-      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications)
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url)
     `).order('created_at', { ascending: false });
 
     if (filters?.status && filters.status !== 'all') query = query.eq('status', filters.status);
@@ -296,7 +315,7 @@ export const db = {
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, first_name, last_name),
-      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
       payments(id, amount, payment_method, reference_number, notes, received_by, created_at)
     `).eq('id', id).single();
     if (error) throw error;
@@ -364,6 +383,27 @@ export const db = {
     const { data, error } = await supabase.from('orders').update(updates).eq('id', id).select().single();
     if (error) throw error;
     return data;
+  },
+
+  // Update the file_url on the first order_item row — used when a customer uploads
+  // their design from the Order Details page AFTER the order was already created.
+  // We write to order_items (not orders.design_file_url) because RLS on the orders
+  // table restricts customer writes to that column.
+  async updateOrderItemFile(orderId: string, fileUrl: string) {
+    // Fetch the first order_item for this order
+    const { data: items, error: fetchErr } = await supabase
+      .from('order_items')
+      .select('id')
+      .eq('order_id', orderId)
+      .limit(1);
+    if (fetchErr) throw fetchErr;
+    if (!items || items.length === 0) throw new Error('No order items found for this order.');
+
+    const { error: updateErr } = await supabase
+      .from('order_items')
+      .update({ file_url: fileUrl })
+      .eq('id', items[0].id);
+    if (updateErr) throw updateErr;
   },
 
   async deleteOrder(id: string) {
