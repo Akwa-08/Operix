@@ -28,11 +28,11 @@ const ProductionInventory = () => {
   return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventory</h1>
         <p className="text-sm text-gray-500 mt-1">View materials and create resupply requests</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6">
         <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
         <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
         <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" />

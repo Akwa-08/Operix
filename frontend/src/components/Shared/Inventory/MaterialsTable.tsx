@@ -1,3 +1,4 @@
+// Mobile card view, desktop table for materials inventory
 import { Eye, Edit2, Trash2 } from 'lucide-react';
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
@@ -11,132 +12,124 @@ interface MaterialsTableProps {
   searchQuery?: string;
 }
 
+const statusColor = (status: string) => {
+  switch (status) {
+    case 'Available':  return 'text-green-700 bg-green-50 border-green-200';
+    case 'Low Stock':  return 'text-yellow-700 bg-yellow-50 border-yellow-200';
+    case 'Restocking': return 'text-blue-700 bg-blue-50 border-blue-200';
+    case 'Phased Out': return 'text-red-700 bg-red-50 border-red-200';
+    default:           return 'text-gray-600 bg-gray-50 border-gray-200';
+  }
+};
+
 export const MaterialsTable: React.FC<MaterialsTableProps> = ({
-  materials,
-  userRole,
-  onView,
-  onEdit,
-  onDelete,
-  searchQuery = '',
+  materials, userRole, onView, onEdit, onDelete, searchQuery = '',
 }) => {
   const perms = permissions[userRole].inventory;
 
-  const filteredMaterials = materials.filter((material) =>
-    material.itemType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    material.itemVariant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    material.supplier?.toLowerCase().includes(searchQuery.toLowerCase())
+  const filtered = materials.filter((m) =>
+    m.itemType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.itemVariant.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    m.supplier?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Available':
-        return 'text-green-600';
-      case 'Low Stock':
-        return 'text-yellow-600';
-      case 'Restocking':
-        return 'text-blue-600';
-      case 'Phased Out':
-        return 'text-red-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
+  if (filtered.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-10 text-center text-gray-400 text-base">
+        No materials found
+      </div>
+    );
+  }
+
+  const ActionBtns = ({ m }: { m: Material }) => (
+    <div className="flex items-center gap-1 flex-wrap">
+      <button onClick={() => onView(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-gray-200 rounded-lg text-xs text-gray-700 font-semibold">
+        <Eye size={14} /> View
+      </button>
+      {(perms.canEditAllFields || perms.canEditStock) && (
+        <button onClick={() => onEdit(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-cyan-100 rounded-lg text-xs text-cyan-700 font-semibold">
+          <Edit2 size={14} /> Edit
+        </button>
+      )}
+      {perms.canDelete && onDelete && (
+        <button onClick={() => onDelete(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold">
+          <Trash2 size={14} /> Delete
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
+
+      {/* ── MOBILE CARD VIEW ─────────────────────────────────────────────── */}
+      <div className="md:hidden divide-y divide-gray-100">
+        {filtered.map((m) => (
+          <div key={m.id} className="p-4 space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-bold text-gray-900 text-base">{m.itemType}</p>
+                {m.itemVariant && <p className="text-sm text-gray-500">{m.itemVariant}</p>}
+              </div>
+              <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(m.status)}`}>
+                {m.status}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <div><span className="text-gray-400">Stock:</span> <span className="font-semibold text-gray-900">{m.usableStocks} {m.stockUnit}</span></div>
+              <div><span className="text-gray-400">Reorder at:</span> <span className="font-medium text-gray-700">{m.reorderPoint}</span></div>
+              {perms.canViewAll && (
+                <>
+                  <div><span className="text-gray-400">Purchase:</span> <span className="font-medium text-gray-700">{m.purchaseQty} {m.purchaseUnit}</span></div>
+                  <div><span className="text-gray-400">Supplier:</span> <span className="font-medium text-gray-700">{m.supplier || '—'}</span></div>
+                </>
+              )}
+            </div>
+            <ActionBtns m={m} />
+          </div>
+        ))}
+      </div>
+
+      {/* ── DESKTOP TABLE ─────────────────────────────────────────────────── */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                Item Type
-              </th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                Item Variant
-              </th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                Usable Stocks
-              </th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                Stock Unit
-              </th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Item Type</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Variant</th>
+              <th className="px-4 py-3 text-center font-semibold text-gray-700">Stocks</th>
+              <th className="px-4 py-3 text-center font-semibold text-gray-700">Unit</th>
               {perms.canViewAll && (
                 <>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                    Purchase QTY
-                  </th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                    Purchase Unit
-                  </th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                    Supplier
-                  </th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Purchase QTY</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Purchase Unit</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Supplier</th>
                 </>
               )}
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                Status
-              </th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                Actions
-              </th>
+              <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+              <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {filteredMaterials.map((material) => (
-              <tr key={material.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-gray-900">{material.itemType}</td>
-                <td className="px-4 py-3 text-gray-900">{material.itemVariant}</td>
-                <td className="px-4 py-3 text-center font-semibold text-gray-900">
-                  {material.usableStocks}
-                </td>
-                <td className="px-4 py-3 text-center text-gray-600">
-                  {material.stockUnit}
-                </td>
+            {filtered.map((m) => (
+              <tr key={m.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3 text-gray-900 font-medium">{m.itemType}</td>
+                <td className="px-4 py-3 text-gray-600">{m.itemVariant || '—'}</td>
+                <td className="px-4 py-3 text-center font-semibold text-gray-900">{m.usableStocks}</td>
+                <td className="px-4 py-3 text-center text-gray-600">{m.stockUnit}</td>
                 {perms.canViewAll && (
                   <>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {material.purchaseQty}
-                    </td>
-                    <td className="px-4 py-3 text-center text-gray-600">
-                      {material.purchaseUnit}
-                    </td>
-                    <td className="px-4 py-3 text-gray-900">{material.supplier}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{m.purchaseQty}</td>
+                    <td className="px-4 py-3 text-center text-gray-600">{m.purchaseUnit}</td>
+                    <td className="px-4 py-3 text-gray-700">{m.supplier || '—'}</td>
                   </>
                 )}
                 <td className="px-4 py-3 text-center">
-                  <span className={`font-semibold ${getStatusColor(material.status)}`}>
-                    {material.status}
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(m.status)}`}>
+                    {m.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => onView(material)}
-                      className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                      title="View"
-                    >
-                      <Eye size={18} className="text-gray-600" />
-                    </button>
-                    {(perms.canEditAllFields || perms.canEditStock) && (
-                      <button
-                        onClick={() => onEdit(material)}
-                        className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 size={18} className="text-gray-600" />
-                      </button>
-                    )}
-                    {perms.canDelete && onDelete && (
-                      <button
-                        onClick={() => onDelete(material)}
-                        className="p-1.5 hover:bg-red-100 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 size={18} className="text-red-600" />
-                      </button>
-                    )}
-                  </div>
-                </td>
+                <td className="px-4 py-3"><ActionBtns m={m} /></td>
               </tr>
             ))}
           </tbody>

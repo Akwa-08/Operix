@@ -671,6 +671,7 @@ export const db = {
     async upsertAttendanceLog(log: {
       employee_id: string; payroll_period_id: string;
       worked_hours?: number; required_hours?: number;
+      days_present?: number;
       late_timeslots?: number; early_leave_timeslots?: number;
       regular_overtime_hours?: number; holiday_overtime_hours?: number;
       special_overtime_hours?: number; business_trip_days?: number;
@@ -727,22 +728,68 @@ export const db = {
         const emp = log.employee;
         if (!emp) continue;
 
-        const hourlyRate = Number(emp.base_hourly_rate) || 0;
-        const dailyRate  = hourlyRate * 8;
+        // ────────────────────────────────────────────────────────────────────
+        // BASE RATES
+        // Daily Rate = Base Hourly Rate × 8 hrs/day
+        // Source: employees.base_hourly_rate (set manually per employee)
+        // ────────────────────────────────────────────────────────────────────
+        // ✅ base_hourly_rate stores the DAILY RATE directly
+        // Hourly rate is derived for OT and tardy calculations
+        const dailyRate  = Number(emp.base_hourly_rate) || 0;
+        const hourlyRate = dailyRate / 8;
 
-        const daysPresent = Number(log.worked_hours) > 0
-          ? Math.round(Number(log.worked_hours) / 8)
-          : 0;
+        // ────────────────────────────────────────────────────────────────────
+        // DAYS PRESENT
+        // ✅ FIX: Use days_present stored directly from XLS Summary "Attend Actual"
+        //        (e.g. "22/16" → 16 actual days attended)
+        //        Falls back to hours ÷ 8 only if days_present wasn't imported.
+        //
+        // WHY THE DISCREPANCY EXISTED:
+        //   Old code: Math.round(worked_hours / 8)
+        //   NENENG:   88.73h ÷ 8 = 11 days ❌ (she actually attended 16 days,
+        //             but some days she left early — hours don't equal full days)
+        //   Correct:  attend_actual = 16 ✓
+        // ────────────────────────────────────────────────────────────────────
+        const daysPresent = Number(log.days_present) > 0
+          ? Number(log.days_present)
+          : (Number(log.worked_hours) > 0 ? Math.round(Number(log.worked_hours) / 8) : 0);
 
+        // ────────────────────────────────────────────────────────────────────
+        // BASIC PAY
+        // Formula: Daily Rate × Days Present
+        // ────────────────────────────────────────────────────────────────────
         const basicPay = dailyRate * daysPresent;
 
-        const regularHolidayPay = 0;
-        const specialHolidayPay = 0;
+        // ────────────────────────────────────────────────────────────────────
+        // HOLIDAY PAY
+        // Regular Holiday (+100%): employee gets paid double (×2.00)
+        // Special Holiday  (+30%): employee gets paid 130% (×1.30)
+        // Source: attendance_logs.holiday_overtime_hours / special_overtime_hours
+        //         (these fields track holiday DAYS worked — currently manual entry)
+        // TODO: Add regular_holiday_days and special_holiday_days columns to
+        //       attendance_logs for proper holiday-day tracking.
+        // ────────────────────────────────────────────────────────────────────
+        const regularHolidayPay = 0; // dailyRate * 2.00 * regular_holiday_days
+        const specialHolidayPay = 0; // dailyRate * 1.30 * special_holiday_days
 
+        // ────────────────────────────────────────────────────────────────────
+        // OVERTIME
+        // From XLS Summary "Overtime Regular" and "Overtime Special" columns
+        // (stored in HH.MM biometric format, converted to decimal hours by server)
+        //
+        // Regular Day OT     (+0.25): Hourly Rate × 1.25 × OT hours
+        // Regular Holiday OT (+0.60): Hourly Rate × 1.60 × OT hours
+        // Special Holiday OT (+0.30): Hourly Rate × 1.30 × OT hours
+        // ────────────────────────────────────────────────────────────────────
         const regularOT = hourlyRate * 1.25 * Number(log.regular_overtime_hours || 0);
         const holidayOT = hourlyRate * 1.60 * Number(log.holiday_overtime_hours || 0);
         const specialOT = hourlyRate * 1.30 * Number(log.special_overtime_hours || 0);
 
+        // ────────────────────────────────────────────────────────────────────
+        // GROSS INCOME
+        // = Basic Pay + Regular Holiday Pay + Special Holiday Pay
+        //   + Regular OT + Holiday OT + Special OT + Additional Pay
+        // ────────────────────────────────────────────────────────────────────
         const grossIncome = basicPay
           + regularHolidayPay
           + specialHolidayPay
@@ -751,17 +798,89 @@ export const db = {
           + specialOT
           + Number(log.additional_pay || 0);
 
+        // ────────────────────────────────────────────────────────────────────
+        // TARDY & UNDERTIME DEDUCTIONS
+        // Source: XLS Exceptional sheet → total late_minutes
+        //         Server converts: late_minutes / 30 → late_timeslots (1 slot = 30min)
+        //
+        // Formula: (Daily Rate ÷ 8) × (timeslots × 0.5 hrs)
+        //        = Hourly Rate × 0.5 × timeslots
+        // ────────────────────────────────────────────────────────────────────
         const tardyDeductions    = hourlyRate * 0.5 * Number(log.late_timeslots || 0);
         const undertimeDeductions = hourlyRate * 0.5 * Number(log.early_leave_timeslots || 0);
 
+        // ────────────────────────────────────────────────────────────────────
+        // PHILHEALTH
+        // Formula: Monthly Basic Salary × 3% ÷ 2 (employee semi-monthly share)
+        //          Rounded to nearest ₱5
+        // Monthly Basic = Daily Rate × 26 working days/month
+        // Verified against payroll register:
+        //   ₱635/day → ₱247.65 → ₱250 ✓
+        //   ₱985/day → ₱384.15 → ₱385 ✓
+        // ────────────────────────────────────────────────────────────────────
         const monthlyBasic = dailyRate * 26;
         const philhealth   = Math.round(monthlyBasic * 0.015 / 5) * 5;
 
+        // ────────────────────────────────────────────────────────────────────
+        // HDMF (PAG-IBIG)
+        // Fixed: ₱200.00 per semi-monthly period
+        // ────────────────────────────────────────────────────────────────────
         const hdmf = 200;
-        const withholdingTax = 0;
-        const sss = 0;
-        const cashAdvance = 0;
 
+        // ────────────────────────────────────────────────────────────────────
+        // WITHHOLDING TAX
+        // ₱0 for most employees (monthly equivalent below ₱20,833 threshold)
+        // TODO: Implement BIR tax table brackets for higher earners
+        // ────────────────────────────────────────────────────────────────────
+        const withholdingTax = 0;
+
+        // ────────────────────────────────────────────────────────────────────
+        // NOTE: SSS is NOT included in this payroll register format.
+        //       Based on the VTA Link payroll register table, deductions are:
+        //       Withholding Tax + Cash Advances + PhilHealth + HDMF only.
+        // ────────────────────────────────────────────────────────────────────
+        const sss = 0; // Not used in this payroll format
+
+        // ────────────────────────────────────────────────────────────────────
+        // CASH ADVANCE DEDUCTION
+        // Workflow:
+        //   1. Cashier submits request → status = 'pending'
+        //   2. Admin approves → status = 'approved'
+        //   3. Next payroll compute runs → approved advances deducted here
+        //      → status = 'deducted', linked to this payroll_period_id
+        //
+        // Restraint limit: (To be configured — placeholder ready below)
+        // const MAX_ADVANCE = dailyRate * 13 * 0.5; // 50% of semi-monthly pay
+        //
+        // PAYSLIP DISPLAY:
+        //   Current period: "Cash Advance (Disbursed)" shown as ADDITIONAL INCOME
+        //   Next period:    "Cash Advance Deduction"   shown as DEDUCTION here
+        // ────────────────────────────────────────────────────────────────────
+        const { data: advances } = await supabase
+          .from('cash_advances')
+          .select('id, amount')
+          .eq('employee_id', emp.id)
+          .eq('status', 'approved'); // only APPROVED advances get deducted
+
+        const cashAdvance = (advances || []).reduce((s: number, a: any) => s + Number(a.amount), 0);
+
+        // Mark advances as deducted and link to this payroll period
+        if (advances && advances.length > 0) {
+          await supabase
+            .from('cash_advances')
+            .update({
+              status:            'deducted',
+              payroll_period_id: periodId,
+              updated_at:        new Date().toISOString(),
+            })
+            .in('id', (advances as any[]).map((a: any) => a.id));
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // TOTAL DEDUCTIONS
+        // Per payroll register: Tardy + Undertime + Withholding Tax
+        //                       + Cash Advances + PhilHealth + HDMF
+        // ────────────────────────────────────────────────────────────────────
         const totalDeductions = tardyDeductions
           + undertimeDeductions
           + withholdingTax
@@ -769,6 +888,9 @@ export const db = {
           + philhealth
           + hdmf;
 
+        // ────────────────────────────────────────────────────────────────────
+        // NET PAY & TAXABLE INCOME
+        // ────────────────────────────────────────────────────────────────────
         const netPay       = grossIncome - totalDeductions;
         const taxableIncome = grossIncome - philhealth - hdmf;
 
@@ -865,13 +987,12 @@ export const db = {
         .from('cash_advances')
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('id', id)
-        .eq('status', 'pending')
+        .eq('status', 'pending') // can only cancel pending advances
         .select().single();
       if (error) throw error;
       return data;
     },
 
-    // ── NEW: Approve a pending cash advance ──────────────────────────────────
     async approve(id: string) {
       const { data, error } = await supabase
         .from('cash_advances')
@@ -883,7 +1004,6 @@ export const db = {
       return data;
     },
 
-    // ── NEW: Decline a pending cash advance with a reason ────────────────────
     async decline(id: string, declineReason: string) {
       const { data, error } = await supabase
         .from('cash_advances')
@@ -899,7 +1019,6 @@ export const db = {
       return data;
     },
 
-    // ── NEW: Fetch only pending advances (for the dashboard approval panel) ──
     async getPendingRequests() {
       const { data, error } = await supabase
         .from('cash_advances')

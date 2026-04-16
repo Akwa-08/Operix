@@ -1,9 +1,7 @@
 import { useState } from "react";
 import { Search, Eye, Flag, FileText, ChevronDown, X, Check, Trash2 } from "lucide-react";
 import { useManagementData } from "../../hooks/useSupabase";
-import type { FrontendUser, FrontendSupplier} from "../../Types";
-import type { EmployeeRecord, EmployeeRole } from "../../Types";
-
+import type { FrontendUser, FrontendSupplier, EmployeeRecord } from "../../Types";
 
 type Supplier = FrontendSupplier;
 
@@ -87,7 +85,7 @@ const AdminManagement: React.FC = () => {
 
   const tabs = ["User Account Management", "Employee List Management", "Supplier List Management"];
   const accountRoles = ["Admin", "Cashier", "Designer", "Production", "Customer"];
-  const employeeRoles = ["Admin", "Cashier", "Designer", "Production", "Other"];
+  const employeeRoles = ["Admin", "Cashier", "Designer", "Production"];
   const statuses = ["Active", "Inactive"];
 
   const {
@@ -153,32 +151,19 @@ const AdminManagement: React.FC = () => {
   };
 
   const handleSubmitCreateEmp = async () => {
-  if (!empForm.fullName || !empForm.position) {
-    alert("Full name and position are required");
-    return;
-  }
-  if (!empForm.role) {
-    alert("Role is required — select Cashier, Designer, Production, Admin, or Other");
-    return;
-  }
-
-  const r = await createEmployee({
-    employeeCode: empForm.employeeCode,
-    fullName: empForm.fullName,
-    position: empForm.position,
-    role: empForm.role as EmployeeRole,   // ✅ cast to EmployeeRole
-    baseHourlyRate: Number(empForm.baseHourlyRate) || 0,
-    hireDate: empForm.hireDate,
-  });
-
-  if (r.success) {
-    alert("Employee record created!");
-    setShowCreateEmpModal(false);
-  } else {
-    alert("Error: " + r.error);
-  }
-};
-
+    if (!empForm.fullName || !empForm.position) { alert("Full name and position are required"); return; }
+    if (!empForm.role) { alert("Role is required — select Cashier, Designer, Production, Admin, or Other"); return; }
+    const r = await createEmployee({
+      employeeCode: empForm.employeeCode,
+      fullName: empForm.fullName,
+      position: empForm.position,
+      role: empForm.role as import('../../Types').EmployeeRole,
+      baseHourlyRate: Number(empForm.baseHourlyRate) || 0,
+      hireDate: empForm.hireDate,
+    });
+    if (r.success) { alert("Employee record created!"); setShowCreateEmpModal(false); }
+    else alert("Error: " + r.error);
+  };
 
   const handleUpdateEmp = async () => {
     if (!selectedEmployee) return;
@@ -218,15 +203,15 @@ const AdminManagement: React.FC = () => {
 
   // ── Filtering ────────────────────────────────────────────────────────
   const filteredUsers = users.filter(u => {
-    const ms = !searchQuery || [u.firstName, u.lastName, u.email, u.userName].some(f => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    const ms = !searchQuery || [u.firstName, u.lastName, u.email, u.userName].some((f: string) => f.toLowerCase().includes(searchQuery.toLowerCase()));
     const mr = selectedRole === "Select Role" || u.role === selectedRole;
     return ms && mr;
   });
   const filteredEmployees = employees.filter(e =>
-    !searchQuery || [e.fullName, e.position, e.employeeCode, (e as any).role || ''].some(f => f.toLowerCase().includes(searchQuery.toLowerCase()))
+    !searchQuery || [e.fullName, e.position, e.employeeCode, (e as any).role || ''].some((f: string) => f.toLowerCase().includes(searchQuery.toLowerCase()))
   );
   const filteredSuppliers = suppliers.filter(s => {
-    const ms = !searchQuery || [s.supplierName, s.email].some(f => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    const ms = !searchQuery || [s.supplierName, s.email].some((f: string) => f.toLowerCase().includes(searchQuery.toLowerCase()));
     const mst = selectedStatus === "Select Status" || s.supplierStatus === selectedStatus;
     return ms && mst;
   });
@@ -328,10 +313,19 @@ const AdminManagement: React.FC = () => {
           <F label="Position *" value={empForm.position} onChange={(v: string) => setEmpForm({...empForm, position: v})} placeholder="e.g., Printer Operator" />
 
           {/* ── NEW: Role dropdown ── */}
-        <S label="Role *" value={empForm.role} onChange={(v: string) => setEmpForm({...empForm, role: v})} options={employeeRoles} placeholder="Select Role" />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
+            <select value={empForm.role} onChange={e => setEmpForm({...empForm, role: e.target.value})}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+              <option value="">Select Role</option>
+              {employeeRoles.map(r => (
+                <option key={r} value={r.toLowerCase()}>{r}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">Used for payroll department grouping</p>
+          </div>
 
-
-          <F label="Base Hourly Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({...empForm, baseHourlyRate: v})} placeholder="0.00" />
+          <F label="Daily Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({...empForm, baseHourlyRate: v})} placeholder="0.00" />
           <F label="Hire Date" type="date" value={empForm.hireDate} onChange={(v: string) => setEmpForm({...empForm, hireDate: v})} />
         </div>
         <div className="flex gap-3">
@@ -348,9 +342,18 @@ const AdminManagement: React.FC = () => {
           <F label="Position" value={editEmpForm.position} onChange={(v: string) => setEditEmpForm({...editEmpForm, position: v})} />
 
           {/* ── NEW: Role dropdown ── */}
-          <S label="Role" value={editEmpForm.role} onChange={(v: string) => setEditEmpForm({...editEmpForm, role: v})} options={employeeRoles} placeholder="Select Role" />
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
+            <select value={editEmpForm.role} onChange={e => setEditEmpForm({...editEmpForm, role: e.target.value})}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+              <option value="">Select Role</option>
+              {employeeRoles.map(r => (
+                <option key={r} value={r.toLowerCase()}>{r}</option>
+              ))}
+            </select>
+          </div>
 
-          <F label="Base Hourly Rate (₱)" type="number" value={editEmpForm.baseHourlyRate} onChange={(v: string) => setEditEmpForm({...editEmpForm, baseHourlyRate: v})} />
+          <F label="Daily Rate (₱)" type="number" value={editEmpForm.baseHourlyRate} onChange={(v: string) => setEditEmpForm({...editEmpForm, baseHourlyRate: v})} />
           <F label="Holiday Multiplier" type="number" value={editEmpForm.holidayMultiplier} onChange={(v: string) => setEditEmpForm({...editEmpForm, holidayMultiplier: v})} />
           <F label="Overtime Multiplier" type="number" value={editEmpForm.overtimeMultiplier} onChange={(v: string) => setEditEmpForm({...editEmpForm, overtimeMultiplier: v})} />
           <F label="Hire Date" value={selectedEmployee?.hireDate || ''} onChange={() => {}} disabled />
@@ -485,7 +488,7 @@ const AdminManagement: React.FC = () => {
                 <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredUsers.map(u => (
+                {filteredUsers.map((u: FrontendUser) => (
                   <tr key={u.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{u.firstName} {u.lastName}</td>
                     <td className="px-4 py-3 text-gray-600">{u.userName || '—'}</td>
@@ -537,13 +540,13 @@ const AdminManagement: React.FC = () => {
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Full Name</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Position</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Role</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Hourly Rate</th>
+                <th className="px-4 py-3 text-right font-semibold text-gray-700">Daily Rate</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Hire Date</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
                 <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredEmployees.map(e => (
+                {filteredEmployees.map((e: EmployeeRecord) => (
                   <tr key={e.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-xs text-gray-600">{e.employeeCode}</td>
                     <td className="px-4 py-3 font-medium">{e.fullName}</td>
@@ -605,7 +608,7 @@ const AdminManagement: React.FC = () => {
                 <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredSuppliers.map(s => (
+                {filteredSuppliers.map((s: Supplier) => (
                   <tr key={s.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{s.supplierName}</td>
                     <td className="px-4 py-3 text-gray-600">{s.email || '—'}</td>

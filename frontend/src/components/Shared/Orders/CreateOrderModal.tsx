@@ -6,6 +6,7 @@ import { Button } from "../UI/Button";
 import type { UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
 import { Info } from "lucide-react";
+import toast from "react-hot-toast";
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -42,16 +43,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   };
 
   const handleSubmit = () => {
-    // Validate required fields
-    if (
-      !formData.customerName ||
-      !formData.productType ||
-      !formData.quantity ||
-      !formData.dueDate
-    ) {
-      alert("Please fill in all required fields");
-      return;
-    }
+    if (!formData.customerName.trim()) { toast.error("Customer name is required"); return; }
+    if (!formData.productType)         { toast.error("Product type is required"); return; }
+    if (!formData.quantity || formData.quantity < 1) { toast.error("Quantity must be at least 1"); return; }
+    if (!formData.dueDate)             { toast.error("Due date is required"); return; }
+    if (formData.totalAmount <= 0)     { toast.error("Total amount must be greater than 0"); return; }
 
     onSave(formData);
     onClose();
@@ -69,7 +65,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         <div className="space-y-4">
 
           {/* Order Type Toggle */}
-          <div className="flex gap-3 mb-4">
+          <div className="flex flex-wrap gap-3 mb-4">
             <button type="button" onClick={() => handleChange("orderType", "walk-in")}
               className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${formData.orderType === 'walk-in' ? 'bg-cyan-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
               Walk-in Customer
@@ -84,7 +80,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             Customer Information
           </h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Customer Name *
@@ -132,7 +128,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             Order Details
           </h3>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Product Type *
@@ -168,7 +164,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Total Amount (₱) *
@@ -209,8 +205,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             <input
               type="date"
               value={formData.dueDate}
+              min={new Date().toISOString().split("T")[0]}
               onChange={(e) => handleChange("dueDate", e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
+                !formData.dueDate ? "border-red-300 bg-red-50" : "border-gray-300"
+              }`}
             />
           </div>
 
@@ -254,7 +253,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 pt-4 border-t border-gray-200">
+        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
           <Button variant="secondary" onClick={onClose} className="flex-1">
             Cancel
           </Button>

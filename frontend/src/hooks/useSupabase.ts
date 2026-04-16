@@ -99,7 +99,9 @@ function mapSupplier(raw: any): FrontendSupplier {
 function mapEmployee(raw: any): EmployeeRecord {
   return {
     id: raw.id, employeeCode: raw.employee_code || '', fullName: raw.full_name || '',
-    position: raw.position || '', baseHourlyRate: Number(raw.base_hourly_rate) || 0,
+    position: raw.position || '',
+    role: raw.role ? (raw.role.charAt(0).toUpperCase() + raw.role.slice(1)) as EmployeeRole : undefined,
+    baseHourlyRate: Number(raw.base_hourly_rate) || 0,
     holidayRateMultiplier: Number(raw.holiday_rate_multiplier) || 2.0,
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
     hireDate: raw.hire_date ? new Date(raw.hire_date).toLocaleDateString() : '',
@@ -532,11 +534,10 @@ export function useDeliveries() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CASH ADVANCES — useCashAdvances()
-// Used by: AdminPayroll (Cash Advances tab)
+// CASH ADVANCES — useCashAdvances() + usePendingCashAdvances()
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export type CashAdvanceStatus = 'pending' | 'deducted' | 'cancelled' | 'approved' | 'declined';
+export type CashAdvanceStatus = 'pending' | 'approved' | 'deducted' | 'declined' | 'cancelled';
 
 export interface CashAdvance {
   id: string;
@@ -554,7 +555,6 @@ export interface CashAdvance {
   declineReason?: string;
 }
 
-// ── NEW: Pending request shape for the dashboard panel ─────────────────────
 export interface PendingCashAdvance {
   id: string;
   employeeId: string;
@@ -562,11 +562,10 @@ export interface PendingCashAdvance {
   employeeName: string;
   employeePosition: string;
   dailyRate: number;
-  /** Requested amount */
   amount: number;
-  /** Soft cap: 50 % of one semi-monthly gross (daily × 8 × 13 × 0.5) */
+  /** 50% of 13-day semi-monthly pay */
   allowedLimit: number;
-  /** Already-pending total for this employee (excluding this request) */
+  /** Sum of other pending advances for this employee */
   pendingTotal: number;
   /** allowedLimit − pendingTotal */
   remainingAllowed: number;
@@ -599,17 +598,12 @@ function mapCashAdvance(raw: any): CashAdvance {
 
 function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
   const emp        = raw.employee;
-  const hourlyRate = Number(emp?.base_hourly_rate) || 0;
-  const dailyRate  = hourlyRate * 8;
-  // Allowed limit: half of a 13-day semi-monthly pay (conservative cap)
-  const allowedLimit = Math.round(dailyRate * 13 * 0.5);
-  // Sum of all OTHER pending advances for this employee
+  const dailyRate  = Number(emp?.base_hourly_rate) || 0; // stored as daily rate
+  const allowedLimit = Math.round(dailyRate * 13 * 0.5); // 50% of semi-monthly pay
   const pendingTotal = allPending
     .filter(a => a.employee_id === raw.employee_id && a.id !== raw.id)
     .reduce((s: number, a: any) => s + Number(a.amount), 0);
-  const remainingAllowed = Math.max(0, allowedLimit - pendingTotal);
   const issuer = raw.issuer;
-
   return {
     id:               raw.id,
     employeeId:       raw.employee_id,
@@ -620,7 +614,7 @@ function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance 
     amount:           Number(raw.amount) || 0,
     allowedLimit,
     pendingTotal,
-    remainingAllowed,
+    remainingAllowed: Math.max(0, allowedLimit - pendingTotal),
     reason:           raw.reason || '',
     dateIssued:       raw.date_issued || '',
     issuedByName:     issuer
@@ -640,6 +634,7 @@ export function useCashAdvances(filters?: { employee_id?: string; status?: strin
   const stats = {
     total:     advances.length,
     pending:   advances.filter(a => a.status === 'pending').length,
+    approved:  advances.filter(a => a.status === 'approved').length,
     deducted:  advances.filter(a => a.status === 'deducted').length,
     cancelled: advances.filter(a => a.status === 'cancelled').length,
     totalPending: advances
@@ -652,10 +647,7 @@ export function useCashAdvances(filters?: { employee_id?: string; status?: strin
     loading: q.loading, error: q.error, refresh: q.refresh,
 
     createAdvance: async (data: {
-      employee_id: string;
-      amount: number;
-      date_issued?: string;
-      reason?: string;
+      employee_id: string; amount: number; date_issued?: string; reason?: string;
     }) => {
       const r = await safe(() => db.cashAdvances.create(data).then(() => q.refresh()));
       return r;
@@ -668,15 +660,12 @@ export function useCashAdvances(filters?: { employee_id?: string; status?: strin
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// PENDING CASH ADVANCES — usePendingCashAdvances()
-// Used by: AdminPayroll Payroll Dashboard tab (approval panel)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ── usePendingCashAdvances — for the admin dashboard approval panel ──────────
 export function usePendingCashAdvances() {
   const q = useQuery(() => db.cashAdvances.getPendingRequests(), []);
-  const rawAll = q.data || [];
+  const rawAll = (q.data || []) as any[];
 
-  const pendingAdvances: PendingCashAdvance[] = rawAll.map((raw: any) =>
+  const pendingAdvances: PendingCashAdvance[] = rawAll.map(raw =>
     mapPendingCashAdvance(raw, rawAll)
   );
 
@@ -777,14 +766,14 @@ function mapPeriod(raw: any): PayrollPeriod {
 
 function mapAttendanceLog(raw: any): AttendanceLog {
   const emp = raw.employee;
-  const hourlyRate = Number(emp?.base_hourly_rate) || 0;
+  const dailyRate = Number(emp?.base_hourly_rate) || 0; // stored as daily rate
   return {
     id: raw.id,
     employeeId: raw.employee_id,
     employeeCode: emp?.employee_code || '',
     fullName: emp?.full_name || '',
     position: emp?.position || '',
-    dailyRate: hourlyRate * 8,
+    dailyRate: dailyRate,
     workedHours: Number(raw.worked_hours) || 0,
     requiredHours: Number(raw.required_hours) || 160,
     lateTimeslots: Number(raw.late_timeslots) || 0,
@@ -949,4 +938,34 @@ export function usePayrollData() {
       return r;
     },
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUDIT LOGS — useLogsData()
+// Used by: AdminAuditLogs
+// ═══════════════════════════════════════════════════════════════════════════════
+export function useLogsData() {
+  const q = useQuery(async () => {
+    const { data, error } = await supabase
+      .from('order_logs')
+      .select(`*, updated_by_user:updated_by(id, first_name, last_name, role)`)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data || [];
+  }, []);
+
+  const logs = (q.data || []).map((raw: any) => ({
+    id:        raw.id,
+    orderId:   raw.order_id,
+    updatedBy: raw.updated_by_user
+                 ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim()
+                 : '—',
+    role:      raw.updated_by_user?.role || '—',
+    status:    raw.status || '',
+    note:      raw.note || '',
+    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+  }));
+
+  return { logs, loading: q.loading, error: q.error, refresh: q.refresh };
 }

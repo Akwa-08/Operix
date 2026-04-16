@@ -1,13 +1,13 @@
-import {useState, useEffect} from "react";
-import {NavLink, useLocation} from "react-router-dom";
-import {LogOut, ChevronLeft, ChevronRight, CircleUserRound} from "lucide-react";
-import type {LucideIcon} from "lucide-react";
+import { useState, useEffect } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { LogOut, ChevronLeft, ChevronRight, CircleUserRound, X } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 export type SidebarItem = {
   label: string;
   icon: LucideIcon;
   path: string;
-  end?: boolean; // Used for NavLink 'end' prop
+  end?: boolean;
 };
 
 export type SharedSideBarProps = {
@@ -18,6 +18,8 @@ export type SharedSideBarProps = {
   onLogout: () => void;
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
+  mobileOpen?: boolean;
+  setMobileOpen?: (open: boolean) => void;
 };
 
 const SharedSideBar = ({
@@ -28,212 +30,140 @@ const SharedSideBar = ({
   onLogout,
   collapsed,
   setCollapsed,
+  mobileOpen = false,
+  setMobileOpen,
 }: SharedSideBarProps) => {
   const location = useLocation();
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-
-  // To avoid the flicker transition on initial mount, we could track mounting
   const [isMounted, setIsMounted] = useState(false);
 
+  useEffect(() => { setIsMounted(true); }, []);
+
+  // Close mobile drawer on route change
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    setMobileOpen?.(false);
+  }, [location.pathname]);
 
   if (location.pathname === "/") return null;
 
-  const sidebarWidth = collapsed ? "w-[72px]" : "w-[180px]";
+  const sidebarWidth = collapsed ? "w-[72px]" : "w-[200px]";
+  const confirmLogout = () => { setShowLogoutModal(false); onLogout(); };
 
-  const handleLogoutClick = () => {
-    setShowLogoutModal(true);
-  };
+  const linkClass = (isActive: boolean) =>
+    `flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl transition-all duration-150 cursor-pointer ${
+      isActive ? "bg-[#E80088] text-white shadow-md" : "text-gray-700 hover:bg-gray-100"
+    }`;
 
-  const confirmLogout = () => {
-    setShowLogoutModal(false);
-    onLogout();
-  };
+  const drawerLinkClass = (isActive: boolean) =>
+    `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-150 cursor-pointer ${
+      isActive ? "bg-[#E80088] text-white shadow-md" : "text-gray-700 hover:bg-gray-100"
+    }`;
 
-  const cancelLogout = () => {
-    setShowLogoutModal(false);
-  };
+  // ── Shared nav content (used by both desktop sidebar and mobile drawer) ──
+  const NavItems = ({ drawer = false }: { drawer?: boolean }) => (
+    <>
+      {items.map(item => (
+        <NavLink
+          key={item.label}
+          to={item.path}
+          end={item.end}
+          className={({ isActive }) => drawer ? drawerLinkClass(isActive) : linkClass(isActive)}
+          title={!drawer && collapsed ? item.label : undefined}
+        >
+          {({ isActive }) => (
+            <>
+              <item.icon
+                size={drawer ? 20 : 22}
+                strokeWidth={isActive ? 2.5 : 1.8}
+                className={drawer ? "" : isActive ? "text-white" : "text-gray-600"}
+              />
+              {drawer ? (
+                <span className={`text-sm font-semibold ${isActive ? "text-white" : "text-gray-700"}`}>{item.label}</span>
+              ) : !collapsed ? (
+                <span className={`text-sm font-bold text-center leading-tight ${isActive ? "text-white" : "text-gray-700"}`}>{item.label}</span>
+              ) : null}
+            </>
+          )}
+        </NavLink>
+      ))}
+    </>
+  );
 
   return (
     <>
-      {/* Logout Confirmation Modal */}
+      {/* ─── LOGOUT MODAL ─────────────────────────────────────────────────── */}
       {showLogoutModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
                 <LogOut size={24} className="text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">
-                  Confirm Logout
-                </h3>
-                <p className="text-sm text-gray-500">
-                  Are you sure you want to log out?
-                </p>
+                <h3 className="text-lg font-bold text-gray-900">Confirm Logout</h3>
+                <p className="text-sm text-gray-500">Are you sure you want to log out?</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 mb-6">
-              You will be redirected to the landing page and will need to log in
-              again to access your account.
-            </p>
+            <p className="text-sm text-gray-600 mb-6">You will be redirected to the landing page.</p>
             <div className="flex gap-3">
-              <button
-                onClick={cancelLogout}
-                className="flex-1 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg transition-colors">
+              <button onClick={() => setShowLogoutModal(false)}
+                className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-sm">
                 Cancel
               </button>
-              <button
-                onClick={confirmLogout}
-                className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg transition-colors">
-                Logout
+              <button onClick={confirmLogout}
+                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-sm">
+                Log Out
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-20 left-4 z-50 p-2 bg-white rounded-md shadow border border-gray-200"
-        aria-label="Open menu">
-        <ChevronRight size={20} className="text-gray-600" />
-      </button>
+      {/* ─── DESKTOP SIDEBAR ─────────────────────────────────────────────── */}
+      <aside className={`
+        hidden lg:flex flex-col justify-between
+        bg-white text-black
+        fixed top-16 left-0 h-[calc(100vh-4rem)]
+        ${sidebarWidth}
+        border-r border-gray-200 shadow-sm
+        ${isMounted ? "transition-all duration-300 ease-in-out" : ""}
+        z-30
+      `}>
+        <nav className="flex flex-col gap-1 px-2 pt-4 flex-1 overflow-y-auto">
+          <NavItems />
+        </nav>
 
-      {/* Mobile Backdrop */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-        />
-      )}
+        <div className="border-t border-gray-100 px-2 py-3 flex flex-col gap-1">
+          <NavLink to={profilePath}
+            className={({ isActive }) => linkClass(isActive)}
+            title={collapsed ? "Profile" : undefined}>
+            {({ isActive }) => (
+              <>
+                <CircleUserRound size={22} strokeWidth={isActive ? 2.5 : 1.8} className={isActive ? "text-white" : "text-gray-600"} />
+                {!collapsed && <span className={`text-sm font-bold ${isActive ? "text-white" : "text-gray-700"}`}>Profile</span>}
+              </>
+            )}
+          </NavLink>
 
-      {/* Sidebar - using a conditional class to prevent transition flicker on initial load */}
-      <aside
-        className={`
-          bg-white text-black
-          fixed top-16 left-0 h-[calc(100%-4rem)]
-          ${sidebarWidth}
-          border-r border-gray-200 shadow-sm
-          flex flex-col justify-between
-          ${isMounted ? "transition-all duration-300 ease-in-out transform" : ""}
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
-          z-30
-        `}>
-        {/* Top: Nav */}
-        <div className="flex flex-col h-full">
-          {/* Nav Links */}
-          <nav className="flex flex-col gap-1 px-2 pt-3 flex-1">
-            {items.map((item) => (
-              <NavLink
-                key={item.label}
-                to={item.path}
-                end={item.end}
-                onClick={() => setMobileOpen(false)}
-                className={({isActive}) =>
-                  `flex flex-col items-center justify-center gap-1.5 py-3.5 px-2 rounded-xl transition-all duration-150 cursor-pointer
-                  ${
-                    isActive
-                      ? "bg-[#E80088] text-white shadow-md"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`
-                }
-                title={collapsed ? item.label : undefined}>
-                {({isActive}) => (
-                  <>
-                    <item.icon
-                      size={22}
-                      strokeWidth={isActive ? 2.5 : 1.8}
-                      className={isActive ? "text-white" : "text-gray-600"}
-                    />
-                    {!collapsed && (
-                      <span
-                        className={`text-sm font-bold text-center leading-tight ${
-                          isActive ? "text-white" : "text-gray-700"
-                        }`}>
-                        {item.label}
-                      </span>
-                    )}
-                  </>
-                )}
-              </NavLink>
-            ))}
-          </nav>
+          <button onClick={() => setShowLogoutModal(true)} title={collapsed ? "Logout" : undefined}
+            className="flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl text-gray-700 hover:bg-red-50 hover:text-red-500 transition-all w-full">
+            <LogOut size={22} strokeWidth={1.8} />
+            {!collapsed && <span className="text-sm font-bold">Logout</span>}
+          </button>
 
-          {/* Bottom Section: Profile + Logout */}
-          <div className="border-t border-gray-100 px-2 py-3 flex flex-col gap-1">
-            {/* Profile Link */}
-            <NavLink
-              to={profilePath}
-              onClick={() => setMobileOpen(false)}
-              className={({isActive}) =>
-                `flex flex-col items-center justify-center gap-1.5 py-3.5 px-2 rounded-xl transition-all duration-150 cursor-pointer
-                ${
-                  isActive
-                    ? "bg-[#E80088] text-white shadow-md"
-                    : "text-gray-700 hover:bg-gray-100"
-                }`
-              }
-              title={collapsed ? "Profile" : undefined}>
-              {({isActive}) => (
-                <>
-                  <CircleUserRound
-                    size={22}
-                    strokeWidth={isActive ? 2.5 : 1.8}
-                    className={isActive ? "text-white" : "text-gray-600"}
-                  />
-                  {!collapsed && (
-                    <span
-                      className={`text-sm font-bold ${
-                        isActive ? "text-white" : "text-gray-700"
-                      }`}>
-                      Profile
-                    </span>
-                  )}
-                </>
-              )}
-            </NavLink>
-
-            {/* Logout Button */}
-            <button
-              onClick={handleLogoutClick}
-              title={collapsed ? "Logout" : undefined}
-              className="flex flex-col items-center justify-center gap-1.5 py-3.5 px-2 rounded-xl text-gray-700 hover:bg-red-50 hover:text-red-500 transition-all duration-150 w-full">
-              <LogOut size={22} strokeWidth={1.8} />
-              {!collapsed && (
-                <span className="text-sm font-bold">Logout</span>
-              )}
-            </button>
-
-            {/* User Info */}
-            <div
-              className={`flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-gray-100 ${
-                collapsed ? "justify-center" : ""
-              }`}>
-              <CircleUserRound
-                size={28}
-                strokeWidth={1.5}
-                className="text-gray-500 flex-shrink-0"
-              />
-              {!collapsed && (
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-gray-800 truncate">
-                    {name}
-                  </p>
-                  {role && <p className="text-[10px] text-gray-500">{role}</p>}
-                </div>
-              )}
-            </div>
+          <div className={`flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-gray-100 ${collapsed ? "justify-center" : ""}`}>
+            <CircleUserRound size={28} strokeWidth={1.5} className="text-gray-400 flex-shrink-0" />
+            {!collapsed && (
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-gray-800 truncate">{name}</p>
+                {role && <p className="text-xs text-gray-500 truncate">{role}</p>}
+              </div>
+            )}
           </div>
         </div>
       </aside>
 
-      {/* Collapse Toggle Button (desktop only) */}
+      {/* Desktop collapse toggle */}
       <button
         onClick={() => setCollapsed(!collapsed)}
         className={`
@@ -243,15 +173,67 @@ const SharedSideBar = ({
           w-5 h-10 bg-white border border-gray-200 rounded-r-md shadow-sm
           hover:bg-gray-50 text-gray-500 hover:text-[#E80088]
           ${isMounted ? "transition-all duration-300 ease-in-out" : ""}
-          ${collapsed ? "left-[72px]" : "left-[180px]"}
+          ${collapsed ? "left-[72px]" : "left-[200px]"}
         `}
         aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
-        {collapsed ? (
-          <ChevronRight size={14} strokeWidth={2.5} />
-        ) : (
-          <ChevronLeft size={14} strokeWidth={2.5} />
-        )}
+        {collapsed ? <ChevronRight size={14} strokeWidth={2.5} /> : <ChevronLeft size={14} strokeWidth={2.5} />}
       </button>
+
+      {/* ─── MOBILE DRAWER ───────────────────────────────────────────────── */}
+      {/* Backdrop */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/40 z-40 backdrop-blur-sm"
+          onClick={() => setMobileOpen?.(false)}
+        />
+      )}
+
+      {/* Slide-in drawer */}
+      <div className={`
+        lg:hidden fixed top-0 left-0 h-full w-72 bg-white z-50 flex flex-col shadow-2xl
+        transition-transform duration-300 ease-in-out
+        ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+      `}>
+        {/* Drawer header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-[#E80088]/10 flex items-center justify-center">
+              <CircleUserRound size={20} className="text-[#E80088]" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-gray-900 leading-tight">{name}</p>
+              {role && <p className="text-xs text-gray-500">{role}</p>}
+            </div>
+          </div>
+          <button onClick={() => setMobileOpen?.(false)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <X size={18} className="text-gray-500" />
+          </button>
+        </div>
+
+        {/* Drawer nav */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
+          <NavItems drawer />
+          <NavLink to={profilePath}
+            className={({ isActive }) => drawerLinkClass(isActive)}>
+            {({ isActive }) => (
+              <>
+                <CircleUserRound size={20} strokeWidth={isActive ? 2.5 : 1.8} />
+                <span className={`text-sm font-semibold ${isActive ? "text-white" : "text-gray-700"}`}>Profile</span>
+              </>
+            )}
+          </NavLink>
+        </nav>
+
+        {/* Drawer footer */}
+        <div className="border-t border-gray-100 p-3">
+          <button onClick={() => { setShowLogoutModal(true); setMobileOpen?.(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors font-semibold text-sm">
+            <LogOut size={20} />
+            Logout
+          </button>
+        </div>
+      </div>
     </>
   );
 };
