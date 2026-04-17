@@ -8,24 +8,9 @@ import { supabase } from '../config/supabaseClient';
 // USERS (own profile — admin CRUD uses backend /api/admin/*)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// GLOBAL LOGGING SYSTEM
-// ═══════════════════════════════════════════════════════════════════════════════
-export async function logSystemAction(module: string, title: string, message: string) {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from('notifications').insert([{
-      user_id: user.id,
-      related_module: module,
-      title: title,
-      message: message,
-      is_read: true // auto-read for logs
-    }]);
-  } catch (err) {
-    console.error("SysLog Error:", err);
-  }
-}
+// NOTE: logSystemAction() has been replaced by db.logAudit() below.
+// It wrote auto-read notifications (is_read:true) as a fake audit trail.
+// db.logAudit() writes to the dedicated audit_logs table instead.
 
 export const db = {
 
@@ -58,6 +43,50 @@ export const db = {
     if (error) throw error;
   },
 
+  // ── User-facing unread notification (is_read: false) ───────────────────
+  // Use this for real events (messages received, order updates, etc.)
+  // Starts as unread so it appears in the user's notification badge.
+  async notifyUser(userId: string, module: string, title: string, message: string) {
+    try {
+      await supabase.from('notifications').insert([{
+        user_id: userId,
+        related_module: module,
+        title,
+        message,
+        is_read: false,
+      }]);
+    } catch (err) {
+      console.error('notifyUser error:', err);
+    }
+  },
+
+  // ── Structured audit log (admin-visible, writes to audit_logs table) ────
+  // Use this for staff actions: creates, updates, deletes, flags, payments.
+  // Requires migration_audit_logs_and_production_fk.sql to be run first.
+  async logAudit(
+    action: string,
+    targetTable?: string,
+    targetId?: string,
+    metadata?: Record<string, unknown>
+  ) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await supabase
+        .from('users').select('role').eq('id', user.id).single();
+      await supabase.from('audit_logs').insert([{
+        actor_id: user.id,
+        actor_role: profile?.role || 'unknown',
+        action,
+        target_table: targetTable || null,
+        target_id: targetId || null,
+        metadata: metadata || null,
+      }]);
+    } catch (err) {
+      console.error('logAudit error:', err);
+    }
+  },
+
   // ── Users list (staff can read all via RLS) ────────────────────────────
   async getUsers(filters?: { role?: string; status?: string }) {
     let query = supabase.from('users').select('*').order('created_at', { ascending: false });
@@ -86,7 +115,7 @@ export const db = {
       role: emp.role || 'Production' // Default to Production if not specified
     }]).select().single();
     if (error) throw error;
-    await logSystemAction('management', `Created Employee: ${emp.full_name}`, `Code: ${emp.employee_code || 'N/A'} - Position: ${emp.position} - Role: ${emp.role || 'Production'}`);
+    await db.logAudit('employee.create', 'employees', data?.id, { full_name: emp.full_name, position: emp.position, employee_code: emp.employee_code });
     return data;
   },
 
@@ -108,7 +137,7 @@ export const db = {
   async createSupplier(s: { name: string; contact_person?: string; phone?: string; email?: string; address?: string }) {
     const { data, error } = await supabase.from('suppliers').insert([{ ...s, is_active: true, is_flagged: false }]).select().single();
     if (error) throw error;
-    await logSystemAction('inventory', `Created Supplier: ${s.name}`, `Contact: ${s.contact_person || 'N/A'}`);
+    await db.logAudit('supplier.create', 'suppliers', data?.id, { name: s.name, contact_person: s.contact_person });
     return data;
   },
 
@@ -133,7 +162,7 @@ export const db = {
   async createInventoryItem(item: { name: string; unit_of_measure: string; current_quantity?: number; reorder_point?: number; unit_cost?: number; description?: string }) {
     const { data, error } = await supabase.from('inventory_items').insert([{ ...item, is_active: true }]).select().single();
     if (error) throw error;
-    await logSystemAction('inventory', `Added Inventory Item: ${item.name}`, `Initial Qty: ${item.current_quantity || 0}`);
+    await db.logAudit('inventory.create', 'inventory_items', data?.id, { name: item.name, initial_qty: item.current_quantity || 0 });
     return data;
   },
 
@@ -158,7 +187,7 @@ export const db = {
   async createProduct(p: Record<string, any>) {
     const { data, error } = await supabase.from('products').insert([{ ...p, is_active: true }]).select().single();
     if (error) throw error;
-    await logSystemAction('management', `Created Product: ${p.name || p.product_type}`, `Category: ${p.category || 'N/A'}`);
+    await db.logAudit('product.create', 'products', data?.id, { name: p.name, category: p.category });
     return data;
   },
 
@@ -194,7 +223,7 @@ export const db = {
       *,
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
-      production_staff:assigned_production(id, first_name, last_name),
+      production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications),
       payments(id, amount, payment_method, reference_number, notes, received_by, created_at)
     `).eq('id', id).single();
@@ -210,6 +239,13 @@ export const db = {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
+    // Detect the creating actor's role to enable designer auto-assignment.
+    // If a designer creates a walk-in order, they are auto-assigned and the
+    // order skips the queue, going directly to 'designing' status.
+    const { data: actorProfile } = await supabase
+      .from('users').select('role').eq('id', user.id).single();
+    const isDesigner = actorProfile?.role?.toLowerCase() === 'designer';
+
     // Generate order number
     let orderNumber: string;
     try {
@@ -221,6 +257,12 @@ export const db = {
 
     const totalAmount = order.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
 
+    // Designer creating a walk-in order → self-assign, skip queue
+    const resolvedDesigner = isDesigner
+      ? (order.assigned_designer || user.id)
+      : (order.assigned_designer || null);
+    const resolvedStatus = isDesigner ? 'designing' : 'in_queue';
+
     const { data: newOrder, error: orderErr } = await supabase.from('orders').insert([{
       order_number: orderNumber,
       customer_id: order.customer_id || null,
@@ -229,14 +271,14 @@ export const db = {
       guest_email: order.guest_email || null,
       created_by: user.id,
       order_type: order.order_type || 'walk-in',
-      status: 'in_queue',
+      status: resolvedStatus,
       payment_status: 'unpaid',
       special_instructions: order.special_instructions || null,
       comments: order.comments || null,
       due_date: order.due_date || null,
       total_amount: totalAmount,
       amount_paid: 0,
-      assigned_designer: order.assigned_designer || null,
+      assigned_designer: resolvedDesigner,
       assigned_production: order.assigned_production || null,
     }]).select().single();
 
@@ -254,7 +296,7 @@ export const db = {
     }));
 
     await supabase.from('order_items').insert(items);
-    await logSystemAction('orders', `Created Order: ${orderNumber}`, `Items: ${items.length} | Total: ₱${totalAmount.toLocaleString()}`);
+    await db.logAudit('order.create', 'orders', newOrder.id, { order_number: orderNumber, items: items.length, total: totalAmount });
     return newOrder;
   },
 
@@ -270,7 +312,7 @@ export const db = {
     await supabase.from('order_items').delete().eq('order_id', id);
     const { error } = await supabase.from('orders').delete().eq('id', id);
     if (error) throw error;
-    if (order) await logSystemAction('orders', `Deleted Order: ${order.order_number}`, 'Order permanently removed.');
+    if (order) await db.logAudit('order.delete', 'orders', id, { order_number: order.order_number });
   },
 
   // ── Payments ─────────────────────────────────────────────────────────
@@ -441,7 +483,7 @@ export const db = {
       const { error: bErr } = await supabase.from('product_supply_mapping').insert(rows);
       if (bErr) throw bErr;
     }
-    await logSystemAction('management', `Created Product (BOM): ${product.name}`, `BOM items: ${bom.length}`);
+    await db.logAudit('product.create', 'products', p.id, { name: product.name, bom_items: bom.length });
     return p;
   },
 
@@ -544,7 +586,7 @@ export const db = {
       changed_by: user.id,
     }]);
 
-    await logSystemAction('inventory', `Delivery Received`, `Added ${addQty} units to ${item.id} from receipt ${receipt.receipt_reference_number}`);
+    await db.logAudit('delivery.received', 'deliveries', id, { item_id: item.id, added_qty: addQty, receipt_ref: receipt.receipt_reference_number });
     return delivery;
   },
 
@@ -626,6 +668,7 @@ export const db = {
           id,
           sender_id,
           message,
+          attachment_url,
           sent_at,
           sender:sender_id(first_name, last_name, role)
         `)
@@ -639,25 +682,32 @@ export const db = {
 
       const STAFF_ROLES = ['admin', 'cashier', 'designer', 'production'];
 
-      return data.map((msg: any) => ({
-        id: msg.id,
-        senderId: msg.sender_id,
-        senderName: msg.sender
-          ? `${msg.sender.first_name || ''} ${msg.sender.last_name || ''}`.trim()
-          : 'Unknown',
-        content: msg.message,
-        timestamp: new Date(msg.sent_at).toLocaleTimeString([], {
-          hour: 'numeric',
-          minute: '2-digit',
-        }),
-        isFromAdmin: STAFF_ROLES.includes((msg.sender?.role || '').toLowerCase()),
-      }));
+      return data.map((msg: any) => {
+        // Supabase timestamps are UTC but lack the Z suffix — normalize so
+        // JS interprets correctly regardless of client timezone.
+        const rawTs: string = msg.sent_at || '';
+        const utcTs = rawTs.includes('Z') || rawTs.includes('+') ? rawTs : rawTs.replace(' ', 'T') + 'Z';
+        return {
+          id: msg.id,
+          senderId: msg.sender_id,
+          senderName: msg.sender
+            ? `${msg.sender.first_name || ''} ${msg.sender.last_name || ''}`.trim()
+            : 'Unknown',
+          content: msg.message || '',
+          attachmentUrl: msg.attachment_url || undefined,
+          timestamp: new Date(utcTs).toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+          }),
+          isFromAdmin: STAFF_ROLES.includes((msg.sender?.role || '').toLowerCase()),
+        };
+      });
     },
 
     /**
      * Inserts a new message row. RLS enforces sender_id === auth.uid().
      */
-    async sendMessage(receiverId: string, message: string, orderId?: string) {
+    async sendMessage(receiverId: string, message: string, orderId?: string, attachmentUrl?: string) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
@@ -666,14 +716,62 @@ export const db = {
         .insert([{
           sender_id: user.id,
           receiver_id: receiverId,
-          message,
+          message: message || '',
+          attachment_url: attachmentUrl || null,
           order_id: orderId || null,
         }])
         .select()
         .single();
 
       if (error) throw error;
+
+      // Notify receiver with an unread notification
+      try {
+        const senderRow = await supabase
+          .from('users')
+          .select('first_name, last_name')
+          .eq('id', user.id)
+          .single();
+        const senderName = senderRow.data
+          ? `${senderRow.data.first_name || ''} ${senderRow.data.last_name || ''}`.trim()
+          : 'Someone';
+        const preview = message ? message.substring(0, 80) : '📷 Image';
+        await supabase.from('notifications').insert([{
+          user_id: receiverId,
+          related_module: 'messages',
+          related_id: data.id,
+          title: `New message from ${senderName}`,
+          message: preview,
+          is_read: false,
+        }]);
+      } catch {
+        // Notification failure should not break messaging
+      }
+
       return data;
+    },
+
+    /**
+     * Uploads an image file to the chat-attachments Supabase Storage bucket.
+     * Returns the public URL. Throws if file > 2 MB or bucket is missing.
+     */
+    async uploadChatImage(file: File): Promise<string> {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      if (file.size > 2 * 1024 * 1024) throw new Error('Image must be under 2 MB');
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `${user.id}/${Date.now()}.${ext}`;
+
+      const { error: upErr } = await supabase.storage
+        .from('chat-attachments')
+        .upload(path, file, { upsert: false });
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage
+        .from('chat-attachments')
+        .getPublicUrl(path);
+      return urlData.publicUrl;
     },
 
     /**

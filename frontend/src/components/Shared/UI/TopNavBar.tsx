@@ -20,7 +20,11 @@ interface Notification {
 }
 
 function timeAgo(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
+  // Supabase stores timestamps as UTC without the Z suffix.
+  // Without normalization, JS parses them as local time, causing an offset equal
+  // to the client's UTC offset (e.g. 8 h for UTC+8). Appending Z fixes this.
+  const normalized = /[Z+]/.test(iso) ? iso : iso.replace(' ', 'T') + 'Z';
+  const diff = Date.now() - new Date(normalized).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return "Just now";
   if (m < 60) return `${m}m ago`;
@@ -107,8 +111,17 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName, onMenuClick }) => {
     await supabase.from("notifications").update({ is_read: true }).eq("id", n.id);
     setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
     setShowNotif(false);
-    if (n.related_module === "messages") navigate("/admin/messages");
-    else if (n.related_module === "orders" || n.related_module === "payment") navigate("/admin/orders");
+
+    // Detect base path from current URL so navigation works for all roles
+    const path = window.location.pathname;
+    const base =
+      path.startsWith("/admin") ? "/admin" :
+      path.startsWith("/cashier") ? "/cashier" :
+      path.startsWith("/designer") ? "/designer" :
+      path.startsWith("/production") ? "/production" : "";
+
+    if (n.related_module === "messages") navigate(`${base}/messages`);
+    else if (n.related_module === "orders" || n.related_module === "payment") navigate(`${base}/orders`);
   };
 
   const displayed = tab === "unread" ? notifications.filter(n => !n.is_read) : notifications;
