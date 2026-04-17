@@ -1,7 +1,9 @@
 import { useState } from "react";
-import { Plus, Trash2, X, Check, LayoutGrid, LayoutList, ChevronDown } from "lucide-react";
+import { Plus, Trash2, X, Check, ChevronDown } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { Button } from "../Shared/UI/Button";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { ViewToggle } from "../Shared/UI/ViewToggle";
 import { Package, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { OrdersTable } from "../Shared/Orders/OrdersTable";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
@@ -39,10 +41,7 @@ const AdminOrders = () => {
   const [selectedOrder, setSelectedOrder]       = useState<Order | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
 
-  const { orders, stats, staffList, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment } = useOrdersData();
-
-  const designers      = staffList.filter(s => s.role === "designer");
-  const productionStaff = staffList.filter(s => s.role === "production");
+  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment } = useOrdersData();
 
   const statusOptions = ["All", "In Queue", "Active", "Completed", "Overdue"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
@@ -116,7 +115,7 @@ const AdminOrders = () => {
     setShowAssignModal(true);
   };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
@@ -149,16 +148,7 @@ const AdminOrders = () => {
           <div className="flex-1 min-w-[180px]">
             <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search orders, customers..." />
           </div>
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 ml-auto">
-            <button onClick={() => setViewMode("list")} title="List view"
-              className={`p-2 rounded-md transition-all ${viewMode === "list" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
-              <LayoutList size={17} />
-            </button>
-            <button onClick={() => setViewMode("cards")} title="Card view"
-              className={`p-2 rounded-md transition-all ${viewMode === "cards" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500 hover:text-gray-700"}`}>
-              <LayoutGrid size={17} />
-            </button>
-          </div>
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>
 
@@ -192,7 +182,7 @@ const AdminOrders = () => {
             <select value={assignForm.designer} onChange={e => setAssignForm({ ...assignForm, designer: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {designers.map(d => <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>)}
+              {designers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div>
@@ -200,7 +190,7 @@ const AdminOrders = () => {
             <select value={assignForm.production} onChange={e => setAssignForm({ ...assignForm, production: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {productionStaff.map(p => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}
+              {productionStaff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>

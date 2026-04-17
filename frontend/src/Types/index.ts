@@ -86,6 +86,7 @@ export interface User {
 export interface Employee extends User {
   position: string;
   department: string;
+  role: UserRole;
   hireDate: string;
   baseHourlyRate?: number;
   holidayRateMultiplier?: number;
@@ -138,7 +139,7 @@ export interface EmployeeRecord {
   employeeCode: string;
   fullName: string;
   position: string;
-  role?: EmployeeRole;   // ✅ strongly typed
+  role: UserRole;
   baseHourlyRate: number;
   holidayRateMultiplier: number;
   overtimeRateMultiplier: number;

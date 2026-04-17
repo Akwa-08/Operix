@@ -29,7 +29,7 @@ import AdminOrders from './components/Admin/AdminOrders';
 import AdminMessages from './components/Admin/AdminMessages';
 import AdminInventory from './components/Admin/AdminInventory';
 import AdminPayroll from './components/Admin/AdminPayroll';
-import AdminProfile from './components/Admin/AdminProfile';
+
 import AdminAuditLogs from './components/Admin/AdminAuditLogs';
 
 // Cashier
@@ -87,7 +87,7 @@ const router = createBrowserRouter([
       { path: 'messages',  element: <AdminMessages /> },
       { path: 'inventory', element: <AdminInventory /> },
       { path: 'payroll',   element: <AdminPayroll /> },
-      { path: 'profile',   element: <AdminProfile /> },
+      { path: 'profile',   element: <ProfilePage /> },
       { path: 'logs',      element: <AdminAuditLogs /> },
     ],
   },

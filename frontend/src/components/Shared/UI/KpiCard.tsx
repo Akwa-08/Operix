@@ -1,25 +1,30 @@
-import React from "react";
-
-export const KpiCard = ({
-  title,
-  value,
-  icon,
-  iconColor,
-  accent,
-}: {
+interface KpiCardProps {
   title: string;
-  value: number;
+  value: string;
+  sub?: string;
   icon: React.ReactNode;
+  iconBg: string;
   iconColor: string;
-  accent?: string;
+  accent?: "red" | "green" | "yellow" | "blue" | "none";
+}
+
+const ACCENT_BORDERS: Record<string, string> = {
+  red:    "border-l-4 border-l-red-400",
+  green:  "border-l-4 border-l-green-400",
+  yellow: "border-l-4 border-l-amber-400",
+  blue:   "border-l-4 border-l-cyan-400",
+  none:   "",
+};
+
+export const KpiCard: React.FC<KpiCardProps> = ({
+  title, value, sub, icon, iconBg, iconColor, accent = "none",
 }) => (
-  <div
-    className={`bg-white rounded-xl border border-gray-200 p-3 md:p-4 shadow-sm flex items-center gap-3 transition-transform hover:-translate-y-0.5 hover:shadow-md ${accent || ""}`}
-  >
-    <div className={`p-2 rounded-lg bg-gray-50 ${iconColor}`}>{icon}</div>
-    <div>
-      <p className="text-xl md:text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500 leading-tight">{title}</p>
+  <div className={`bg-white rounded-xl border border-gray-200 p-4 shadow-sm ${ACCENT_BORDERS[accent]}`}>
+    <div className="flex items-start justify-between mb-3">
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight">{title}</p>
+      <div className={`p-2 rounded-lg ${iconBg} ${iconColor}`}>{icon}</div>
     </div>
+    <p className="text-2xl font-bold text-gray-900 mb-0.5 truncate">{value}</p>
+    {sub && <p className="text-xs text-gray-400">{sub}</p>}
   </div>
 );

@@ -2,6 +2,7 @@
 import { Eye, Edit2, Trash2 } from 'lucide-react';
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
+import { getMaterialStatusColor } from "../../../util/formatters";
 
 interface MaterialsTableProps {
   materials: Material[];
@@ -12,15 +13,7 @@ interface MaterialsTableProps {
   searchQuery?: string;
 }
 
-const statusColor = (status: string) => {
-  switch (status) {
-    case 'Available':  return 'text-green-700 bg-green-50 border-green-200';
-    case 'Low Stock':  return 'text-yellow-700 bg-yellow-50 border-yellow-200';
-    case 'Restocking': return 'text-blue-700 bg-blue-50 border-blue-200';
-    case 'Phased Out': return 'text-red-700 bg-red-50 border-red-200';
-    default:           return 'text-gray-600 bg-gray-50 border-gray-200';
-  }
-};
+const statusColor = getMaterialStatusColor;
 
 export const MaterialsTable: React.FC<MaterialsTableProps> = ({
   materials, userRole, onView, onEdit, onDelete, searchQuery = '',

@@ -1,118 +1,151 @@
-import { StatusCard } from "../Shared/UI/StatusCard";
-import { Package, Clock, CheckCircle, Upload } from "lucide-react";
+import { useMemo } from "react";
+import { Package, Clock, CheckCircle, Upload, RefreshCw } from "lucide-react";
+import { KpiCard } from "../Shared/UI/KpiCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { getOrderStatusColor } from "../../util/formatters";
+import { useOrdersData } from "../../hooks/useSupabase";
 
 const DesignerDashboard = () => {
-  // DUMMY DATA - Replace with API (only assigned orders)
-  const stats = {
-    assignedOrders: 5,
-    inProgress: 3,
-    completed: 2,
-    uploadedToday: 1,
-  };
+  const { orders, loading, refresh } = useOrdersData();
 
-  const assignedOrders = [
-    {
-      orderId: "ORD-002",
-      customer: "Jane Smith",
-      product: "T-Shirt (50pcs)",
-      dueDate: "2025-02-28",
-      status: "Designing",
-      hasDesign: false,
-    },
-    {
-      orderId: "ORD-005",
-      customer: "Alice Brown",
-      product: "Tarpaulin",
-      dueDate: "2025-03-05",
-      status: "Designing",
-      hasDesign: true,
-    },
-  ];
+  const stats = useMemo(() => ({
+    assigned:    orders.length,
+    inProgress:  orders.filter(o => o.status === "Designing").length,
+    completed:   orders.filter(o => !["Designing", "In Queue"].includes(o.status)).length,
+    uploadedToday: orders.filter(o => {
+      if (!o.dateOrdered) return false;
+      return new Date(o.dateOrdered).toDateString() === new Date().toDateString();
+    }).length,
+  }), [orders]);
+
+  const recentOrders = useMemo(() => orders.slice(0, 6), [orders]);
+
+  const dateStr = new Date().toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+
+  if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Designer Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage your assigned design projects</p>
+    <div className="max-w-7xl mx-auto space-y-5 overflow-x-hidden">
+
+      {/* ── HEADER ──────────────────────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Designer Dashboard</h1>
+          <p className="text-sm text-gray-400 mt-0.5">{dateStr}</p>
+        </div>
+        <button
+          onClick={() => refresh?.()}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm self-start sm:self-auto"
+        >
+          <RefreshCw size={14} /> Refresh
+        </button>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatusCard
+      {/* ── KPI CARDS ───────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard
           title="Assigned to Me"
-          value={stats.assignedOrders}
-          icon={<Package size={18} />}
-          iconColor="text-purple-600"
+          value={`${stats.assigned}`}
+          sub="Total orders"
+          icon={<Package size={16} />} iconBg="bg-purple-100" iconColor="text-purple-600"
+          accent="blue"
         />
-        <StatusCard
+        <KpiCard
           title="In Progress"
-          value={stats.inProgress}
-          icon={<Clock size={18} />}
-          iconColor="text-orange-600"
+          value={`${stats.inProgress}`}
+          sub="Currently designing"
+          icon={<Clock size={16} />} iconBg="bg-orange-100" iconColor="text-orange-600"
+          accent="yellow"
         />
-        <StatusCard
+        <KpiCard
           title="Completed"
-          value={stats.completed}
-          icon={<CheckCircle size={18} />}
-          iconColor="text-green-600"
+          value={`${stats.completed}`}
+          sub="Design finished"
+          icon={<CheckCircle size={16} />} iconBg="bg-green-100" iconColor="text-green-600"
+          accent="green"
         />
-        <StatusCard
-          title="Uploaded Today"
-          value={stats.uploadedToday}
-          icon={<Upload size={18} />}
-          iconColor="text-cyan-600"
+        <KpiCard
+          title="Today's Activity"
+          value={`${stats.uploadedToday}`}
+          sub="Orders today"
+          icon={<Upload size={16} />} iconBg="bg-cyan-100" iconColor="text-cyan-600"
         />
       </div>
 
-      {/* Info Note */}
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+      {/* ── INFO NOTE ───────────────────────────────────────────────── */}
+      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
         <p className="text-sm text-purple-900 font-medium">
-          📐 <strong>Designer Role:</strong> You can view orders assigned to
-          you, upload designs, and update design status. Contact admin for order
-          reassignment.
+          📐 <strong>Designer Role:</strong> View orders assigned to you, upload designs, and update design status. Contact admin for order reassignment.
         </p>
       </div>
 
-      {/* My Assigned Orders */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
-          My Assigned Orders
-        </h2>
-        <div className="space-y-3">
-          {assignedOrders.map((order) => (
-            <div
-              key={order.orderId}
-              className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-1">
-                  <p className="font-bold text-gray-900">{order.orderId}</p>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                      order.hasDesign ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"
-                    }`}
-                  >
-                    {order.hasDesign ? "Design Uploaded" : "Pending Design"}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-600 mb-1">{order.customer} • {order.product}</p>
-                <p className="text-xs text-gray-500">Due: {order.dueDate}</p>
-              </div>
-              {!order.hasDesign && (
-                <button className="w-full sm:w-auto px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors flex items-center justify-center gap-2">
-                  <Upload size={16} />
-                  Upload Design
-                </button>
-              )}
-              {order.hasDesign && (
-                <button className="w-full sm:w-auto px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-semibold rounded-lg transition-colors">
-                  View Details
-                </button>
-              )}
-            </div>
-          ))}
+      {/* ── RECENT ASSIGNED ORDERS ──────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-base font-bold text-gray-900">My Assigned Orders</h3>
+            <p className="text-xs text-gray-400">Recent design assignments</p>
+          </div>
+          <a href="/designer/orders" className="text-xs font-semibold text-cyan-600 hover:text-cyan-700">View All</a>
         </div>
+
+        {recentOrders.length === 0 ? (
+          <div className="p-8 text-center text-gray-400 text-sm">No orders assigned to you yet</div>
+        ) : (
+          <>
+            {/* MOBILE: stacked cards */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {recentOrders.map((order: any) => (
+                <div key={order.id} className="p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 text-sm truncate">{order.orderId}</p>
+                      <p className="text-xs text-gray-500 truncate">{order.customerName} · {order.productType}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${
+                      getOrderStatusColor(order.status)}`}>{order.status}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">Qty: {order.quantity}</span>
+                    <span className="text-xs text-gray-400">Due: {order.dueDate || "—"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* DESKTOP: table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Order</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Product</th>
+                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Due</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {recentOrders.map((order: any) => (
+                    <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 font-mono text-xs text-gray-700">{order.orderId}</td>
+                      <td className="px-4 py-3">{order.customerName}</td>
+                      <td className="px-4 py-3 text-gray-600">{order.productType}</td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(order.status)}`}>{order.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs">{order.dueDate || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

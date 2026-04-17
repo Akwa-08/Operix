@@ -3,6 +3,9 @@ import { Plus } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
 import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
 import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
@@ -23,14 +26,11 @@ const ProductionInventory = () => {
   const handleSaveEdit = (data: Partial<Material>) => { console.log("Production updating stock:", data); setShowEditModal(false); };
   const handleCreateResupply = () => { alert("Create resupply request - to be implemented"); };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventory</h1>
-        <p className="text-sm text-gray-500 mt-1">View materials and create resupply requests</p>
-      </div>
+      <PageHeader title="Inventory" subtitle="View materials and create resupply requests" />
 
       <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6">
         <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
@@ -45,9 +45,9 @@ const ProductionInventory = () => {
         </div>
       </div>
 
-      <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-orange-900 font-medium">📦 <strong>Note:</strong> You can view materials, update stock levels, and create resupply requests for low-stock items.</p>
-      </div>
+      <InfoBanner color="orange">
+        📦 <strong>Note:</strong> You can view materials, update stock levels, and create resupply requests for low-stock items.
+      </InfoBanner>
 
       <MaterialsTable materials={materials} userRole="production" onView={handleViewMaterial} onEdit={handleEditMaterial} searchQuery={searchQuery} />
 
