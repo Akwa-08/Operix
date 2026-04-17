@@ -1,9 +1,12 @@
 import { useState, useMemo } from "react";
 import {
   RefreshCw, TrendingUp, DollarSign, CreditCard,
-  Package, AlertTriangle, CheckCircle, Clock,
+  Package, AlertTriangle, CheckCircle,
 } from "lucide-react";
 import { useDashboardData } from "../../hooks/useSupabase";
+import { KpiCard } from "../Shared/UI/KpiCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { fmtMoney } from "../../util/formatters";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Period = "today" | "week" | "month" | "3months" | "year" | "all";
@@ -145,36 +148,7 @@ function buildChartData(orders: any[], period: Period, chartType: ChartType) {
   });
 }
 
-function fmtMoney(v: number) {
-  if (v >= 1_000_000) return `₱${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000)     return `₱${(v / 1_000).toFixed(0)}k`;
-  return `₱${v.toLocaleString()}`;
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-const KpiCard: React.FC<{
-  title: string; value: string; sub?: string;
-  icon: React.ReactNode; iconBg: string; iconColor: string;
-  accent?: "red" | "green" | "yellow" | "blue" | "none";
-}> = ({ title, value, sub, icon, iconBg, iconColor, accent = "none" }) => {
-  const border = {
-    red:    "border-l-4 border-l-red-400",
-    green:  "border-l-4 border-l-green-400",
-    yellow: "border-l-4 border-l-amber-400",
-    blue:   "border-l-4 border-l-cyan-400",
-    none:   "",
-  }[accent];
-  return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-4 shadow-sm ${border}`}>
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight">{title}</p>
-        <div className={`p-2 rounded-lg ${iconBg} ${iconColor}`}>{icon}</div>
-      </div>
-      <p className="text-2xl font-bold text-gray-900 mb-0.5 truncate">{value}</p>
-      {sub && <p className="text-xs text-gray-400">{sub}</p>}
-    </div>
-  );
-};
+// KpiCard, fmtMoney, and LoadingSpinner imported from shared modules
 
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
 const BarChart: React.FC<{
@@ -288,12 +262,7 @@ const AdminDashboard = () => {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  if (loading) return (
-    <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
-      <p className="ml-4 text-gray-500">Loading dashboard...</p>
-    </div>
-  );
+  if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-5 overflow-x-hidden">

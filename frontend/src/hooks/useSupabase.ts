@@ -11,7 +11,7 @@ import { supabase } from '../config/supabaseClient';
 import { db } from '../lib/database';
 import { adminApi } from '../lib/adminApi';
 import type {
-  Order, OrderStatus, PaymentStatus, MaterialStatus, Material,
+  Order, MaterialStatus, Material, UserRole,
   FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
   AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole,
 } from '../Types';
@@ -46,14 +46,6 @@ async function safe(fn: () => Promise<any>): Promise<{ success: boolean; error: 
 // MAPPERS (snake_case → camelCase) — all private, used by hooks below
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function mapStatus(s: string): OrderStatus {
-  const m: Record<string, OrderStatus> = { in_queue: 'In Queue', designing: 'Designing', payment: 'Payment', production: 'Production', pickup: 'Pickup', completed: 'Completed', overdue: 'Overdue' };
-  return m[s] || (s as OrderStatus);
-}
-function mapPayment(s: string): PaymentStatus {
-  const m: Record<string, PaymentStatus> = { paid: 'Paid', unpaid: 'Unpaid', partial: 'Partial' };
-  return m[s] || (s as PaymentStatus);
-}
 
 function mapOrder(raw: any): Order {
   const c = raw.customer;
@@ -68,7 +60,7 @@ function mapOrder(raw: any): Order {
     status: mapStatus(raw.status), paymentStatus: mapPayment(raw.payment_status),
     dateOrdered: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
     dueDate: raw.due_date ? new Date(raw.due_date).toLocaleDateString() : '',
-    specialInstructions: raw.special_instructions || '', designFile: raw.design_file_url || '',
+    specialInstructions: raw.special_instructions || '', designFile: raw.design_file_url || items[0]?.file_url || '',
     assignedDesigner: raw.assigned_designer || '', assignedProduction: raw.assigned_production || '',
     designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
     productionName: raw.production_staff ? `${raw.production_staff.first_name || ''} ${raw.production_staff.last_name || ''}`.trim() : '',
@@ -106,6 +98,31 @@ function mapEmployee(raw: any): EmployeeRecord {
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
     hireDate: raw.hire_date ? new Date(raw.hire_date).toLocaleDateString() : '',
     isActive: raw.is_active ?? true,
+  };
+}
+
+function mapOrder(o: any): Order {
+  return {
+    id: o.id,
+    orderId: o.order_number || '',
+    customerName: o.customer ? `${o.customer.first_name || ''} ${o.customer.last_name || ''}`.trim() : (o.guest_name || 'Guest'),
+    customerEmail: o.customer?.email || o.guest_email || '',
+    customerPhone: o.customer?.contact_number || o.guest_phone || '',
+    productType: o.order_type || 'Custom',
+    quantity: o.order_items?.reduce((s: number, i: any) => s + (i.quantity || 0), 0) || 0,
+    totalAmount: Number(o.total_amount) || 0,
+    amountPaid: Number(o.amount_paid) || 0,
+    status: (o.status?.charAt(0).toUpperCase() + o.status?.slice(1).replace(/_/g, ' ')) as any,
+    paymentStatus: (o.payment_status?.charAt(0).toUpperCase() + o.payment_status?.slice(1)) as any,
+    dateOrdered: new Date(o.created_at).toLocaleDateString(),
+    dueDate: o.due_date ? new Date(o.due_date).toLocaleDateString() : '—',
+    specialInstructions: o.special_instructions,
+    assignedDesigner: o.assigned_designer,
+    assignedProduction: o.assigned_production,
+    designerName: o.designer ? `${o.designer.first_name || ''} ${o.designer.last_name || ''}`.trim() : undefined,
+    productionName: o.production_staff ? `${o.production_staff.first_name || ''} ${o.production_staff.last_name || ''}`.trim() : undefined,
+    comments: o.comments,
+    orderType: o.order_type,
   };
 }
 
@@ -167,28 +184,84 @@ export function useProducts(filters?: { search?: string; category?: string }) {
 
 // ── Orders (raw, internal) ───────────────────────────────────────────────────
 export function useOrders(filters?: { status?: string }) {
-  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status]);
-  const { data: staffList } = useQuery(() => db.getStaffList(), []);
-
-  const orders = rawOrders || [];
-  const staff = (staffList || []).map((s: any) => ({
-    id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', role: s.role,
-  }));
-
+  const q = useQuery(() => db.getOrders(filters), [filters?.status]);
+  const orders: Order[] = (q.data || []).map(mapOrder);
   const now = new Date();
   const stats = {
     total: orders.length,
-    inQueue: orders.filter((o: any) => o.status === 'in_queue').length,
-    designing: orders.filter((o: any) => o.status === 'designing').length,
-    production: orders.filter((o: any) => o.status === 'production').length,
-    pickup: orders.filter((o: any) => o.status === 'pickup').length,
-    completed: orders.filter((o: any) => o.status === 'completed').length,
-    overdue: orders.filter((o: any) => o.due_date && new Date(o.due_date) < now && !['completed', 'cancelled', 'pickup'].includes(o.status)).length,
-    pendingPayment: orders.filter((o: any) => o.payment_status !== 'paid').length,
-    readyPickup: orders.filter((o: any) => o.status === 'pickup').length,
+    inQueue: orders.filter((o: any) => o.status === 'In Queue').length,
+    designing: orders.filter((o: any) => o.status === 'Designing').length,
+    production: orders.filter((o: any) => o.status === 'Production').length,
+    pickup: orders.filter((o: any) => o.status === 'Pickup').length,
+    completed: orders.filter((o: any) => o.status === 'Completed').length,
+    overdue: orders.filter((o: any) => o.dueDate && new Date(o.dueDate) < now && !['Completed', 'Cancelled', 'Pickup'].includes(o.status)).length,
+    pendingPayment: orders.filter((o: any) => o.paymentStatus !== 'Paid').length,
+    readyPickup: orders.filter((o: any) => o.status === 'Pickup').length,
   };
+  return { orders, stats, ...q };
+}
 
-  return { orders, stats, staff, loading, error, refresh };
+// ── Orders Data (Enhanced for Admin/Staff) ───────────────────────────────────
+export function useOrdersData(filters?: { status?: string }) {
+  const { orders, stats, loading, error, refresh } = useOrders(filters);
+  const { data: allUsers } = useQuery(() => db.getUsers({ status: 'active' }), []);
+  const { data: allEmployees } = useQuery(() => db.getEmployees(), []);
+  
+  // Designers are from User Accounts
+  const designers = (allUsers || [])
+    .filter((u: any) => u.role?.toLowerCase() === 'designer')
+    .map((u: any) => ({
+      id: u.id,
+      name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username
+    }));
+
+  // Production Staff are from Registered Employees
+  const productionStaff = (allEmployees || [])
+    .filter((e: any) => e.position?.toLowerCase() === 'production' || e.role?.toLowerCase() === 'production')
+    .map((e: any) => ({
+      id: e.id,
+      name: e.full_name
+    }));
+
+  return { 
+    orders, 
+    stats, 
+    designers, 
+    productionStaff, 
+    loading, 
+    error, 
+    refresh,
+    createOrder: async (data: any) => {
+      const r = await safe(() => db.createOrder(data).then(() => refresh()));
+      return r;
+    },
+    updateStatus: async (id: string, status: string) => {
+      const dbStatus = status.toLowerCase().replace(/ /g, '_');
+      const r = await safe(() => db.updateOrder(id, { status: dbStatus }).then(() => refresh()));
+      return r;
+    },
+    assignStaff: async (id: string, payload: any) => {
+      const r = await safe(() => db.updateOrder(id, payload).then(() => refresh()));
+      return r;
+    },
+    deleteOrder: async (id: string) => {
+      const r = await safe(() => db.deleteOrder(id).then(() => refresh()));
+      return r;
+    },
+    recordPayment: async (orderId: string, payment: any) => {
+      const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh()));
+      return r;
+    },
+    selfAssign: async (orderId: string) => {
+      const r = await safe(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+        await db.updateOrder(orderId, { assigned_designer: user.id, status: 'designing' });
+        await refresh();
+      });
+      return r;
+    }
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -238,7 +311,7 @@ export function useCartData() {
     productName: r.product?.name || 'Unknown', category: r.product?.category || '',
     variant: r.product?.variant || '', sizeSpec: r.product?.size_spec || '',
     price: Number(r.product?.final_price || 0), quantity: r.quantity,
-    specifications: r.specifications, fileUrl: undefined,
+    specifications: r.specifications, fileUrl: r.file_url || undefined,
   }));
 
   const totalItems = raw.reduce((s: number, i: any) => s + (i.quantity || 0), 0);
@@ -246,9 +319,9 @@ export function useCartData() {
 
   return {
     items, totalItems, totalPrice, loading, error, refresh,
-    addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow).then(() => refresh())); return r; },
+    addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean, specifications?: string, fileUrl?: string) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow, specifications, fileUrl).then(() => refresh())); return r; },
     updateQuantity:  async (id: string, qty: number) =>         { const r = await safe(() => db.updateCartItem(id, { quantity: Math.max(1, qty) }).then(() => refresh())); return r; },
-    updateCartItem:  async (id: string, updates: { quantity?: number; specifications?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
+    updateCartItem:  async (id: string, updates: { quantity?: number; specifications?: string; file_url?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem:      async (id: string) =>                      { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart:       async () =>                                 { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
     checkout:        async (notes?: string, due?: string) =>    { try { const o = await db.checkout(notes, due); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
@@ -301,10 +374,23 @@ export function useOrdersData() {
       const r = await safe(async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
-        await db.updateOrder(orderId, { assigned_designer: user.id, status: 'designing' });
-        await refresh();
-      });
-      return r;
+        const order = await db.createOrder({
+          customer_id: user.id,
+          order_type: 'online',
+          special_instructions: item.specifications,
+          items: [{
+            product_id: item.productId,
+            product_name: item.productName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            specifications: item.specifications,
+            file_url: item.fileUrl,
+          }],
+        });
+        return { success: true, error: null, order };
+      } catch (e: any) {
+        return { success: false, error: e.message, order: null };
+      }
     },
   };
 }
@@ -373,7 +459,7 @@ export function useManagementData() {
 // DASHBOARD (aggregated)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useDashboard() {
-  const { orders, stats: orderStats, loading: oL } = useOrders();
+  const { orders, stats: orderStats, loading: oL, refresh } = useOrdersData();
   const { data: inventory, loading: iL } = useQuery(() => db.getInventoryItems(), []);
   const items = inventory || [];
 

@@ -6,6 +6,7 @@ import { CartFilters } from "./CartFilters";
 import { CartTable } from "./CartTable";
 import { CartFooter } from "./CartFooter";
 import { FileUploadModal } from "./FileUploadModal";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 import type { Product } from "./CartTable";
 
 // Maps our API CartItem to the Product type that CartTable expects
@@ -33,6 +34,7 @@ export const Cart: React.FC = () => {
   // Live cart data from API (replaces Redux)
   const { items, totalItems, loading, updateQuantity, updateCartItem, removeItem, checkout } = useCartData();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
 
   // Convert CartItem[] → Product[] for CartTable compatibility
   const products: Product[] = items.map(cartItemToProduct);
@@ -80,13 +82,7 @@ export const Cart: React.FC = () => {
     setIsUploadModalOpen(false);
   };
 
-  if (loading) {
-    return (
-      <div className="w-full pt-6 px-8 flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="w-full pt-6 px-8 pb-0 bg-gray-50 flex flex-col gap-2 min-h-[calc(100vh-4rem)]">
@@ -113,6 +109,7 @@ export const Cart: React.FC = () => {
         <CartFooter
           selectedCount={selectedCount}
           totalPrice={selectedTotal}
+          isLoading={isCheckingOut}
           onRemoveSelected={async () => {
             for (const id of selectedIds) {
               await removeItem(id);
@@ -124,7 +121,9 @@ export const Cart: React.FC = () => {
               alert("Your cart is empty");
               return;
             }
+            setIsCheckingOut(true);
             const result = await checkout();
+            setIsCheckingOut(false);
             if (result.success) {
               alert("Order placed successfully! Check your Orders tab.");
               setSelectedIds([]);

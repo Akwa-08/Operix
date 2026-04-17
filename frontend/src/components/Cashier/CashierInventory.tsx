@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { getDeliveryStatusColor } from "../../util/formatters";
 import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
 import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
@@ -60,14 +64,11 @@ const CashierInventory = () => {
     else toast.error("Update failed: " + r.error);
   };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventory Management</h1>
-        <p className="text-sm text-gray-500 mt-1">View available materials and receive deliveries</p>
-      </div>
+      <PageHeader title="Inventory Management" subtitle="View available materials and receive deliveries" />
 
       <div className="flex gap-2 mb-6 border-b border-gray-200">
         {tabs.map(t => (
@@ -89,9 +90,9 @@ const CashierInventory = () => {
             <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-900 font-medium">ℹ️ <strong>Note:</strong> You can view materials and update stock manually. Contact admin for supplier changes.</p>
-          </div>
+          <InfoBanner color="blue">
+            ℹ️ <strong>Note:</strong> You can view materials and update stock manually. Contact admin for supplier changes.
+          </InfoBanner>
 
           <MaterialsTable materials={materials} userRole="cashier" onView={handleViewMaterial} onEdit={handleEditMaterial} searchQuery={searchQuery} />
         </>
@@ -131,11 +132,7 @@ const CashierInventory = () => {
                       <td className="px-4 py-3"><p className="font-semibold text-gray-900">{d.materialName}</p><p className="text-xs text-gray-500">{d.materialUnit}</p></td>
                       <td className="px-4 py-3 text-gray-600">{d.supplierName}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${
-                          d.status === 'received' || d.status === 'completed' ? 'bg-green-100 text-green-700' :
-                          d.status === 'en_route' ? 'bg-orange-100 text-orange-700' :
-                          d.status === 'returned' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
-                        }`}>{d.status.replace("_", " ")}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold capitalize ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900">{d.requestedQuantity}</td>
                       <td className="px-4 py-3"><span className={d.status === 'received' ? 'text-green-600 font-bold' : ''}>{d.receivedQuantity || '-'}</span></td>
@@ -165,9 +162,7 @@ const CashierInventory = () => {
                         <p className="font-bold text-gray-900">{d.materialName}</p>
                         <p className="text-sm text-gray-500">{d.supplierName}</p>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${
-                        d.status === 'received' ? 'bg-green-100 text-green-700' : d.status === 'en_route' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-700'
-                      }`}>{d.status.replace("_", " ")}</span>
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold capitalize ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Req: <strong className="text-gray-900">{d.requestedQuantity} {d.materialUnit}</strong></span>

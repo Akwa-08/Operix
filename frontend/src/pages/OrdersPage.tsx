@@ -1,87 +1,76 @@
 // src/pages/OrdersPage.tsx
 // Customer orders page — fetches real data from Supabase via useOrdersData()
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, PackageOpen, Search, Filter, Calendar } from "lucide-react";
-import { OrderCard } from "../components/Customer/OrderCard";
-import type { Order as CardOrder } from "../components/Customer/OrderCard";
-import { OrderDetailsModal } from "../components/Shared/Orders/OrderDetailsModal";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Search, Package, Clock, CheckCircle } from "lucide-react";
+import { CustomerOrderDetailsModal } from "../components/Customer/CustomerOrderDetailsModal";
+import { OrderCardsGrid } from "../components/Shared/Orders/OrderCardsGrid";
+import { KpiCard } from "../components/Shared/UI/KpiCard";
+import { FilterDropdown } from "../components/Shared/UI/FilterDropdown";
 import type { Order } from "../Types";
 import { useOrdersData } from "../hooks/useSupabase";
-
-// Map backend status → customer card status
-const mapCardStatus = (status: string): CardOrder["currentStatus"] => {
-  const map: Record<string, CardOrder["currentStatus"]> = {
-    "In Queue": "Queue", "Designing": "Design", "Design Approval": "Design",
-    "Payment": "Payment", "Production": "Production", "Pickup": "Pick-up",
-    "Completed": "Complete", "Cancelled": "Complete",
-  };
-  return map[status] || "Queue";
-};
-
-const mapPaymentStatus = (status: string): CardOrder["paymentStatus"] => {
-  if (status === "Paid") return "Paid";
-  if (status === "Partial") return "Partial";
-  return "None";
-};
-
-// Map Order → CardOrder for the existing OrderCard component
-const toCardOrder = (o: Order): CardOrder => ({
-  id: o.id,
-  orderNumber: o.orderId,
-  customerName: o.customerName || "Me",
-  role: "Customer",
-  productName: o.productType || o.product || "—",
-  currentStatus: mapCardStatus(o.status),
-  orderDate: o.dateOrdered,
-  dueDate: o.dueDate || "—",
-  price: o.totalAmount,
-  isPriceEstimated: o.status === "In Queue",
-  paymentStatus: mapPaymentStatus(o.paymentStatus),
-  note: o.specialInstructions || undefined,
-});
+import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
 
 export const OrdersPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [dateFilter, setDateFilter] = useState("Any");
+  const [dateFilter, setDateFilter] = useState("All Time");
   const [currentPage, setCurrentPage] = useState(1);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const itemsPerPage = 6;
 
-  const { orders, loading } = useOrdersData();
+  const { orders, loading, refresh } = useOrdersData();
+
+  // When orders re-fetches (e.g. after a file upload), sync selectedOrder
+  // so the modal receives the latest data (including new designFile URLs).
+  useEffect(() => {
+    if (selectedOrder) {
+      const fresh = orders.find(o => o.id === selectedOrder.id);
+      if (fresh) setSelectedOrder(fresh);
+    }
+  }, [orders]);
+
+  const statusOptions = ["All", "In Queue", "Active", "Completed"];
+  const periodOptions = ["All Time", "Today", "This Week", "This Month"];
 
   const filteredOrders = orders.filter((o) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = !q ||
-      o.orderId.toLowerCase().includes(q) ||
-      (o.productType || "").toLowerCase().includes(q) ||
-      (o.customerName || "").toLowerCase().includes(q);
+    let pass = true;
+    
+    // Status Filter
+    if (statusFilter === "In Queue") pass = o.status === "In Queue";
+    else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production", "Pickup"].includes(o.status);
+    else if (statusFilter === "Completed") pass = o.status === "Completed";
 
-    const cardStatus = mapCardStatus(o.status);
-    const matchesStatus = statusFilter === "All" || cardStatus === statusFilter;
-
-    let matchesDate = true;
-    if (dateFilter !== "Any") {
+    // Date Filter
+    if (dateFilter !== "All Time" && pass) {
       const d = new Date(o.dateOrdered);
       const now = new Date();
-      if (dateFilter === "Today") matchesDate = d.toDateString() === now.toDateString();
-      else if (dateFilter === "Week") matchesDate = d >= new Date(now.getTime() - 7*24*60*60*1000);
-      else if (dateFilter === "Month") matchesDate = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      if (dateFilter === "Today") pass = d.toDateString() === now.toDateString();
+      else if (dateFilter === "This Week") pass = d >= new Date(now.getTime() - 7*24*60*60*1000);
+      else if (dateFilter === "This Month") pass = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }
 
-    return matchesSearch && matchesStatus && matchesDate;
+    // Search Query
+    if (pass && searchQuery) {
+      const q = searchQuery.toLowerCase();
+      pass = o.orderId.toLowerCase().includes(q) || (o.productType || "").toLowerCase().includes(q);
+    }
+
+    return pass;
   });
+
+  // Calculate stats for KPIs
+  const activeCount = orders.filter(o => ["Designing", "Payment", "Production"].includes(o.status)).length;
+  const readyPickupCount = orders.filter(o => o.status === "Pickup").length;
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const pagedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const cardOrders = pagedOrders.map(toCardOrder);
 
-  const handleViewDetails = (id: string) => {
-    const order = orders.find(o => o.id === id);
-    if (order) { setSelectedOrder(order); setShowDetails(true); }
+  const handleViewDetails = (order: Order) => {
+    setSelectedOrder(order);
+    setShowDetails(true);
   };
 
   const handlePageChange = (page: number) => {
@@ -89,78 +78,41 @@ export const OrdersPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  if (loading) return <div className="flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="w-full bg-gray-50 flex flex-col min-h-screen p-10">
       <div className="max-w-7xl mx-auto w-full">
         {/* Header */}
         <div className="flex flex-col gap-6 mb-12 text-gray-900">
-          <motion.h1 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="text-3xl font-bold tracking-tight">My Orders</motion.h1>
+          <motion.h1 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="text-3xl font-bold tracking-tight mb-2">My Orders</motion.h1>
 
-          {/* Search */}
-          <div className="relative group">
-            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 w-6 h-6 transition-colors group-focus-within:text-cyan-500" />
-            <input type="text" placeholder="Search by order ID or product name..."
-              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-16 pr-6 py-5 bg-white border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 text-sm font-medium shadow-sm transition-all hover:shadow-md" />
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+            <KpiCard title="Total Orders" value={orders.length} icon={<Package size={16} />} iconColor="text-cyan-600" />
+            <KpiCard title="Active" value={activeCount} icon={<Clock size={16} />} iconColor="text-purple-600" />
+            <KpiCard title="Ready Pickup" value={readyPickupCount} icon={<CheckCircle size={16} />} iconColor="text-green-600" />
           </div>
 
-          {/* Filters */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-              <div className="flex-1 sm:w-48 flex flex-col gap-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">Status Filter</label>
-                <div className="relative group">
-                  <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-hover:text-cyan-500 transition-colors" />
-                  <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
-                    <option value="All">All Status</option>
-                    <option value="Queue">In Queue</option>
-                    <option value="Design">Designing</option>
-                    <option value="Payment">Payment Pending</option>
-                    <option value="Production">In Production</option>
-                    <option value="Pick-up">Ready for Pick-up</option>
-                    <option value="Complete">Completed</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex-1 sm:w-48 flex flex-col gap-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider pl-1">Date Filter</label>
-                <div className="relative group">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-hover:text-cyan-500 transition-colors" />
-                  <select value={dateFilter} onChange={(e) => setDateFilter(e.target.value)}
-                    className="w-full pl-12 pr-10 py-4 bg-white border border-gray-100 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-cyan-500/10 text-sm font-semibold text-gray-600 cursor-pointer shadow-sm hover:border-gray-200 transition-all">
-                    <option value="Any">Any Date</option>
-                    <option value="Today">Today</option>
-                    <option value="Week">This Week</option>
-                    <option value="Month">This Month</option>
-                  </select>
-                </div>
+          {/* Unified filter bar */}
+          <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-sm mb-6">
+            <div className="flex flex-wrap gap-2 items-center">
+              <FilterDropdown label="Status" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
+              <FilterDropdown label="Period" value={dateFilter} options={periodOptions} onChange={setDateFilter} />
+              <div className="flex-1 min-w-[200px] relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <input type="text" placeholder="Search by order ID or product..."
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 border border-gray-200 bg-gray-50 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 text-sm font-medium transition-all" />
               </div>
             </div>
           </div>
         </div>
 
         {/* Orders Grid */}
-        <AnimatePresence mode="popLayout">
-          {filteredOrders.length > 0 ? (
-            <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-              {cardOrders.map((order) => (
-                <OrderCard key={order.id} order={order}
-                  onViewDetails={handleViewDetails}
-                  onPay={(id: string) => handleViewDetails(id)}
-                  onChat={(id: string) => console.log("Chat", id)} />
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-              <PackageOpen className="w-20 h-20 text-gray-200 mb-4" />
-              <p className="text-gray-400 font-bold text-lg">No orders found matching your criteria</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="mt-8">
+          <OrderCardsGrid orders={pagedOrders} onView={handleViewDetails} />
+        </div>
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -184,8 +136,12 @@ export const OrdersPage: React.FC = () => {
 
       {/* Details Modal */}
       {selectedOrder && (
-        <OrderDetailsModal isOpen={showDetails} order={selectedOrder} userRole="customer"
-          onClose={() => setShowDetails(false)} />
+        <CustomerOrderDetailsModal 
+          isOpen={showDetails} 
+          order={selectedOrder} 
+          onClose={() => setShowDetails(false)}
+          onRefresh={refresh} // Need to pass refresh from useOrdersData
+        />
       )}
     </div>
   );
