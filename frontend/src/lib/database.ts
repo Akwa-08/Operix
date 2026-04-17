@@ -205,7 +205,7 @@ export const db = {
       *,
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
-      production_staff:assigned_production(id, first_name, last_name),
+      production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications)
     `).order('created_at', { ascending: false });
 
@@ -331,7 +331,7 @@ export const db = {
     const refs = [];
     if (payment.reference_number) refs.push(`Ref: ${payment.reference_number}`);
     if (payment.receipt_number) refs.push(`Receipt: ${payment.receipt_number}`);
-    await logSystemAction('payment', `Payment Received: ₱${payment.amount.toLocaleString()}`, `Method: ${methodStr} ${refs.length ? '(' + refs.join(', ') + ')' : ''}`);
+    await db.logAudit('payment.process', 'payments', null, { order_id: orderId, amount: payment.amount, method: methodStr });
 
     // Update order totals
     const { data: order } = await supabase.from('orders').select('amount_paid, total_amount, order_id').eq('id', orderId).single();

@@ -1,11 +1,21 @@
 import { useMemo } from "react";
-import { Package, Clock, CheckCircle, Upload, RefreshCw } from "lucide-react";
+import { Package, Clock, CheckCircle, Upload, RefreshCw, Pencil, MessageSquare, Eye } from "lucide-react";
 import { KpiCard } from "../Shared/UI/KpiCard";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
-import { PageHeader } from "../Shared/UI/PageHeader";
-import { InfoBanner } from "../Shared/UI/InfoBanner";
 import { getOrderStatusColor } from "../../util/formatters";
 import { useOrdersData } from "../../hooks/useSupabase";
+
+// ─── Quick Action Card ────────────────────────────────────────────────────────
+const QuickActionCard: React.FC<{
+  title: string; description: string; icon: React.ReactNode; color: string; onClick: () => void;
+}> = ({ title, description, icon, color, onClick }) => (
+  <button onClick={onClick}
+    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow text-left group w-full">
+    <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center mb-3`}>{icon}</div>
+    <h3 className="font-bold text-sm text-gray-900 mb-1 group-hover:text-cyan-600 transition-colors">{title}</h3>
+    <p className="text-[10px] text-gray-500 leading-tight">{description}</p>
+  </button>
+);
 
 const DesignerDashboard = () => {
   const { orders, loading, refresh } = useOrdersData();
@@ -76,11 +86,52 @@ const DesignerDashboard = () => {
         />
       </div>
 
-      {/* ── INFO NOTE ───────────────────────────────────────────────── */}
-      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-        <p className="text-sm text-purple-900 font-medium">
-          📐 <strong>Designer Role:</strong> View orders assigned to you, upload designs, and update design status. Contact admin for order reassignment.
-        </p>
+      {/* ── QUICK ACTIONS + INFO ─────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Quick Actions (1/3 cols) */}
+        <div className="lg:col-span-1 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <QuickActionCard
+              title="My Orders"
+              description="View assigned orders"
+              icon={<Package size={20} />}
+              color="bg-purple-100 text-purple-600"
+              onClick={() => (window.location.href = "/designer/orders")}
+            />
+            <QuickActionCard
+              title="In Progress"
+              description="Continue designing"
+              icon={<Pencil size={20} />}
+              color="bg-cyan-100 text-cyan-600"
+              onClick={() => (window.location.href = "/designer/orders")}
+            />
+            <QuickActionCard
+              title="Queue"
+              description="Pickup new orders"
+              icon={<Eye size={20} />}
+              color="bg-blue-100 text-blue-600"
+              onClick={() => (window.location.href = "/designer/orders")}
+            />
+            <QuickActionCard
+              title="Messages"
+              description="Chat with team"
+              icon={<MessageSquare size={20} />}
+              color="bg-pink-100 text-pink-600"
+              onClick={() => (window.location.href = "/designer/messages")}
+            />
+          </div>
+        </div>
+
+        {/* Info Note (2/3 cols) */}
+        <div className="lg:col-span-2 flex flex-col gap-5">
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <p className="text-sm text-purple-900 font-medium">
+              📐 <strong>Designer Role:</strong> View orders assigned to you, upload designs, and update design status. Contact admin for order reassignment.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* ── RECENT ASSIGNED ORDERS ──────────────────────────────────── */}

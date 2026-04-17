@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
@@ -447,20 +447,14 @@ const AdminPayroll: React.FC = () => {
         </div>
       )}
 
-      {/* Page Header */}
-      <div className="mb-5">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Payroll Management</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Manage employee payroll, attendance, and salary computations</p>
-      </div>
-
       {/* Tab Navigation */}
       <div className="flex gap-1 mb-5 overflow-x-auto pb-1 scrollbar-none bg-gray-100 rounded-xl p-1 w-fit max-w-full">
-        {payrollTabs.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab}
-            onClick={() => setActivePayrollTab(tab)}
+            onClick={() => setActiveTab(tab)}
             className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${
-              activePayrollTab === tab
+              activeTab === tab
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-700"
             }`}
