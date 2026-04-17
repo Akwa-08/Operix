@@ -47,6 +47,26 @@ async function safe(fn: () => Promise<any>): Promise<{ success: boolean; error: 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 
+function mapOrder(raw: any): Order {
+  const c = raw.customer;
+  const items = raw.order_items || [];
+  return {
+    id: raw.id, orderId: raw.order_number || '',
+    customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in',
+    customerEmail: c?.email || '', customerPhone: c?.contact_number || '',
+    productType: items[0]?.product_name || (items.length > 1 ? 'Multiple' : '—'),
+    quantity: items.reduce((s: number, i: any) => s + (i.quantity || 0), 0),
+    totalAmount: Number(raw.total_amount) || 0,
+    status: mapStatus(raw.status), paymentStatus: mapPayment(raw.payment_status),
+    dateOrdered: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    dueDate: raw.due_date ? new Date(raw.due_date).toLocaleDateString() : '',
+    specialInstructions: raw.special_instructions || '', designFile: raw.design_file_url || items[0]?.file_url || '',
+    assignedDesigner: raw.assigned_designer || '', assignedProduction: raw.assigned_production || '',
+    designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
+    productionName: raw.production_staff ? `${raw.production_staff.first_name || ''} ${raw.production_staff.last_name || ''}`.trim() : '',
+    comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
+  };
+}
 
 function mapUser(raw: any): FrontendUser {
   return {
@@ -341,7 +361,7 @@ export function useCartData() {
     productName: r.product?.name || 'Unknown', category: r.product?.category || '',
     variant: r.product?.variant || '', sizeSpec: r.product?.size_spec || '',
     price: Number(r.product?.final_price || 0), quantity: r.quantity,
-    specifications: r.specifications, fileUrl: undefined,
+    specifications: r.specifications, fileUrl: r.file_url || undefined,
   }));
 
   const totalItems = raw.reduce((s: number, i: any) => s + (i.quantity || 0), 0);
@@ -349,12 +369,34 @@ export function useCartData() {
 
   return {
     items, totalItems, totalPrice, loading, error, refresh,
-    addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow).then(() => refresh())); return r; },
+    addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean, specifications?: string, fileUrl?: string) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow, specifications, fileUrl).then(() => refresh())); return r; },
     updateQuantity:  async (id: string, qty: number) =>         { const r = await safe(() => db.updateCartItem(id, { quantity: Math.max(1, qty) }).then(() => refresh())); return r; },
-    updateCartItem:  async (id: string, updates: { quantity?: number; specifications?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
+    updateCartItem:  async (id: string, updates: { quantity?: number; specifications?: string; file_url?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem:      async (id: string) =>                      { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart:       async () =>                                 { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
     checkout:        async (notes?: string, due?: string) =>    { try { const o = await db.checkout(notes, due); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
+    directOrder:     async (item: { productId: string; productName: string; quantity: number; unitPrice: number; specifications?: string; fileUrl?: string }) => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+        const order = await db.createOrder({
+          customer_id: user.id,
+          order_type: 'online',
+          special_instructions: item.specifications,
+          items: [{
+            product_id: item.productId,
+            product_name: item.productName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            specifications: item.specifications,
+            file_url: item.fileUrl,
+          }],
+        });
+        return { success: true, error: null, order };
+      } catch (e: any) {
+        return { success: false, error: e.message, order: null };
+      }
+    },
   };
 }
 

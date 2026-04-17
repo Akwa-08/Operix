@@ -1,13 +1,15 @@
 // frontend/src/App.tsx
 // REFACTORED: Removed Redux — all state flows through Supabase hooks + AuthContext
-// REFACTORED: All ProtectedRoute redirectTo now point to '/' (landing page with login modal)
+// REFACTORED: All ProtectedRoute redirectTo now point to '/' 
 
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 
 // Pages
 import { LandingPage } from './pages/LandingPage';
+import { AuthLayout } from './components/Auth/AuthLayout';
 import { SignUpPage } from './pages/SignUpPage';
+import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 
@@ -51,7 +53,13 @@ const router = createBrowserRouter([
 
   // ── PUBLIC ──────────────────────────────────────────────────────────────
   { path: '/',                element: <LandingPage /> },
-  { path: '/signup',          element: <SignUpPage /> },
+  {
+    element: <AuthLayout />,
+    children: [
+      { path: '/signup', element: <SignUpPage /> },
+      { path: '/login',  element: <LoginPage /> },
+    ]
+  },
   { path: '/forgot-password', element: <ForgotPasswordPage /> },
   { path: '/reset-password',  element: <ResetPasswordPage /> },
   // /staff-login REMOVED — unified LoginModal on landing page handles all roles

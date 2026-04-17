@@ -27,6 +27,127 @@ export async function logSystemAction(module: string, title: string, message: st
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// FILE UPLOAD (Supabase Storage)
+// Constraints: 2MB max input, images compressed to ~200-300KB, max 1024px width
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const MAX_FILE_SIZE = 2 * 1024 * 1024;       // 2MB upload limit
+const MAX_IMAGE_WIDTH = 1024;                 // px
+const TARGET_SIZE_KB = 300;                   // target compressed size
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp', 'image/gif'];
+
+/**
+ * Compress an image file using the Canvas API.
+ * - Resizes to max 1024px width (preserving aspect ratio)
+ * - Iteratively reduces JPEG quality until the result is ≤ TARGET_SIZE_KB
+ * - Returns a new File ready for upload
+ */
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      // Calculate new dimensions (max width 1024px, preserve aspect ratio)
+      let width = img.width;
+      let height = img.height;
+      if (width > MAX_IMAGE_WIDTH) {
+        height = Math.round((height * MAX_IMAGE_WIDTH) / width);
+        width = MAX_IMAGE_WIDTH;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas not supported')); return; }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Try decreasing quality levels until we hit the target size
+      const tryQuality = (quality: number) => {
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { reject(new Error('Compression failed')); return; }
+
+            // If we're under target or at minimum quality, accept it
+            if (blob.size <= TARGET_SIZE_KB * 1024 || quality <= 0.3) {
+              const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(compressed);
+            } else {
+              // Try lower quality
+              tryQuality(quality - 0.1);
+            }
+          },
+          'image/jpeg',
+          quality,
+        );
+      };
+
+      tryQuality(0.8); // Start at 80% quality
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/**
+ * Validate file size, compress if image, upload to Supabase Storage.
+ * Returns the public URL.
+ */
+export async function uploadOrderFile(file: File): Promise<string> {
+  // 1. Validate size
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error(`File is too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed is 2MB.`);
+  }
+
+  // 2. Compress images, pass through non-images
+  let fileToUpload: File = file;
+  if (IMAGE_TYPES.includes(file.type)) {
+    fileToUpload = await compressImage(file);
+  }
+
+  // 3. Resolve session from localStorage (no network call)
+  const { data: sessionData } = await supabase.auth.getSession();
+  console.log('[uploadOrderFile] session:', sessionData?.session?.user?.id ?? 'NO SESSION');
+
+  if (!sessionData?.session?.user) {
+    throw new Error('Your session has expired. Please refresh the page and log in again.');
+  }
+  const userId = sessionData.session.user.id;
+
+  const ext = fileToUpload.name.split('.').pop() || 'jpg';
+  const fileName = `${userId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  console.log('[uploadOrderFile] path:', fileName);
+
+  // 4. Upload to Supabase Storage
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('order-files')
+    .upload(fileName, fileToUpload, { upsert: false });
+
+  console.log('[uploadOrderFile] result:', uploadData, uploadError);
+
+  if (uploadError) {
+    // "Failed to fetch" means the browser could not reach the server at all
+    const isNetworkError = uploadError.message?.toLowerCase().includes('failed to fetch')
+      || uploadError.message?.toLowerCase().includes('network');
+    if (isNetworkError) {
+      throw new Error('No internet connection. Please check your network and try again.');
+    }
+    throw new Error(`Upload failed: ${uploadError.message}`);
+  }
+
+  const { data: urlData } = supabase.storage
+    .from('order-files')
+    .getPublicUrl(fileName);
+
+  return urlData.publicUrl;
+}
+
+
 export const db = {
 
   // ── Profile ────────────────────────────────────────────────────────────
@@ -78,15 +199,14 @@ export const db = {
     return data || [];
   },
 
-  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; role?: string; base_hourly_rate?: number; hire_date?: string }) {
+  async createEmployee(emp: { employee_code?: string; full_name: string; position: string; base_hourly_rate?: number; hire_date?: string }) {
     const { data, error } = await supabase.from('employees').insert([{
       ...emp, is_active: true,
       base_hourly_rate: emp.base_hourly_rate || 0,
       hire_date: emp.hire_date || new Date().toISOString().split('T')[0],
-      role: emp.role || 'Production' // Default to Production if not specified
     }]).select().single();
     if (error) throw error;
-    await logSystemAction('management', `Created Employee: ${emp.full_name}`, `Code: ${emp.employee_code || 'N/A'} - Position: ${emp.position} - Role: ${emp.role || 'Production'}`);
+    await logSystemAction('management', `Created Employee: ${emp.full_name}`, `Code: ${emp.employee_code || 'N/A'} - Postion: ${emp.position}`);
     return data;
   },
 
@@ -177,7 +297,7 @@ export const db = {
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, first_name, last_name),
-      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications)
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url)
     `).order('created_at', { ascending: false });
 
     if (filters?.status && filters.status !== 'all') query = query.eq('status', filters.status);
@@ -195,7 +315,7 @@ export const db = {
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, first_name, last_name),
-      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
       payments(id, amount, payment_method, reference_number, notes, received_by, created_at)
     `).eq('id', id).single();
     if (error) throw error;
@@ -205,7 +325,7 @@ export const db = {
   async createOrder(order: {
     customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; special_instructions?: string;
     due_date?: string; assigned_designer?: string; assigned_production?: string;
-    comments?: string; items: { product_id?: string; product_name: string; quantity: number; unit_price: number; specifications?: string }[];
+    comments?: string; items: { product_id?: string; product_name: string; quantity: number; unit_price: number; specifications?: string; file_url?: string }[];
   }) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
@@ -251,6 +371,7 @@ export const db = {
       unit_price: i.unit_price,
       subtotal: i.quantity * i.unit_price,
       specifications: i.specifications || null,
+      file_url: i.file_url || null,
     }));
 
     await supabase.from('order_items').insert(items);
@@ -262,6 +383,27 @@ export const db = {
     const { data, error } = await supabase.from('orders').update(updates).eq('id', id).select().single();
     if (error) throw error;
     return data;
+  },
+
+  // Update the file_url on the first order_item row — used when a customer uploads
+  // their design from the Order Details page AFTER the order was already created.
+  // We write to order_items (not orders.design_file_url) because RLS on the orders
+  // table restricts customer writes to that column.
+  async updateOrderItemFile(orderId: string, fileUrl: string) {
+    // Fetch the first order_item for this order
+    const { data: items, error: fetchErr } = await supabase
+      .from('order_items')
+      .select('id')
+      .eq('order_id', orderId)
+      .limit(1);
+    if (fetchErr) throw fetchErr;
+    if (!items || items.length === 0) throw new Error('No order items found for this order.');
+
+    const { error: updateErr } = await supabase
+      .from('order_items')
+      .update({ file_url: fileUrl })
+      .eq('id', items[0].id);
+    if (updateErr) throw updateErr;
   },
 
   async deleteOrder(id: string) {
@@ -324,10 +466,10 @@ export const db = {
       .select('*, product:product_id(id, name, description, category, size_spec, variant, final_price)')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+    return (data || []).map((item: any) => ({ ...item, file_url: item.file_url || null }));
   },
 
-  async addToCart(productId: string, quantity: number = 1, forceNewRow: boolean = false, specifications?: string) {
+  async addToCart(productId: string, quantity: number = 1, forceNewRow: boolean = false, specifications?: string, fileUrl?: string) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('Not authenticated');
 
@@ -339,19 +481,22 @@ export const db = {
       
       if (!queryErr && existingList && existingList.length > 0) {
         const existing = existingList[0];
-        const { data, error } = await supabase.from('cart_items').update({ quantity: existing.quantity + quantity, specifications }).eq('id', existing.id).select().single();
+        const updates: Record<string, any> = { quantity: existing.quantity + quantity };
+        if (specifications !== undefined) updates.specifications = specifications;
+        if (fileUrl !== undefined) updates.file_url = fileUrl;
+        const { data, error } = await supabase.from('cart_items').update(updates).eq('id', existing.id).select().single();
         if (error) throw error;
         return data;
       }
     }
 
     // Insert as a new row (e.g., completely different design intent or brand new cart entry)
-    const { data, error } = await supabase.from('cart_items').insert([{ customer_id: user.id, product_id: productId, quantity, specifications }]).select().single();
+    const { data, error } = await supabase.from('cart_items').insert([{ customer_id: user.id, product_id: productId, quantity, specifications, file_url: fileUrl || null }]).select().single();
     if (error) throw error;
     return data;
   },
 
-  async updateCartItem(cartItemId: string, updates: { quantity?: number; specifications?: string }) {
+  async updateCartItem(cartItemId: string, updates: { quantity?: number; specifications?: string; file_url?: string }) {
     const { data, error } = await supabase.from('cart_items').update(updates).eq('id', cartItemId).select().single();
     if (error) throw error;
     return data;
@@ -387,6 +532,7 @@ export const db = {
         quantity: ci.quantity,
         unit_price: parseFloat(ci.product?.final_price || '0'),
         specifications: ci.specifications,
+        file_url: ci.file_url,
       })),
     });
 
