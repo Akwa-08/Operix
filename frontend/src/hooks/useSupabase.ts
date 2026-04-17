@@ -13,7 +13,7 @@ import { adminApi } from '../lib/adminApi';
 import type {
   Order, MaterialStatus, Material, UserRole,
   FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
-  AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole
+  AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole,
 } from '../Types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -47,6 +47,26 @@ async function safe(fn: () => Promise<any>): Promise<{ success: boolean; error: 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 
+function mapOrder(raw: any): Order {
+  const c = raw.customer;
+  const items = raw.order_items || [];
+  return {
+    id: raw.id, orderId: raw.order_number || '',
+    customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in',
+    customerEmail: c?.email || '', customerPhone: c?.contact_number || '',
+    productType: items[0]?.product_name || (items.length > 1 ? 'Multiple' : '—'),
+    quantity: items.reduce((s: number, i: any) => s + (i.quantity || 0), 0),
+    totalAmount: Number(raw.total_amount) || 0,
+    status: mapStatus(raw.status), paymentStatus: mapPayment(raw.payment_status),
+    dateOrdered: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    dueDate: raw.due_date ? new Date(raw.due_date).toLocaleDateString() : '',
+    specialInstructions: raw.special_instructions || '', designFile: raw.design_file_url || items[0]?.file_url || '',
+    assignedDesigner: raw.assigned_designer || '', assignedProduction: raw.assigned_production || '',
+    designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
+    productionName: raw.production_staff ? `${raw.production_staff.first_name || ''} ${raw.production_staff.last_name || ''}`.trim() : '',
+    comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
+  };
+}
 
 function mapUser(raw: any): FrontendUser {
   return {
@@ -71,7 +91,9 @@ function mapSupplier(raw: any): FrontendSupplier {
 function mapEmployee(raw: any): EmployeeRecord {
   return {
     id: raw.id, employeeCode: raw.employee_code || '', fullName: raw.full_name || '',
-    position: raw.position || '', role: raw.role || 'production', baseHourlyRate: Number(raw.base_hourly_rate) || 0,
+    position: raw.position || '',
+    role: raw.role ? (raw.role.charAt(0).toUpperCase() + raw.role.slice(1)) as EmployeeRole : undefined,
+    baseHourlyRate: Number(raw.base_hourly_rate) || 0,
     holidayRateMultiplier: Number(raw.holiday_rate_multiplier) || 2.0,
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
     hireDate: raw.hire_date ? new Date(raw.hire_date).toLocaleDateString() : '',
@@ -375,7 +397,7 @@ export function useCartData() {
     productName: r.product?.name || 'Unknown', category: r.product?.category || '',
     variant: r.product?.variant || '', sizeSpec: r.product?.size_spec || '',
     price: Number(r.product?.final_price || 0), quantity: r.quantity,
-    specifications: r.specifications, fileUrl: undefined,
+    specifications: r.specifications, fileUrl: r.file_url || undefined,
   }));
 
   const totalItems = raw.reduce((s: number, i: any) => s + (i.quantity || 0), 0);
@@ -383,12 +405,79 @@ export function useCartData() {
 
   return {
     items, totalItems, totalPrice, loading, error, refresh,
-    addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow).then(() => refresh())); return r; },
+    addToCart:       async (productId: string, qty?: number, forceNewRow?: boolean, specifications?: string, fileUrl?: string) => { const r = await safe(() => db.addToCart(productId, qty, forceNewRow, specifications, fileUrl).then(() => refresh())); return r; },
     updateQuantity:  async (id: string, qty: number) =>         { const r = await safe(() => db.updateCartItem(id, { quantity: Math.max(1, qty) }).then(() => refresh())); return r; },
-    updateCartItem:  async (id: string, updates: { quantity?: number; specifications?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
+    updateCartItem:  async (id: string, updates: { quantity?: number; specifications?: string; file_url?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem:      async (id: string) =>                      { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart:       async () =>                                 { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
     checkout:        async (notes?: string, due?: string) =>    { try { const o = await db.checkout(notes, due); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ORDERS — useOrdersData()
+// Used by: AdminOrders, CashierOrders, DesignerOrders, ProductionOrders
+// ═══════════════════════════════════════════════════════════════════════════════
+export function useOrdersData() {
+  const { orders: rawOrders, stats, staff, loading, error, refresh } = useOrders();
+  const orders: Order[] = rawOrders.map(mapOrder);
+  const staffList = staff;
+
+  return {
+    orders, stats, staffList, loading, error, refresh,
+
+    createOrder: async (data: { customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; items: { product_name: string; quantity: number; unit_price: number; specifications?: string }[]; special_instructions?: string; due_date?: string; assigned_designer?: string | null; assigned_production?: string | null; comments?: string | null }) => {
+      const r = await safe(() => db.createOrder({
+          ...data,
+          assigned_designer: data.assigned_designer || undefined,
+          assigned_production: data.assigned_production || undefined,
+          comments: data.comments || undefined,
+          customer_id: data.customer_id || undefined,
+          guest_name: data.guest_name || undefined,
+          guest_phone: data.guest_phone || undefined,
+          guest_email: data.guest_email || undefined,
+      }).then(() => refresh()));
+      return r;
+    },
+    updateStatus: async (orderId: string, status: string) => {
+      const dbStatus = status.toLowerCase().replace(/ /g, '_');
+      const r = await safe(() => db.updateOrder(orderId, { status: dbStatus }).then(() => refresh()));
+      return r;
+    },
+    assignStaff: async (orderId: string, assignment: { assigned_designer?: string; assigned_production?: string }) => {
+      const r = await safe(() => db.updateOrder(orderId, assignment).then(() => refresh()));
+      return r;
+    },
+    deleteOrder: async (orderId: string) => {
+      const r = await safe(() => db.deleteOrder(orderId).then(() => refresh()));
+      return r;
+    },
+    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
+      const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh()));
+      return r;
+    },
+    selfAssign: async (orderId: string) => {
+      const r = await safe(async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+        const order = await db.createOrder({
+          customer_id: user.id,
+          order_type: 'online',
+          special_instructions: item.specifications,
+          items: [{
+            product_id: item.productId,
+            product_name: item.productName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+            specifications: item.specifications,
+            file_url: item.fileUrl,
+          }],
+        });
+        return { success: true, error: null, order };
+      } catch (e: any) {
+        return { success: false, error: e.message, order: null };
+      }
+    },
   };
 }
 
@@ -421,19 +510,17 @@ export function useManagementData() {
       return r;
     },
 
-    // Employee ops (direct db — RLS)
-    createEmployee: async (data: { employeeCode?: string; fullName: string; position: string; role: UserRole; baseHourlyRate?: number; hireDate?: string }) => {
+    createEmployee: async (data: { employeeCode?: string; fullName: string; position: string; role?: EmployeeRole; baseHourlyRate?: number; hireDate?: string }) => {
       const r = await safe(() => db.createEmployee({ employee_code: data.employeeCode, full_name: data.fullName, position: data.position, role: data.role, base_hourly_rate: data.baseHourlyRate, hire_date: data.hireDate }).then(() => refreshEmps()));
       return r;
     },
-    updateEmployee: async (id: string, data: { fullName?: string; position?: string; role?: UserRole; baseHourlyRate?: number; holidayMultiplier?: number; overtimeMultiplier?: number }) => {
+    updateEmployee: async (id: string, data: { fullName?: string; position?: string; role?: string; baseHourlyRate?: number; holidayMultiplier?: number; overtimeMultiplier?: number }) => {
       const updates: Record<string, any> = {};
-      if (data.role !== undefined) updates.role = data.role;
-      if (data.fullName !== undefined) updates.full_name = data.fullName;
-      if (data.position !== undefined) updates.position = data.position;
-      if (data.role !== undefined) updates.role = data.role;
-      if (data.baseHourlyRate !== undefined) updates.base_hourly_rate = data.baseHourlyRate;
-      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier = data.holidayMultiplier;
+      if (data.role !== undefined)             updates.role                  = data.role;
+      if (data.fullName !== undefined)         updates.full_name             = data.fullName;
+      if (data.position !== undefined)         updates.position              = data.position;
+      if (data.baseHourlyRate !== undefined)   updates.base_hourly_rate      = data.baseHourlyRate;
+      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier  = data.holidayMultiplier;
       if (data.overtimeMultiplier !== undefined) updates.overtime_rate_multiplier = data.overtimeMultiplier;
       const r = await safe(() => db.updateEmployee(id, updates).then(() => refreshEmps()));
       return r;
@@ -474,29 +561,29 @@ export function useDashboard() {
     .filter((i: any) => Number(i.current_quantity) > 0 && Number(i.current_quantity) <= Number(i.reorder_point))
     .map((i: any) => ({ id: i.id, name: i.name, currentQty: Number(i.current_quantity), reorderPoint: Number(i.reorder_point), unit: i.unit_of_measure }));
 
-  const recentOrders = orders.slice(0, 8).map((o: Order) => ({
-    id: o.id, orderId: o.orderId,
-    customerName: o.customerName,
-    product: o.productType,
-    amount: o.totalAmount,
-    status: o.status, paymentStatus: o.paymentStatus,
-    date: o.dateOrdered,
-  }));
+  const recentOrders = orders.slice(0, 5).map((o: any) => {
+    const c = o.customer;
+    return {
+      id: o.id, orderId: o.order_number,
+      customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in',
+      product: o.order_items?.[0]?.product_name || 'Multiple',
+      amount: Number(o.total_amount) || 0,
+      status: o.status, date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
+    };
+  });
 
-  // Extended stats for dashboard
-  const totalRevenue = orders.reduce((s: number, o: Order) => s + (o.totalAmount || 0), 0);
-  const totalCollected = orders.reduce((s: number, o: Order) => s + (o.amountPaid || 0), 0);
+  const totalRevenue = orders.reduce((s: number, o: any) => s + (Number(o.total_amount) || 0), 0);
+  const totalCollected = orders.reduce((s: number, o: any) => s + (Number(o.amount_paid) || 0), 0);
   const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, unpaid: orderStats.pendingPayment };
 
-  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, rawOrders: orders, refresh };
+  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL };
 }
 
 export function useDashboardData() {
-  const { orderStats, invStats, lowStockItems, recentOrders, loading, rawOrders, refresh } = useDashboard();
+  const { orderStats, invStats, lowStockItems, recentOrders, loading } = useDashboard();
   return {
-    data: { orderStats, inventoryStats: invStats, lowStockItems, recentOrders, rawOrders },
+    data: { orderStats, inventoryStats: invStats, lowStockItems, recentOrders },
     loading,
-    refresh,
   };
 }
 
@@ -619,6 +706,160 @@ export function useDeliveries() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CASH ADVANCES — useCashAdvances() + usePendingCashAdvances()
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type CashAdvanceStatus = 'pending' | 'approved' | 'deducted' | 'declined' | 'cancelled';
+
+export interface CashAdvance {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  employeePosition: string;
+  amount: number;
+  dateIssued: string;
+  reason: string;
+  status: CashAdvanceStatus;
+  payrollPeriodId: string | null;
+  issuedByName: string;
+  createdAt: string;
+  declineReason?: string;
+}
+
+export interface PendingCashAdvance {
+  id: string;
+  employeeId: string;
+  employeeCode: string;
+  employeeName: string;
+  employeePosition: string;
+  dailyRate: number;
+  amount: number;
+  /** 50% of 13-day semi-monthly pay */
+  allowedLimit: number;
+  /** Sum of other pending advances for this employee */
+  pendingTotal: number;
+  /** allowedLimit − pendingTotal */
+  remainingAllowed: number;
+  reason: string;
+  dateIssued: string;
+  issuedByName: string;
+}
+
+function mapCashAdvance(raw: any): CashAdvance {
+  const emp    = raw.employee;
+  const issuer = raw.issuer;
+  return {
+    id:               raw.id,
+    employeeId:       raw.employee_id,
+    employeeCode:     emp?.employee_code || '',
+    employeeName:     emp?.full_name || '',
+    employeePosition: emp?.position || '',
+    amount:           Number(raw.amount) || 0,
+    dateIssued:       raw.date_issued || '',
+    reason:           raw.reason || '',
+    status:           raw.status as CashAdvanceStatus,
+    payrollPeriodId:  raw.payroll_period_id || null,
+    issuedByName:     issuer
+                        ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim()
+                        : '—',
+    createdAt:        raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    declineReason:    raw.decline_reason || '',
+  };
+}
+
+function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
+  const emp        = raw.employee;
+  const dailyRate  = Number(emp?.base_hourly_rate) || 0; // stored as daily rate
+  const allowedLimit = Math.round(dailyRate * 13 * 0.5); // 50% of semi-monthly pay
+  const pendingTotal = allPending
+    .filter(a => a.employee_id === raw.employee_id && a.id !== raw.id)
+    .reduce((s: number, a: any) => s + Number(a.amount), 0);
+  const issuer = raw.issuer;
+  return {
+    id:               raw.id,
+    employeeId:       raw.employee_id,
+    employeeCode:     emp?.employee_code || '',
+    employeeName:     emp?.full_name || '',
+    employeePosition: emp?.position || '',
+    dailyRate,
+    amount:           Number(raw.amount) || 0,
+    allowedLimit,
+    pendingTotal,
+    remainingAllowed: Math.max(0, allowedLimit - pendingTotal),
+    reason:           raw.reason || '',
+    dateIssued:       raw.date_issued || '',
+    issuedByName:     issuer
+                        ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim()
+                        : '—',
+  };
+}
+
+export function useCashAdvances(filters?: { employee_id?: string; status?: string }) {
+  const q = useQuery(
+    () => db.cashAdvances.getAll(filters),
+    [filters?.employee_id, filters?.status]
+  );
+
+  const advances: CashAdvance[] = (q.data || []).map(mapCashAdvance);
+
+  const stats = {
+    total:     advances.length,
+    pending:   advances.filter(a => a.status === 'pending').length,
+    approved:  advances.filter(a => a.status === 'approved').length,
+    deducted:  advances.filter(a => a.status === 'deducted').length,
+    cancelled: advances.filter(a => a.status === 'cancelled').length,
+    totalPending: advances
+      .filter(a => a.status === 'pending')
+      .reduce((s, a) => s + a.amount, 0),
+  };
+
+  return {
+    advances, stats,
+    loading: q.loading, error: q.error, refresh: q.refresh,
+
+    createAdvance: async (data: {
+      employee_id: string; amount: number; date_issued?: string; reason?: string;
+    }) => {
+      const r = await safe(() => db.cashAdvances.create(data).then(() => q.refresh()));
+      return r;
+    },
+
+    cancelAdvance: async (id: string) => {
+      const r = await safe(() => db.cashAdvances.cancel(id).then(() => q.refresh()));
+      return r;
+    },
+  };
+}
+
+// ── usePendingCashAdvances — for the admin dashboard approval panel ──────────
+export function usePendingCashAdvances() {
+  const q = useQuery(() => db.cashAdvances.getPendingRequests(), []);
+  const rawAll = (q.data || []) as any[];
+
+  const pendingAdvances: PendingCashAdvance[] = rawAll.map(raw =>
+    mapPendingCashAdvance(raw, rawAll)
+  );
+
+  return {
+    pendingAdvances,
+    loading: q.loading,
+    error:   q.error,
+    refresh: q.refresh,
+
+    approveAdvance: async (id: string) => {
+      const r = await safe(() => db.cashAdvances.approve(id).then(() => q.refresh()));
+      return r;
+    },
+
+    declineAdvance: async (id: string, reason: string) => {
+      const r = await safe(() => db.cashAdvances.decline(id, reason).then(() => q.refresh()));
+      return r;
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PAYROLL TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -697,14 +938,14 @@ function mapPeriod(raw: any): PayrollPeriod {
 
 function mapAttendanceLog(raw: any): AttendanceLog {
   const emp = raw.employee;
-  const hourlyRate = Number(emp?.base_hourly_rate) || 0;
+  const dailyRate = Number(emp?.base_hourly_rate) || 0; // stored as daily rate
   return {
     id: raw.id,
     employeeId: raw.employee_id,
     employeeCode: emp?.employee_code || '',
     fullName: emp?.full_name || '',
     position: emp?.position || '',
-    dailyRate: hourlyRate * 8,
+    dailyRate: dailyRate,
     workedHours: Number(raw.worked_hours) || 0,
     requiredHours: Number(raw.required_hours) || 160,
     lateTimeslots: Number(raw.late_timeslots) || 0,
@@ -869,4 +1110,34 @@ export function usePayrollData() {
       return r;
     },
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUDIT LOGS — useLogsData()
+// Used by: AdminAuditLogs
+// ═══════════════════════════════════════════════════════════════════════════════
+export function useLogsData() {
+  const q = useQuery(async () => {
+    const { data, error } = await supabase
+      .from('order_logs')
+      .select(`*, updated_by_user:updated_by(id, first_name, last_name, role)`)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data || [];
+  }, []);
+
+  const logs = (q.data || []).map((raw: any) => ({
+    id:        raw.id,
+    orderId:   raw.order_id,
+    updatedBy: raw.updated_by_user
+                 ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim()
+                 : '—',
+    role:      raw.updated_by_user?.role || '—',
+    status:    raw.status || '',
+    note:      raw.note || '',
+    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+  }));
+
+  return { logs, loading: q.loading, error: q.error, refresh: q.refresh };
 }

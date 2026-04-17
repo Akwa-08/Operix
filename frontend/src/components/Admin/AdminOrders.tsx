@@ -9,6 +9,8 @@ import { OrdersTable } from "../Shared/Orders/OrdersTable";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
+import { KpiCard } from "../Shared/UI/KpiCard";
+import { FilterDropdown } from "../Shared/UI/FilterDropdown";
 import type { Order } from "../../Types";
 import { useOrdersData } from "../../hooks/useSupabase";
 
@@ -25,46 +27,6 @@ const Modal = ({ show, onClose, title, children }: any) => {
     </div>
   );
 };
-
-// ── Dropdown filter pill ──────────────────────────────────────────────────────
-const FilterDropdown = ({ label, value, options, onChange }: { label: string; value: string; options: string[]; onChange: (v: string) => void }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap"
-      >
-        <span>{value || label}</span>
-        <ChevronDown size={14} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[160px]">
-            {options.map(o => (
-              <button key={o} onClick={() => { onChange(o); setOpen(false); }}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${value === o ? "font-semibold text-cyan-600" : "text-gray-700"}`}>
-                {o}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-// ── KPI card (compact) ────────────────────────────────────────────────────────
-const KpiCard = ({ title, value, icon, iconColor, accent }: { title: string; value: number; icon: React.ReactNode; iconColor: string; accent?: string }) => (
-  <div className={`bg-white rounded-xl border border-gray-200 p-3 md:p-4 shadow-sm flex items-center gap-3 ${accent || ""}`}>
-    <div className={`p-2 rounded-lg bg-gray-50 ${iconColor}`}>{icon}</div>
-    <div>
-      <p className="text-xl md:text-2xl font-bold text-gray-900">{value}</p>
-      <p className="text-xs text-gray-500 leading-tight">{title}</p>
-    </div>
-  </div>
-);
 
 // ── Main component ────────────────────────────────────────────────────────────
 const AdminOrders = () => {

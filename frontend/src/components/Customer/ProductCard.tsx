@@ -29,9 +29,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   return (
     <motion.div
-      layout
-      initial={{opacity: 0, y: 20}}
+      initial={{opacity: 0, y: 5}}
       animate={{opacity: 1, y: 0}}
+      transition={{duration: 0.15, ease: "easeOut"}}
       whileHover={{y: -5}}
       className="group bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full overflow-hidden relative">
       {/* Glow Effect on Hover */}
@@ -48,7 +48,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </span>
           </div>
           <p className="text-base text-gray-500 font-medium mb-1">
-            Dimensions: <span className="text-gray-900 font-semibold">{product.size}</span>
+            Dimensions:{" "}
+            <span className="text-gray-900 font-semibold">{product.size}</span>
           </p>
         </div>
 

@@ -231,6 +231,29 @@ async function findOrCreatePayrollPeriod(periodStart, periodEnd, userId) {
   return created.id;
 }
 
+// Helper: build one attendance sync row from an import row + ratio
+function buildSyncRow(r, periodId, ratio) {
+  const splitInt  = (n) => Math.round((n ?? 0) * ratio);
+  const splitDec  = (n) => Math.round((n ?? 0) * ratio * 100) / 100;
+  return {
+    employee_id:            r.employee_id,
+    payroll_period_id:      periodId,
+    worked_hours:           splitDec(r.actual_hours),
+    required_hours:         splitInt(r.required_hours),
+    days_present:           splitInt(r.attend_actual),
+    late_timeslots:         splitInt(r.late_minutes > 0 ? Math.round(r.late_minutes / 30) : 0),
+    early_leave_timeslots:  splitInt(r.early_leave_minutes > 0 ? Math.round(r.early_leave_minutes / 30) : 0),
+    regular_overtime_hours: splitDec(r.overtime_regular),
+    holiday_overtime_hours: 0,
+    special_overtime_hours: splitDec(r.overtime_special),
+    business_trip_days:     splitInt(r.business_trip),
+    absences:               splitInt(r.absences),
+    on_leave_days:          splitInt(r.on_leave),
+    additional_pay:         splitDec(r.allowance),
+    deduction_amount:       splitDec((r.deduction_late_early ?? 0) + (r.deduction_on_leave ?? 0) + (r.deduction_other ?? 0)),
+  };
+}
+
 // POST /api/payroll/upload-attendance
 app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendance_file'), async (req, res) => {
   try {
@@ -244,6 +267,89 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
     const uniqueNames = [...new Set(records.map(r => r.employee_name))];
     const { matchMap, unmatchedNames } = await resolveEmployeesByName(uniqueNames);
 
+    // ── Detect monthly data and auto-split into two 15-day periods ──────────
+    const startDate  = new Date(periodStart);
+    const endDate    = new Date(periodEnd);
+    const totalDays  = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    const isMonthly  = totalDays > 16;
+
+    let periodsCreated = [];
+
+    if (isMonthly) {
+      // Period 1: day 1 → day 15
+      const p1End = new Date(startDate);
+      p1End.setDate(startDate.getDate() + 14);
+      const p1EndStr = p1End.toISOString().split('T')[0];
+
+      // Period 2: day 16 → last day
+      const p2Start = new Date(p1End);
+      p2Start.setDate(p1End.getDate() + 1);
+      const p2StartStr = p2Start.toISOString().split('T')[0];
+
+      const ratio1 = 15 / totalDays;
+      const ratio2 = (totalDays - 15) / totalDays;
+
+      const period1Id = await findOrCreatePayrollPeriod(periodStart, p1EndStr, req.adminUser.id);
+      const period2Id = await findOrCreatePayrollPeriod(p2StartStr, periodEnd, req.adminUser.id);
+
+      const batchId = randomUUID();
+
+      // Raw import archive (use full period as before)
+      const importRows = records.map(r => ({
+        import_batch_id: batchId, source_file: sourceFile, company,
+        period_start: periodStart, period_end: periodEnd,
+        employee_no: r.employee_no, employee_name: r.employee_name, department: r.department,
+        required_hours: r.required_hours, actual_hours: r.actual_hours,
+        late_times: r.late_times, late_minutes: r.late_minutes,
+        early_leave_times: r.early_leave_times, early_leave_minutes: r.early_leave_minutes,
+        overtime_regular: r.overtime_regular, overtime_special: r.overtime_special,
+        attend_required: r.attend_required, attend_actual: r.attend_actual,
+        business_trip: r.business_trip, absences: r.absences, on_leave: r.on_leave,
+        bonus_note: r.bonus_note, ot_allowance: r.ot_allowance, allowance: r.allowance,
+        deduction_late_early: r.deduction_late_early, deduction_on_leave: r.deduction_on_leave,
+        deduction_other: r.deduction_other, actual_pay: r.actual_pay, remark: r.remark,
+        payroll_period_id: period1Id,
+        employee_id: matchMap.get(r.employee_name) ?? null,
+        synced_to_attendance: false, imported_by: req.adminUser.id,
+      }));
+
+      const { error: importErr } = await supabase.from('attendance_summary_imports').insert(importRows);
+      if (importErr) throw importErr;
+
+      const matchedRows = importRows.filter(r => r.employee_id !== null);
+      const syncRows1 = matchedRows.map(r => buildSyncRow(r, period1Id, ratio1));
+      const syncRows2 = matchedRows.map(r => buildSyncRow(r, period2Id, ratio2));
+
+      if (syncRows1.length > 0) {
+        const { error: e1 } = await supabase.from('attendance_logs').upsert(syncRows1, { onConflict: 'employee_id,payroll_period_id' });
+        if (e1) throw e1;
+      }
+      if (syncRows2.length > 0) {
+        const { error: e2 } = await supabase.from('attendance_logs').upsert(syncRows2, { onConflict: 'employee_id,payroll_period_id' });
+        if (e2) throw e2;
+      }
+
+      periodsCreated = [
+        { id: period1Id, start: periodStart, end: p1EndStr, label: 'Period 1 (Days 1–15)' },
+        { id: period2Id, start: p2StartStr, end: periodEnd, label: 'Period 2 (Days 16–end)' },
+      ];
+
+      return res.status(200).json({
+        success: true, batchId,
+        isMonthly: true,
+        periods: periodsCreated,
+        period: { start: periodStart, end: periodEnd },
+        company,
+        summary: {
+          totalRows: records.length, matched: matchedRows.length,
+          unmatched: unmatchedNames.length, unmatchedNames,
+          syncedToAttendance: matchedRows.length * 2,
+          note: `Monthly data auto-split into 2 × 15-day periods (${ratio1.toFixed(0)*100|0}% / ${Math.round(ratio2*100)}%)`,
+        },
+      });
+    }
+
+    // ── Single period (≤ 16 days) — original logic ───────────────────────────
     const payrollPeriodId = await findOrCreatePayrollPeriod(periodStart, periodEnd, req.adminUser.id);
     const batchId = randomUUID();
 
@@ -268,22 +374,9 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
     const { error: importErr } = await supabase.from('attendance_summary_imports').insert(importRows);
     if (importErr) throw importErr;
 
-    const attendanceSyncRows = importRows.filter(r => r.employee_id !== null).map(r => ({
-      employee_id:            r.employee_id,
-      payroll_period_id:      payrollPeriodId,
-      worked_hours:           r.actual_hours,
-      required_hours:         r.required_hours,
-      late_timeslots:         r.late_minutes > 0 ? Math.round(r.late_minutes / 30) : 0,
-      early_leave_timeslots:  r.early_leave_minutes > 0 ? Math.round(r.early_leave_minutes / 30) : 0,
-      regular_overtime_hours: r.overtime_regular,
-      holiday_overtime_hours: 0,
-      special_overtime_hours: r.overtime_special,
-      business_trip_days:     r.business_trip,
-      absences:               r.absences,
-      on_leave_days:          r.on_leave,
-      additional_pay:         r.allowance ?? 0,
-      deduction_amount:       (r.deduction_late_early ?? 0) + (r.deduction_on_leave ?? 0) + (r.deduction_other ?? 0),
-    }));
+    const attendanceSyncRows = importRows.filter(r => r.employee_id !== null).map(r =>
+      buildSyncRow(r, payrollPeriodId, 1.0)
+    );
 
     if (attendanceSyncRows.length > 0) {
       const { error: syncErr } = await supabase.from('attendance_logs')

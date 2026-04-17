@@ -8,6 +8,7 @@ import {Toast} from "./Toast";
 import { useCartData } from "../../hooks/useSupabase";
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from "react-router-dom";
+import { AddToCartModal } from "./AddToCartModal";
 
 
 export default function HomePage() {
@@ -18,10 +19,11 @@ export default function HomePage() {
 
   const { user } = useAuth();
   const { products: allProducts } = useProductCatalog();
-  const { items, addToCart } = useCartData();
+  const { addToCart, directOrder } = useCartData();
   const navigate = useNavigate();
 
-  const [duplicateModalProduct, setDuplicateModalProduct] = useState<any>(null);
+  // Modal state — holds the product the user clicked on
+  const [modalProduct, setModalProduct] = useState<any>(null);
 
   const filteredProducts = allProducts.filter((p) =>
     p.title.toLowerCase().includes(searchQuery.toLowerCase()),
@@ -29,31 +31,63 @@ export default function HomePage() {
 
   const itemsPerPage = 6;
 
-
-
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
   const pagedProducts = filteredProducts.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage,
   );
 
-
-  const handleAddToCart = async (product: any) => {
-    const exists = items.some((i) => i.productId === product.id);
-    if (exists) {
-      setDuplicateModalProduct(product);
-      return;
-    }
-    await processAddToCart(product, false);
+  // When a product card's "Add to Cart" is clicked, open the modal
+  const handleProductClick = (product: any) => {
+    setModalProduct(product);
   };
 
-  const processAddToCart = async (product: any, forceNewRow: boolean) => {
-    const result = await addToCart(product.id, 1, forceNewRow);
+  // "Add to Cart" from the modal — always force a new row since each has unique file/specs
+  const handleModalAddToCart = async (data: {
+    product: any;
+    quantity: number;
+    fileUrl?: string;
+    specialInstructions?: string;
+  }) => {
+    const result = await addToCart(
+      data.product.id,
+      data.quantity,
+      true, // forceNewRow — each modal submission is a unique design intent
+      data.specialInstructions,
+      data.fileUrl,
+    );
     if (result.success) {
-      setToastMessage(`${product.title} added to your cart!`);
+      setToastMessage(`${data.product.title} added to your cart!`);
       setShowToast(true);
     } else {
       setToastMessage("Failed to add to cart");
+      setShowToast(true);
+    }
+    setModalProduct(null);
+  };
+
+  // "Order" from the modal — create order directly, navigate to /orders
+  const handleModalOrder = async (data: {
+    product: any;
+    quantity: number;
+    fileUrl?: string;
+    specialInstructions?: string;
+  }) => {
+    const result = await directOrder({
+      productId: data.product.id,
+      productName: data.product.title,
+      quantity: data.quantity,
+      unitPrice: data.product.price,
+      specifications: data.specialInstructions,
+      fileUrl: data.fileUrl,
+    });
+    if (result.success) {
+      setToastMessage(`Order placed for ${data.product.title}!`);
+      setShowToast(true);
+      setModalProduct(null);
+      navigate("/orders");
+    } else {
+      setToastMessage(result.error || "Failed to place order");
       setShowToast(true);
     }
   };
@@ -69,40 +103,20 @@ export default function HomePage() {
         actionLabel="View Cart"
       />
 
-      {/* Duplicate Prompt Modal */}
-      <AnimatePresence>
-        {duplicateModalProduct && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm">
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white p-8 rounded-3xl shadow-2xl max-w-sm w-full mx-auto outline-none">
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Item already in cart</h3>
-              <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-                You already have <strong className="text-gray-900">{duplicateModalProduct.title}</strong> in your cart. What would you like to do?
-              </p>
-              <div className="flex flex-col gap-3">
-                <button onClick={() => { processAddToCart(duplicateModalProduct, false); setDuplicateModalProduct(null); }}
-                  className="w-full py-3.5 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-xl shadow-sm transition-colors text-sm">
-                  Increase Quantity
-                </button>
-                <button onClick={() => { processAddToCart(duplicateModalProduct, true); setDuplicateModalProduct(null); }}
-                  className="w-full py-3.5 bg-white border-2 border-gray-200 hover:border-cyan-500 hover:text-cyan-600 text-gray-700 font-bold rounded-xl transition-colors text-sm">
-                  Add as New Design
-                </button>
-                <button onClick={() => setDuplicateModalProduct(null)}
-                  className="w-full py-3 text-sm text-gray-400 hover:text-gray-600 font-semibold transition-colors mt-2">
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Add to Cart Modal */}
+      <AddToCartModal
+        isOpen={!!modalProduct}
+        product={modalProduct}
+        onClose={() => setModalProduct(null)}
+        onAddToCart={handleModalAddToCart}
+        onOrder={handleModalOrder}
+      />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-white border-b border-gray-100 py-20 px-10">
-        {/* Abstract Background Shapes */}
-        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[600px] h-[600px] bg-cyan-400/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[400px] h-[400px] bg-pink-400/5 rounded-full blur-3xl pointer-events-none" />
+      <section className="relative overflow-hidden bg-white border-b border-gray-100 py-10 px-4 sm:py-14 sm:px-6 md:py-16 md:px-8 lg:py-20 lg:px-10">
+        {/* Abstract Background Shapes — hidden on small screens to prevent overflow */}
+        <div className="hidden sm:block absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-cyan-400/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="hidden sm:block absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[250px] h-[250px] md:w-[400px] md:h-[400px] bg-pink-400/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
           <motion.div
@@ -110,32 +124,32 @@ export default function HomePage() {
             animate={{opacity: 1, scale: 1}}
             className="inline-flex items-center gap-2 px-3 py-1.5 bg-cyan-100/50 border border-cyan-200 rounded-full text-cyan-600 text-xs font-bold uppercase tracking-widest mb-6">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Welcome  to Operix</span>
+            <span>Welcome to Operix</span>
           </motion.div>
 
           <motion.h1
             initial={{opacity: 0, x: -20}}
             animate={{opacity: 1, x: 0}}
-            className="text-5xl font-black text-gray-900 leading-none tracking-tight mb-4">
-            Hello {user?.firstName ? `, ${user.firstName}` : ''}!
+            className="text-3xl sm:text-4xl md:text-5xl font-black text-gray-900 leading-none tracking-tight mb-3 md:mb-4">
+            Hello{user?.firstName ? `, ${user.firstName}` : ''}!
           </motion.h1>
           <motion.p
             initial={{opacity: 0, x: -20}}
             animate={{opacity: 1, x: 0}}
             transition={{delay: 0.1}}
-            className="text-gray-500 text-lg font-medium max-w-2xl leading-relaxed">
+            className="text-gray-500 text-sm sm:text-base md:text-lg font-medium max-w-2xl leading-relaxed">
             Browse our products and add them to your cart
           </motion.p>
         </div>
       </section>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-10">
-        <div className="flex flex-col gap-10">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 lg:p-10">
+        <div className="flex flex-col gap-6 md:gap-8 lg:gap-10">
           {/* Controls Header */}
-          <div className="flex flex-col lg:flex-row justify-between items-end gap-6">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4 md:gap-6">
             <div className="w-full lg:w-auto">
-              <h2 className="text-2xl font-black text-gray-900 tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-black text-gray-900 tracking-tight">
                 Available Products
               </h2>
               <p className="text-gray-500 font-bold uppercase text-xs tracking-widest mt-1">
@@ -164,13 +178,13 @@ export default function HomePage() {
           {/* Products Grid */}
           <motion.div
             layout
-            className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
             <AnimatePresence mode="popLayout">
               {pagedProducts.map((product) => (
                 <ProductCard
                   key={product.id}
                   product={product as any}
-                  onAddToCart={handleAddToCart}
+                  onAddToCart={handleProductClick}
                 />
               ))}
             </AnimatePresence>
@@ -178,16 +192,16 @@ export default function HomePage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-4 mt-10">
+            <div className="flex justify-center items-center gap-3 sm:gap-4 mt-6 md:mt-10">
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group">
-                <ChevronLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
+                className="p-2.5 sm:p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group">
+                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 group-hover:-translate-x-1 transition-transform" />
               </button>
 
               <div className="flex items-center px-4">
-                <span className="w-10 h-10 rounded-xl bg-cyan-400 text-white flex items-center justify-center text-lg font-black shadow-lg shadow-cyan-100">
+                <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-cyan-400 text-white flex items-center justify-center text-base sm:text-lg font-black shadow-lg shadow-cyan-100">
                   {currentPage}
                 </span>
               </div>
@@ -197,8 +211,8 @@ export default function HomePage() {
                   setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                 }
                 disabled={currentPage === totalPages}
-                className="p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group">
-                <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                className="p-2.5 sm:p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group">
+                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
           )}
