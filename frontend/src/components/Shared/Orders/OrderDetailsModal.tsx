@@ -53,7 +53,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 }) => {
   const perms = permissions[userRole].orders;
   const [isCustomerUploadOpen, setIsCustomerUploadOpen] = useState(false);
-  const [isUploadingCustomerFile, setIsUploadingCustomerFile] = useState(false);
 
   // ── Payment recording state ──────────────────────────────────────────────
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -101,7 +100,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
   const handleCustomerUploadComplete = async (fileUrl: string) => {
     if (!onUpdateCustomerDesign) return;
-    setIsUploadingCustomerFile(true);
     const loadingToast = toast.loading("Updating customer design...");
     try {
       await onUpdateCustomerDesign(fileUrl);
@@ -110,8 +108,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
       setIsCustomerUploadOpen(false);
     } catch (e: any) {
       toast.error(e.message || "Failed to update design", { id: loadingToast });
-    } finally {
-      setIsUploadingCustomerFile(false);
     }
   };
 
