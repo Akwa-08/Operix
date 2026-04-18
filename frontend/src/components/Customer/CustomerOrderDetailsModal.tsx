@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Modal } from "../Shared/UI/Modal";
 import type { Order } from "../../Types";
-import { Clock, Palette, CreditCard, Hammer, Truck, CheckCircle2, User, Package, UploadCloud, Check } from "lucide-react";
-import { db, uploadOrderFile } from "../../lib/database";
+import { Clock, Palette, CreditCard, Hammer, Truck, CheckCircle2, User, Package, ImageIcon, Check, ImageIcon as IconImage } from "lucide-react";
 import toast from "react-hot-toast";
 
 type OrderStatus = "Queue" | "Design" | "Payment" | "Production" | "Pick-up" | "Complete";
@@ -17,6 +16,11 @@ const mapBackendStatusToStep = (status: string): OrderStatus => {
   if (s === "pickup") return "Pick-up";
   if (s === "completed") return "Complete";
   return "Queue";
+};
+
+const sanitizeStorageUrl = (url: string | null | undefined): string => {
+  if (!url) return "";
+  return url.replace("/order-attachments/", "/order-files/");
 };
 
 const statusSteps: { status: OrderStatus; icon: any; label: string }[] = [
@@ -41,8 +45,6 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
   order,
   onRefresh,
 }) => {
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Local copy of the design file — updates immediately on upload,
   // independent of the parent's stale selectedOrder snapshot.
@@ -54,81 +56,6 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
   const currentStep = mapBackendStatusToStep(order.status);
   const currentStepIndex = statusSteps.findIndex((s) => s.status === currentStep);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    const loadingToast = toast.loading("Uploading design...");
-
-    try {
-      const publicUrl = await uploadOrderFile(file);
-      console.log('[handleFileUpload] storage upload success, url:', publicUrl);
-
-      // Show the image immediately — before any DB write
-      setLocalDesignFile(publicUrl);
-
-      // Attempt to persist to DB (may fail if RLS blocks it)
-      try {
-        await db.updateOrderItemFile(order.id, publicUrl);
-        console.log('[handleFileUpload] DB update success');
-      } catch (dbErr: any) {
-        console.error('[handleFileUpload] DB update failed (RLS?):', dbErr);
-        // Still show the image, but warn the user the save may not persist
-        toast.error(`File shown but not saved: ${dbErr?.message || 'DB error'}. Contact support.`, { id: loadingToast, duration: 6000 });
-        return;
-      }
-
-      toast.success("Design uploaded successfully!", { id: loadingToast });
-      if (onRefresh) onRefresh();
-    } catch (err: any) {
-      const msg = err?.message || err?.error_description || err?.details || "Failed to upload design";
-      console.error("Upload error:", err);
-      toast.error(msg, { id: loadingToast });
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-
-  const handleFileDrop = async (event: React.DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-    const file = event.dataTransfer.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    const loadingToast = toast.loading("Uploading design...");
-
-    try {
-      const publicUrl = await uploadOrderFile(file);
-      console.log('[handleFileDrop] storage upload success, url:', publicUrl);
-
-      // Show the image immediately
-      setLocalDesignFile(publicUrl);
-
-      try {
-        await db.updateOrderItemFile(order.id, publicUrl);
-        console.log('[handleFileDrop] DB update success');
-      } catch (dbErr: any) {
-        console.error('[handleFileDrop] DB update failed (RLS?):', dbErr);
-        toast.error(`File shown but not saved: ${dbErr?.message || 'DB error'}. Contact support.`, { id: loadingToast, duration: 6000 });
-        return;
-      }
-
-      toast.success("Design uploaded successfully!", { id: loadingToast });
-      if (onRefresh) onRefresh();
-    } catch (err: any) {
-      const msg = err?.message || err?.error_description || err?.details || "Failed to upload design";
-      console.error("Upload error:", err);
-      toast.error(msg, { id: loadingToast });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const preventDefault = (e: React.DragEvent) => e.preventDefault();
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Order Details" size="xl">
@@ -273,56 +200,80 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
 
         {/* ── Design Section ────────────────────────────────────────────── */}
         <div className="bg-gray-50/70 border border-gray-200 rounded-xl p-5 shadow-sm mt-2">
-          <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-gray-900">
-            <Palette size={16} /> Design
+          <h3 className="text-sm font-bold flex items-center gap-2 mb-6 text-gray-900">
+            <Palette size={16} /> Design Reference
           </h3>
           
-          <div className="space-y-5">
-            <div>
-              <p className="text-xs font-semibold text-gray-700 mb-2">Customer Design</p>
-              {localDesignFile ? (
-                <div className="w-full rounded-xl overflow-hidden shadow-inner border border-gray-300">
-                  <a href={localDesignFile} target="_blank" rel="noreferrer" className="block w-full">
-                    <img src={localDesignFile} alt="Customer Design" className="w-full object-contain max-h-[400px] hover:opacity-90 transition-opacity" />
-                  </a>
-                </div>
-              ) : (
-                <label 
-                  onDrop={handleFileDrop}
-                  onDragOver={preventDefault}
-                  onDragEnter={preventDefault}
-                  className={`w-full bg-gray-100/80 border-2 border-dashed border-gray-300 hover:border-[#00BEF4] hover:bg-[#00BEF4]/5 transition-all rounded-xl py-12 flex flex-col items-center justify-center cursor-pointer ${uploading ? 'opacity-50 pointer-events-none' : ''}`}
-                >
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
-                  <UploadCloud size={32} className="text-gray-400 mb-2" />
-                  <p className="text-sm font-semibold text-gray-700">Click to upload or drag and drop</p>
-                  <p className="text-xs text-gray-500 mt-1">SVG, PNG, JPG or GIF (max. 2MB)</p>
-                  {uploading && <p className="text-xs font-bold text-[#00BEF4] mt-3">Uploading...</p>}
-                </label>
-              )}
-            </div>
-
-            <div className="pt-2 border-t border-gray-200">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Final Design Path</p>
-              <p className="text-sm text-gray-800 break-all bg-gray-100 p-2 rounded border border-gray-200">
-                {localDesignFile ? localDesignFile : "No final design uploaded by designer yet."}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-700 mb-2">Final Design Preview</p>
-              <div className="w-full bg-gray-200 rounded-xl shadow-inner border border-gray-300 h-[150px] flex flex-col items-center justify-center text-gray-400">
-                 {/* Placeholder matching screenshot gray box */}
-                 {!localDesignFile ? (
-                   <span className="text-sm">Pending design generation</span>
-                 ) : (
-                   <img src={localDesignFile} alt="Preview" className="w-full h-full object-cover opacity-80 mix-blend-multiply" />
-                 )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Left: Customer Design */}
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-tight">Customer Upload</p>
+              </div>
+              
+              <div className="h-[460px] w-full">
+                {localDesignFile ? (
+                  <div className="relative group w-full h-full rounded-xl overflow-hidden shadow-inner border border-gray-300 bg-white">
+                    <a href={sanitizeStorageUrl(localDesignFile)} target="_blank" rel="noreferrer" className="block w-full h-full text-center">
+                      <img src={sanitizeStorageUrl(localDesignFile)} alt="Customer Design" className="w-full h-full object-contain p-2 hover:scale-[1.02] transition-transform duration-300 mx-auto" />
+                    </a>
+                  </div>
+                ) : (
+                  <div className="h-full w-full bg-gray-50 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center p-8 text-center">
+                    <div className="bg-white p-3 rounded-full shadow-sm mb-4 text-cyan-500/50">
+                      <ImageIcon size={32} />
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 leading-relaxed max-w-[280px]">
+                      It appears no file was attached to your submission. 
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-3 leading-normal max-w-[240px]">
+                      If you require assistance or design adjustments, please reach out to our design team.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
+            {/* Right: Final Design Preview */}
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between mb-3 text-center">
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-tight">Final Design Preview</p>
+                {order.finalDesignUrl && (
+                  <span className="bg-emerald-100 text-emerald-700 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase">Approved</span>
+                )}
+              </div>
+              
+              <div className="h-[460px] w-full">
+                <div className="w-full h-full bg-gray-100 rounded-xl shadow-inner border border-gray-300 flex flex-col items-center justify-center relative overflow-hidden">
+                  {order.finalDesignUrl ? (
+                    <a href={sanitizeStorageUrl(order.finalDesignUrl)} target="_blank" rel="noreferrer" className="w-full h-full block">
+                      <img src={sanitizeStorageUrl(order.finalDesignUrl)} alt="Final Preview" className="w-full h-full object-contain p-2 bg-white mx-auto shadow-sm" />
+                    </a>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3 text-gray-400 p-8 text-center">
+                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                        <Palette size={20} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-gray-500">Design In Progress</p>
+                        <p className="text-[10px] mt-1 italic">Our team is working on your final design. Check back soon!</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-5 border-t border-gray-200">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Technical Path</p>
+            <p className="text-[11px] text-gray-500 break-all font-mono bg-gray-50 p-3 rounded-lg border border-gray-100 italic">
+              {sanitizeStorageUrl(order.finalDesignUrl || localDesignFile) || "Waiting for initial upload..."}
+            </p>
           </div>
         </div>
+
+
 
         {/* ── Actions ────────────────────────────────────────────────────── */}
         <div className="pt-2">

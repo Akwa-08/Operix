@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, X, Check, ChevronDown } from "lucide-react";
+import { Plus, Trash2, X, Check } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { Button } from "../Shared/UI/Button";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
@@ -41,7 +41,7 @@ const AdminOrders = () => {
   const [selectedOrder, setSelectedOrder]       = useState<Order | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
 
-  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment } = useOrdersData();
+  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, updateCustomerDesign, refresh } = useOrdersData();
 
   const statusOptions = ["All", "In Queue", "Active", "Completed", "Overdue"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
@@ -137,7 +137,7 @@ const AdminOrders = () => {
         <KpiCard title="Active"         value={activeCount}           icon={<Clock size={16}       />} iconColor="text-purple-600" />
         <KpiCard title="Ready Pickup"   value={stats.readyPickup}    icon={<CheckCircle size={16} />} iconColor="text-green-600" />
         <KpiCard title="Overdue"        value={stats.overdue}        icon={<AlertCircle size={16} />} iconColor="text-red-600"
-          accent={stats.overdue > 0 ? "border-l-4 border-l-red-400" : ""} />
+          accent={stats.overdue > 0 ? "red" : "none"} />
       </div>
 
       {/* Unified filter bar */}
@@ -171,7 +171,12 @@ const AdminOrders = () => {
           onClose={() => setShowDetailsModal(false)}
           onUpdateStatus={(status) => handleStatusChange(selectedOrder, status)}
           onEdit={() => { setShowDetailsModal(false); openAssign(selectedOrder); }}
-          onRecordPayment={recordPayment} />
+          onRecordPayment={recordPayment}
+          onUpdateCustomerDesign={async (url) => {
+            const r = await updateCustomerDesign(selectedOrder.id, url);
+            if (!r.success) throw new Error(r.error || "Update failed");
+          }}
+          onRefresh={refresh} />
       )}
 
       {/* Assign Staff Modal */}

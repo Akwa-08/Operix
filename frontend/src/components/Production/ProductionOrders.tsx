@@ -18,7 +18,7 @@ const ProductionOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const { orders: rawOrders, loading, updateStatus } = useOrdersData();
+  const { orders: rawOrders, loading, updateStatus, updateCustomerDesign, refresh } = useOrdersData();
   const orders = rawOrders.map(o => ({ ...o, assignedProduction: "Current User" }));
 
   const stats = {
@@ -133,7 +133,12 @@ const ProductionOrders = () => {
       {selectedOrder && (
         <OrderDetailsModal isOpen={showDetailsModal} order={selectedOrder} userRole="production"
           onClose={() => setShowDetailsModal(false)}
-          onUpdateStatus={(s) => { updateStatus(selectedOrder.id, s); setShowDetailsModal(false); }} />
+          onUpdateStatus={(s) => { updateStatus(selectedOrder.id, s); setShowDetailsModal(false); }}
+          onUpdateCustomerDesign={async (url) => {
+            const r = await updateCustomerDesign(selectedOrder.id, url);
+            if (!r.success) throw new Error(r.error || "Update failed");
+          }}
+          onRefresh={refresh} />
       )}
     </div>
   );

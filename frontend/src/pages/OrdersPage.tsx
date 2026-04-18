@@ -28,9 +28,16 @@ export const OrdersPage: React.FC = () => {
   useEffect(() => {
     if (selectedOrder) {
       const fresh = orders.find(o => o.id === selectedOrder.id);
-      if (fresh) setSelectedOrder(fresh);
+      // Only update if the reference has changed (e.g. after a memoized re-map)
+      if (fresh && fresh !== selectedOrder) {
+        setSelectedOrder(fresh);
+      } else if (!fresh && selectedOrder) {
+        // Handle case where order might have been deleted/hidden
+        setSelectedOrder(null);
+        setShowDetails(false);
+      }
     }
-  }, [orders]);
+  }, [orders, selectedOrder]);
 
   const statusOptions = ["All", "In Queue", "Active", "Completed"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];

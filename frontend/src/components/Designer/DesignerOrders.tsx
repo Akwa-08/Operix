@@ -18,7 +18,7 @@ const DesignerOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const { orders, loading, updateStatus } = useOrdersData();
+  const { orders, loading, updateStatus, updateCustomerDesign, refresh } = useOrdersData();
 
   const stats = {
     assigned: orders.length,
@@ -135,7 +135,12 @@ const DesignerOrders = () => {
       {selectedOrder && (
         <OrderDetailsModal isOpen={showDetailsModal} order={selectedOrder} userRole="designer"
           onClose={() => setShowDetailsModal(false)} onUpdateStatus={handleUpdateStatus}
-          onUploadDesign={() => alert("Design upload — file system to be implemented")} />
+          onUploadDesign={() => alert("Design upload — file system to be implemented")}
+          onUpdateCustomerDesign={async (url) => {
+            const r = await updateCustomerDesign(selectedOrder.id, url);
+            if (!r.success) throw new Error(r.error || "Update failed");
+          }}
+          onRefresh={refresh} />
       )}
     </div>
   );

@@ -21,7 +21,7 @@ const CashierOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const { orders, stats, loading, createOrder, recordPayment } = useOrdersData();
+  const { orders, stats, loading, createOrder, recordPayment, updateCustomerDesign, refresh } = useOrdersData();
 
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
@@ -140,7 +140,12 @@ const CashierOrders = () => {
       {selectedOrder && (
         <OrderDetailsModal isOpen={showDetailsModal} order={selectedOrder} userRole="cashier" 
           onClose={() => setShowDetailsModal(false)}
-          onRecordPayment={recordPayment} />
+          onRecordPayment={recordPayment}
+          onUpdateCustomerDesign={async (url) => {
+            const r = await updateCustomerDesign(selectedOrder.id, url);
+            if (!r.success) throw new Error(r.error || "Update failed");
+          }}
+          onRefresh={refresh} />
       )}
     </div>
   );

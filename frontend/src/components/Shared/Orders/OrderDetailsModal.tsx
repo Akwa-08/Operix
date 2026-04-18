@@ -14,10 +14,17 @@ import {
   FileText,
   Upload,
   CheckCircle,
-  AlertCircle,
   CreditCard,
   X,
+  Palette,
+  Image as ImageIcon,
 } from "lucide-react";
+import { FileUploadModal } from "../../Customer/FileUploadModal";
+
+const sanitizeStorageUrl = (url: string | null | undefined): string => {
+  if (!url) return "";
+  return url.replace("/order-attachments/", "/order-files/");
+};
 
 interface OrderDetailsModalProps {
   isOpen: boolean;
@@ -28,6 +35,8 @@ interface OrderDetailsModalProps {
   onUpdateStatus?: (newStatus: string) => void;
   onEdit?: () => void;
   onRecordPayment?: (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; receipt_number?: string; notes?: string }) => Promise<{ success: boolean; error: string | null }>;
+  onUpdateCustomerDesign?: (fileUrl: string) => Promise<void>;
+  onRefresh?: () => void;
 }
 
 export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
@@ -39,8 +48,12 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   onUpdateStatus,
   onEdit,
   onRecordPayment,
+  onUpdateCustomerDesign,
+  onRefresh,
 }) => {
   const perms = permissions[userRole].orders;
+  const [isCustomerUploadOpen, setIsCustomerUploadOpen] = useState(false);
+  const [isUploadingCustomerFile, setIsUploadingCustomerFile] = useState(false);
 
   // ── Payment recording state ──────────────────────────────────────────────
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -85,6 +98,22 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   };
 
   const canRecordPayment = (perms.canViewAll || userRole === "cashier") && !!onRecordPayment && order.paymentStatus !== "Paid";
+
+  const handleCustomerUploadComplete = async (fileUrl: string) => {
+    if (!onUpdateCustomerDesign) return;
+    setIsUploadingCustomerFile(true);
+    const loadingToast = toast.loading("Updating customer design...");
+    try {
+      await onUpdateCustomerDesign(fileUrl);
+      toast.success("Design updated!", { id: loadingToast });
+      if (onRefresh) onRefresh();
+      setIsCustomerUploadOpen(false);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update design", { id: loadingToast });
+    } finally {
+      setIsUploadingCustomerFile(false);
+    }
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Order Details" size="xl">
@@ -320,35 +349,91 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           </div>
         )}
 
-        {/* Design File */}
+        {/* Design Files */}
         {(perms.canUploadDesign || perms.canViewAll) && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-              <Upload size={16} className="text-purple-600" />
-              Design File
+          <div className="space-y-4">
+            <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+              <Upload size={18} className="text-purple-600" />
+              Design Files
             </h3>
-            {order.designFile ? (
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <CheckCircle size={20} className="text-green-600" />
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">Design Uploaded</p>
-                    <p className="text-xs text-gray-600">{order.designFile}</p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Customer Design */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col h-[400px]">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold text-gray-500 uppercase">Customer Upload</p>
+                  {onUpdateCustomerDesign && (
+                    <button 
+                      onClick={() => setIsCustomerUploadOpen(true)}
+                      className="text-cyan-600 hover:text-cyan-700 text-[9px] font-black uppercase tracking-wider bg-white border border-cyan-100 px-2 py-0.5 rounded shadow-sm flex items-center gap-1 transition-all active:scale-95"
+                    >
+                      <Upload size={10} strokeWidth={3} />
+                      {order.designFile ? "Replace" : "Upload"}
+                    </button>
+                  )}
+                </div>
+                {order.designFile ? (
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="relative group aspect-square w-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                      <a href={sanitizeStorageUrl(order.designFile)} target="_blank" rel="noreferrer" className="block w-full h-full">
+                        <img 
+                          src={sanitizeStorageUrl(order.designFile)} 
+                          alt="Customer Design" 
+                          className="w-full h-full object-contain p-2 group-hover:scale-[1.05] transition-transform duration-300"
+                        />
+                      </a>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <CheckCircle size={14} className="text-green-600 flex-shrink-0" />
+                        <p className="text-[10px] text-gray-600 truncate font-mono">{order.designFile.split('/').pop()}</p>
+                      </div>
+                      <a href={order.designFile} target="_blank" rel="noreferrer" className="text-cyan-600 text-[10px] font-bold hover:underline">Full View</a>
+                    </div>
                   </div>
-                </div>
-                <Button variant="ghost" size="sm">Download</Button>
-              </div>
-            ) : (
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <AlertCircle size={20} className="text-gray-400" />
-                  <p className="text-sm text-gray-600">No design file uploaded yet</p>
-                </div>
-                {perms.canUploadDesign && onUploadDesign && order.status === "Designing" && (
-                  <Button variant="primary" size="sm" onClick={onUploadDesign}>Upload Design</Button>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center py-8 text-gray-400 border border-dashed border-gray-300 rounded-lg">
+                    <ImageIcon size={24} className="mb-2 opacity-50" />
+                    <p className="text-xs italic">No design uploaded</p>
+                  </div>
                 )}
               </div>
-            )}
+
+              {/* Final Design */}
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col h-[400px]">
+                <p className="text-[10px] font-bold text-purple-500 uppercase mb-3">Final Design (Staff)</p>
+                {order.finalDesignUrl ? (
+                  <div className="flex-1 flex flex-col gap-2">
+                    <div className="relative group aspect-square w-full bg-white rounded-lg border border-purple-100 overflow-hidden shadow-sm">
+                      <a href={sanitizeStorageUrl(order.finalDesignUrl)} target="_blank" rel="noreferrer" className="block w-full h-full">
+                        <img 
+                          src={sanitizeStorageUrl(order.finalDesignUrl)} 
+                          alt="Final Design" 
+                          className="w-full h-full object-contain p-2 group-hover:scale-[1.05] transition-transform duration-300"
+                        />
+                      </a>
+                    </div>
+                    <div className="flex items-center justify-between mt-1">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <CheckCircle size={14} className="text-purple-600 flex-shrink-0" />
+                        <p className="text-[10px] text-purple-800 truncate font-mono">{order.finalDesignUrl.split('/').pop()}</p>
+                      </div>
+                      <a href={order.finalDesignUrl} target="_blank" rel="noreferrer" className="text-purple-600 text-[10px] font-bold hover:underline">Full View</a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center py-8 text-gray-400 border border-dashed border-purple-200 rounded-lg bg-white/50">
+                    <Palette size={24} className="mb-2 opacity-50" />
+                    <div className="text-center">
+                      <p className="text-xs italic">Pending upload</p>
+                      {perms.canUploadDesign && onUploadDesign && order.status === "Designing" && (
+                        <button onClick={onUploadDesign} className="mt-2 text-purple-600 text-[10px] font-bold uppercase hover:bg-purple-100 px-2 py-1 rounded transition-colors">+ Upload Now</button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -369,6 +454,12 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             <Button variant="primary" onClick={onEdit} className="flex-1">Edit Order</Button>
           )}
         </div>
+        <FileUploadModal
+          isOpen={isCustomerUploadOpen}
+          onClose={() => setIsCustomerUploadOpen(false)}
+          onUpload={handleCustomerUploadComplete}
+          productName={order.productType || "Order Item"}
+        />
       </div>
     </Modal>
   );
