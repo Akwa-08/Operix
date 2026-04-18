@@ -120,7 +120,8 @@ function mapOrder(o: any): Order {
     assignedDesigner: o.assigned_designer,
     assignedProduction: o.assigned_production,
     designerName: o.designer ? `${o.designer.first_name || ''} ${o.designer.last_name || ''}`.trim() : undefined,
-    productionName: o.production_staff ? `${o.production_staff.first_name || ''} ${o.production_staff.last_name || ''}`.trim() : undefined,
+    // After FK migration: assigned_production now references employees(id), which has full_name.
+    productionName: o.production_staff?.full_name || undefined,
     comments: o.comments,
     orderType: o.order_type,
   };
@@ -282,6 +283,91 @@ export function useInventoryData() {
   };
 
   return { materials, stats, loading: q.loading, error: q.error, refresh: q.refresh };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// LOGS & ACTIVITY - useLogsData()
+// Reads from 3 sources: audit_logs (Staff Actions), order_logs (Order History),
+// inventory_changes (Inventory Changes). All timestamps normalized to Asia/Manila.
+// ═══════════════════════════════════════════════════════════════════════════════
+export function useLogsData() {
+  const fetchLogs = async () => {
+    const normalizeTs = (ts: string) => {
+      if (!ts) return 0;
+      const utc = /[Z+]/.test(ts) ? ts : ts.replace(' ', 'T') + 'Z';
+      return new Date(utc).getTime();
+    };
+    const formatTs = (ts: string) =>
+      new Intl.DateTimeFormat('en-PH', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+        timeZone: 'Asia/Manila',
+      }).format(new Date(/[Z+]/.test(ts) ? ts : ts.replace(' ', 'T') + 'Z'));
+
+    // 1. Audit logs (Staff Actions)
+    const { data: auditData } = await supabase
+      .from('audit_logs')
+      .select('id, created_at, action, target_table, target_id, metadata, actor_role, actor:actor_id(first_name, last_name)')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    // 2. Order logs (Order History)
+    const { data: ordLogs } = await supabase
+      .from('order_logs')
+      .select('id, created_at, status, note, order_id, user:users!order_logs_updated_by_fkey(id, first_name, last_name, role)')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    // 3. Inventory changes (Inventory Changes)
+    const { data: invChanges } = await supabase
+      .from('inventory_changes')
+      .select('id, created_at, change_type, quantity_change, quantity_before, quantity_after, reason, inventory_items:inventory_item_id(id, name, unit_of_measure), changer:changed_by(first_name, last_name, role)')
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    const staffActions = (auditData || []).map((l: any) => ({
+      id: 'audit_' + l.id,
+      source: 'audit' as const,
+      date: formatTs(l.created_at),
+      timestamp: normalizeTs(l.created_at),
+      module: l.target_table || 'system',
+      action: l.action,
+      details: l.metadata ? Object.entries(l.metadata).map(([k, v]) => `${k}: ${v}`).join(' | ') : '',
+      user: l.actor ? `${l.actor.first_name || ''} ${l.actor.last_name || ''}`.trim() || 'System' : 'System',
+      role: l.actor_role || 'system',
+    }));
+
+    const orderHistory = (ordLogs || []).map((l: any) => ({
+      id: 'ord_' + l.id,
+      source: 'orders' as const,
+      date: formatTs(l.created_at),
+      timestamp: normalizeTs(l.created_at),
+      module: 'orders',
+      action: `Status: ${l.status || '—'}`,
+      details: l.note || '',
+      user: l.user ? `${l.user.first_name || ''} ${l.user.last_name || ''}`.trim() || 'System' : 'System',
+      role: l.user?.role || 'system',
+    }));
+
+    const inventoryChanges = (invChanges || []).map((l: any) => ({
+      id: 'inv_' + l.id,
+      source: 'inventory' as const,
+      date: formatTs(l.created_at),
+      timestamp: normalizeTs(l.created_at),
+      module: 'inventory',
+      action: l.change_type || '—',
+      details: `${l.inventory_items?.name || '—'}: ${l.quantity_before} → ${l.quantity_after} ${l.inventory_items?.unit_of_measure || ''}${l.reason ? '. ' + l.reason : ''}`,
+      user: l.changer ? `${l.changer.first_name || ''} ${l.changer.last_name || ''}`.trim() || 'System' : 'System',
+      role: l.changer?.role || 'system',
+    }));
+
+    const all = [...staffActions, ...orderHistory, ...inventoryChanges]
+      .sort((a, b) => b.timestamp - a.timestamp);
+
+    return { all, staffActions, orderHistory, inventoryChanges };
+  };
+
+  return useQuery(fetchLogs);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
