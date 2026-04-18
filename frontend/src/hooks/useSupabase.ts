@@ -329,8 +329,8 @@ export function useManagementData() {
       const r = await safe(() => adminApi.createUser({ email: data.email, password: data.password, role: data.role.toLowerCase(), first_name: data.firstName, last_name: data.lastName, username: data.username, contact_number: data.phoneNumber }).then(() => refreshUsers()));
       return r;
     },
-    updateUser: async (id: string, data: { firstName?: string; lastName?: string; email?: string; phoneNumber?: string; role?: string }) => {
-      const r = await safe(() => adminApi.updateUser(id, { first_name: data.firstName, last_name: data.lastName, email: data.email, contact_number: data.phoneNumber, role: data.role?.toLowerCase() }).then(() => refreshUsers()));
+    updateUser: async (id: string, data: { firstName?: string; lastName?: string; email?: string; username?: string; phoneNumber?: string; role?: string }) => {
+      const r = await safe(() => adminApi.updateUser(id, { first_name: data.firstName, last_name: data.lastName, email: data.email, username: data.username, contact_number: data.phoneNumber, role: data.role?.toLowerCase() }).then(() => refreshUsers()));
       return r;
     },
     deactivateUsers: async (ids: string[]) => {

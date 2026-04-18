@@ -125,7 +125,7 @@ const AdminManagement: React.FC = () => {
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
-    const r = await updateUser(selectedUser.id, { firstName: editUserForm.firstName, lastName: editUserForm.lastName, email: editUserForm.email, phoneNumber: editUserForm.phoneNumber, role: editUserForm.role });
+    const r = await updateUser(selectedUser.id, { firstName: editUserForm.firstName, lastName: editUserForm.lastName, email: editUserForm.email, username: editUserForm.username, phoneNumber: editUserForm.phoneNumber, role: editUserForm.role });
     if (r.success) { alert("Account updated!"); setShowViewUserModal(false); } else alert("Error: " + r.error);
   };
 
