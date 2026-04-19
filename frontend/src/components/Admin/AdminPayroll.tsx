@@ -547,7 +547,7 @@ function CashAdvanceApprovalPanel() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className="text-xs font-semibold text-gray-700">{fmt(adv.allowedLimit)}</span>
-                        <p className="text-[10px] text-gray-400">50% of semi-monthly pay</p>
+                        <p className="text-[10px] text-gray-400">Fixed per 15-day period</p>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`text-sm font-bold ${adv.remainingAllowed <= 0 ? 'text-red-600' : 'text-green-700'}`}>{fmt(adv.remainingAllowed)}</span>
@@ -586,7 +586,7 @@ function CashAdvanceApprovalPanel() {
         {pendingAdvances.length > 0 && (
           <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-6 text-[11px] text-gray-500">
             <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-200 inline-block" />Exceeds allowed limit</span>
-            <span>Allowed limit = 50% of 13-day semi-monthly gross pay (restraints TBA)</span>
+            <span>Allowed limit = ₱2,000 fixed per 15-day payroll period</span>
           </div>
         )}
       </div>
@@ -687,6 +687,108 @@ const AdminPayroll: React.FC = () => {
     r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.employeeCode.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // ── Dedicated print via hidden iframe (no new tab opens) ───────────────────
+  const printWithIframe = (html: string) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;';
+    document.body.appendChild(iframe);
+    iframe.contentDocument!.open();
+    iframe.contentDocument!.write(html);
+    iframe.contentDocument!.close();
+    setTimeout(() => {
+      iframe.contentWindow!.focus();
+      iframe.contentWindow!.print();
+      setTimeout(() => document.body.removeChild(iframe), 1500);
+    }, 300);
+  };
+
+  const printPayrollTable = () => {
+    if (!currentPeriod) return;
+    const rows = payrollRecords.map(rec => `
+      <tr>
+        <td>${rec.employeeName}</td>
+        <td>${rec.position}</td>
+        <td class="num">${fmt(rec.dailyRate)}</td>
+        <td class="ctr">${rec.daysPresent}</td>
+        <td class="num">${fmt(rec.basicPay)}</td>
+        <td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td>
+        <td class="num blu">${fmt(rec.grossIncome)}</td>
+        <td class="num red">-${fmt(rec.totalDeductions)}</td>
+        <td class="num grn">${fmt(rec.netPay)}</td>
+        <td class="ctr">${rec.status === 'paid' ? 'Paid' : 'Pending'}</td>
+      </tr>`).join('');
+    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title>
+    <style>
+      @page { size: landscape; margin: 15mm; }
+      body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
+      h2 { font-size: 14px; font-weight: bold; margin: 0 0 2px; }
+      p { font-size: 10px; color: #555; margin: 0 0 12px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #ccc; padding: 5px 7px; }
+      th { background: #f3f4f6; font-weight: 700; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: .4px; }
+      .num { text-align: right; } .ctr { text-align: center; }
+      .blu { color: #1d4ed8; font-weight: bold; } .red { color: #dc2626; } .grn { color: #16a34a; font-weight: bold; }
+      tfoot td { font-weight: bold; border-top: 2px solid #888; background: #f9fafb; }
+    </style></head><body>
+    <h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2>
+    <p>Period: ${periodLabel(currentPeriod)} &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+    <table>
+      <thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th>
+        <th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td colspan="4">TOTALS (${payrollRecords.length} employees)</td>
+        <td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.basicPay, 0))}</td>
+        <td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0))}</td>
+        <td class="num blu">${fmt(payrollRecords.reduce((s, r) => s + r.grossIncome, 0))}</td>
+        <td class="num red">-${fmt(payrollRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td>
+        <td class="num grn">${fmt(payrollRecords.reduce((s, r) => s + r.netPay, 0))}</td>
+        <td></td>
+      </tr></tfoot>
+    </table></body></html>`);
+  };
+
+  const printAttendanceLogs = () => {
+    if (!currentPeriod) return;
+    const rows = attendanceLogs.map(log => `
+      <tr>
+        <td>${log.fullName}</td>
+        <td>${log.position}</td>
+        <td class="num">${log.workedHours}h</td>
+        <td class="num">${fmt(log.dailyRate)}</td>
+        <td class="ctr">${log.lateTimeslots}</td>
+        <td class="ctr">${log.earlyLeaveTimeslots}</td>
+        <td class="ctr">${log.regularOvertimeHours}/${log.holidayOvertimeHours}/${log.specialOvertimeHours}</td>
+        <td class="ctr">${log.businessTripDays}</td>
+        <td class="ctr">${log.absences}</td>
+        <td class="ctr">${log.onLeaveDays}</td>
+        <td class="num grn">${fmt(log.additionalPay)}</td>
+        <td class="num red">${fmt(log.deductionAmount)}</td>
+      </tr>`).join('');
+    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance — ${periodLabel(currentPeriod)}</title>
+    <style>
+      @page { size: landscape; margin: 12mm; }
+      body { font-family: Arial, sans-serif; font-size: 10px; color: #111; margin: 0; }
+      h2 { font-size: 13px; font-weight: bold; margin: 0 0 2px; }
+      p { font-size: 10px; color: #555; margin: 0 0 10px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #ccc; padding: 4px 6px; }
+      th { background: #f3f4f6; font-weight: 700; text-align: left; font-size: 8.5px; text-transform: uppercase; }
+      .num { text-align: right; } .ctr { text-align: center; }
+      .grn { color: #16a34a; } .red { color: #dc2626; }
+    </style></head><body>
+    <h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2>
+    <p>Period: ${periodLabel(currentPeriod)} &nbsp;|&nbsp; Employees: ${attendanceLogs.length} &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+    <table>
+      <thead><tr>
+        <th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th>
+        <th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th>
+        <th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></body></html>`);
+  };
 
   const toggleExpand = (id: string) => {
     const s = new Set(expandedPeriods);
@@ -888,7 +990,7 @@ const AdminPayroll: React.FC = () => {
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
               <BiometricsUploadButton onSuccess={refresh} />
-              <button onClick={() => window.print()}
+              <button onClick={printAttendanceLogs}
                 className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
                 <Printer size={16} /> Print
               </button>
@@ -969,7 +1071,7 @@ const AdminPayroll: React.FC = () => {
                 <RefreshCw size={16} className={computing ? "animate-spin" : ""} />
                 {computing ? "Computing…" : "Recompute All"}
               </button>
-              <button onClick={() => window.print()}
+              <button onClick={printPayrollTable}
                 className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
                 <Printer size={16} /> Print All
               </button>
@@ -1145,7 +1247,7 @@ const AdminPayroll: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">{periods.length} payroll period{periods.length !== 1 ? "s" : ""} total</p>
-            <button onClick={() => window.print()}
+            <button onClick={printPayrollTable}
               className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
               <Printer size={16} /> Print History
             </button>

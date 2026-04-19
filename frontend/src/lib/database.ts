@@ -843,28 +843,43 @@ export const db = {
 
         // ────────────────────────────────────────────────────────────────────
         // CASH ADVANCE DEDUCTION
+        // Business Rule: Max ₱2,000 per 15-day payroll period
         // Workflow:
-        //   1. Cashier submits request → status = 'pending'
+        //   1. Cashier submits → status = 'pending'
         //   2. Admin approves → status = 'approved'
-        //   3. Next payroll compute runs → approved advances deducted here
-        //      → status = 'deducted', linked to this payroll_period_id
+        //   3. Compute Payroll → deducted, status = 'deducted'
         //
-        // Restraint limit: (To be configured — placeholder ready below)
-        // const MAX_ADVANCE = dailyRate * 13 * 0.5; // 50% of semi-monthly pay
-        //
-        // PAYSLIP DISPLAY:
-        //   Current period: "Cash Advance (Disbursed)" shown as ADDITIONAL INCOME
-        //   Next period:    "Cash Advance Deduction"   shown as DEDUCTION here
+        // Carry-Over Rule:
+        //   If (grossIncome - totalOtherDeductions - cashAdvance) < 0,
+        //   the deficit is stored as carry_over_deduction for the NEXT period.
         // ────────────────────────────────────────────────────────────────────
+        const MAX_ADVANCE = 2000; // ₱2,000 hard limit per period
+
         const { data: advances } = await supabase
           .from('cash_advances')
           .select('id, amount')
           .eq('employee_id', emp.id)
-          .eq('status', 'approved'); // only APPROVED advances get deducted
+          .eq('status', 'approved');
 
-        const cashAdvance = (advances || []).reduce((s: number, a: any) => s + Number(a.amount), 0);
+        // Cap each advance at ₱2,000 and sum
+        const cashAdvance = Math.min(
+          (advances || []).reduce((s: number, a: any) => s + Number(a.amount), 0),
+          MAX_ADVANCE
+        );
 
-        // Mark advances as deducted and link to this payroll period
+        // Fetch carry-over from the previous period for this employee
+        const { data: prevRecord } = await supabase
+          .from('payroll_records')
+          .select('carry_over_deduction')
+          .eq('employee_id', emp.id)
+          .neq('payroll_period_id', periodId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(); // returns null instead of error when no row found
+
+        const carryOverFromPrevious = Number(prevRecord?.carry_over_deduction) || 0;
+
+        // Mark advances as deducted
         if (advances && advances.length > 0) {
           await supabase
             .from('cash_advances')
@@ -877,21 +892,20 @@ export const db = {
         }
 
         // ────────────────────────────────────────────────────────────────────
-        // TOTAL DEDUCTIONS
-        // Per payroll register: Tardy + Undertime + Withholding Tax
-        //                       + Cash Advances + PhilHealth + HDMF
+        // TOTAL DEDUCTIONS (including carry-over from previous period)
         // ────────────────────────────────────────────────────────────────────
         const totalDeductions = tardyDeductions
           + undertimeDeductions
           + withholdingTax
           + cashAdvance
+          + carryOverFromPrevious
           + philhealth
           + hdmf;
 
-        // ────────────────────────────────────────────────────────────────────
-        // NET PAY & TAXABLE INCOME
-        // ────────────────────────────────────────────────────────────────────
-        const netPay       = grossIncome - totalDeductions;
+        // NET PAY — may go negative (carry-over to next period)
+        const netPayRaw     = grossIncome - totalDeductions;
+        const netPay        = Math.max(0, netPayRaw); // paid out is never negative
+        const carryOver     = netPayRaw < 0 ? Math.abs(netPayRaw) : 0; // deficit → next period
         const taxableIncome = grossIncome - philhealth - hdmf;
 
         const { data: saved, error: saveErr } = await supabase
@@ -918,6 +932,8 @@ export const db = {
             total_deductions:     totalDeductions,
             net_pay:              netPay,
             taxable_income:       taxableIncome,
+            carry_over_deduction:     carryOver,
+            carry_over_from_previous: carryOverFromPrevious,
             status:               'pending',
             updated_at:           new Date().toISOString(),
           }], { onConflict: 'employee_id,payroll_period_id' })
@@ -1033,6 +1049,134 @@ export const db = {
         .order('created_at', { ascending: true });
       if (error) throw error;
       return data || [];
+    },
+
+    // ── Cashier: check eligibility (returns boolean only, no amounts) ──────
+    async checkEligibility(employeeId: string): Promise<{
+      eligible: boolean;
+      reason: 'eligible' | 'limit_reached' | 'approved_awaiting_deduction';
+      remaining: number;      // how much can still be requested this period
+      totalUsed: number;      // sum already pending/approved this period
+      detail?: { amount: number; date_issued: string };
+    }> {
+      const MAX = 2000;
+      const now = new Date();
+
+      // ── Boundary between periods: 15 days ago ───────────────────────────────
+      const fifteenDaysAgo = new Date(now);
+      fifteenDaysAgo.setDate(now.getDate() - 15);
+      const periodStart = fifteenDaysAgo.toISOString().split('T')[0];
+
+      // Rule 1: Block if there is an APPROVED but NOT YET DEDUCTED advance
+      //         from a PREVIOUS period (older than 15 days).
+      //         Employee must wait until payroll runs and deducts it first.
+      const { data: prevUnpaid } = await supabase
+        .from('cash_advances')
+        .select('id, amount, date_issued')
+        .eq('employee_id', employeeId)
+        .eq('status', 'approved')
+        .lt('date_issued', periodStart);
+
+      if (prevUnpaid && prevUnpaid.length > 0) {
+        const rec = prevUnpaid[0] as any;
+        return {
+          eligible: false,
+          reason: 'approved_awaiting_deduction',
+          remaining: 0,
+          totalUsed: Number(rec.amount),
+          detail: { amount: Number(rec.amount), date_issued: rec.date_issued },
+        };
+      }
+
+      // Rule 2: Within the CURRENT 15-day period, sum all pending + approved.
+      //         Employee can keep requesting as long as total doesn't reach ₱2,000.
+      const { data: current } = await supabase
+        .from('cash_advances')
+        .select('id, amount, status')
+        .eq('employee_id', employeeId)
+        .in('status', ['pending', 'approved'])
+        .gte('date_issued', periodStart);
+
+      const totalUsed = (current || []).reduce((s: number, a: any) => s + Number(a.amount), 0);
+      const remaining = Math.max(0, MAX - totalUsed);
+
+      if (remaining <= 0) {
+        return { eligible: false, reason: 'limit_reached', remaining: 0, totalUsed };
+      }
+
+      return { eligible: true, reason: 'eligible', remaining, totalUsed };
+    },
+
+    // ── Cashier: submit a request (up to ₱2,000 max) ─────────────────────
+    async requestByCashier(data: { employee_id: string; amount: number; reason?: string }) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const MAX_AMOUNT = 2000;
+      const amount = Math.round(data.amount);
+
+      if (amount <= 0 || amount > MAX_AMOUNT) {
+        throw new Error(`Amount must be between ₱1 and ₱${MAX_AMOUNT.toLocaleString()}`);
+      }
+
+      const fifteenDaysAgo = new Date();
+      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+      const periodStart = fifteenDaysAgo.toISOString().split('T')[0];
+
+      // Block if previous period has an approved but undeducted advance
+      const { data: prevUnpaid } = await supabase
+        .from('cash_advances')
+        .select('id')
+        .eq('employee_id', data.employee_id)
+        .eq('status', 'approved')
+        .lt('date_issued', periodStart);
+
+      if ((prevUnpaid?.length ?? 0) > 0) {
+        throw new Error('Employee has an approved advance from a previous period that has not yet been deducted');
+      }
+
+      // Sum current-period pending + approved
+      const { data: current } = await supabase
+        .from('cash_advances')
+        .select('amount')
+        .eq('employee_id', data.employee_id)
+        .in('status', ['pending', 'approved'])
+        .gte('date_issued', periodStart);
+
+      const periodTotal = (current || []).reduce((s: number, a: any) => s + Number(a.amount), 0);
+      if (periodTotal + amount > MAX_AMOUNT) {
+        throw new Error(`This request would exceed the ₱${MAX_AMOUNT.toLocaleString()} period limit. Remaining: ₱${(MAX_AMOUNT - periodTotal).toLocaleString()}`);
+      }
+
+      const { data: result, error } = await supabase
+        .from('cash_advances')
+        .insert([{
+          employee_id:          data.employee_id,
+          amount,
+          date_issued:          new Date().toISOString().split('T')[0],
+          reason:               data.reason || null,
+          status:               'pending',
+          issued_by:            user.id,
+          requested_by_cashier: user.id,
+        }])
+        .select(`
+          *,
+          employee:employee_id(id, employee_code, full_name, position),
+          issuer:issued_by(id, first_name, last_name)
+        `)
+        .single();
+
+      if (error) throw error;
+      return result;
+    },
+
+    async getPendingCount(): Promise<number> {
+      const { count, error } = await supabase
+        .from('cash_advances')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (error) return 0;
+      return count ?? 0;
     },
 
     async getPendingTotal(employeeId: string): Promise<number> {

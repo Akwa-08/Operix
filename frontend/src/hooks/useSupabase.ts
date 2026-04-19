@@ -373,8 +373,8 @@ export function useManagementData() {
 // DASHBOARD (aggregated)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useDashboard() {
-  const { orders, stats: orderStats, loading: oL } = useOrders();
-  const { data: inventory, loading: iL } = useQuery(() => db.getInventoryItems(), []);
+  const { orders, stats: orderStats, loading: oL, refresh: refreshOrders } = useOrders();
+  const { data: inventory, loading: iL, refresh: refreshInv } = useQuery(() => db.getInventoryItems(), []);
   const items = inventory || [];
 
   const invStats = {
@@ -404,7 +404,9 @@ export function useDashboard() {
   const totalCollected = orders.reduce((s: number, o: any) => s + (Number(o.amount_paid) || 0), 0);
   const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, unpaid: orderStats.pendingPayment };
 
-  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL };
+  const refresh = useCallback(async () => { await Promise.all([refreshOrders(), refreshInv()]); }, [refreshOrders, refreshInv]);
+
+  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, refresh };
 }
 
 export function useDashboardData() {
@@ -598,8 +600,8 @@ function mapCashAdvance(raw: any): CashAdvance {
 
 function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
   const emp        = raw.employee;
-  const dailyRate  = Number(emp?.base_hourly_rate) || 0; // stored as daily rate
-  const allowedLimit = Math.round(dailyRate * 13 * 0.5); // 50% of semi-monthly pay
+  const dailyRate  = Number(emp?.base_hourly_rate) || 0;
+  const allowedLimit = 2000; // Fixed ₱2,000 per 15-day period (business rule)
   const pendingTotal = allPending
     .filter(a => a.employee_id === raw.employee_id && a.id !== raw.id)
     .reduce((s: number, a: any) => s + Number(a.amount), 0);
@@ -968,4 +970,36 @@ export function useLogsData() {
   }));
 
   return { logs, loading: q.loading, error: q.error, refresh: q.refresh };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CASHIER CASH ADVANCES — useCashierCashAdvances()
+// Used by: CashierDashboard — submit requests, check eligibility
+// ═══════════════════════════════════════════════════════════════════════════════
+export interface CashAdvanceEligibility {
+  eligible: boolean;
+  reason: 'eligible' | 'limit_reached' | 'approved_awaiting_deduction';
+  remaining: number;   // ₱ still available to request this period
+  totalUsed: number;   // ₱ already pending/approved this period
+  detail?: { amount: number; date_issued: string };
+}
+
+export function useCashierCashAdvances() {
+  const q = useQuery(() => db.cashAdvances.getPendingCount(), []);
+
+  return {
+    pendingCount: q.data ?? 0,
+    loading: q.loading,
+    refresh: q.refresh,
+
+    checkEligibility: async (employeeId: string): Promise<CashAdvanceEligibility> => {
+      try { return await db.cashAdvances.checkEligibility(employeeId); }
+      catch { return { eligible: false, reason: 'limit_reached', remaining: 0, totalUsed: 0 }; }
+    },
+
+    submitRequest: async (data: { employee_id: string; amount: number; reason?: string }) => {
+      const r = await safe(() => db.cashAdvances.requestByCashier(data).then(() => q.refresh()));
+      return r;
+    },
+  };
 }
