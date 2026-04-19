@@ -1,9 +1,9 @@
 interface KpiCardProps {
   title: string;
-  value: string;
+  value: string | number;
   sub?: string;
   icon: React.ReactNode;
-  iconBg: string;
+  iconBg?: string;
   iconColor: string;
   accent?: "red" | "green" | "yellow" | "blue" | "none";
 }
@@ -17,7 +17,7 @@ const ACCENT_BORDERS: Record<string, string> = {
 };
 
 export const KpiCard: React.FC<KpiCardProps> = ({
-  title, value, sub, icon, iconBg, iconColor, accent = "none",
+  title, value, sub, icon, iconBg = "bg-gray-100", iconColor, accent = "none",
 }) => (
   <div className={`bg-white rounded-xl border border-gray-200 p-4 shadow-sm ${ACCENT_BORDERS[accent]}`}>
     <div className="flex items-start justify-between mb-3">

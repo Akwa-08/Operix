@@ -10,7 +10,7 @@ export interface Message {
   senderId: string;
   senderName: string;
   content: string;
-  attachmentUrl?: string;   // TST_07_02 — image in chat
+  attachmentUrl?: string; // TST_07_02 — image in chat
   timestamp: string;
   isFromAdmin: boolean;
 }
@@ -244,7 +244,10 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
         // Revert optimistic on upload failure
         setSelectedConv((prev) =>
           prev
-            ? {...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id)}
+            ? {
+                ...prev,
+                messages: prev.messages.filter((m) => m.id !== optimistic.id),
+              }
             : null,
         );
         setIsUploadingImage(false);
@@ -255,7 +258,12 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
     }
 
     try {
-      await db.chat.sendMessage(selectedConv.userId, content, undefined, uploadedUrl);
+      await db.chat.sendMessage(
+        selectedConv.userId,
+        content,
+        undefined,
+        uploadedUrl,
+      );
 
       if (selectedConv.id.startsWith("draft-")) {
         const freshList = await loadConversations();
@@ -300,14 +308,19 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-7xl mx-auto">
-      <h1 className="text-2xl md:text-4xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight">{title}</h1>
+      <h1 className="text-2xl md:text-4xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight">
+        {title}
+      </h1>
 
-      <div className="flex gap-4 md:gap-6 overflow-hidden" style={{ height: "calc(100vh - 180px)", minHeight: 360 }}>
+      <div
+        className="flex gap-4 md:gap-6 overflow-hidden"
+        style={{height: "calc(100vh - 180px)", minHeight: 360}}>
         {/* ── LEFT: conversation list ─────────────────────────────────────── */}
-        <div className={`flex-col ${
-          selectedConv ? "hidden md:flex" : "flex"
-        } w-full md:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden`}>
-          <div className="p-4 border-b">
+        <div
+          className={`flex-col ${
+            selectedConv ? "hidden md:flex" : "flex"
+          } w-full md:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden`}>
+          <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">
                 {isDiscovering ? "New Message" : "Conversations"}
@@ -432,7 +445,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
         {selectedConv ? (
           <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col min-w-0">
             {/* Header — TST_07_01: removed hardcoded "Online" badge */}
-            <div className="p-4 md:p-6 border-b flex items-center gap-3">
+            <div className="p-4 md:p-6 border-b border-gray-200 flex items-center gap-3">
               <button
                 onClick={() => setSelectedConv(null)}
                 className="md:hidden p-2 -ml-1 hover:bg-gray-100 rounded-lg"
@@ -479,11 +492,15 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                           src={msg.attachmentUrl}
                           alt="attachment"
                           className="rounded-xl mb-2 max-w-[240px] max-h-[240px] object-cover cursor-pointer"
-                          onClick={() => window.open(msg.attachmentUrl, "_blank")}
+                          onClick={() =>
+                            window.open(msg.attachmentUrl, "_blank")
+                          }
                         />
                       )}
                       {msg.content && (
-                        <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                        <p className="text-sm whitespace-pre-wrap">
+                          {msg.content}
+                        </p>
                       )}
                       <p
                         className={`text-[10px] mt-1 text-right ${isMine ? "text-cyan-100" : "text-gray-400"}`}>
@@ -543,7 +560,8 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                   />
                   {/* Character counter (TST_07_01) */}
                   {messageInput.length > 0 && (
-                    <p className={`text-[11px] text-right pr-1 ${charsLeft < 50 ? "text-red-500 font-semibold" : "text-gray-400"}`}>
+                    <p
+                      className={`text-[11px] text-right pr-1 ${charsLeft < 50 ? "text-red-500 font-semibold" : "text-gray-400"}`}>
                       {charsLeft} characters remaining
                     </p>
                   )}
@@ -551,7 +569,9 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
 
                 <button
                   onClick={handleSendMessage}
-                  disabled={(!messageInput.trim() && !imageFile) || isUploadingImage}
+                  disabled={
+                    (!messageInput.trim() && !imageFile) || isUploadingImage
+                  }
                   className="px-5 py-3 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2 active:scale-95 shadow-sm flex-shrink-0">
                   {isUploadingImage ? (
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

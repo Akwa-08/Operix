@@ -34,6 +34,7 @@ export interface Order {
   dueDate: string;
   specialInstructions?: string;
   designFile?: string;
+  finalDesignUrl?: string;
   assignedDesigner?: string;
   assignedProduction?: string;
   designerName?: string;
