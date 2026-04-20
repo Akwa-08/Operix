@@ -68,10 +68,21 @@ const AdminManagement: React.FC = () => {
   const [userToDeactivate, setUserToDeactivate] = useState<FrontendUser | null>(null);
 
   // Forms
-  const [userForm, setUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "", password: "", confirmPassword: "" });
-  const [editUserForm, setEditUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "" });
-  const [empForm, setEmpForm] = useState({ employeeCode: "", fullName: "", position: "", role: "production" as UserRole, baseHourlyRate: "", hireDate: "" });
-  const [editEmpForm, setEditEmpForm] = useState({ fullName: "", position: "", role: "" as UserRole, baseHourlyRate: "", holidayMultiplier: "", overtimeMultiplier: "" });
+  const [userForm, setUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", role: "", password: "", confirmPassword: "" });
+  const [editUserForm, setEditUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", role: "" });
+
+  // Employee forms — now includes role
+  const [empForm, setEmpForm] = useState({
+    employeeCode: "", fullName: "", position: "",
+    role: "",           // ← NEW: cashier | designer | production | admin | other
+    baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0],
+  });
+  const [editEmpForm, setEditEmpForm] = useState({
+    fullName: "", position: "",
+    role: "",           // ← NEW
+    baseHourlyRate: "", holidayMultiplier: "", overtimeMultiplier: "",
+  });
+
   const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "" });
   const [flagNotes, setFlagNotes] = useState("");
 
@@ -90,7 +101,7 @@ const AdminManagement: React.FC = () => {
   // ── Context-aware Create New ─────────────────────────────────────────
   const handleCreateNew = () => {
     if (activeTab === "User Account Management") {
-      setUserForm({ firstName: "", lastName: "", phoneNumber: "", email: "", username: "", role: "", password: "", confirmPassword: "" });
+      setUserForm({ firstName: "", lastName: "", phoneNumber: "", email: "", role: "", password: "", confirmPassword: "" });
       setShowCreateUserModal(true);
     } else if (activeTab === "Employee List Management") {
       setEmpForm({ employeeCode: "", fullName: "", position: "", role: "", baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
@@ -104,14 +115,14 @@ const AdminManagement: React.FC = () => {
   // ── User handlers ────────────────────────────────────────────────────
   const handleViewUser = (u: FrontendUser) => {
     setSelectedUser(u);
-    setEditUserForm({ firstName: u.firstName, lastName: u.lastName, phoneNumber: u.contactNumber, email: u.email, username: u.userName, role: u.role });
+    setEditUserForm({ firstName: u.firstName, lastName: u.lastName, phoneNumber: u.contactNumber, email: u.email, role: u.role });
     setShowViewUserModal(true);
   };
 
   const handleSubmitCreateUser = async () => {
     if (userForm.password !== userForm.confirmPassword) { alert("Passwords do not match"); return; }
-    if (!userForm.email || !userForm.password || !userForm.username || !userForm.role) { alert("Fill all required fields (Email, Username, Password, Role)"); return; }
-    const r = await createUser({ firstName: userForm.firstName, lastName: userForm.lastName, email: userForm.email, username: userForm.username, password: userForm.password, role: userForm.role, phoneNumber: userForm.phoneNumber });
+    if (!userForm.email || !userForm.password || !userForm.role) { alert("Fill all required fields (Email, Password, Role)"); return; }
+    const r = await createUser({ firstName: userForm.firstName, lastName: userForm.lastName, email: userForm.email, username: userForm.email.split('@')[0], password: userForm.password, role: userForm.role, phoneNumber: userForm.phoneNumber });
     if (r.success) { alert("Account created!"); setShowCreateUserModal(false); } else alert("Error: " + r.error);
   };
 
@@ -208,7 +219,6 @@ const AdminManagement: React.FC = () => {
           <F label="Last Name" value={userForm.lastName} onChange={(v: string) => setUserForm({...userForm, lastName: v})} />
           <F label="Email *" type="email" value={userForm.email} onChange={(v: string) => setUserForm({...userForm, email: v})} />
           <F label="Phone" value={userForm.phoneNumber} onChange={(v: string) => setUserForm({...userForm, phoneNumber: v})} />
-          <F label="Username *" value={userForm.username} onChange={(v: string) => setUserForm({...userForm, username: v})} />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
             <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
@@ -232,7 +242,6 @@ const AdminManagement: React.FC = () => {
           <F label="Last Name" value={editUserForm.lastName} onChange={(v: string) => setEditUserForm({...editUserForm, lastName: v})} />
           <F label="Email" type="email" value={editUserForm.email} onChange={(v: string) => setEditUserForm({...editUserForm, email: v})} />
           <F label="Phone" value={editUserForm.phoneNumber} onChange={(v: string) => setEditUserForm({...editUserForm, phoneNumber: v})} />
-          <F label="Username" value={editUserForm.username} onChange={(v: string) => setEditUserForm({...editUserForm, username: v})} />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
             <select value={editUserForm.role} onChange={e => setEditUserForm({...editUserForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
@@ -242,8 +251,12 @@ const AdminManagement: React.FC = () => {
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowViewUserModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={() => { if (selectedUser) { setUserToDeactivate(selectedUser); setShowViewUserModal(false); setShowDeactivateModal(true); }}}
-            className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl">Deactivate</button>
+          {selectedUser?.isActive ? (
+            <button onClick={() => { if (selectedUser) { setUserToDeactivate(selectedUser); setShowViewUserModal(false); setShowDeactivateModal(true); }}}
+              className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl">Deactivate</button>
+          ) : (
+            <span className="px-4 py-3 bg-gray-100 text-gray-400 font-semibold rounded-xl text-sm flex items-center">Account Inactive</span>
+          )}
           <button onClick={handleUpdateUser} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
             <Check size={18} />Save
           </button>
@@ -453,7 +466,6 @@ const AdminManagement: React.FC = () => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Username</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Role</th>
@@ -465,7 +477,6 @@ const AdminManagement: React.FC = () => {
                 {filteredUsers.map((u: FrontendUser) => (
                   <tr key={u.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{u.firstName} {u.lastName}</td>
-                    <td className="px-4 py-3 text-gray-600">{u.userName || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{u.email}</td>
                     <td className="px-4 py-3 text-gray-600">{u.contactNumber || '—'}</td>
                     <td className="px-4 py-3">
@@ -493,7 +504,7 @@ const AdminManagement: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
+                {filteredUsers.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
               </tbody>
             </table>
           </div>
