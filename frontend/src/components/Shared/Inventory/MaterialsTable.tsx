@@ -44,9 +44,9 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           <Edit2 size={14} /> Edit
         </button>
       )}
-      {perms.canDelete && onDelete && (
-        <button onClick={() => onDelete(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold">
-          <Trash2 size={14} /> Delete
+      {perms.canDelete && onDelete && m.status.toLowerCase() !== 'phased out' && (
+        <button onClick={() => onDelete(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold whitespace-nowrap">
+          <Trash2 size={14} /> Phase out
         </button>
       )}
     </div>
@@ -64,7 +64,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                 <p className="font-bold text-gray-900 text-base">{m.itemType}</p>
                 {m.itemVariant && <p className="text-sm text-gray-500">{m.itemVariant}</p>}
               </div>
-              <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(m.status)}`}>
+              <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${statusColor(m.status)}`}>
                 {m.status}
               </span>
             </div>
@@ -118,7 +118,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                   </>
                 )}
                 <td className="px-4 py-3 text-center">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(m.status)}`}>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${statusColor(m.status)}`}>
                     {m.status}
                   </span>
                 </td>

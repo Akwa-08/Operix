@@ -381,13 +381,14 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* PAGE HEADER */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Management</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage accounts, employee records, and suppliers</p>
-      </div>
-
-      <div className="flex justify-end gap-3 mb-6">
-        <button onClick={handleCreateNew} className="px-6 py-2.5 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-lg">Create New</button>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage accounts, employee records, and suppliers</p>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={handleCreateNew} className="px-6 py-2.5 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-lg">Create New</button>
+        </div>
       </div>
 
       {/* TABS */}
