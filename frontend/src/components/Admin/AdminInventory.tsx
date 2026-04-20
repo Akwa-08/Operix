@@ -187,11 +187,11 @@ const AdminInventory = () => {
       {activeTab === "Materials" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
-            <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
-            <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" />
-            <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" />
-            <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
+            <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
+            <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
+            <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" isCurrency={false} />
+            <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} />
+            <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
@@ -252,9 +252,9 @@ const AdminInventory = () => {
       {activeTab === "Products" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
-            <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
-            <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
+            <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
+            <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
+            <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
@@ -291,12 +291,12 @@ const AdminInventory = () => {
       {activeTab === "Deliveries" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" />
-            <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" />
-            <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" />
-            <StatusCard title="En Route" value={delStats.enRoute} icon={<Truck size={18} />} iconColor="text-purple-600" />
-            <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
-            <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" />
+            <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" isCurrency={false} />
+            <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" isCurrency={false} />
+            <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} />
+            <StatusCard title="En Route" value={delStats.enRoute} icon={<Truck size={18} />} iconColor="text-purple-600" isCurrency={false} />
+            <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
+            <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" isCurrency={false} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
