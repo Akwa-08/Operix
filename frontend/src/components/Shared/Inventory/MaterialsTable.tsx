@@ -11,20 +11,27 @@ interface MaterialsTableProps {
   onEdit: (material: Material) => void;
   onDelete?: (material: Material) => void;
   searchQuery?: string;
+  statusFilter?: string;
 }
 
 const statusColor = getMaterialStatusColor;
 
 export const MaterialsTable: React.FC<MaterialsTableProps> = ({
-  materials, userRole, onView, onEdit, onDelete, searchQuery = '',
+  materials, userRole, onView, onEdit, onDelete, searchQuery = '', statusFilter = 'All',
 }) => {
   const perms = permissions[userRole].inventory;
 
-  const filtered = materials.filter((m) =>
-    m.itemType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.itemVariant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.supplier?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = materials.filter((m) => {
+    const matchesSearch =
+      m.itemType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.itemVariant.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.supplier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.status.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    const matchesStatus = statusFilter === 'All' || m.status.toLowerCase() === statusFilter.toLowerCase();
+    
+    return matchesSearch && matchesStatus;
+  });
 
   if (filtered.length === 0) {
     return (

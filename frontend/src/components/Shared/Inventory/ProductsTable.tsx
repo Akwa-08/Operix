@@ -7,16 +7,23 @@ interface ProductsTableProps {
   onView: (product: AdminProduct) => void;
   onEdit: (product: AdminProduct) => void;
   onDelete: (product: AdminProduct) => void;
+  statusFilter?: string;
 }
 
 export const ProductsTable: React.FC<ProductsTableProps> = ({
-  products, searchQuery = "", onView, onEdit, onDelete,
+  products, searchQuery = "", statusFilter = "All", onView, onEdit, onDelete,
 }) => {
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.variant.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = products.filter(p => {
+    const statusText = p.isActive ? "active" : "inactive";
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.variant.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      statusText.includes(searchQuery.toLowerCase());
+      
+    const matchesStatus = statusFilter === "All" || statusText === statusFilter.toLowerCase();
+    
+    return matchesSearch && matchesStatus;
+  });
 
   if (filtered.length === 0) {
     return (

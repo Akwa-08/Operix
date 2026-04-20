@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock } from "lucide-react";
+import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
@@ -36,6 +36,9 @@ const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: { show: 
 const AdminInventory = () => {
   const [activeTab, setActiveTab] = useState("Materials");
   const [searchQuery, setSearchQuery] = useState("");
+  // ── Filters & Search ──
+  const [materialStatusFilter, setMaterialStatusFilter] = useState("All");
+  const [productStatusFilter, setProductStatusFilter] = useState("All");
 
   // ── Materials state ──
   const [showViewModal, setShowViewModal] = useState(false);
@@ -193,6 +196,20 @@ const AdminInventory = () => {
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
+              <div className="relative">
+                <select 
+                  value={materialStatusFilter} 
+                  onChange={(e) => setMaterialStatusFilter(e.target.value)}
+                  className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none pr-10"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Available">Available</option>
+                  <option value="Low Stock">Low Stock</option>
+                  <option value="Restocking">Restocking</option>
+                  <option value="Phased Out">Phased Out</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              </div>
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateMaterialModal(true)}>Add New Material</Button>
             </div>
           </div>
@@ -200,7 +217,8 @@ const AdminInventory = () => {
             onView={(m: Material) => { setSelectedMaterial(m); setShowViewModal(true); }}
             onEdit={(m: Material) => { setSelectedMaterial(m); setShowEditModal(true); }}
             onDelete={(m: Material) => { setSelectedMaterial(m); setShowDeleteModal(true); }}
-            searchQuery={searchQuery} />
+            searchQuery={searchQuery}
+            statusFilter={materialStatusFilter} />
           {selectedMaterial && (
             <>
               <MaterialDetailsModal isOpen={showViewModal} material={selectedMaterial} userRole="admin" onClose={() => setShowViewModal(false)} />
@@ -241,10 +259,22 @@ const AdminInventory = () => {
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search products..." />
+              <div className="relative">
+                <select 
+                  value={productStatusFilter} 
+                  onChange={(e) => setProductStatusFilter(e.target.value)}
+                  className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none pr-10"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              </div>
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setSelectedProduct(null); setShowCreateProduct(true); }}>Add New Product</Button>
             </div>
           </div>
-          <ProductsTable products={products} searchQuery={searchQuery}
+          <ProductsTable products={products} searchQuery={searchQuery} statusFilter={productStatusFilter}
             onView={p => { setSelectedProduct(p); setShowProductView(true); }}
             onEdit={p => { setSelectedProduct(p); setShowProductEdit(true); }}
             onDelete={p => { setSelectedProduct(p); setShowProductDelete(true); }} />
