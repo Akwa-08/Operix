@@ -44,7 +44,7 @@ export const DeleteMaterialModal: React.FC<DeleteMaterialModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Delete Material"
+      title="Phase Out Material"
       size="md"
       showCloseButton={false}
     >
@@ -59,11 +59,10 @@ export const DeleteMaterialModal: React.FC<DeleteMaterialModalProps> = ({
         {/* Warning Message */}
         <div className="text-center space-y-2">
           <h3 className="text-xl font-bold text-gray-900">
-            Delete this material?
+            Phase out this material?
           </h3>
           <p className="text-gray-600">
-            This action cannot be undone. The material will be permanently removed
-            from your inventory.
+            This action cannot be undone. The material will be marked as phased out.
           </p>
         </div>
 
@@ -109,7 +108,7 @@ export const DeleteMaterialModal: React.FC<DeleteMaterialModalProps> = ({
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <p className="text-xs text-yellow-800 font-medium">
             ⚠️ <strong>Important:</strong> If this material is currently being
-            used in active orders or production, deleting it may cause issues.
+            used in active orders or production, phasing it out may cause issues.
             Please verify before proceeding.
           </p>
         </div>
@@ -120,7 +119,7 @@ export const DeleteMaterialModal: React.FC<DeleteMaterialModalProps> = ({
             Cancel
           </Button>
           <Button variant="danger" onClick={onDelete} className="flex-1">
-            Yes, Delete Material
+            Yes, Phase Out Material
           </Button>
         </div>
       </div>

@@ -23,6 +23,7 @@ interface CartTableProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   onOpenUpload: (productId: string, productName: string) => void;
+  onView: (id: string) => void;
 }
 
 export const CartTable: React.FC<CartTableProps> = ({
@@ -36,6 +37,7 @@ export const CartTable: React.FC<CartTableProps> = ({
   totalPages,
   onPageChange,
   onOpenUpload,
+  onView,
 }) => {
   const isAllSelected =
     products.length > 0 && selectedIds.length === products.length;
@@ -142,7 +144,10 @@ export const CartTable: React.FC<CartTableProps> = ({
                 </td>
                 <td className="p-6">
                   <div className="flex justify-center gap-1">
-                    <button className="px-3 py-1.5 bg-cyan-400 text-white text-xs font-bold rounded-lg hover:bg-cyan-500 transition-colors cursor-pointer">
+                    <button 
+                      onClick={() => onView(product.id)}
+                      className="px-3 py-1.5 bg-cyan-400 text-white text-xs font-bold rounded-lg hover:bg-cyan-500 transition-colors cursor-pointer"
+                    >
                       View
                     </button>
                     <button

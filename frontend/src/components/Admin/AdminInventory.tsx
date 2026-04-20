@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ArrowRight, Search } from "lucide-react";
+import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { getDeliveryStatusColor } from "../../util/formatters";
 import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
 import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
@@ -33,6 +36,9 @@ const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: { show: 
 const AdminInventory = () => {
   const [activeTab, setActiveTab] = useState("Materials");
   const [searchQuery, setSearchQuery] = useState("");
+  // ── Filters & Search ──
+  const [materialStatusFilter, setMaterialStatusFilter] = useState("All");
+  const [productStatusFilter, setProductStatusFilter] = useState("All");
 
   // ── Materials state ──
   const [showViewModal, setShowViewModal] = useState(false);
@@ -59,7 +65,7 @@ const AdminInventory = () => {
 
   const tabs = ["Materials", "Products", "Deliveries"];
   const { materials, stats: materialStats, loading: matLoading, refresh: refreshMat } = useInventoryData();
-  const { products, stats: prodStats, materials: rawMaterials, loading: prodLoading, refresh: refreshProd, createProduct, updateProduct, deleteProduct } = useProductsData();
+  const { products, stats: prodStats, materials: rawMaterials, loading: prodLoading, createProduct, updateProduct, deleteProduct } = useProductsData();
   const { deliveries, stats: delStats, materials: delMaterials, suppliers, loading: delLoading, createDelivery, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
   const loading = activeTab === "Materials" ? matLoading : activeTab === "Products" ? prodLoading : delLoading;
@@ -158,23 +164,13 @@ const AdminInventory = () => {
     else toast.error(r.error || "Failed");
   };
 
-  const getDeliveryStatusBadge = (status: DeliveryStatus) => {
-    const map: Record<DeliveryStatus, string> = {
-      requested: "bg-yellow-100 text-yellow-700", ordered: "bg-blue-100 text-blue-700",
-      en_route: "bg-purple-100 text-purple-700", received: "bg-green-100 text-green-700",
-      returned: "bg-red-100 text-red-700", completed: "bg-gray-100 text-gray-600",
-    };
-    return map[status] || "bg-gray-100 text-gray-600";
-  };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /><p className="ml-4 text-base text-gray-500">Loading...</p></div>;
+
+  if (loading) return <LoadingSpinner message="Loading..." />;
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Inventory</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage materials, products, and incoming deliveries</p>
-      </div>
+      <PageHeader title="Inventory" subtitle="Manage materials, products, and incoming deliveries" />
 
       <div className="flex flex-wrap gap-2 mb-6">
         {tabs.map(tab => (
@@ -191,15 +187,29 @@ const AdminInventory = () => {
       {activeTab === "Materials" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
-            <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
-            <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" />
-            <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" />
-            <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
+            <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
+            <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
+            <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" isCurrency={false} />
+            <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} />
+            <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
+              <div className="relative">
+                <select 
+                  value={materialStatusFilter} 
+                  onChange={(e) => setMaterialStatusFilter(e.target.value)}
+                  className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none pr-10"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Available">Available</option>
+                  <option value="Low Stock">Low Stock</option>
+                  <option value="Restocking">Restocking</option>
+                  <option value="Phased Out">Phased Out</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              </div>
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateMaterialModal(true)}>Add New Material</Button>
             </div>
           </div>
@@ -207,7 +217,8 @@ const AdminInventory = () => {
             onView={(m: Material) => { setSelectedMaterial(m); setShowViewModal(true); }}
             onEdit={(m: Material) => { setSelectedMaterial(m); setShowEditModal(true); }}
             onDelete={(m: Material) => { setSelectedMaterial(m); setShowDeleteModal(true); }}
-            searchQuery={searchQuery} />
+            searchQuery={searchQuery}
+            statusFilter={materialStatusFilter} />
           {selectedMaterial && (
             <>
               <MaterialDetailsModal isOpen={showViewModal} material={selectedMaterial} userRole="admin" onClose={() => setShowViewModal(false)} />
@@ -241,17 +252,29 @@ const AdminInventory = () => {
       {activeTab === "Products" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
-            <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
-            <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
+            <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
+            <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
+            <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search products..." />
+              <div className="relative">
+                <select 
+                  value={productStatusFilter} 
+                  onChange={(e) => setProductStatusFilter(e.target.value)}
+                  className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none pr-10"
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+                <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              </div>
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setSelectedProduct(null); setShowCreateProduct(true); }}>Add New Product</Button>
             </div>
           </div>
-          <ProductsTable products={products} searchQuery={searchQuery}
+          <ProductsTable products={products} searchQuery={searchQuery} statusFilter={productStatusFilter}
             onView={p => { setSelectedProduct(p); setShowProductView(true); }}
             onEdit={p => { setSelectedProduct(p); setShowProductEdit(true); }}
             onDelete={p => { setSelectedProduct(p); setShowProductDelete(true); }} />
@@ -268,12 +291,12 @@ const AdminInventory = () => {
       {activeTab === "Deliveries" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" />
-            <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" />
-            <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" />
-            <StatusCard title="En Route" value={delStats.enRoute} icon={<Truck size={18} />} iconColor="text-purple-600" />
-            <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
-            <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" />
+            <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" isCurrency={false} />
+            <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" isCurrency={false} />
+            <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} />
+            <StatusCard title="En Route" value={delStats.enRoute} icon={<Truck size={18} />} iconColor="text-purple-600" isCurrency={false} />
+            <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
+            <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" isCurrency={false} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
@@ -295,7 +318,7 @@ const AdminInventory = () => {
                       <p className="font-bold text-gray-900">{d.materialName}</p>
                       <p className="text-sm text-gray-500">{d.supplierName}</p>
                     </div>
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusBadge(d.status)}`}>{d.status.replace("_", " ")}</span>
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
                     <div><span className="text-gray-400">Qty:</span> <span className="font-semibold">{d.requestedQuantity} {d.materialUnit}</span></div>
@@ -335,7 +358,7 @@ const AdminInventory = () => {
                       <td className="px-4 py-3 text-gray-600">{d.supplierName}</td>
                       <td className="px-4 py-3 text-center font-semibold">{d.requestedQuantity}</td>
                       <td className="px-4 py-3 text-center text-gray-600">{d.expectedArrivalDate || "—"}</td>
-                      <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusBadge(d.status)}`}>{d.status.replace("_", " ")}</span></td>
+                      <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span></td>
                       <td className="px-4 py-3 text-gray-600 text-xs">{d.requestedByName}<br /><span className="text-gray-400">{d.createdAt}</span></td>
                       <td className="px-4 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">

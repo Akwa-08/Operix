@@ -2,6 +2,7 @@
 import { Eye, Edit2, Trash2 } from 'lucide-react';
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
+import { getMaterialStatusColor } from "../../../util/formatters";
 
 interface MaterialsTableProps {
   materials: Material[];
@@ -10,28 +11,27 @@ interface MaterialsTableProps {
   onEdit: (material: Material) => void;
   onDelete?: (material: Material) => void;
   searchQuery?: string;
+  statusFilter?: string;
 }
 
-const statusColor = (status: string) => {
-  switch (status) {
-    case 'Available':  return 'text-green-700 bg-green-50 border-green-200';
-    case 'Low Stock':  return 'text-yellow-700 bg-yellow-50 border-yellow-200';
-    case 'Restocking': return 'text-blue-700 bg-blue-50 border-blue-200';
-    case 'Phased Out': return 'text-red-700 bg-red-50 border-red-200';
-    default:           return 'text-gray-600 bg-gray-50 border-gray-200';
-  }
-};
+const statusColor = getMaterialStatusColor;
 
 export const MaterialsTable: React.FC<MaterialsTableProps> = ({
-  materials, userRole, onView, onEdit, onDelete, searchQuery = '',
+  materials, userRole, onView, onEdit, onDelete, searchQuery = '', statusFilter = 'All',
 }) => {
   const perms = permissions[userRole].inventory;
 
-  const filtered = materials.filter((m) =>
-    m.itemType.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.itemVariant.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.supplier?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = materials.filter((m) => {
+    const matchesSearch =
+      m.itemType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.itemVariant.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.supplier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.status.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    const matchesStatus = statusFilter === 'All' || m.status.toLowerCase() === statusFilter.toLowerCase();
+    
+    return matchesSearch && matchesStatus;
+  });
 
   if (filtered.length === 0) {
     return (
@@ -51,9 +51,9 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           <Edit2 size={14} /> Edit
         </button>
       )}
-      {perms.canDelete && onDelete && (
-        <button onClick={() => onDelete(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold">
-          <Trash2 size={14} /> Delete
+      {perms.canDelete && onDelete && m.status.toLowerCase() !== 'phased out' && (
+        <button onClick={() => onDelete(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold whitespace-nowrap">
+          <Trash2 size={14} /> Phase out
         </button>
       )}
     </div>
@@ -71,7 +71,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                 <p className="font-bold text-gray-900 text-base">{m.itemType}</p>
                 {m.itemVariant && <p className="text-sm text-gray-500">{m.itemVariant}</p>}
               </div>
-              <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(m.status)}`}>
+              <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${statusColor(m.status)}`}>
                 {m.status}
               </span>
             </div>
@@ -125,7 +125,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                   </>
                 )}
                 <td className="px-4 py-3 text-center">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full border ${statusColor(m.status)}`}>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${statusColor(m.status)}`}>
                     {m.status}
                   </span>
                 </td>

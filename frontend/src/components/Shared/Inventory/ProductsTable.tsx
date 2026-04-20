@@ -7,16 +7,23 @@ interface ProductsTableProps {
   onView: (product: AdminProduct) => void;
   onEdit: (product: AdminProduct) => void;
   onDelete: (product: AdminProduct) => void;
+  statusFilter?: string;
 }
 
 export const ProductsTable: React.FC<ProductsTableProps> = ({
-  products, searchQuery = "", onView, onEdit, onDelete,
+  products, searchQuery = "", statusFilter = "All", onView, onEdit, onDelete,
 }) => {
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.variant.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = products.filter(p => {
+    const statusText = p.isActive ? "active" : "inactive";
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.variant.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      statusText.includes(searchQuery.toLowerCase());
+      
+    const matchesStatus = statusFilter === "All" || statusText === statusFilter.toLowerCase();
+    
+    return matchesSearch && matchesStatus;
+  });
 
   if (filtered.length === 0) {
     return (
@@ -34,9 +41,11 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       <button onClick={() => onEdit(p)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-cyan-100 rounded-lg text-xs text-cyan-700 font-semibold">
         <Edit2 size={14} /> Edit
       </button>
-      <button onClick={() => onDelete(p)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold">
-        <Trash2 size={14} /> Delete
-      </button>
+      {p.isActive && (
+        <button onClick={() => onDelete(p)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold whitespace-nowrap">
+          <Trash2 size={14} /> Set Inactive
+        </button>
+      )}
     </div>
   );
 

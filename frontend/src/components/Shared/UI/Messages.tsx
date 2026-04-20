@@ -1,7 +1,8 @@
 import React, {useState, useRef, useEffect, useCallback} from "react";
-import {Search, Send, PlusCircle, ArrowLeft} from "lucide-react";
+import {Search, Send, PlusCircle, ArrowLeft, ImageIcon, X} from "lucide-react";
 import {useAuth} from "../../../context/AuthContext";
 import {db} from "../../../lib/database";
+import toast from "react-hot-toast";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 export interface Message {
@@ -9,6 +10,7 @@ export interface Message {
   senderId: string;
   senderName: string;
   content: string;
+  attachmentUrl?: string; // TST_07_02 — image in chat
   timestamp: string;
   isFromAdmin: boolean;
 }
@@ -29,6 +31,8 @@ interface MessagesProps {
   title?: string;
 }
 
+const MAX_CHARS = 500; // TST_07_01 — character limit
+
 // ─── Component ────────────────────────────────────────────────────────────────
 const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
   const {user} = useAuth();
@@ -42,11 +46,14 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
   const [potentialRecipients, setPotentialRecipients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Image upload state (TST_07_02)
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // The currently selected conversation id is captured in a ref so the
-  // realtime callback (which closes over the first render) can still read
-  // the latest value without being re-registered every time.
   const selectedConvRef = useRef<Conversation | null>(null);
   useEffect(() => {
     selectedConvRef.current = selectedConv;
@@ -86,7 +93,6 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
       const messages = await db.chat.getMessages(conv.userId);
       const full = {...conv, messages};
       setSelectedConv(full);
-      // Sync ref immediately so the realtime handler sees the updated value
       selectedConvRef.current = full;
     } catch (err) {
       console.error("Failed to load messages:", err);
@@ -97,7 +103,6 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
   useEffect(() => {
     if (!user) return;
     loadConversations().then((data) => {
-      // Auto-open the first conversation if none is selected
       if (data.length > 0 && !selectedConvRef.current) {
         openConversation(data[0]);
       }
@@ -111,15 +116,10 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
 
     const subscription = db.chat.subscribeToMessages(async (payload: any) => {
       const newMsg = payload.new;
-
-      // Ignore echoes of messages we sent ourselves
-      // (the optimistic UI already shows them)
       if (newMsg.sender_id === user.id) return;
 
-      // Refresh sidebar so it shows the new conversation / updated preview
       await loadConversations();
 
-      // If the incoming message belongs to the currently open chat, append it
       const current = selectedConvRef.current;
       if (
         current &&
@@ -159,14 +159,12 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
     setIsDiscovering(false);
     setDiscoverySearch("");
 
-    // If a conversation already exists with this user, open it
     const existing = conversations.find((c) => c.userId === target.userId);
     if (existing) {
       openConversation(existing);
       return;
     }
 
-    // Otherwise create a local "draft" entry so the user can start typing
     const draft: Conversation = {
       id: `draft-${target.userId}`,
       userId: target.userId,
@@ -182,19 +180,48 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
     selectedConvRef.current = draft;
   };
 
+  // ── Image file handling (TST_07_02) ────────────────────────────────────────
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image must be under 2 MB");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      toast.error("File must be an image");
+      return;
+    }
+
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  const clearImageAttachment = () => {
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
   // ── Send message ───────────────────────────────────────────────────────────
   const handleSendMessage = async () => {
-    if (!messageInput.trim() || !selectedConv || !user) return;
-
     const content = messageInput.trim();
+    if (!content && !imageFile) return;
+    if (!selectedConv || !user) return;
+
     setMessageInput("");
 
-    // Optimistic UI — add the message locally before the DB round-trip
+    // Optimistic UI — show immediately with local timestamp
     const optimistic: Message = {
       id: `temp-${Date.now()}`,
       senderId: user.id,
       senderName: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim(),
       content,
+      attachmentUrl: imagePreview ?? undefined,
       timestamp: new Date().toLocaleTimeString([], {
         hour: "numeric",
         minute: "2-digit",
@@ -206,22 +233,47 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
       prev ? {...prev, messages: [...prev.messages, optimistic]} : null,
     );
 
-    try {
-      await db.chat.sendMessage(selectedConv.userId, content);
+    // Upload image if present
+    let uploadedUrl: string | undefined;
+    if (imageFile) {
+      setIsUploadingImage(true);
+      try {
+        uploadedUrl = await db.chat.uploadChatImage(imageFile);
+      } catch (err: any) {
+        toast.error(err.message || "Failed to upload image");
+        // Revert optimistic on upload failure
+        setSelectedConv((prev) =>
+          prev
+            ? {
+                ...prev,
+                messages: prev.messages.filter((m) => m.id !== optimistic.id),
+              }
+            : null,
+        );
+        setIsUploadingImage(false);
+        return;
+      }
+      setIsUploadingImage(false);
+      clearImageAttachment();
+    }
 
-      // If this was a draft conversation, refresh the sidebar so the new
-      // conversation appears in the list with a real ID
+    try {
+      await db.chat.sendMessage(
+        selectedConv.userId,
+        content,
+        undefined,
+        uploadedUrl,
+      );
+
       if (selectedConv.id.startsWith("draft-")) {
         const freshList = await loadConversations();
         const real = freshList.find((c) => c.userId === selectedConv.userId);
         if (real) {
-          // Keep existing optimistic messages while updating the id
           setSelectedConv((prev) => (prev ? {...prev, id: real.id} : null));
         }
       }
     } catch (err) {
       console.error("Failed to send message:", err);
-      // Revert the optimistic message on failure
       setSelectedConv((prev) =>
         prev
           ? {
@@ -251,18 +303,24 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
 
   if (!user) return null;
 
+  const charsLeft = MAX_CHARS - messageInput.length;
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="max-w-7xl mx-auto">
-      <h1 className="text-2xl md:text-4xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight">{title}</h1>
+      <h1 className="text-2xl md:text-4xl font-black text-slate-900 mb-4 md:mb-6 tracking-tight">
+        {title}
+      </h1>
 
-      {/* Outer shell: single panel mobile, side-by-side md+ */}
-      <div className="flex gap-4 md:gap-6 overflow-hidden" style={{ height: "calc(100vh - 180px)", minHeight: 360 }}>
-        {/* ── LEFT: conversation list — full width mobile (shows when no chat open), fixed width md+ */}
-        <div className={`flex-col ${
-          selectedConv ? "hidden md:flex" : "flex"
-        } w-full md:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden`}>
-          <div className="p-4 border-b">
+      <div
+        className="flex gap-4 md:gap-6 overflow-hidden"
+        style={{height: "calc(100vh - 180px)", minHeight: 360}}>
+        {/* ── LEFT: conversation list ─────────────────────────────────────── */}
+        <div
+          className={`flex-col ${
+            selectedConv ? "hidden md:flex" : "flex"
+          } w-full md:w-80 flex-shrink-0 bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden`}>
+          <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-gray-900">
                 {isDiscovering ? "New Message" : "Conversations"}
@@ -309,7 +367,6 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
 
           <div className="flex-1 overflow-y-auto">
             {isDiscovering ? (
-              // ── Discovery list ──
               filteredRecipients.length === 0 ? (
                 <p className="p-4 text-center text-sm text-gray-500">
                   No users found
@@ -343,7 +400,6 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                 No active conversations
               </p>
             ) : (
-              // ── Conversation list ──
               filteredConversations.map((conv) => (
                 <button
                   key={conv.id}
@@ -385,11 +441,11 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
           </div>
         </div>
 
-        {/* ── RIGHT: chat area — full screen on mobile when open ── */}
+        {/* ── RIGHT: chat area ────────────────────────────────────────────── */}
         {selectedConv ? (
           <div className="flex-1 bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col min-w-0">
-            {/* Header with back button on mobile */}
-            <div className="p-4 md:p-6 border-b flex items-center gap-3">
+            {/* Header — TST_07_01: removed hardcoded "Online" badge */}
+            <div className="p-4 md:p-6 border-b border-gray-200 flex items-center gap-3">
               <button
                 onClick={() => setSelectedConv(null)}
                 className="md:hidden p-2 -ml-1 hover:bg-gray-100 rounded-lg"
@@ -405,14 +461,9 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                 <h3 className="text-lg font-bold text-gray-900">
                   {selectedConv.userName}
                 </h3>
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-gray-600 capitalize">
-                    {selectedConv.userRole}
-                  </p>
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded">
-                    Online
-                  </span>
-                </div>
+                <p className="text-sm text-gray-500 capitalize">
+                  {selectedConv.userRole}
+                </p>
               </div>
             </div>
 
@@ -435,9 +486,22 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                           ? "bg-cyan-500 text-white rounded-br-sm"
                           : "bg-white text-gray-900 rounded-bl-sm border border-gray-200"
                       }`}>
-                      <p className="text-sm whitespace-pre-wrap">
-                        {msg.content}
-                      </p>
+                      {/* Image attachment (TST_07_02) */}
+                      {msg.attachmentUrl && (
+                        <img
+                          src={msg.attachmentUrl}
+                          alt="attachment"
+                          className="rounded-xl mb-2 max-w-[240px] max-h-[240px] object-cover cursor-pointer"
+                          onClick={() =>
+                            window.open(msg.attachmentUrl, "_blank")
+                          }
+                        />
+                      )}
+                      {msg.content && (
+                        <p className="text-sm whitespace-pre-wrap">
+                          {msg.content}
+                        </p>
+                      )}
                       <p
                         className={`text-[10px] mt-1 text-right ${isMine ? "text-cyan-100" : "text-gray-400"}`}>
                         {msg.timestamp}
@@ -449,22 +513,71 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
+            {/* Input area */}
             <div className="p-4 border-t border-gray-200 bg-white">
-              <div className="flex gap-3">
+              {/* Image preview strip (TST_07_02) */}
+              {imagePreview && (
+                <div className="relative inline-block mb-3">
+                  <img
+                    src={imagePreview}
+                    alt="preview"
+                    className="h-20 w-20 object-cover rounded-xl border border-gray-200"
+                  />
+                  <button
+                    onClick={clearImageAttachment}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 shadow-sm">
+                    <X size={11} />
+                  </button>
+                </div>
+              )}
+
+              <div className="flex gap-3 items-center">
+                {/* Hidden file input (TST_07_02) */}
                 <input
-                  type="text"
-                  placeholder="Tap here to type a message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
                 />
+                {/* Image icon button */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Attach image (max 2 MB)"
+                  className="p-2.5 text-gray-400 hover:text-cyan-500 hover:bg-cyan-50 rounded-lg transition-colors flex-shrink-0">
+                  <ImageIcon size={20} />
+                </button>
+
+                <div className="flex-1 flex flex-col gap-1">
+                  <input
+                    type="text"
+                    placeholder="Tap here to type a message..."
+                    value={messageInput}
+                    maxLength={MAX_CHARS}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  />
+                  {/* Character counter (TST_07_01) */}
+                  {messageInput.length > 0 && (
+                    <p
+                      className={`text-[11px] text-right pr-1 ${charsLeft < 50 ? "text-red-500 font-semibold" : "text-gray-400"}`}>
+                      {charsLeft} characters remaining
+                    </p>
+                  )}
+                </div>
+
                 <button
                   onClick={handleSendMessage}
-                  disabled={!messageInput.trim()}
-                  className="px-6 py-3 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2 active:scale-95 shadow-sm">
-                  <Send size={18} />
+                  disabled={
+                    (!messageInput.trim() && !imageFile) || isUploadingImage
+                  }
+                  className="px-5 py-3 bg-cyan-500 hover:bg-cyan-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center gap-2 active:scale-95 shadow-sm flex-shrink-0">
+                  {isUploadingImage ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Send size={18} />
+                  )}
                 </button>
               </div>
             </div>

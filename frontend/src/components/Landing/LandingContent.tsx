@@ -1,162 +1,185 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const LandingContent = () => {
   const navigate = useNavigate();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  // Dummy images - replace with actual product images
   const productImages = [
-    "/images/product1.jpg",
-    "/images/product2.jpg",
-    "/images/product3.jpg",
-    "/images/product4.jpg",
-    "/images/product5.jpg",
+    "/images/hero_jersey.png",
+    "/images/hero_signage.png",
+    "/images/hero_cards.png",
   ];
 
-  // Fallback colors for when images don't load (CMYK theme)
-  const fallbackColors = [
-    "linear-gradient(135deg, #00BEF4 0%, #0099CC 100%)", // Cyan
-    "linear-gradient(135deg, #E80088 0%, #C70070 100%)", // Magenta
-    "linear-gradient(135deg, #FFD102 0%, #E6BC00 100%)", // Yellow
-    "linear-gradient(135deg, #AA00FD 0%, #8800CC 100%)", // Purple
-  ];
-
-  // Auto-rotate images every 3 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
-    }, 3000);
-
+    }, 5000);
     return () => clearInterval(interval);
   }, [productImages.length]);
 
-  const handleOrderNow = () => {
-    navigate("/signup");
-  };
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.2,
+        delayChildren: 0.3,
+      },
+    },
+  } as const;
+
+  const itemVariants = {
+    hidden: { y: 40, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: { type: "spring", stiffness: 100, damping: 20 },
+    },
+  } as const;
 
   return (
-    <div
-      id="home"
-      className="bg-gradient-to-br from-violet-50 via-purple-50 to-pink-50 min-h-screen"
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 lg:py-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
-          {/* Left Column - Text Content */}
-          <div className="space-y-6 text-center lg:text-left order-2 lg:order-1">
-            <div className="space-y-2">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-[#E80088]">
-                VTA Link
-              </h1>
-              <h2 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900">
-                Printing Services
-              </h2>
-            </div>
+    <div id="home" className="relative min-h-screen pt-24 sm:pt-32 overflow-hidden bg-[#fafafa]">
+      {/* Dynamic Background Accents */}
+      <motion.div 
+        animate={{ 
+          scale: [1, 1.2, 1],
+          rotate: [0, 90, 0],
+          x: [0, 100, 0],
+          y: [0, 50, 0]
+        }}
+        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+        className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-cyan-100/50 rounded-full blur-[120px]" 
+      />
+      <motion.div 
+        animate={{ 
+          scale: [1, 1.3, 1],
+          rotate: [0, -90, 0],
+          x: [0, -100, 0],
+          y: [0, -50, 0]
+        }}
+        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+        className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-pink-100/50 rounded-full blur-[120px]" 
+      />
 
-            <p className="text-lg sm:text-xl font-medium text-gray-800">
-              Your One-Stop Shop for Custom Prints & More!
-            </p>
-
-            <p className="text-base sm:text-lg font-light text-gray-700 max-w-lg mx-auto lg:mx-0">
-              From custom jerseys to professional signage, we deliver
-              high-quality printing solutions for all your personal and business
-              needs.
-            </p>
-
-            {/* Color Dots */}
-            <div className="flex gap-4 justify-center lg:justify-start">
-              <div className="w-8 h-8 rounded-full bg-[#00BEF4]"></div>
-              <div className="w-8 h-8 rounded-full bg-[#E80088]"></div>
-              <div className="w-8 h-8 rounded-full bg-[#FFD102]"></div>
-              <div className="w-8 h-8 rounded-full bg-[#AA00FD]"></div>
-            </div>
-
-            {/* CTA Button - Now navigates to signup */}
-            <div className="pt-4">
-              <button
-                onClick={handleOrderNow}
-                className="bg-[#E80088] text-white px-8 py-3 rounded-full font-semibold hover:bg-[#C70070] transform hover:scale-105 transition-all duration-300 shadow-lg"
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          
+          {/* Left: Text Content */}
+          <motion.div 
+            variants={containerVariants}
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            className="space-y-8 text-center lg:text-left order-2 lg:order-1 relative z-10"
+          >
+            <div className="space-y-4">
+              <motion.div variants={itemVariants} className="inline-block px-4 py-1.5 bg-white border border-gray-100 rounded-full shadow-sm">
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-pink-500">Premium Printing Since 1998</span>
+              </motion.div>
+              
+              <motion.h1 
+                variants={itemVariants}
+                className="text-5xl sm:text-7xl lg:text-8xl font-black text-gray-900 tracking-tighter leading-[0.9]"
               >
-                Order Now
-              </button>
+                VTA <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-600 to-cyan-500">LINK</span>
+                <br />
+                <span className="text-3xl sm:text-5xl lg:text-6xl text-gray-400">Services</span>
+              </motion.h1>
             </div>
-          </div>
 
-          {/* Right Column - Image Carousel */}
-          <div className="flex items-center justify-center order-1 lg:order-2">
-            <div className="w-full max-w-md lg:max-w-lg">
-              <div className="aspect-square rounded-3xl overflow-hidden shadow-2xl relative">
-                {/* Image Carousel */}
-                {productImages.map((image, index) => (
-                  <div
-                    key={index}
-                    className={`absolute inset-0 transition-opacity duration-1000 ${
-                      index === currentImageIndex ? "opacity-100" : "opacity-0"
-                    }`}
-                  >
-                    <img
-                      src={image}
-                      alt={`Product ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Fallback to gradient if image fails to load
-                        const target = e.currentTarget as HTMLImageElement;
-                        target.style.display = "none";
-                        if (target.parentElement) {
-                          target.parentElement.style.background =
-                            fallbackColors[index % fallbackColors.length];
-                        }
-                      }}
-                    />
-                  </div>
-                ))}
+            <motion.p 
+              variants={itemVariants}
+              className="text-lg sm:text-xl text-gray-600 font-medium max-w-lg mx-auto lg:mx-0 leading-relaxed"
+            >
+              Your one-stop destination for ultra-vivid, high-definition custom prints and professional signage.
+            </motion.p>
 
-                {/* Fallback - VTA Logo Diamond */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-64 h-64 rotate-45 border-8 border-white/20 rounded-3xl">
-                    <div className="w-full h-full -rotate-45 flex items-center justify-center">
-                      {/* Simplified arrow logo */}
-                      <svg
-                        viewBox="0 0 100 100"
-                        className="w-40 h-40 opacity-30"
-                        fill="white"
-                      >
-                        <polygon points="50,10 90,50 50,90 10,50" />
-                        <polygon
-                          points="50,25 70,50 50,75"
-                          fill="#E80088"
-                        />
-                        <polygon
-                          points="30,50 50,25 50,75"
-                          fill="#00BEF4"
-                        />
-                        <polygon
-                          points="50,25 70,50 50,50"
-                          fill="#FFD102"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
+            {/* CMYK Accent Icons */}
+            <motion.div variants={itemVariants} className="flex gap-4 justify-center lg:justify-start items-center">
+              {[
+                { color: "bg-cyan-400", label: "C" },
+                { color: "bg-pink-500", label: "M" },
+                { color: "bg-amber-400", label: "Y" },
+                { color: "bg-purple-600", label: "K" }
+              ].map((dot, i) => (
+                <motion.div 
+                  key={i}
+                  whileHover={{ scale: 1.2, rotate: 15 }}
+                  className={`${dot.color} w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-[10px] shadow-lg shadow-gray-200`}
+                >
+                  {dot.label}
+                </motion.div>
+              ))}
+            </motion.div>
 
-                {/* Carousel Indicators */}
-                <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
-                  {productImages.map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setCurrentImageIndex(index)}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        index === currentImageIndex
-                          ? "bg-white w-6"
-                          : "bg-white/50"
-                      }`}
-                      aria-label={`Go to image ${index + 1}`}
-                    />
-                  ))}
-                </div>
+            <motion.div variants={itemVariants} className="pt-4">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate("/signup")}
+                className="group relative inline-flex items-center gap-3 bg-gray-900 text-white px-10 py-5 rounded-2xl font-black text-sm uppercase tracking-widest overflow-hidden transition-all shadow-2xl shadow-gray-400 cursor-pointer"
+              >
+                <span className="relative z-10">Start Your Order</span>
+                <motion.div 
+                  initial={{ x: "-100%" }}
+                  whileHover={{ x: "0%" }}
+                  className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-600 opacity-100 transition-transform duration-500"
+                />
+              </motion.button>
+            </motion.div>
+          </motion.div>
+
+          {/* Right: Visual Showcase */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
+            whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 50, damping: 15, delay: 0.5 }}
+            viewport={{ once: true }}
+            className="order-1 lg:order-2 relative"
+          >
+            {/* Main Image Container with Floating Effect */}
+            <motion.div 
+              animate={{ 
+                y: [0, -20, 0],
+              }}
+              transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+              className="relative aspect-square sm:aspect-[4/5] lg:aspect-square bg-white rounded-[40px] sm:rounded-[60px] p-4 sm:p-6 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.15)] overflow-hidden"
+            >
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentImageIndex}
+                  initial={{ opacity: 0, x: 100 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -100 }}
+                  transition={{ type: "spring", stiffness: 100, damping: 20 }}
+                  className="absolute inset-0 p-4 sm:p-6"
+                >
+                  <img
+                    src={productImages[currentImageIndex]}
+                    alt="Product Showcase"
+                    className="w-full h-full object-cover rounded-[30px] sm:rounded-[50px] shadow-inner"
+                  />
+                </motion.div>
+              </AnimatePresence>
+
+              {/* Glassmorphic Badge */}
+              <div className="absolute bottom-10 left-10 right-10 p-6 bg-white/20 backdrop-blur-md border border-white/30 rounded-3xl hidden sm:block">
+                <p className="text-white font-black text-xs uppercase tracking-widest mb-1">Featured Item</p>
+                <p className="text-white/80 text-[10px] leading-relaxed">
+                  High-fidelity finishes and vibrant colors that define excellence in every print.
+                </p>
               </div>
-            </div>
-          </div>
+            </motion.div>
+
+            {/* Decorative Element */}
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+              className="absolute -top-10 -right-10 w-32 h-32 border-2 border-dashed border-pink-200 rounded-full opacity-50 hidden lg:block" 
+            />
+          </motion.div>
         </div>
       </div>
     </div>

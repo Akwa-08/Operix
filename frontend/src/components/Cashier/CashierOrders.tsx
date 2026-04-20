@@ -1,8 +1,13 @@
 import { useState } from "react";
-import { Plus, X, DollarSign, LayoutGrid, LayoutList, Package, Clock, CheckCircle } from "lucide-react";
+import { Plus, DollarSign, Package, Clock, CheckCircle } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { ViewToggle } from "../Shared/UI/ViewToggle";
+import { getOrderStatusColor, getPaymentStatusColor } from "../../util/formatters";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
@@ -16,7 +21,7 @@ const CashierOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const { orders, stats, loading, createOrder, recordPayment } = useOrdersData();
+  const { orders, stats, loading, createOrder, recordPayment, updateCustomerDesign, refresh } = useOrdersData();
 
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
@@ -32,22 +37,18 @@ const CashierOrders = () => {
 
   const handleViewOrder = (order: Order) => { setSelectedOrder(order); setShowDetailsModal(true); };
 
-  if (loading) return <div className="max-w-7xl mx-auto flex items-center justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" /></div>;
+  if (loading) return <LoadingSpinner />;
 
   const filteredOrders = orders.filter(o => {
     const q = searchQuery.toLowerCase();
     return !q || o.customerName?.toLowerCase().includes(q) || o.orderId?.toLowerCase().includes(q) || o.productType?.toLowerCase().includes(q);
   });
 
-  const statusColor = (s: string) => s === 'Completed' ? 'bg-green-100 text-green-700' : s === 'In Queue' ? 'bg-blue-100 text-blue-700' : s === 'Overdue' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
-  const payColor = (s: string) => s === 'Paid' ? 'bg-green-100 text-green-700' : s === 'Partial' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700';
+
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Orders</h1>
-        <p className="text-sm text-gray-500 mt-1">Create orders and process payments</p>
-      </div>
+      <PageHeader title="Orders" subtitle="Create orders and process payments" />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <StatusCard title="Total" value={stats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
@@ -60,18 +61,15 @@ const CashierOrders = () => {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex-1"><SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search orders..." /></div>
           <div className="flex gap-2 items-center">
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-              <button onClick={() => setViewMode("list")} className={`p-2 rounded-md transition-all ${viewMode === "list" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500"}`}><LayoutList size={18} /></button>
-              <button onClick={() => setViewMode("cards")} className={`p-2 rounded-md transition-all ${viewMode === "cards" ? "bg-white shadow-sm text-cyan-600" : "text-gray-500"}`}><LayoutGrid size={18} /></button>
-            </div>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
             <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateModal(true)}>Create Order</Button>
           </div>
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-        <p className="text-sm text-blue-900 font-medium">ℹ️ <strong>Cashier:</strong> Create walk-in orders, view details, and record payments. Tap the ₱ icon to process payment.</p>
-      </div>
+      <InfoBanner color="blue">
+        ℹ️ <strong>Cashier:</strong> Create walk-in orders, view details, and record payments. Tap the ₱ icon to process payment.
+      </InfoBanner>
 
       {viewMode === "list" ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -86,8 +84,8 @@ const CashierOrders = () => {
                     <p className="text-sm text-gray-500">{o.customerName} · {o.productType}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${statusColor(o.status)}`}>{o.status}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${payColor(o.paymentStatus)}`}>{o.paymentStatus}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>{o.status}</span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getPaymentStatusColor(o.paymentStatus)}`}>{o.paymentStatus}</span>
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-sm">
@@ -120,8 +118,8 @@ const CashierOrders = () => {
                     <td className="px-4 py-3">{o.customerName}</td>
                     <td className="px-4 py-3 text-gray-600">{o.productType}</td>
                     <td className="px-4 py-3 text-right font-semibold">₱{o.totalAmount?.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusColor(o.status)}`}>{o.status}</span></td>
-                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${payColor(o.paymentStatus)}`}>{o.paymentStatus}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>{o.status}</span></td>
+                    <td className="px-4 py-3 text-center"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${getPaymentStatusColor(o.paymentStatus)}`}>{o.paymentStatus}</span></td>
                     <td className="px-4 py-3 text-gray-600 text-xs">{o.dateOrdered}</td>
                     <td className="px-4 py-3 text-center"><div className="flex items-center justify-center gap-1">
                       <button onClick={() => handleViewOrder(o)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="Manage"><Package size={16} className="text-cyan-600" /></button>
@@ -142,7 +140,12 @@ const CashierOrders = () => {
       {selectedOrder && (
         <OrderDetailsModal isOpen={showDetailsModal} order={selectedOrder} userRole="cashier" 
           onClose={() => setShowDetailsModal(false)}
-          onRecordPayment={recordPayment} />
+          onRecordPayment={recordPayment}
+          onUpdateCustomerDesign={async (url) => {
+            const r = await updateCustomerDesign(selectedOrder.id, url);
+            if (!r.success) throw new Error(r.error || "Update failed");
+          }}
+          onRefresh={refresh} />
       )}
     </div>
   );

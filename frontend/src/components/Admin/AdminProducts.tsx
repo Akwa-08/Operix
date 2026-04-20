@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Search, Eye, Plus, X, Check, Trash2, Link } from "lucide-react";
 import { useProductsData } from "../../hooks/useSupabase";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
 import type { AdminProduct, BOMItem } from "../../Types";
 
 // ── Reusable field ────────────────────────────────────────────────────────
@@ -234,12 +236,7 @@ const AdminProducts = () => {
     </div>
   );
 
-  if (loading) return (
-    <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
-      <p className="ml-4 text-base text-gray-500">Loading products...</p>
-    </div>
-  );
+  if (loading) return <LoadingSpinner message="Loading products..." />;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -365,10 +362,7 @@ const AdminProducts = () => {
       </Modal>
 
       {/* ═══ PAGE HEADER ═══ */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Products</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage products and their material requirements</p>
-      </div>
+      <PageHeader title="Products" subtitle="Manage products and their material requirements" />
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6">

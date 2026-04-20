@@ -7,6 +7,7 @@ import {
   CheckCircle2, Hammer, Truck, Package, Edit2,
 } from "lucide-react";
 import type { Order } from "../../../Types";
+import { getPaymentStatusColor } from "../../../util/formatters";
 
 // ── Status timeline steps ────────────────────────────────────────────────────
 type CardStatus = "Queue" | "Design" | "Payment" | "Production" | "Pick-up" | "Complete";
@@ -38,12 +39,7 @@ const getStatusColor = (status: CardStatus) => {
   return colors[status] || "bg-gray-400";
 };
 
-const getPaymentColor = (status: string) => {
-  if (status === "Paid") return "bg-green-100 text-green-700 border-green-200";
-  if (status === "Partial") return "bg-orange-100 text-orange-700 border-orange-200";
-  if (status === "Unpaid") return "bg-red-100 text-red-700 border-red-200";
-  return "bg-gray-100 text-gray-500 border-gray-200";
-};
+const getPaymentColor = getPaymentStatusColor;
 
 // ── Single card ─────────────────────────────────────────────────────────────
 const StaffOrderCard = ({ order, onView, onEdit, onDelete }: {

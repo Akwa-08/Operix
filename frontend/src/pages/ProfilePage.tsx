@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import {useAuth} from "../context/AuthContext";
 import authService from "../services/authService";
 import {db} from "../lib/database";
+import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
 
 export const ProfilePage = () => {
   const { refreshUser, user } = useAuth();
@@ -120,13 +121,7 @@ export const ProfilePage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner />;
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">

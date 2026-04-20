@@ -34,6 +34,7 @@ export interface Order {
   dueDate: string;
   specialInstructions?: string;
   designFile?: string;
+  finalDesignUrl?: string;
   assignedDesigner?: string;
   assignedProduction?: string;
   designerName?: string;
@@ -86,6 +87,7 @@ export interface User {
 export interface Employee extends User {
   position: string;
   department: string;
+  role: UserRole;
   hireDate: string;
   baseHourlyRate?: number;
   holidayRateMultiplier?: number;
@@ -138,7 +140,7 @@ export interface EmployeeRecord {
   employeeCode: string;
   fullName: string;
   position: string;
-  role?: EmployeeRole;   // ✅ strongly typed
+  role: UserRole;
   baseHourlyRate: number;
   holidayRateMultiplier: number;
   overtimeRateMultiplier: number;

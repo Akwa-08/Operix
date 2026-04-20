@@ -1,9 +1,25 @@
 import { useState, useMemo } from "react";
 import {
   RefreshCw, TrendingUp, DollarSign, CreditCard,
-  Package, AlertTriangle, CheckCircle, Clock,
+  Package, AlertTriangle, CheckCircle,
+  Users, Warehouse, ClipboardList, MessageSquare, Activity,
 } from "lucide-react";
 import { useDashboardData } from "../../hooks/useSupabase";
+import { KpiCard } from "../Shared/UI/KpiCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { fmtMoney } from "../../util/formatters";
+
+// ─── Quick Action Card ────────────────────────────────────────────────────────
+const QuickActionCard: React.FC<{
+  title: string; description: string; icon: React.ReactNode; color: string; onClick: () => void;
+}> = ({ title, description, icon, color, onClick }) => (
+  <button onClick={onClick}
+    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow text-left group w-full">
+    <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center mb-3`}>{icon}</div>
+    <h3 className="font-bold text-sm text-gray-900 mb-1 group-hover:text-cyan-600 transition-colors">{title}</h3>
+    <p className="text-[10px] text-gray-500 leading-tight">{description}</p>
+  </button>
+);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Period = "today" | "week" | "month" | "3months" | "year" | "all";
@@ -145,36 +161,7 @@ function buildChartData(orders: any[], period: Period, chartType: ChartType) {
   });
 }
 
-function fmtMoney(v: number) {
-  if (v >= 1_000_000) return `₱${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000)     return `₱${(v / 1_000).toFixed(0)}k`;
-  return `₱${v.toLocaleString()}`;
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-const KpiCard: React.FC<{
-  title: string; value: string; sub?: string;
-  icon: React.ReactNode; iconBg: string; iconColor: string;
-  accent?: "red" | "green" | "yellow" | "blue" | "none";
-}> = ({ title, value, sub, icon, iconBg, iconColor, accent = "none" }) => {
-  const border = {
-    red:    "border-l-4 border-l-red-400",
-    green:  "border-l-4 border-l-green-400",
-    yellow: "border-l-4 border-l-amber-400",
-    blue:   "border-l-4 border-l-cyan-400",
-    none:   "",
-  }[accent];
-  return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-4 shadow-sm ${border}`}>
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight">{title}</p>
-        <div className={`p-2 rounded-lg ${iconBg} ${iconColor}`}>{icon}</div>
-      </div>
-      <p className="text-2xl font-bold text-gray-900 mb-0.5 truncate">{value}</p>
-      {sub && <p className="text-xs text-gray-400">{sub}</p>}
-    </div>
-  );
-};
+// KpiCard, fmtMoney, and LoadingSpinner imported from shared modules
 
 // ─── Bar Chart ────────────────────────────────────────────────────────────────
 const BarChart: React.FC<{
@@ -288,12 +275,7 @@ const AdminDashboard = () => {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
   });
 
-  if (loading) return (
-    <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
-      <p className="ml-4 text-gray-500">Loading dashboard...</p>
-    </div>
-  );
+  if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-5 overflow-x-hidden">
@@ -374,6 +356,55 @@ const AdminDashboard = () => {
           icon={<AlertTriangle size={16} />} iconBg="bg-red-100" iconColor="text-red-600"
           accent={stats.overdue > 0 ? "red" : "none"}
         />
+      </div>
+
+      {/* ── QUICK ACTIONS ────────────────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <QuickActionCard
+            title="New Order"
+            description="Create a walk-in order"
+            icon={<Package size={20} />}
+            color="bg-cyan-100 text-cyan-600"
+            onClick={() => (window.location.href = "/admin/orders")}
+          />
+          <QuickActionCard
+            title="Manage Users"
+            description="Staff & customer accounts"
+            icon={<Users size={20} />}
+            color="bg-blue-100 text-blue-600"
+            onClick={() => (window.location.href = "/admin/users")}
+          />
+          <QuickActionCard
+            title="Inventory"
+            description="Stock levels & deliveries"
+            icon={<Warehouse size={20} />}
+            color="bg-purple-100 text-purple-600"
+            onClick={() => (window.location.href = "/admin/inventory")}
+          />
+          <QuickActionCard
+            title="Payroll"
+            description="Attendance & salary"
+            icon={<ClipboardList size={20} />}
+            color="bg-green-100 text-green-600"
+            onClick={() => (window.location.href = "/admin/payroll")}
+          />
+          <QuickActionCard
+            title="Audit Logs"
+            description="System activity trail"
+            icon={<Activity size={20} />}
+            color="bg-orange-100 text-orange-600"
+            onClick={() => (window.location.href = "/admin/logs")}
+          />
+          <QuickActionCard
+            title="Messages"
+            description="Chat with staff & clients"
+            icon={<MessageSquare size={20} />}
+            color="bg-pink-100 text-pink-600"
+            onClick={() => (window.location.href = "/admin/messages")}
+          />
+        </div>
       </div>
 
       {/* ── 4. CHART + PIPELINE ────────────────────────────────────────────── */}

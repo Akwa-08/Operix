@@ -1,88 +1,80 @@
-import FacebookIcon from "@mui/icons-material/Facebook";
-import EmailIcon from "@mui/icons-material/Email";
-import PhoneIcon from "@mui/icons-material/Phone";
+import { motion } from "framer-motion";
+import { Facebook, Mail, Phone, ArrowUp } from "lucide-react";
 
 export const Footer = () => {
   return (
-    <footer
-      id="about"
-      className="bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white py-16"
-    >
-      <div className="max-w-7xl mx-auto px-6 lg:px-8 leading-relaxed tracking-wider">
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16 mb-12">
-          {/* About VTA Link Section */}
-          <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-              About Us – VTA Link Printing Services
-            </h3>
-            <p className="text-gray-300 leading-relaxed font-light">
-              Founded in 1998 as JoeyenJanc Computer Services, VTA Link Printing
-              Services has grown from a small computer-use and document printing
-              service into a trusted name in printing solutions for the Surigao
-              City area. Now operating under the new name since 2002, VTA Link
-              continues to deliver high-quality print solutions for various
-              customer needs.
+    <footer id="about" className="bg-[#09090b] text-white pt-24 pb-12 border-t border-white/5">
+      <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 mb-20">
+          {/* Logo & Vision Section */}
+          <div className="lg:col-span-5 space-y-8">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              className="flex items-center gap-3"
+            >
+              <div className="text-4xl font-black tracking-tighter">
+                <span className="text-cyan-500">O</span>
+                <span className="text-pink-500">P</span>
+                <span className="text-amber-400">E</span>
+                <span className="text-purple-500">R</span>
+                <span className="text-pink-500">I</span>
+                <span className="text-purple-600">X</span>
+              </div>
+            </motion.div>
+            <p className="text-gray-400 text-lg font-medium leading-relaxed max-w-md">
+              Founded in 1998, VTA Link Printing Services has evolved into Surigao City's most trusted partner for high-precision printing solutions. Powered by Operix, we drive efficiency through innovation.
             </p>
+            <div className="flex gap-4">
+              {[
+                { icon: <Facebook size={20} />, href: "https://facebook.com/VTALinkPrintingServices" },
+                { icon: <Mail size={20} />, href: "mailto:vtalink15@gmail.com" },
+                { icon: <Phone size={20} />, href: "tel:09507596282" }
+              ].map((social, i) => (
+                <motion.a
+                  key={i}
+                  href={social.href}
+                  whileHover={{ y: -5, backgroundColor: "rgba(255,255,255,0.1)" }}
+                  className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-gray-400 hover:text-white transition-colors border border-white/10"
+                >
+                  {social.icon}
+                </motion.a>
+              ))}
+            </div>
           </div>
 
-          {/* About Operix Section */}
-          <div className="space-y-4">
-            <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
-              About Operix
-            </h3>
-            <p className="text-gray-300 leading-relaxed font-light">
-              Operix is the web-based integrated management system developed to
-              streamline VTA Link Printing Services' day-to-day operations.
-              Designed specifically for small-to-medium businesses, Operix
-              brings together payroll automation, inventory tracking, order
-              management, and reporting tools in one easy-to-use platform. With
-              real-time data and centralized control, Operix empowers VTA Link
-              to boost efficiency, reduce human error, and scale its business
-              with confidence.
-            </p>
+          {/* Quick Links / About Split */}
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-12">
+            <div className="space-y-6">
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-pink-500">VTA Link</h3>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                A legacy of excellence in traditional and digital printing. From document handling to large-format signage, we ensure quality that lasts.
+              </p>
+            </div>
+            <div className="space-y-6">
+              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-cyan-500">Operix Tech</h3>
+              <p className="text-gray-400 text-sm leading-relaxed">
+                The backbone of our operations. A centralized management platform for inventory, orders, and payroll, designed for the modern business.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-gray-700 mb-8"></div>
-
-        {/* Social Media & Contact Icons */}
-        <div className="flex justify-center gap-6 mb-8">
-          <a
-            href="https://facebook.com/VTALinkPrintingServices"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center transition-colors"
-            aria-label="Facebook"
-          >
-            <FacebookIcon />
-          </a>
-          <a
-            href="mailto:vtalink15@gmail.com"
-            className="w-12 h-12 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center transition-colors"
-            aria-label="Email"
-          >
-            <EmailIcon />
-          </a>
-          <a
-            href="tel:09507596282"
-            className="w-12 h-12 rounded-full bg-green-600 hover:bg-green-700 flex items-center justify-center transition-colors"
-            aria-label="Phone"
-          >
-            <PhoneIcon />
-          </a>
-        </div>
-
-        {/* Copyright Section */}
-        <div className="text-center space-y-2">
-          <p className="text-gray-400 text-sm">
-            &copy; {new Date().getFullYear()} VTA Link Printing Services. All
-            rights reserved.
+        <div className="pt-12 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">
+            &copy; {new Date().getFullYear()} VTA Link Printing Services. All rights reserved.
           </p>
-          <p className="text-gray-500 text-xs">
-            Developed by Operix Development Team
-          </p>
+          <div className="flex items-center gap-8">
+            <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest">Developed by Operix Dev Team</p>
+            <motion.button 
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:text-white border border-white/10"
+            >
+              <ArrowUp size={16} />
+            </motion.button>
+          </div>
         </div>
       </div>
     </footer>

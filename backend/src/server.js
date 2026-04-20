@@ -403,42 +403,13 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
   }
 });
 
-app.get('/api/payroll/import-history', requireAdmin, async (req, res) => {
-  try {
-    const { data, error } = await supabase.from('attendance_summary_imports')
-      .select('import_batch_id, source_file, company, period_start, period_end, created_at, synced_to_attendance')
-      .order('created_at', { ascending: false }).limit(100);
-    if (error) throw error;
-    const batches = new Map();
-    for (const row of data || []) {
-      if (!batches.has(row.import_batch_id)) {
-        batches.set(row.import_batch_id, {
-          batchId: row.import_batch_id, sourceFile: row.source_file, company: row.company,
-          periodStart: row.period_start, periodEnd: row.period_end,
-          importedAt: row.created_at, syncedToAttendance: row.synced_to_attendance,
-        });
-      }
-    }
-    res.json({ batches: Array.from(batches.values()) });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
+// ═════════════════════════════════════════════════════════════════════════════
+// Start
+// ═════════════════════════════════════════════════════════════════════════════
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`\n  OPERIX ADMIN API | Port ${PORT} | 3 routes: create / update / delete user\n`);
+  });
+}
 
-// Catch-all error handler
-app.use((err, req, res, next) => {
-  console.error('[Express Error]', err.message);
-  res.status(err.status || 500).json({ error: err.message || 'Server error' });
-});
-
-app.listen(PORT, () => {
-  console.log(`
-  ┌─────────────────────────────────────────────┐
-  │  OPERIX BACKEND  │  Port ${PORT}            │
-  │  User management + Payroll file import      │
-  │    POST   /api/admin/users                  │
-  │    PUT    /api/admin/users/:id              │
-  │    DELETE /api/admin/users/:id              │
-  │    POST   /api/payroll/upload-attendance    │
-  │    GET    /api/payroll/import-history       │
-  └─────────────────────────────────────────────┘
-  `);
-});
+module.exports = app;
