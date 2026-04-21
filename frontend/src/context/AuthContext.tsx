@@ -42,16 +42,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
  
   useEffect(() => {
     // Load existing session on page load
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Session error:", error.message);
+        if (error.message.includes('Refresh Token Not Found') || error.message.includes('Invalid Refresh Token')) {
+           supabase.auth.signOut();
+        }
+      }
       setSession(session);
       setUser(parseUser(session?.user ?? null));
       setLoading(false);
     });
  
     // Listen for login / logout / token refresh
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(parseUser(session?.user ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setSession(null);
+      } else {
+        setSession(session);
+        setUser(parseUser(session?.user ?? null));
+      }
       setLoading(false);
     });
  
@@ -65,29 +76,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const refreshUser = async () => {
-    // 1. Refresh auth session + get fresh user from server
-    await supabase.auth.refreshSession();
-    const { data: { user: freshUser } } = await supabase.auth.getUser();
-    if (!freshUser) return;
+    try {
+      // 1. Refresh auth session + get fresh user from server
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) throw refreshError;
 
-    // 2. Also fetch from public.users for the most current name
-    //    (auth metadata may be cached by Supabase until next token refresh)
-    const { data: profile } = await supabase
-      .from('users')
-      .select('first_name, last_name, role')
-      .eq('id', freshUser.id)
-      .single();
+      const { data: { user: freshUser }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!freshUser) return;
 
-    if (profile) {
-      setUser({
-        id: freshUser.id,
-        email: freshUser.email ?? '',
-        role: (profile.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
-        firstName: profile.first_name ?? freshUser.user_metadata?.first_name ?? null,
-        lastName: profile.last_name ?? freshUser.user_metadata?.last_name ?? null,
-      });
-    } else {
-      setUser(parseUser(freshUser));
+      // 2. Also fetch from public.users for the most current name
+      //    (auth metadata may be cached by Supabase until next token refresh)
+      const { data: profile } = await supabase
+        .from('users')
+        .select('first_name, last_name, role')
+        .eq('id', freshUser.id)
+        .single();
+
+      if (profile) {
+        setUser({
+          id: freshUser.id,
+          email: freshUser.email ?? '',
+          role: (profile.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
+          firstName: profile.first_name ?? freshUser.user_metadata?.first_name ?? null,
+          lastName: profile.last_name ?? freshUser.user_metadata?.last_name ?? null,
+        });
+      } else {
+        setUser(parseUser(freshUser));
+      }
+    } catch (err: any) {
+      console.error("Failed to refresh user:", err.message);
+      if (err.message && (err.message.includes("Refresh Token Not Found") || err.message.includes("Invalid Refresh Token"))) {
+        await signOut();
+      }
     }
   };
  
