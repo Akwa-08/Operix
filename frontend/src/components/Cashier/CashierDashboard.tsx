@@ -138,7 +138,7 @@ const CashierDashboard = () => {
         {/* Quick Actions (1/3 cols) */}
         <div className="lg:col-span-1 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <QuickActionCard
               title="New Order"
               description="Create a walk-in order"

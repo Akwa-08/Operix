@@ -49,7 +49,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
         {/* Admin sees ALL fields and can edit them */}
         {perms.canEditAllFields && (
           <>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Item Type *
@@ -77,7 +77,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Usable Stocks *
@@ -110,7 +110,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Purchase Quantity *
@@ -180,7 +180,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
               <h3 className="text-sm font-semibold text-gray-700 mb-3">
                 Material Information (Read-only)
               </h3>
-              <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
                   <span className="text-gray-500 font-medium">Item Type:</span>
                   <p className="text-gray-900 font-semibold">

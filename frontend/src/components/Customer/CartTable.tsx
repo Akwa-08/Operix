@@ -44,7 +44,8 @@ export const CartTable: React.FC<CartTableProps> = ({
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mb-6">
-      <table className="w-full text-left">
+      <div className="overflow-x-auto w-full">
+<table className="w-full text-left">
         <thead className="bg-gray-50/50 border-b border-gray-200">
           <tr className="text-gray-500 font-bold text-sm uppercase tracking-wider">
             <th className="p-6 w-12 text-center">
@@ -162,6 +163,7 @@ export const CartTable: React.FC<CartTableProps> = ({
           )}
         </tbody>
       </table>
+</div>
       {totalPages > 1 && (
         <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/30">
           <p className="text-sm text-gray-500 font-medium">

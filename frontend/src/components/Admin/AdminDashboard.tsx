@@ -444,7 +444,7 @@ const AdminDashboard = () => {
           )}
 
           {/* Footer summary row */}
-          <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100 text-center">
             <div>
               <p className="text-lg font-bold text-gray-900">{fmtMoney(stats.revenue)}</p>
               <p className="text-xs text-gray-400">Revenue</p>
@@ -619,7 +619,8 @@ const AdminDashboard = () => {
 
           {/* DESKTOP: table */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Order</th>
@@ -669,6 +670,7 @@ const AdminDashboard = () => {
                 ))}
               </tbody>
             </table>
+</div>
           </div>
         </div>
       </div>

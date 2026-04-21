@@ -203,7 +203,7 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ CREATE USER MODAL ═══ */}
       <Modal show={showCreateUserModal} onClose={() => setShowCreateUserModal(false)} title="Create Account">
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <F label="First Name" value={userForm.firstName} onChange={(v: string) => setUserForm({ ...userForm, firstName: v })} />
           <F label="Last Name" value={userForm.lastName} onChange={(v: string) => setUserForm({ ...userForm, lastName: v })} />
           <F label="Email *" type="email" value={userForm.email} onChange={(v: string) => setUserForm({ ...userForm, email: v })} />
@@ -226,7 +226,7 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ VIEW/EDIT USER MODAL ═══ */}
       <Modal show={showViewUserModal && !!selectedUser} onClose={() => setShowViewUserModal(false)} title="Account Info">
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <F label="First Name" value={editUserForm.firstName} onChange={(v: string) => setEditUserForm({ ...editUserForm, firstName: v })} />
           <F label="Last Name" value={editUserForm.lastName} onChange={(v: string) => setEditUserForm({ ...editUserForm, lastName: v })} />
           <F label="Email" type="email" value={editUserForm.email} onChange={(v: string) => setEditUserForm({ ...editUserForm, email: v })} />
@@ -271,7 +271,7 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ CREATE EMPLOYEE MODAL ═══ */}
       <Modal show={showCreateEmpModal} onClose={() => setShowCreateEmpModal(false)} title="Add Employee Record">
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <F label="Employee Code" value={empForm.employeeCode} onChange={(v: string) => setEmpForm({ ...empForm, employeeCode: v })} placeholder="EMP-008" />
           <F label="Full Name *" value={empForm.fullName} onChange={(v: string) => setEmpForm({ ...empForm, fullName: v })} />
           <F label="Position *" value={empForm.position} onChange={(v: string) => setEmpForm({ ...empForm, position: v })} placeholder="e.g., Printer Operator" />
@@ -300,7 +300,7 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ VIEW/EDIT EMPLOYEE MODAL ═══ */}
       <Modal show={showViewEmpModal && !!selectedEmployee} onClose={() => setShowViewEmpModal(false)} title="Employee Record">
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <F label="Employee Code" value={selectedEmployee?.employeeCode || ''} onChange={() => { }} disabled />
           <F label="Full Name" value={editEmpForm.fullName} onChange={(v: string) => setEditEmpForm({ ...editEmpForm, fullName: v })} />
           <F label="Position" value={editEmpForm.position} onChange={(v: string) => setEditEmpForm({ ...editEmpForm, position: v })} />
@@ -348,7 +348,7 @@ const AdminManagement: React.FC = () => {
       <Modal show={showSupplierInfoModal && !!selectedSupplier} onClose={() => setShowSupplierInfoModal(false)} title="Supplier Info">
         {selectedSupplier && (
           <>
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Name</label><div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">{selectedSupplier.supplierName}</div></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Status</label><div className={`px-4 py-2 border rounded-lg text-sm ${selectedSupplier.supplierStatus === 'Active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{selectedSupplier.supplierStatus}</div></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label><div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">{selectedSupplier.contactNumber || '—'}</div></div>

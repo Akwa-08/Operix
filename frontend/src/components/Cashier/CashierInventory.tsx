@@ -184,7 +184,7 @@ const CashierInventory = () => {
       {/* Confirm Receipt Modal */}
       {showConfirmReceipt && selectedDelivery && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 relative">
+          <div className="bg-white rounded-2xl max-w-md w-full p-4 sm:p-6 relative">
             <h3 className="text-xl font-bold mb-4">Confirm Receipt</h3>
             <p className="text-sm text-gray-500 mb-4">Receiving <strong>{selectedDelivery.materialName}</strong> from {selectedDelivery.supplierName}. This will automatically restock inventory.</p>
             <div className="space-y-4 mb-6">

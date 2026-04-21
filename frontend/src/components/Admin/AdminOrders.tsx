@@ -19,7 +19,7 @@ const Modal = ({ show, onClose, title, children }: any) => {
   if (!show) return null;
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 md:p-8 relative" onClick={(e: any) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-4 sm:p-6 md:p-4 sm:p-8 relative" onClick={(e: any) => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
         <h3 className="text-lg font-bold text-gray-900 mb-5">{title}</h3>
         {children}

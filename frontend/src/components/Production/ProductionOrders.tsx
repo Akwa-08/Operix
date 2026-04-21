@@ -48,7 +48,7 @@ const ProductionOrders = () => {
     <div className="max-w-7xl mx-auto">
       <PageHeader title="Production Orders" subtitle="Orders assigned to production — mark complete when done" />
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatusCard title="Assigned" value={stats.assigned} icon={<Package size={18} />} iconColor="text-orange-600" />
         <StatusCard title="In Production" value={stats.inProgress} icon={<Clock size={18} />} iconColor="text-blue-600" />
         <StatusCard title="Done" value={stats.completed} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
@@ -94,7 +94,8 @@ const ProductionOrders = () => {
           </div>
           {/* DESKTOP */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
@@ -124,6 +125,7 @@ const ProductionOrders = () => {
                 {filtered.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No production orders</td></tr>}
               </tbody>
             </table>
+</div>
           </div>
         </div>
       ) : (

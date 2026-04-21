@@ -100,7 +100,8 @@ const CashierOrders = () => {
           </div>
           {/* DESKTOP */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
@@ -129,6 +130,7 @@ const CashierOrders = () => {
                 {filteredOrders.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No orders found</td></tr>}
               </tbody>
             </table>
+</div>
           </div>
         </div>
       ) : (

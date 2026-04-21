@@ -33,7 +33,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       animate={{opacity: 1, y: 0}}
       transition={{duration: 0.15, ease: "easeOut"}}
       whileHover={{y: -5}}
-      className="group bg-white border border-gray-100 rounded-2xl p-6 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full overflow-hidden relative">
+      className="group bg-white border border-gray-100 rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full overflow-hidden relative">
       {/* Glow Effect on Hover */}
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
