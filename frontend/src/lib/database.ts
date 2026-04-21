@@ -1307,37 +1307,152 @@ export const db = {
 
   // ── CASH ADVANCES ──────────────────────────────────────────────────
   cashAdvances: {
-    async getAll(_filters?: any): Promise<any[]> {
-      return [];
+    async getAll(filters?: any): Promise<any[]> {
+      let q = supabase
+        .from("cash_advances")
+        .select(`*, employee:employee_id(full_name, position, base_hourly_rate, employee_code), issuer:issued_by(first_name, last_name)`)
+        .order("date_issued", { ascending: false });
+      if (filters?.employee_id) q = q.eq("employee_id", filters.employee_id);
+      if (filters?.status) q = q.eq("status", filters.status);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
     },
     async getPendingRequests(): Promise<any[]> {
-      return [];
+      const { data, error } = await supabase
+        .from("cash_advances")
+        .select(`*, employee:employee_id(full_name, position, base_hourly_rate, employee_code), issuer:issued_by(first_name, last_name)`)
+        .eq("status", "pending")
+        .order("date_issued", { ascending: false });
+      if (error) throw error;
+      return data || [];
     },
-    async create(_data: any): Promise<any> {
-      return null;
+    async create(data: any): Promise<any> {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error("Not logged in");
+      const { data: created, error } = await supabase
+        .from("cash_advances")
+        .insert([{ ...data, issued_by: user.user.id }])
+        .select()
+        .single();
+      if (error) throw error;
+      return created;
     },
-    async approve(_id: string): Promise<void> {},
-    async decline(_id: string, _reason: string): Promise<void> {},
-    async cancel(_id: string): Promise<void> {},
+    async approve(id: string): Promise<void> {
+      const { error } = await supabase.from("cash_advances").update({ status: "approved" }).eq("id", id);
+      if (error) throw error;
+    },
+    async decline(id: string, reason: string): Promise<void> {
+      const { error } = await supabase.from("cash_advances").update({ status: "cancelled", decline_reason: reason }).eq("id", id);
+      if (error) throw error;
+    },
+    async cancel(id: string): Promise<void> {
+      const { error } = await supabase.from("cash_advances").update({ status: "cancelled" }).eq("id", id);
+      if (error) throw error;
+    },
   },
 
   // ── PAYROLL ───────────────────────────────────────────────────────
   payroll: {
     async getPeriods(): Promise<any[]> {
-      return [];
+      const { data, error } = await supabase.from("payroll_periods").select("*").order("period_start", { ascending: false });
+      if (error) throw error;
+      return data || [];
     },
-    async getAttendanceLogs(_periodId: string): Promise<any[]> {
-      return [];
+    async getAttendanceLogs(periodId: string): Promise<any[]> {
+      const { data, error } = await supabase
+        .from("attendance_logs")
+        .select(`*, employee:employee_id(full_name, position, base_hourly_rate, employee_code)`)
+        .eq("payroll_period_id", periodId);
+      if (error) throw error;
+      return data || [];
     },
-    async getPayrollRecords(_periodId: string): Promise<any[]> {
-      return [];
+    async getPayrollRecords(periodId: string): Promise<any[]> {
+      const { data, error } = await supabase
+        .from("payroll_records")
+        .select(`*, employee:employee_id(full_name, position, employee_code)`)
+        .eq("payroll_period_id", periodId);
+      if (error) throw error;
+      return data || [];
     },
-    async createPeriod(_data: any): Promise<any> {
-      return null;
+    async createPeriod(data: any): Promise<any> {
+      const { data: user } = await supabase.auth.getUser();
+      if (!user.user) throw new Error("Not logged in");
+      const { data: created, error } = await supabase
+        .from("payroll_periods")
+        .insert([{ ...data, created_by: user.user.id, status: "draft" }])
+        .select()
+        .single();
+      if (error) throw error;
+      return created;
     },
-    async upsertAttendanceLog(_log: any): Promise<void> {},
-    async computePayroll(_periodId: string): Promise<void> {},
-    async updatePayrollRecord(_id: string, _updates: any): Promise<void> {},
-    async updatePeriod(_id: string, _updates: any): Promise<void> {},
+    async upsertAttendanceLog(log: any): Promise<void> {
+      const { error } = await supabase.from("attendance_logs").upsert(log, { onConflict: "employee_id, payroll_period_id" });
+      if (error) throw error;
+    },
+    async computePayroll(periodId: string): Promise<void> {
+      // Fetch attendance logs for this period
+      const { data: logs, error: logsErr } = await supabase
+        .from("attendance_logs")
+        .select(`*, employee:employee_id(base_hourly_rate)`)
+        .eq("payroll_period_id", periodId);
+        
+      if (logsErr) throw logsErr;
+      if (!logs || logs.length === 0) return;
+
+      const recordsToUpsert = logs.map((log) => {
+        const dailyRate = Number(log.employee?.base_hourly_rate) || 0;
+        const daysPresent = Math.floor(Number(log.worked_hours) / 8); 
+        const basicPay = dailyRate * daysPresent;
+        
+        const regularOT = (dailyRate / 8) * 1.25 * Number(log.regular_overtime_hours || 0);
+        const holidayOT = (dailyRate / 8) * 1.60 * Number(log.holiday_overtime_hours || 0);
+        const specialOT = (dailyRate / 8) * 1.30 * Number(log.special_overtime_hours || 0);
+        
+        const grossIncome = basicPay + regularOT + holidayOT + specialOT + Number(log.additional_pay || 0);
+        
+        // Fixed defaults + variable deductions
+        const sss = 0;
+        const philhealth = 200;
+        const hdmf = 200;
+        const advDeduction = Number(log.deduction_amount || 0);
+        const totalDeductions = sss + philhealth + hdmf + advDeduction;
+        
+        const netPay = grossIncome - totalDeductions;
+
+        return {
+          payroll_period_id: periodId,
+          employee_id: log.employee_id,
+          daily_rate: dailyRate,
+          days_present: daysPresent,
+          basic_pay: basicPay,
+          regular_overtime: regularOT,
+          holiday_overtime: holidayOT,
+          special_overtime: specialOT,
+          gross_income: grossIncome,
+          sss,
+          philhealth,
+          hdmf,
+          cash_advance: advDeduction,
+          total_deductions: totalDeductions,
+          net_pay: netPay,
+          status: "pending"
+        };
+      });
+
+      const { error: upsertErr } = await supabase
+        .from("payroll_records")
+        .upsert(recordsToUpsert, { onConflict: "employee_id, payroll_period_id" });
+        
+      if (upsertErr) throw upsertErr;
+    },
+    async updatePayrollRecord(id: string, updates: any): Promise<void> {
+      const { error } = await supabase.from("payroll_records").update(updates).eq("id", id);
+      if (error) throw error;
+    },
+    async updatePeriod(id: string, updates: any): Promise<void> {
+      const { error } = await supabase.from("payroll_periods").update(updates).eq("id", id);
+      if (error) throw error;
+    },
   },
 };
