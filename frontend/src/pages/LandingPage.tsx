@@ -33,16 +33,8 @@ export const LandingPage = () => {
 
       {/* Background Decorative "Glows" - Persistent across sections */}
       <div className="fixed inset-0 pointer-events-none -z-20 overflow-hidden">
-        <motion.div 
-          animate={{ x: [0, 50, 0], y: [0, 100, 0] }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-cyan-100/30 rounded-full blur-[120px]" 
-        />
-        <motion.div 
-          animate={{ x: [0, -50, 0], y: [0, -100, 0] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-          className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-purple-100/30 rounded-full blur-[150px]" 
-        />
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-cyan-100/30 rounded-full blur-[120px] will-change-transform" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-purple-100/30 rounded-full blur-[150px] will-change-transform" />
       </div>
     </div>
   );

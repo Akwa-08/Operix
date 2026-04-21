@@ -183,8 +183,8 @@ function AttendanceEditModal({
   const [saving, setSaving] = useState(false);
 
   const field = (label: string, key: keyof typeof form, step = 1) => (
-    <div key={key} className="flex items-center justify-between">
-      <span className="text-sm text-gray-600">{label}</span>
+    <div key={key} className="flex flex-row items-center justify-between gap-3">
+      <span className="text-sm text-gray-600 flex-1 leading-snug">{label}</span>
       <input
         type="number"
         step={step}
@@ -192,7 +192,7 @@ function AttendanceEditModal({
         onChange={(e) =>
           setForm((f) => ({...f, [key]: parseFloat(e.target.value) || 0}))
         }
-        className="w-28 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-cyan-500"
+        className="w-24 shrink-0 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-cyan-500"
       />
     </div>
   );
@@ -223,8 +223,8 @@ function AttendanceEditModal({
         <h3 className="text-xl font-bold text-gray-900 mb-1">
           Edit Attendance
         </h3>
-        <p className="text-sm text-gray-500 mb-6">{log.fullName}</p>
-        <div className="space-y-3">
+        <p className="text-sm text-gray-500 mb-6 truncate">{log.fullName}</p>
+        <div className="space-y-4">
           {field("Worked Hours", "worked_hours", 0.5)}
           {field("Late (timeslots × 30min)", "late_timeslots")}
           {field("Early Leave (timeslots × 30min)", "early_leave_timeslots")}

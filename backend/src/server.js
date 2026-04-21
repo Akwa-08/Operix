@@ -64,7 +64,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
 app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, password, role, first_name, last_name, contact_number, address, is_active } = req.body;
+    const { email, password, role, first_name, last_name, contact_number, address, is_active, username } = req.body;
     const authPayload = {}; const metadata = {};
     if (email) authPayload.email = email;
     if (password) authPayload.password = password;
@@ -84,6 +84,7 @@ app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
     if (contact_number !== undefined) dbPayload.contact_number = contact_number;
     if (address !== undefined) dbPayload.address = address;
     if (is_active !== undefined) dbPayload.is_active = is_active;
+    if (username !== undefined) dbPayload.username = username;
     if (Object.keys(dbPayload).length) await supabase.from('users').update(dbPayload).eq('id', id);
     const { data: profile } = await supabase.from('users').select('*').eq('id', id).single();
     res.json({ success: true, data: profile });

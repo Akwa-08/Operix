@@ -279,7 +279,7 @@ export const db = {
       .select(
         "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
       )
-      .order("name");
+      .order("created_at", {ascending: false});
     if (error) throw error;
     return data || [];
   },

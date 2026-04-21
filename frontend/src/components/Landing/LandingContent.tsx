@@ -42,26 +42,8 @@ export const LandingContent = () => {
   return (
     <div id="home" className="relative min-h-screen pt-24 sm:pt-32 overflow-hidden bg-[#fafafa]">
       {/* Dynamic Background Accents */}
-      <motion.div 
-        animate={{ 
-          scale: [1, 1.2, 1],
-          rotate: [0, 90, 0],
-          x: [0, 100, 0],
-          y: [0, 50, 0]
-        }}
-        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-cyan-100/50 rounded-full blur-[120px]" 
-      />
-      <motion.div 
-        animate={{ 
-          scale: [1, 1.3, 1],
-          rotate: [0, -90, 0],
-          x: [0, -100, 0],
-          y: [0, -50, 0]
-        }}
-        transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-        className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-pink-100/50 rounded-full blur-[120px]" 
-      />
+      <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-cyan-100/50 rounded-full blur-[120px] will-change-transform" />
+      <div className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-pink-100/50 rounded-full blur-[120px] will-change-transform" />
 
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">

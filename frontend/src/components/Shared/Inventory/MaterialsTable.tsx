@@ -44,7 +44,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           <Edit2 size={14} /> Edit
         </button>
       )}
-      {perms.canDelete && onDelete && (
+      {perms.canDelete && onDelete && m.isActive !== false && m.status !== 'Phased Out' && (
         <button onClick={() => onDelete(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold">
           <Trash2 size={14} /> Delete
         </button>

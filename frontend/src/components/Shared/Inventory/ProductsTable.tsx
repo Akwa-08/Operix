@@ -34,9 +34,11 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
       <button onClick={() => onEdit(p)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-cyan-100 rounded-lg text-xs text-cyan-700 font-semibold">
         <Edit2 size={14} /> Edit
       </button>
-      <button onClick={() => onDelete(p)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold">
-        <Trash2 size={14} /> Delete
-      </button>
+      {p.isActive && (
+        <button onClick={() => onDelete(p)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold">
+          <Trash2 size={14} /> Delete
+        </button>
+      )}
     </div>
   );
 

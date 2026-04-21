@@ -498,7 +498,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                         />
                       )}
                       {msg.content && (
-                        <p className="text-sm whitespace-pre-wrap">
+                        <p className="text-sm whitespace-pre-wrap break-words">
                           {msg.content}
                         </p>
                       )}

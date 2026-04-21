@@ -149,7 +149,9 @@ const AdminInventory = () => {
   };
 
   const handleConfirmReceipt = async () => {
-    if (!selectedDelivery || !receipt.receipt_reference_number.trim() || !receipt.received_quantity) { toast.error("Reference number and quantity are required"); return; }
+    if (!selectedDelivery) return;
+    if (!receipt.receipt_reference_number.trim()) { toast.error("Receipt / Reference number is required and cannot be empty."); return; }
+    if (!receipt.received_quantity) { toast.error("Quantity is required."); return; }
     const r = await confirmReceiptFn(selectedDelivery.id, { received_quantity: Number(receipt.received_quantity), receipt_reference_number: receipt.receipt_reference_number });
     if (r.success) { toast.success("Delivery confirmed! Inventory updated."); setShowConfirmReceipt(false); setReceipt({ received_quantity: "", receipt_reference_number: "" }); refreshMat(); }
     else toast.error(r.error || "Failed");
