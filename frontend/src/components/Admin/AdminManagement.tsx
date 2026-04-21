@@ -192,15 +192,15 @@ const AdminManagement: React.FC = () => {
 
   // ── Filtering ────────────────────────────────────────────────────────
   const filteredUsers = users.filter(u => {
-    const ms = !searchQuery || [u.firstName, u.lastName, u.email, u.userName].some((f: string) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    const ms = !searchQuery || [u.firstName, u.lastName, u.email, u.userName].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()));
     const mr = selectedRole === "Select Role" || u.role === selectedRole;
     return ms && mr;
   });
   const filteredEmployees = employees.filter(e =>
-    !searchQuery || [e.fullName, e.position, e.employeeCode, (e as any).role || ''].some((f: string) => f.toLowerCase().includes(searchQuery.toLowerCase()))
+    !searchQuery || [e.fullName, e.position, e.employeeCode, (e as any).role || ''].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
   const filteredSuppliers = suppliers.filter(s => {
-    const ms = !searchQuery || [s.supplierName, s.email].some((f: string) => f.toLowerCase().includes(searchQuery.toLowerCase()));
+    const ms = !searchQuery || [s.supplierName, s.email].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()));
     const mst = selectedStatus === "Select Status" || s.supplierStatus === selectedStatus;
     return ms && mst;
   });
@@ -304,15 +304,6 @@ const AdminManagement: React.FC = () => {
 
           <F label="Daily Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({...empForm, baseHourlyRate: v})} placeholder="0.00" />
           <F label="Hire Date" type="date" value={empForm.hireDate} onChange={(v: string) => setEmpForm({...empForm, hireDate: v})} />
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
-            <select value={empForm.role} onChange={(e) => setEmpForm({...empForm, role: e.target.value as UserRole})}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-base bg-white">
-              <option value="production">Production</option>
-              <option value="staff">General Staff</option>
-              <option value="manager">Manager</option>
-            </select>
-          </div>
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowCreateEmpModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
