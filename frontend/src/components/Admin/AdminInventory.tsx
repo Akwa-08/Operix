@@ -14,7 +14,7 @@ import { ProductsTable } from "../Shared/Inventory/ProductsTable";
 import { EditProductModal } from "../Shared/Inventory/EditProductModal";
 import { ProductDetailsModal } from "../Shared/Inventory/ProductDetailsModal";
 import { DeleteProductModal } from "../Shared/Inventory/DeleteProductModal";
-import type { Material, AdminProduct, Delivery, DeliveryStatus } from "../../Types";
+import type { Material, AdminProduct, Delivery } from "../../Types";
 import { useInventoryData, useProductsData, useDeliveries } from "../../hooks/useSupabase";
 import toast from "react-hot-toast";
 import { db } from "../../lib/database";

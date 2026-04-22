@@ -21,7 +21,7 @@ export const OrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const itemsPerPage = 6;
 
-  const { orders, loading, refresh } = useOrdersData();
+  const { orders, loading } = useOrdersData();
 
   // When orders re-fetches (e.g. after a file upload), sync selectedOrder
   // so the modal receives the latest data (including new designFile URLs).
@@ -147,7 +147,6 @@ export const OrdersPage: React.FC = () => {
           isOpen={showDetails} 
           order={selectedOrder} 
           onClose={() => setShowDetails(false)}
-          onRefresh={refresh} // Need to pass refresh from useOrdersData
         />
       )}
     </div>
