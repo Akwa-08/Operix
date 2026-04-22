@@ -8,13 +8,14 @@
 
 import { supabase } from '../config/supabaseClient';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
 async function adminFetch(method: string, path: string, body?: any) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Not authenticated');
 
-  const res = await fetch(`${API}${path}`, {
+  const res = await fetch(`${API_BASE}${normalizedPath}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
