@@ -93,17 +93,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', freshUser.id)
         .single();
 
-      if (profile) {
-        setUser({
+        const nextUser: AuthUser = {
           id: freshUser.id,
           email: freshUser.email ?? '',
-          role: (profile.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
-          firstName: profile.first_name ?? freshUser.user_metadata?.first_name ?? null,
-          lastName: profile.last_name ?? freshUser.user_metadata?.last_name ?? null,
-        });
-      } else {
-        setUser(parseUser(freshUser));
-      }
+          role: (profile?.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
+          firstName: profile?.first_name ?? freshUser.user_metadata?.first_name ?? null,
+          lastName: profile?.last_name ?? freshUser.user_metadata?.last_name ?? null,
+        };
+
+        // Defensive check: only update if data actually changed to reduce redundant re-renders
+        // that can trigger noisy browser extension "message channel closed" errors.
+        if (JSON.stringify(user) !== JSON.stringify(nextUser)) {
+          setUser(nextUser);
+        }
     } catch (err: any) {
       console.error("Failed to refresh user:", err.message);
       if (err.message && (err.message.includes("Refresh Token Not Found") || err.message.includes("Invalid Refresh Token"))) {

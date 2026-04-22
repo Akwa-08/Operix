@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Search, Eye, Flag, FileText, ChevronDown, X, Check, Trash2 } from "lucide-react";
 import { useManagementData } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
-import { PageHeader } from "../Shared/UI/PageHeader";
-import { getRoleColor } from "../../util/formatters";
+
 import type { FrontendUser, FrontendSupplier, EmployeeRecord, UserRole } from "../../Types";
 
 type Supplier = FrontendSupplier;
@@ -17,17 +16,7 @@ const F = ({ label, value, onChange, type = "text", placeholder = "", disabled =
   </div>
 );
 
-// ── Reusable select ──────────────────────────────────────────────────
-const S = ({ label, value, onChange, options, placeholder = "Select...", disabled = false }: any) => (
-  <div>
-    <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-    <select value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
-      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm bg-white">
-      <option value="">{placeholder}</option>
-      {options.map((o: string) => <option key={o} value={o.toLowerCase()}>{o}</option>)}
-    </select>
-  </div>
-);
+
 
 // ── Modal wrapper ────────────────────────────────────────────────────
 const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
@@ -221,7 +210,7 @@ const AdminManagement: React.FC = () => {
     return ms && mst;
   });
 
-  const roleBadge = getRoleColor;
+
 
   if (loading) return <LoadingSpinner />;
 

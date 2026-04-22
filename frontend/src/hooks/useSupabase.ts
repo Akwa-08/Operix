@@ -877,11 +877,12 @@ export function useDashboard() {
 }
 
 export function useDashboardData() {
-  const { orders, orderStats, invStats, lowStockItems, recentOrders, loading } =
+  const { orders, orderStats, invStats, lowStockItems, recentOrders, loading, refresh } =
     useDashboard();
   return {
     data: { rawOrders: orders, orderStats, inventoryStats: invStats, lowStockItems, recentOrders },
     loading,
+    refresh,
   };
 }
 
