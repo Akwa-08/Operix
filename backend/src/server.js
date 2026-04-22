@@ -64,7 +64,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
 app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, password, role, first_name, last_name, contact_number, address, is_active } = req.body;
+    const { email, password, role, first_name, last_name, username, contact_number, address, is_active } = req.body;
     const authPayload = {}; const metadata = {};
     if (email) authPayload.email = email;
     if (password) authPayload.password = password;
@@ -79,6 +79,7 @@ app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
     const dbPayload = {};
     if (first_name !== undefined) dbPayload.first_name = first_name;
     if (last_name !== undefined) dbPayload.last_name = last_name;
+    if (username !== undefined) dbPayload.username = username;
     if (email) dbPayload.email = email;
     if (role) dbPayload.role = role.toLowerCase();
     if (contact_number !== undefined) dbPayload.contact_number = contact_number;

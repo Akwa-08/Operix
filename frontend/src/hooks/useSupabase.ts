@@ -700,27 +700,8 @@ export function useManagementData() {
       );
       return r;
     },
-    updateUser: async (
-      id: string,
-      data: {
-        firstName?: string;
-        lastName?: string;
-        email?: string;
-        phoneNumber?: string;
-        role?: string;
-      },
-    ) => {
-      const r = await safe(() =>
-        adminApi
-          .updateUser(id, {
-            first_name: data.firstName,
-            last_name: data.lastName,
-            email: data.email,
-            contact_number: data.phoneNumber,
-            role: data.role?.toLowerCase(),
-          })
-          .then(() => refreshUsers()),
-      );
+    updateUser: async (id: string, data: { firstName?: string; lastName?: string; email?: string; username?: string; phoneNumber?: string; role?: string }) => {
+      const r = await safe(() => adminApi.updateUser(id, { first_name: data.firstName, last_name: data.lastName, email: data.email, username: data.username, contact_number: data.phoneNumber, role: data.role?.toLowerCase() }).then(() => refreshUsers()));
       return r;
     },
     deactivateUsers: async (ids: string[]) => {
@@ -816,11 +797,8 @@ export function useManagementData() {
 // DASHBOARD (aggregated)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useDashboard() {
-  const {orders, stats: orderStats, loading: oL} = useOrdersData();
-  const {data: inventory, loading: iL} = useQuery(
-    () => db.getInventoryItems(),
-    [],
-  );
+  const { orders, stats: orderStats, loading: oL, refresh: refreshOrders } = useOrders();
+  const { data: inventory, loading: iL, refresh: refreshInv } = useQuery(() => db.getInventoryItems(), []);
   const items = inventory || [];
 
   const invStats = useMemo(() => ({
@@ -885,14 +863,9 @@ export function useDashboard() {
     };
   }, [orders, orderStats]);
 
-  return {
-    orders, // Include raw orders for dashboard analysis
-    orderStats: extendedOrderStats,
-    invStats,
-    lowStockItems,
-    recentOrders,
-    loading: oL || iL,
-  };
+  const refresh = useCallback(async () => { await Promise.all([refreshOrders(), refreshInv()]); }, [refreshOrders, refreshInv]);
+
+  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, refresh };
 }
 
 export function useDashboardData() {
@@ -1148,13 +1121,10 @@ function mapCashAdvance(raw: any): CashAdvance {
   };
 }
 
-function mapPendingCashAdvance(
-  raw: any,
-  allPending: any[],
-): PendingCashAdvance {
-  const emp = raw.employee;
-  const dailyRate = Number(emp?.base_hourly_rate) || 0;
-  const allowedLimit = Math.round(dailyRate * 13 * 0.5);
+function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
+  const emp        = raw.employee;
+  const dailyRate  = Number(emp?.base_hourly_rate) || 0;
+  const allowedLimit = 2000; // Fixed ₱2,000 per 15-day period (business rule)
   const pendingTotal = allPending
     .filter((a) => a.employee_id === raw.employee_id && a.id !== raw.id)
     .reduce((s: number, a: any) => s + Number(a.amount), 0);
@@ -1503,6 +1473,68 @@ export function usePayrollData() {
         }
         payrollQ.refresh();
       });
+      return r;
+    },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUDIT LOGS — useLogsData()
+// Used by: AdminAuditLogs
+// ═══════════════════════════════════════════════════════════════════════════════
+export function useLogsData() {
+  const q = useQuery(async () => {
+    const { data, error } = await supabase
+      .from('order_logs')
+      .select(`*, updated_by_user:updated_by(id, first_name, last_name, role)`)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    return data || [];
+  }, []);
+
+  const logs = (q.data || []).map((raw: any) => ({
+    id:        raw.id,
+    orderId:   raw.order_id,
+    updatedBy: raw.updated_by_user
+                 ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim()
+                 : '—',
+    role:      raw.updated_by_user?.role || '—',
+    status:    raw.status || '',
+    note:      raw.note || '',
+    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+  }));
+
+  return { logs, loading: q.loading, error: q.error, refresh: q.refresh };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CASHIER CASH ADVANCES — useCashierCashAdvances()
+// Used by: CashierDashboard — submit requests, check eligibility
+// ═══════════════════════════════════════════════════════════════════════════════
+export interface CashAdvanceEligibility {
+  eligible: boolean;
+  reason: 'eligible' | 'limit_reached' | 'approved_awaiting_deduction';
+  remaining: number;   // ₱ still available to request this period
+  totalUsed: number;   // ₱ already pending/approved this period
+  detail?: { amount: number; date_issued: string };
+}
+
+export function useCashierCashAdvances() {
+  const q = useQuery(() => db.cashAdvances.getPendingCount(), []);
+
+  return {
+    pendingCount: q.data ?? 0,
+    loading: q.loading,
+    refresh: q.refresh,
+
+    checkEligibility: async (employeeId: string): Promise<CashAdvanceEligibility> => {
+      try { return await db.cashAdvances.checkEligibility(employeeId); }
+      catch { return { eligible: false, reason: 'limit_reached', remaining: 0, totalUsed: 0 }; }
+    },
+
+    submitRequest: async (data: { employee_id: string; amount: number; reason?: string }) => {
+      const r = await safe(() => db.cashAdvances.requestByCashier(data).then(() => q.refresh()));
       return r;
     },
   };

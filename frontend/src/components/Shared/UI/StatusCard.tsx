@@ -6,6 +6,7 @@ interface StatusCardProps {
   trend?: string;
   trendUp?: boolean;
   className?: string;
+  isCurrency?: boolean;
 }
 
 export const StatusCard: React.FC<StatusCardProps> = ({
@@ -16,7 +17,11 @@ export const StatusCard: React.FC<StatusCardProps> = ({
   trend,
   trendUp,
   className = '',
+  isCurrency,
 }) => {
+  const showCurrency = isCurrency !== undefined 
+    ? isCurrency 
+    : (typeof value === 'number' && !title.toLowerCase().includes('total') && !title.toLowerCase().includes('count'));
   return (
     <div className={`bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm ${className}`}>
       <div className="flex items-center justify-between mb-2">
@@ -24,9 +29,9 @@ export const StatusCard: React.FC<StatusCardProps> = ({
         <div className={iconColor}>{icon}</div>
       </div>
       <p className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
-        {typeof value === 'number' && !title.toLowerCase().includes('total') && !title.toLowerCase().includes('count')
-          ? `₱${value.toLocaleString()}`
-          : value}
+        {showCurrency
+          ? `₱${Number(value).toLocaleString()}`
+          : typeof value === 'number' ? value.toLocaleString() : value}
       </p>
       {trend && (
         <p
