@@ -544,7 +544,14 @@ export function useDeliveries() {
 // CASH ADVANCES — useCashAdvances() + usePendingCashAdvances()
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export type CashAdvanceStatus = 'pending' | 'approved' | 'deducted' | 'declined' | 'cancelled';
+export type CashAdvanceStatus =
+  | 'pending'
+  | 'approved'
+  | 'added_to_current_payroll'  // Issued this period — employee received ₱
+  | 'scheduled_for_deduction'   // Queued for next-period deduction
+  | 'deducted'                  // Fully deducted — cycle complete
+  | 'declined'
+  | 'cancelled';
 
 export interface CashAdvance {
   id: string;
@@ -749,7 +756,8 @@ export interface PayrollRecord {
   philhealth: number;
   hdmf: number;
   withholdingTax: number;
-  cashAdvance: number;
+  cashAdvance: number;          // Deduction from PREVIOUS period's CAs
+  cashAdvanceIssued: number;    // CA given to employee THIS period (informational)
   totalDeductions: number;
   netPay: number;
   taxableIncome: number;
@@ -820,6 +828,7 @@ function mapPayrollRecord(raw: any): PayrollRecord {
     hdmf: Number(raw.hdmf) || 0,
     withholdingTax: Number(raw.withholding_tax) || 0,
     cashAdvance: Number(raw.cash_advance) || 0,
+    cashAdvanceIssued: Number(raw.cash_advance_issued) || 0,
     totalDeductions: Number(raw.total_deductions) || 0,
     netPay: Number(raw.net_pay) || 0,
     taxableIncome: Number(raw.taxable_income) || 0,
@@ -983,10 +992,10 @@ export function useLogsData() {
 // ═══════════════════════════════════════════════════════════════════════════════
 export interface CashAdvanceEligibility {
   eligible: boolean;
-  reason: 'eligible' | 'limit_reached' | 'approved_awaiting_deduction';
-  remaining: number;   // ₱ still available to request this period
-  totalUsed: number;   // ₱ already pending/approved this period
-  detail?: { amount: number; date_issued: string };
+  reason: 'eligible' | 'limit_reached' | 'restricted_next_period' | 'approved_awaiting_deduction';
+  remaining: number;
+  totalUsed: number;
+  detail?: { amount: number; date_issued: string; periodLabel?: string };
 }
 
 export function useCashierCashAdvances() {

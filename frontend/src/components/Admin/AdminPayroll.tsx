@@ -198,6 +198,7 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
         <div class="row"><span>Regular OT:</span><span>${fmt(record.regularOvertime)}</span></div>
         <div class="row"><span>Holiday OT:</span><span>${fmt(record.holidayOvertime)}</span></div>
         <div class="row"><span>Special OT:</span><span>${fmt(record.specialOvertime)}</span></div>
+        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue" style="font-weight:600">Cash Advance Issued:</span><span class="blue" style="font-weight:700">+${fmt(record.cashAdvanceIssued)}</span></div>` : ''}
         <div class="total-row"><span>GROSS INCOME:</span><span>${fmt(record.grossIncome)}</span></div>
       </div>
     </div>
@@ -209,17 +210,19 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
         <div class="row"><span>PhilHealth:</span><span class="blue">${fmt(record.philhealth)}</span></div>
         <div class="row"><span>HDMF (Pag-IBIG):</span><span class="blue">${fmt(record.hdmf)}</span></div>
         <div class="row"><span>Withholding Tax:</span><span>${fmt(record.withholdingTax)}</span></div>
-        <div class="row"><span>Cash Advance:</span><span class="red">${fmt(record.cashAdvance)}</span></div>
+        ${record.cashAdvance > 0 ? `<div class="row"><span>CA Deduction (Prev Period):</span><span class="red">${fmt(record.cashAdvance)}</span></div>` : ''}
         <div class="total-row"><span>TOTAL DEDUCTIONS:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
       </div>
       <div>
         <h3>PAY SUMMARY</h3>
         <div class="row"><span>Gross Income:</span><span class="green">${fmt(record.grossIncome)}</span></div>
+        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue">Cash Advance Issued:</span><span class="blue">+${fmt(record.cashAdvanceIssued)}</span></div>` : ''}
         <div class="row"><span>Total Deductions:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
         <div class="net-box"><span>NET PAY</span><span class="green">${fmt(record.netPay)}</span></div>
         <div style="margin-top:8px;font-size:10px;color:#666">
           <div class="row"><span>Taxable Income:</span><span>${fmt(record.taxableIncome)}</span></div>
           <div class="row"><span>Tax Rate:</span><span>0%</span></div>
+          ${record.cashAdvanceIssued > 0 ? `<div class="row"><span style="color:#d97706;font-weight:600">⚠ CA of ${fmt(record.cashAdvanceIssued)} will be deducted in the NEXT payroll period.</span></div>` : ''}
         </div>
       </div>
     </div>
@@ -278,6 +281,12 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
                   {rows("Regular OT", record.regularOvertime)}
                   {rows("Holiday OT", record.holidayOvertime)}
                   {rows("Special OT", record.specialOvertime)}
+                  {record.cashAdvanceIssued > 0 && (
+                    <div className="flex justify-between py-0.5">
+                      <span className="text-blue-700 font-semibold">Cash Advance Issued</span>
+                      <span className="font-bold text-blue-700">+{fmt(record.cashAdvanceIssued)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
                     <span>GROSS INCOME:</span><span>{fmt(record.grossIncome)}</span>
                   </div>
@@ -294,7 +303,7 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
                   {rows("PhilHealth", record.philhealth, "text-blue-600")}
                   {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
-                  {rows("Cash Advance", record.cashAdvance, "text-red-600")}
+                  {record.cashAdvance > 0 && rows("CA Deduction (Prev Period)", record.cashAdvance, "text-red-600")}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
                     <span>TOTAL DEDUCTIONS:</span>
                     <span className="text-red-600">-{fmt(record.totalDeductions)}</span>
@@ -305,6 +314,12 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">PAY SUMMARY</h3>
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between"><span>Gross Income:</span><span className="text-green-600 font-semibold">{fmt(record.grossIncome)}</span></div>
+                  {record.cashAdvanceIssued > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-blue-600">CA Issued (This Period):</span>
+                      <span className="text-blue-600 font-semibold">+{fmt(record.cashAdvanceIssued)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between"><span>Total Deductions:</span><span className="text-red-600 font-semibold">-{fmt(record.totalDeductions)}</span></div>
                   <div className="bg-green-100 px-3 py-2 rounded font-bold flex justify-between mt-2">
                     <span>Net Pay</span><span className="text-green-700">{fmt(record.netPay)}</span>
@@ -313,6 +328,11 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
                     <div className="flex justify-between"><span>Taxable Income:</span><span>{fmt(record.taxableIncome)}</span></div>
                     <div className="flex justify-between"><span>Tax Rate:</span><span>0%</span></div>
                   </div>
+                  {record.cashAdvanceIssued > 0 && (
+                    <div className="mt-2 px-2 py-1.5 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-700">
+                      ⚠ CA of {fmt(record.cashAdvanceIssued)} issued this period will be deducted from the next payroll.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -584,9 +604,16 @@ function CashAdvanceApprovalPanel() {
         )}
 
         {pendingAdvances.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 flex items-center gap-6 text-[11px] text-gray-500">
-            <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-200 inline-block" />Exceeds allowed limit</span>
-            <span>Allowed limit = ₱2,000 fixed per 15-day payroll period</span>
+          <div className="px-6 py-3 border-t border-gray-100 bg-amber-50 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px] text-gray-600">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-200 inline-block" />Exceeds allowed limit</span>
+              <span className="font-semibold text-amber-700">💡 Deferred Deduction Policy:</span>
+            </div>
+            <p className="text-[11px] text-amber-800 leading-snug">
+              Approving a CA <strong>issues the money to the employee in the current period payroll</strong> (they receive it).
+              The full CA amount is then <strong>automatically deducted from their NEXT period payroll</strong>.
+              Employees with CA in the current period are <strong>blocked from requesting CA in the immediately next period</strong>.
+            </p>
           </div>
         )}
       </div>
@@ -1194,7 +1221,7 @@ const AdminPayroll: React.FC = () => {
                         { step: 10, label: "PhilHealth", formula: "(Daily Rate × 26) × 3% ÷ 2", note: "Employee share only, rounded to ₱5. e.g. ₱635/day → ₱250", color: "bg-orange-50 border-orange-200" },
                         { step: 11, label: "HDMF (Pag-IBIG)", formula: "₱200.00 fixed per period", note: "Constant deduction every 15 days", color: "bg-orange-50 border-orange-200" },
                         { step: 12, label: "Withholding Tax", formula: "₱0.00 (below threshold)", note: "BIR applies when monthly income > ₱20,833", color: "bg-yellow-50 border-yellow-200" },
-                        { step: 13, label: "Cash Advance", formula: "Sum of all Approved advances", note: "Admin approves → deducted NEXT payroll. Limit: TBA", color: "bg-amber-50 border-amber-200" },
+                        { step: 13, label: "Cash Advance (Deduction)", formula: "Sum of PREVIOUS period's issued CAs", note: "Period N: CA issued to employee → Period N+1: deducted. Limit: ₱2,000/period. Employee blocked from CA in the period immediately after receiving one.", color: "bg-amber-50 border-amber-200" },
                       ].map(({ step, label, formula, note, color }) => (
                         <div key={step} className={`flex gap-3 p-3 rounded-lg border ${color}`}>
                           <div className="w-6 h-6 rounded-full bg-gray-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
