@@ -26,7 +26,7 @@ export default function HomePage() {
   const [modalProduct, setModalProduct] = useState<any>(null);
 
   const filteredProducts = allProducts.filter((p) =>
-    p.title.toLowerCase().includes(searchQuery.toLowerCase()),
+    p.isActive && p.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const itemsPerPage = 6;
@@ -153,7 +153,7 @@ export default function HomePage() {
                 Available Products
               </h2>
               <p className="text-gray-500 font-bold uppercase text-xs tracking-widest mt-1">
-                Showing {pagedProducts.length} of {filteredProducts.length}{" "}
+                Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredProducts.length)}-{Math.min(currentPage * itemsPerPage, filteredProducts.length)} of {filteredProducts.length}{" "}
                 items
               </p>
             </div>
@@ -178,7 +178,7 @@ export default function HomePage() {
           {/* Products Grid */}
           <motion.div
             layout
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-6 md:gap-8">
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8">
             <AnimatePresence mode="popLayout">
               {pagedProducts.map((product) => (
                 <ProductCard
@@ -192,18 +192,28 @@ export default function HomePage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-3 sm:gap-4 mt-6 md:mt-10">
+            <div className="flex justify-center items-center gap-2 sm:gap-3 mt-6 md:mt-10">
               <button
                 onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="p-2.5 sm:p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group">
-                <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 group-hover:-translate-x-1 transition-transform" />
+                className="p-2 sm:p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group"
+                title="Previous Page">
+                <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
 
-              <div className="flex items-center px-4">
-                <span className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-cyan-400 text-white flex items-center justify-center text-base sm:text-lg font-black shadow-lg shadow-cyan-100">
-                  {currentPage}
-                </span>
+              <div className="flex items-center gap-2">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl text-sm sm:text-base font-black transition-all shadow-sm flex items-center justify-center cursor-pointer ${
+                      currentPage === page
+                        ? "bg-cyan-400 text-white shadow-lg shadow-cyan-100 ring-2 ring-cyan-200"
+                        : "bg-white text-gray-500 hover:bg-gray-50 hover:text-cyan-500 border border-gray-200"
+                    }`}>
+                    {page}
+                  </button>
+                ))}
               </div>
 
               <button
@@ -211,8 +221,9 @@ export default function HomePage() {
                   setCurrentPage((prev) => Math.min(totalPages, prev + 1))
                 }
                 disabled={currentPage === totalPages}
-                className="p-2.5 sm:p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group">
-                <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-1 transition-transform" />
+                className="p-2 sm:p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group"
+                title="Next Page">
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </button>
             </div>
           )}

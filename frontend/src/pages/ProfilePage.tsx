@@ -124,11 +124,19 @@ export const ProfilePage = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
+<<<<<<< HEAD
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm p-6 md:p-10 mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Personal Information</h2>
           <div className="flex gap-3 w-full sm:w-auto">
+=======
+    <div className="p-4 md:p-8">
+      <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-sm p-8 mb-8">
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-3xl font-bold">Personal Information</h2>
+          <div className="flex gap-3">
+>>>>>>> 9117a08e0f257b5864955b2fb4b75a9f774b7f1d
             {isEditing && (
               <button
                 onClick={handleCancelEdit}

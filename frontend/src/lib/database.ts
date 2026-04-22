@@ -279,6 +279,10 @@ export const db = {
       .select(
         "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
       )
+<<<<<<< HEAD
+=======
+      .order("created_at", {ascending: false});
+>>>>>>> 9117a08e0f257b5864955b2fb4b75a9f774b7f1d
       .order("name");
     if (error) throw error;
     return data || [];
@@ -323,6 +327,10 @@ export const db = {
     let query = supabase
       .from("products")
       .select("*")
+<<<<<<< HEAD
+=======
+      .order("created_at", { ascending: false });
+>>>>>>> 9117a08e0f257b5864955b2fb4b75a9f774b7f1d
       .order("category")
       .order("name");
     if (filters?.category) query = query.eq("category", filters.category);
