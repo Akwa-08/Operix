@@ -70,8 +70,19 @@ const AdminManagement: React.FC = () => {
   // Forms
   const [userForm, setUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", role: "", password: "", confirmPassword: "" });
   const [editUserForm, setEditUserForm] = useState({ firstName: "", lastName: "", phoneNumber: "", email: "", role: "" });
-  const [empForm, setEmpForm] = useState({ employeeCode: "", fullName: "", position: "", role: "production" as UserRole, baseHourlyRate: "", hireDate: "" });
-  const [editEmpForm, setEditEmpForm] = useState({ fullName: "", position: "", role: "" as UserRole, baseHourlyRate: "", holidayMultiplier: "", overtimeMultiplier: "" });
+
+  // Employee forms — now includes role
+  const [empForm, setEmpForm] = useState({
+    employeeCode: "", fullName: "", position: "",
+    role: "",           // ← NEW: cashier | designer | production | admin | other
+    baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0],
+  });
+  const [editEmpForm, setEditEmpForm] = useState({
+    fullName: "", position: "",
+    role: "",           // ← NEW
+    baseHourlyRate: "", holidayMultiplier: "", overtimeMultiplier: "",
+  });
+
   const [supplierForm, setSupplierForm] = useState({ name: "", phone: "", email: "" });
   const [flagNotes, setFlagNotes] = useState("");
 
@@ -256,19 +267,11 @@ const AdminManagement: React.FC = () => {
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowViewUserModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          {selectedUser?.isActive && (
-            <button 
-              onClick={() => { 
-                if (selectedUser) { 
-                  setUserToDeactivate(selectedUser); 
-                  setShowViewUserModal(false); 
-                  setShowDeactivateModal(true); 
-                } 
-              }}
-              className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl"
-            >
-              Deactivate
-            </button>
+          {selectedUser?.isActive ? (
+            <button onClick={() => { if (selectedUser) { setUserToDeactivate(selectedUser); setShowViewUserModal(false); setShowDeactivateModal(true); }}}
+              className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl">Deactivate</button>
+          ) : (
+            <span className="px-4 py-3 bg-gray-100 text-gray-400 font-semibold rounded-xl text-sm flex items-center">Account Inactive</span>
           )}
           <button onClick={handleUpdateUser} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
             <Check size={18} />Save
@@ -398,7 +401,7 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* PAGE HEADER */}
-      <div className="flex justify-between items-start mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage accounts, employee records, and suppliers</p>
@@ -508,7 +511,7 @@ const AdminManagement: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-                {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
+                {filteredUsers.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
               </tbody>
             </table>
           </div>
