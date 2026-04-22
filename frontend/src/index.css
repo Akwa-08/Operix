@@ -2,6 +2,7 @@
 
 @layer base {
   html {
+    overflow-x: hidden;
     /* 
       Tech-Boomer Accessibility Enhancement:
       Bumping base font-size to 18px (from 16px).
@@ -12,6 +13,7 @@
   }
 
   body {
+    overflow-x: hidden;
     @apply bg-slate-50 text-slate-900 transition-colors duration-300 antialiased;
   }
 }

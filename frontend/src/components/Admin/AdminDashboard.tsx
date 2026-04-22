@@ -278,33 +278,33 @@ const AdminDashboard = () => {
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5 overflow-x-hidden">
+    <div className="max-w-7xl mx-auto space-y-5">
 
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{dateStr}</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h1>
+          <p className="text-sm text-gray-400 mt-1 font-medium">{dateStr}</p>
         </div>
         <button
           onClick={() => refresh?.()}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 shadow-sm self-start sm:self-auto"
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm active:scale-95 transition-all w-full sm:w-auto"
         >
-          <RefreshCw size={14} /> Refresh
+          <RefreshCw size={15} className="text-cyan-500" /> Refresh Data
         </button>
       </div>
 
       {/* ── 2. PERIOD SELECTOR ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 p-1.5 shadow-sm">
-        <div className="flex gap-1 overflow-x-auto">
+      <div className="bg-white rounded-xl border border-gray-200 p-1.5 shadow-sm overflow-hidden">
+        <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-smooth p-0.5">
           {PERIODS.map(p => (
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              className={`flex-shrink-0 px-5 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
                 period === p.key
-                  ? "bg-cyan-500 text-white shadow-sm"
-                  : "text-gray-500 hover:bg-gray-100"
+                  ? "bg-cyan-500 text-white shadow-md shadow-cyan-200"
+                  : "text-gray-500 hover:bg-gray-50 hover:text-gray-900"
               }`}
             >
               {p.label}
@@ -418,12 +418,12 @@ const AdminDashboard = () => {
               <p className="text-xs text-gray-400">{periodLabel} · {activeChart.label}</p>
             </div>
             {/* Chart type selector — wraps on mobile */}
-            <div className="flex flex-wrap gap-1 bg-gray-100 rounded-lg p-1 self-start">
+            <div className="flex flex-wrap gap-1 bg-gray-100 rounded-xl p-1 w-full sm:w-auto">
               {CHART_TYPES.map(ct => (
                 <button
                   key={ct.key}
                   onClick={() => setChartType(ct.key)}
-                  className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
                     chartType === ct.key
                       ? "bg-white shadow-sm text-gray-900"
                       : "text-gray-500 hover:text-gray-700"
@@ -515,20 +515,20 @@ const AdminDashboard = () => {
               )}
             </div>
             {overdueList.length === 0 ? (
-              <p className="text-sm text-green-600 font-medium bg-green-50 rounded-lg px-3 py-2">
+              <p className="text-sm text-green-600 font-bold bg-green-50 rounded-xl px-4 py-3">
                 ✅ No overdue orders
               </p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {overdueList.map((o, i) => (
-                  <div key={i} className="flex items-start justify-between p-3 bg-red-50 rounded-lg gap-2">
+                  <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-red-50/50 border border-red-100 rounded-xl gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{o.orderId}</p>
-                      <p className="text-xs text-gray-500 truncate">{o.customer} · {o.product}</p>
+                      <p className="text-sm font-bold text-gray-900 truncate">{o.orderId}</p>
+                      <p className="text-xs text-gray-500 truncate font-medium">{o.customer} • {o.product}</p>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-xs text-red-600 font-semibold">Due {o.dueDate}</p>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                    <div className="flex items-center justify-between sm:flex-col sm:items-end gap-2">
+                      <p className="text-xs text-red-600 font-bold bg-red-100 px-2.5 py-1 rounded-full">Due {o.dueDate}</p>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
                         PIPELINE_STAGES.find(s => s.key === o.status)?.bg || "bg-gray-100 text-gray-700"
                       }`}>
                         {PIPELINE_STAGES.find(s => s.key === o.status)?.label || o.status}

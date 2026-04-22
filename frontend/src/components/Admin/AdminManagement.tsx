@@ -33,10 +33,10 @@ const S = ({ label, value, onChange, options, placeholder = "Select...", disable
 const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
   if (!show) return null;
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-        <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className={`bg-white rounded-3xl shadow-2xl ${width} w-full p-6 md:p-10 relative overflow-y-auto max-h-[90vh]`} onClick={(e: any) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-xl transition-colors"><X size={20} className="text-gray-400" /></button>
+        <h3 className="text-2xl font-bold text-gray-900 mb-8">{title}</h3>
         {children}
       </div>
     </div>
@@ -398,14 +398,15 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* PAGE HEADER */}
-      <div className="flex justify-between items-start mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage accounts, employee records, and suppliers</p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={handleCreateNew} className="px-6 py-2.5 bg-white border-2 border-gray-900 hover:bg-gray-50 text-gray-900 font-semibold rounded-lg">Create New</button>
-        </div>
+        <button onClick={handleCreateNew} 
+          className="w-full sm:w-auto px-6 py-3 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-xl shadow-lg shadow-gray-200 transition-all active:scale-95">
+          Create New Record
+        </button>
       </div>
 
       {/* TABS */}
@@ -419,96 +420,128 @@ const AdminManagement: React.FC = () => {
       </div>
 
       {/* FILTERS */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm mb-6">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
             <input type="text"
               placeholder={activeTab.includes("Supplier") ? "Search suppliers..." : activeTab.includes("Employee") ? "Search employees..." : "Search accounts..."}
               value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+              className="w-full pl-10 pr-4 py-3 bg-gray-50 border-none rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-cyan-500 transition-all" />
           </div>
-          {activeTab === "User Account Management" && (
-            <div className="relative">
-              <button onClick={() => setShowRoleDropdown(!showRoleDropdown)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]">
-                <span>{selectedRole}</span><ChevronDown size={16} />
-              </button>
-              {showRoleDropdown && (
-                <div className="absolute top-full mt-1 w-full bg-white border rounded-lg shadow-lg z-10">
-                  <button onClick={() => { setSelectedRole("Select Role"); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All Roles</button>
-                  {accountRoles.map(r => <button key={r} onClick={() => { setSelectedRole(r); setShowRoleDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{r}</button>)}
-                </div>
-              )}
-            </div>
-          )}
-          {activeTab === "Supplier List Management" && (
-            <div className="relative">
-              <button onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 min-w-[150px]">
-                <span>{selectedStatus}</span><ChevronDown size={16} />
-              </button>
-              {showStatusDropdown && (
-                <div className="absolute top-full mt-1 w-full bg-white border rounded-lg shadow-lg z-10">
-                  <button onClick={() => { setSelectedStatus("Select Status"); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">All</button>
-                  {statuses.map(s => <button key={s} onClick={() => { setSelectedStatus(s); setShowStatusDropdown(false); }} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">{s}</button>)}
-                </div>
-              )}
-            </div>
-          )}
+          <div className="flex gap-2">
+            {activeTab === "User Account Management" && (
+              <div className="flex-1 md:flex-none relative">
+                <button onClick={() => setShowRoleDropdown(!showRoleDropdown)}
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-sm border-none flex items-center justify-between gap-2 min-w-[140px] font-semibold text-gray-700">
+                  <span>{selectedRole}</span><ChevronDown size={16} />
+                </button>
+                {showRoleDropdown && (
+                  <div className="absolute top-full mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl z-20 overflow-hidden">
+                    <button onClick={() => { setSelectedRole("Select Role"); setShowRoleDropdown(false); }} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors">All Roles</button>
+                    {accountRoles.map(r => <button key={r} onClick={() => { setSelectedRole(r); setShowRoleDropdown(false); }} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors border-t border-gray-50">{r}</button>)}
+                  </div>
+                )}
+              </div>
+            )}
+            {activeTab === "Supplier List Management" && (
+              <div className="flex-1 md:flex-none relative">
+                <button onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                  className="w-full px-4 py-3 bg-gray-50 rounded-xl text-sm border-none flex items-center justify-between gap-2 min-w-[140px] font-semibold text-gray-700">
+                  <span>{selectedStatus}</span><ChevronDown size={16} />
+                </button>
+                {showStatusDropdown && (
+                  <div className="absolute top-full mt-2 w-full bg-white border border-gray-100 rounded-xl shadow-xl z-20 overflow-hidden">
+                    <button onClick={() => { setSelectedStatus("Select Status"); setShowStatusDropdown(false); }} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors">All Statuses</button>
+                    {statuses.map(s => <button key={s} onClick={() => { setSelectedStatus(s); setShowStatusDropdown(false); }} className="w-full px-4 py-3 text-left text-sm hover:bg-gray-50 transition-colors border-t border-gray-50">{s}</button>)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* ═══ USER ACCOUNTS TABLE ═══ */}
       {activeTab === "User Account Management" && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-bold text-gray-900">User Accounts</h2>
             <p className="text-sm text-gray-500 mt-1">All system login accounts — staff and customers ({filteredUsers.length} records)</p>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* MOBILE VIEW — CARDS */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredUsers.map((u: FrontendUser) => (
+              <div key={u.id} className="p-5 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 truncate">{u.firstName} {u.lastName}</p>
+                    <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleViewUser(u)} className="p-2 bg-cyan-50 text-cyan-600 rounded-lg"><Eye size={18} /></button>
+                    {u.isActive && <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="p-2 bg-red-50 text-red-500 rounded-lg"><Trash2 size={18} /></button>}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                    {u.role}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {u.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                  <span className="ml-auto text-[10px] text-gray-400 font-medium">Joined {u.createdAt}</span>
+                </div>
+              </div>
+            ))}
+            {filteredUsers.length === 0 && <div className="p-10 text-center text-gray-400 text-sm italic">No accounts found</div>}
+          </div>
+
+          {/* DESKTOP VIEW — TABLE */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b"><tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Role</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Created</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
+              <thead className="bg-gray-50 border-b border-gray-100"><tr>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Name</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Email</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Contact</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Role</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Status</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Created</th>
+                <th className="px-5 py-4 text-center font-bold text-gray-700 uppercase tracking-tight text-xs">Actions</th>
               </tr></thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-50">
                 {filteredUsers.map((u: FrontendUser) => (
-                  <tr key={u.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{u.firstName} {u.lastName}</td>
-                    <td className="px-4 py-3 text-gray-600">{u.email}</td>
-                    <td className="px-4 py-3 text-gray-600">{u.contactNumber || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                  <tr key={u.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-5 py-4 font-bold text-gray-900">{u.firstName} {u.lastName}</td>
+                    <td className="px-5 py-4 text-gray-600">{u.email}</td>
+                    <td className="px-5 py-4 text-gray-600">{u.contactNumber || '—'}</td>
+                    <td className="px-5 py-4">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${u.role === 'Admin' ? 'bg-purple-100 text-purple-700' : u.role === 'Customer' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
                         {u.role}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    <td className="px-5 py-4">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {u.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{u.createdAt}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-5 py-4 text-gray-500 font-medium">{u.createdAt}</td>
+                    <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleViewUser(u)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View/Edit">
-                          <Eye size={18} className="text-cyan-600" />
+                        <button onClick={() => handleViewUser(u)} className="p-2 hover:bg-cyan-50 text-cyan-600 rounded-xl transition-colors" title="View/Edit">
+                          <Eye size={20} />
                         </button>
                         {u.isActive && (
-                          <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="p-1.5 hover:bg-red-100 rounded-lg" title="Deactivate">
-                            <Trash2 size={18} className="text-red-500" />
+                          <button onClick={() => { setUserToDeactivate(u); setShowDeactivateModal(true); }} className="p-2 hover:bg-red-50 text-red-500 rounded-xl transition-colors" title="Deactivate">
+                            <Trash2 size={20} />
                           </button>
                         )}
                       </div>
                     </td>
                   </tr>
                 ))}
-                {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
+                {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-5 py-20 text-center text-gray-400 italic">No accounts found</td></tr>}
               </tbody>
             </table>
           </div>
@@ -517,54 +550,92 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ EMPLOYEE RECORDS TABLE ═══ */}
       {activeTab === "Employee List Management" && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-bold text-gray-900">Employee Records</h2>
             <p className="text-sm text-gray-500 mt-1">HR records for payroll and record-keeping ({filteredEmployees.length} records)</p>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* MOBILE VIEW — CARDS */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredEmployees.map((e: EmployeeRecord) => (
+              <div key={e.id} className="p-5 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 truncate">{e.fullName}</p>
+                    <p className="text-xs text-gray-500 truncate">{e.position}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleViewEmp(e)} className="p-2 bg-cyan-50 text-cyan-600 rounded-lg"><Eye size={18} /></button>
+                    {e.isActive && (
+                      <button onClick={async () => { if (window.confirm(`Deactivate ${e.fullName}?`)) await deactivateEmployee(e.id); }} className="p-2 bg-red-50 text-red-500 rounded-lg"><Trash2 size={18} /></button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-700 font-mono">
+                    {e.employeeCode}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600">
+                    {e.role}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {e.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs mt-2 border-t border-gray-50 pt-2">
+                  <span className="text-gray-500">Rate: <span className="font-bold text-gray-900">₱{e.baseHourlyRate.toFixed(2)}/day</span></span>
+                  <span className="text-gray-400">Hired {e.hireDate}</span>
+                </div>
+              </div>
+            ))}
+            {filteredEmployees.length === 0 && <div className="p-10 text-center text-gray-400 text-sm italic">No employee records found</div>}
+          </div>
+
+          {/* DESKTOP VIEW — TABLE */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b"><tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Code</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Full Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Position</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Role</th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-700">Daily Rate</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Hire Date</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
+              <thead className="bg-gray-50 border-b border-gray-100"><tr>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Code</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Full Name</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Position</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Role</th>
+                <th className="px-5 py-4 text-right font-bold text-gray-700 uppercase tracking-tight text-xs">Daily Rate</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Hire Date</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Status</th>
+                <th className="px-5 py-4 text-center font-bold text-gray-700 uppercase tracking-tight text-xs">Actions</th>
               </tr></thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-50">
                 {filteredEmployees.map((e: EmployeeRecord) => (
-                  <tr key={e.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600">{e.employeeCode}</td>
-                    <td className="px-4 py-3 font-medium">{e.fullName}</td>
-                    <td className="px-4 py-3 text-gray-600">{e.position}</td>
-                    <td className="px-4 py-3 text-gray-600"><span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-semibold">{e.role}</span></td>
-                    <td className="px-4 py-3 text-right font-semibold">₱{e.baseHourlyRate.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-gray-600">{e.hireDate}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <tr key={e.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-5 py-4 font-mono text-xs text-gray-600">{e.employeeCode}</td>
+                    <td className="px-5 py-4 font-bold text-gray-900">{e.fullName}</td>
+                    <td className="px-5 py-4 text-gray-600">{e.position}</td>
+                    <td className="px-5 py-4"><span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-600 text-xs font-bold uppercase tracking-wider">{e.role}</span></td>
+                    <td className="px-5 py-4 text-right font-bold text-gray-900">₱{e.baseHourlyRate.toFixed(2)}</td>
+                    <td className="px-5 py-4 text-gray-500 font-medium">{e.hireDate}</td>
+                    <td className="px-5 py-4">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${e.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {e.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleViewEmp(e)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View/Edit">
-                          <Eye size={18} className="text-cyan-600" />
+                        <button onClick={() => handleViewEmp(e)} className="p-2 hover:bg-cyan-50 text-cyan-600 rounded-xl transition-colors" title="View/Edit">
+                          <Eye size={20} />
                         </button>
                         {e.isActive && (
                           <button onClick={async () => {
                             if (window.confirm(`Deactivate ${e.fullName}?`)) await deactivateEmployee(e.id);
-                          }} className="p-1.5 hover:bg-red-100 rounded-lg" title="Deactivate">
-                            <Trash2 size={18} className="text-red-500" />
+                          }} className="p-2 hover:bg-red-50 text-red-500 rounded-xl transition-colors" title="Deactivate">
+                            <Trash2 size={20} />
                           </button>
                         )}
                       </div>
                     </td>
                   </tr>
                 ))}
-                {filteredEmployees.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">No employee records found</td></tr>}
+                {filteredEmployees.length === 0 && <tr><td colSpan={8} className="px-5 py-20 text-center text-gray-400 italic">No employee records found</td></tr>}
               </tbody>
             </table>
           </div>
@@ -573,47 +644,82 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ SUPPLIERS TABLE ═══ */}
       {activeTab === "Supplier List Management" && (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-6 border-b">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-gray-100">
             <h2 className="text-xl font-bold text-gray-900">Suppliers</h2>
             <p className="text-sm text-gray-500 mt-1">Manage suppliers, contact info, and flags ({filteredSuppliers.length} records)</p>
           </div>
-          <div className="overflow-x-auto">
+
+          {/* MOBILE VIEW — CARDS */}
+          <div className="md:hidden divide-y divide-gray-100">
+            {filteredSuppliers.map((s: Supplier) => (
+              <div key={s.id} className="p-5 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 truncate flex items-center gap-2">
+                       {s.supplierName}
+                       {s.isFlagged && <Flag size={14} className="text-red-500 fill-red-500" />}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">{s.email || s.contactNumber || 'No contact info'}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleViewSupplier(s)} className="p-2 bg-cyan-50 text-cyan-600 rounded-lg"><Eye size={18} /></button>
+                    <button onClick={() => { setSelectedSupplier(s); setFlagNotes(s.flagNotes); setShowFlagNotesModal(true); }} className="p-2 bg-gray-50 text-gray-600 rounded-lg"><FileText size={18} /></button>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.supplierStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {s.supplierStatus}
+                  </span>
+                  <button onClick={() => handleToggleFlag(s.id)} className="text-[10px] text-gray-500 font-bold uppercase tracking-wider underline hover:text-gray-700">
+                     {s.isFlagged ? 'Unflag' : 'Flag'}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {filteredSuppliers.length === 0 && <div className="p-10 text-center text-gray-400 text-sm italic">No suppliers found</div>}
+          </div>
+
+          {/* DESKTOP VIEW — TABLE */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b"><tr>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Supplier Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Phone</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Created</th>
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
+              <thead className="bg-gray-50 border-b border-gray-100"><tr>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Supplier Name</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Email</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Phone</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Status</th>
+                <th className="px-5 py-4 text-left font-bold text-gray-700 uppercase tracking-tight text-xs">Created</th>
+                <th className="px-5 py-4 text-center font-bold text-gray-700 uppercase tracking-tight text-xs">Actions</th>
               </tr></thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-gray-50">
                 {filteredSuppliers.map((s: Supplier) => (
-                  <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{s.supplierName}</td>
-                    <td className="px-4 py-3 text-gray-600">{s.email || '—'}</td>
-                    <td className="px-4 py-3 text-gray-600">{s.contactNumber || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${s.supplierStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <tr key={s.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-5 py-4 font-bold text-gray-900 flex items-center gap-2">
+                      {s.supplierName}
+                      {s.isFlagged && <div className="w-2 h-2 rounded-full bg-red-500" title="Flagged" />}
+                    </td>
+                    <td className="px-5 py-4 text-gray-600">{s.email || '—'}</td>
+                    <td className="px-5 py-4 text-gray-600">{s.contactNumber || '—'}</td>
+                    <td className="px-5 py-4">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${s.supplierStatus === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {s.supplierStatus}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{s.createdAt}</td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-5 py-4 text-gray-500 font-medium">{s.createdAt}</td>
+                    <td className="px-5 py-4 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => handleViewSupplier(s)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View"><Eye size={16} className="text-cyan-600" /></button>
-                        <button onClick={() => handleToggleFlag(s.id)} className={`p-1.5 rounded-lg ${s.isFlagged ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-red-100'}`} title={s.isFlagged ? 'Flagged' : 'Flag'}>
-                          <Flag size={16} className={s.isFlagged ? 'text-red-600 fill-red-600' : 'text-gray-500'} />
+                        <button onClick={() => handleViewSupplier(s)} className="p-2 hover:bg-cyan-50 text-cyan-600 rounded-xl transition-colors" title="View"><Eye size={20} /></button>
+                        <button onClick={() => handleToggleFlag(s.id)} className={`p-2 rounded-xl transition-colors ${s.isFlagged ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-red-50'}`} title={s.isFlagged ? 'Unflag' : 'Flag'}>
+                          <Flag size={20} className={s.isFlagged ? 'text-red-600 fill-red-600' : 'text-gray-400'} />
                         </button>
-                        <button onClick={() => { setSelectedSupplier(s); setFlagNotes(s.flagNotes); setShowFlagNotesModal(true); }} className="p-1.5 hover:bg-gray-200 rounded-lg" title="Notes">
-                          <FileText size={16} className="text-gray-500" />
+                        <button onClick={() => { setSelectedSupplier(s); setFlagNotes(s.flagNotes); setShowFlagNotesModal(true); }} className="p-2 hover:bg-gray-100 text-gray-600 rounded-xl transition-colors" title="Notes">
+                          <FileText size={20} />
                         </button>
                       </div>
                     </td>
                   </tr>
                 ))}
-                {filteredSuppliers.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No suppliers found</td></tr>}
+                {filteredSuppliers.length === 0 && <tr><td colSpan={6} className="px-5 py-20 text-center text-gray-400 italic">No suppliers found</td></tr>}
               </tbody>
             </table>
           </div>

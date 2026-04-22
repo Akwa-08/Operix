@@ -1464,7 +1464,55 @@ const AdminPayroll: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="font-bold text-gray-900">Attendance Logs</h3>
+              <span className="text-xs font-bold px-2 py-1 bg-gray-100 text-gray-500 rounded-full">{filteredLogs.length} Records</span>
+            </div>
+
+            {/* MOBILE VIEW — CARDS */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {filteredLogs.length === 0 ? (
+                <div className="p-10 text-center text-gray-400 text-sm italic">
+                  {attendanceLogs.length === 0 ? "No data. Import XLS to populate." : "No results match search."}
+                </div>
+              ) : (
+                filteredLogs.map((log) => (
+                  <div key={log.id} className="p-4 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 truncate">{log.fullName}</p>
+                        <p className="text-xs text-gray-500 truncate">{log.position}</p>
+                      </div>
+                      <button onClick={() => setEditingLog(log)} className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
+                        <Edit2 size={16} />
+                      </button>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-y-2 text-[10px] sm:text-xs">
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 font-medium">Work Hrs</span>
+                        <span className="font-bold text-gray-900">{log.workedHours}h / {log.requiredHours}h</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 font-medium">OT (R/H/S)</span>
+                        <span className="font-bold text-gray-900">{log.regularOvertimeHours}/{log.holidayOvertimeHours}/{log.specialOvertimeHours}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 font-medium">Late / Early</span>
+                        <span className="font-bold text-red-600">{log.lateTimeslots} / {log.earlyLeaveTimeslots} (×30m)</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 font-medium">Abs/Leave</span>
+                        <span className="font-bold text-amber-600">{log.absences} / {log.onLeaveDays} d</span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* DESKTOP VIEW — TABLE */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
@@ -1600,7 +1648,7 @@ const AdminPayroll: React.FC = () => {
       {activeTab === "Salary Computation" && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-            <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1 relative">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -1611,26 +1659,23 @@ const AdminPayroll: React.FC = () => {
                   placeholder="Search employee…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-cyan-500 transition-all"
                 />
               </div>
-              <button
-                onClick={() => activePeriodId && computePayroll(activePeriodId)}
-                disabled={
-                  computing || attendanceLogs.length === 0 || !activePeriodId
-                }
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                <RefreshCw
-                  size={16}
-                  className={computing ? "animate-spin" : ""}
-                />
-                {computing ? "Computing…" : "Recompute All"}
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                <Printer size={16} /> Print All
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => activePeriodId && computePayroll(activePeriodId)}
+                  disabled={computing || attendanceLogs.length === 0 || !activePeriodId}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 text-white rounded-xl text-sm font-bold shadow-md shadow-cyan-100 transition-all disabled:opacity-50">
+                  <RefreshCw size={16} className={computing ? "animate-spin" : ""} />
+                  {computing ? "Computing…" : "Recompute"}
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all">
+                  <Printer size={16} /> Print
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1653,7 +1698,53 @@ const AdminPayroll: React.FC = () => {
           ) : (
             <>
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="font-bold text-gray-900">Payroll Records</h3>
+                  <span className="text-xs font-bold px-2 py-1 bg-green-100 text-green-700 rounded-full">₱{payrollRecords.reduce((s, r) => s + r.netPay, 0).toLocaleString()} Period Total</span>
+                </div>
+
+                {/* MOBILE VIEW — CARDS */}
+                <div className="md:hidden divide-y divide-gray-100">
+                  {filteredRecords.map((rec) => (
+                    <div key={rec.id} className="p-4 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div className="min-w-0">
+                          <p className="font-bold text-gray-900 truncate">{rec.employeeName}</p>
+                          <p className="text-xs text-gray-500 truncate">{rec.position} • {rec.daysPresent} days</p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setViewingRecord(rec)} className="p-2 bg-cyan-50 text-cyan-600 rounded-lg"><Eye size={18} /></button>
+                          {rec.status !== "paid" && (
+                            <button onClick={() => updatePayrollRecord(rec.id, { status: "paid" })} className="p-2 bg-green-50 text-green-600 rounded-lg"><CheckCircle2 size={18} /></button>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-y-2 text-[10px] sm:text-xs">
+                        <div className="flex flex-col">
+                          <span className="text-gray-400 font-medium">Gross</span>
+                          <span className="font-bold text-blue-700">{fmt(rec.grossIncome)}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-400 font-medium">Deductions</span>
+                          <span className="font-bold text-red-600">-{fmt(rec.totalDeductions)}</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-gray-400 font-medium font-bold text-gray-900">Net Pay</span>
+                          <span className="font-bold text-green-700 text-base sm:text-lg">{fmt(rec.netPay)}</span>
+                        </div>
+                        <div className="flex flex-col items-end justify-end">
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                            {rec.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* DESKTOP VIEW — TABLE */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
@@ -1763,7 +1854,7 @@ const AdminPayroll: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* ── EARNINGS ── */}
                   <div>
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">
@@ -2071,7 +2162,33 @@ const AdminPayroll: React.FC = () => {
                           <h4 className="text-sm font-bold text-gray-900 mb-3">
                             Employee Payslips — {periodLabel(period)}
                           </h4>
-                          <div className="overflow-x-auto">
+                          <h4 className="text-sm font-bold text-gray-900 mb-3">
+                            Employee Payslips — {periodLabel(period)}
+                          </h4>
+                          
+                          {/* MOBILE VIEW — CARDS */}
+                          <div className="md:hidden divide-y divide-gray-100 border border-gray-100 rounded-xl overflow-hidden">
+                            {payrollRecords.map((rec) => (
+                              <div key={rec.id} className="p-3 space-y-2">
+                                <div className="flex justify-between items-start">
+                                  <div className="min-w-0">
+                                    <p className="font-bold text-gray-900 truncate text-xs">{rec.employeeName}</p>
+                                    <p className="text-[10px] text-gray-500 truncate">{rec.position}</p>
+                                  </div>
+                                  <button onClick={() => setViewingRecord(rec)} className="p-1.5 bg-cyan-50 text-cyan-600 rounded-lg"><Eye size={14} /></button>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px]">
+                                  <span className="font-bold text-green-700">Net: {fmt(rec.netPay)}</span>
+                                  <span className={`px-2 py-0.5 rounded-full font-bold uppercase ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                                    {rec.status}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* DESKTOP VIEW — TABLE */}
+                          <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-xs">
                               <thead className="bg-gray-50 border-b border-gray-200">
                                 <tr>
