@@ -49,39 +49,77 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
   const [tab, setTab] = useState<"all" | "unread">("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // ── Fetch notifications & Setup subscription ───────────────────────────
+  // ── Stable Channel Ref ──────────────────────────────────────────────────
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isInitializing = useRef(false);
+
   useEffect(() => {
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let isMounted = true;
+    const isFetching = { current: false };
 
-    const setupNotifications = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // 1. Initial fetch
-      const { data } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(50);
-      if (data) setNotifications(data as Notification[]);
-
-      // 2. Real-time subscription
-      channel = supabase
-        .channel(`notifications_${user.id}`)
-        .on("postgres_changes", {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${user.id}`,
-        }, () => setupNotifications()) // Re-fetch on change
-        .subscribe();
+    const fetchNotifications = async (userId: string) => {
+      if (isFetching.current || !isMounted) return;
+      isFetching.current = true;
+      try {
+        const { data } = await supabase
+          .from("notifications")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        
+        if (data && isMounted) {
+          setNotifications(data as Notification[]);
+        }
+      } catch (err) {
+        console.error("Fetch failed:", err);
+      } finally {
+        isFetching.current = false;
+      }
     };
 
-    setupNotifications();
+    const init = async () => {
+      if (isInitializing.current || channelRef.current) return;
+      isInitializing.current = true;
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || !isMounted) return;
+
+        // 1. Initial fetch
+        await fetchNotifications(user.id);
+
+        // 2. Setup subscription (Once)
+        if (isMounted && !channelRef.current) {
+          channelRef.current = supabase
+            .channel(`notifs_${user.id}`) // Shortened name
+            .on("postgres_changes", {
+              event: "*",
+              schema: "public",
+              table: "notifications",
+              filter: `user_id=eq.${user.id}`,
+            }, () => {
+               fetchNotifications(user.id);
+            })
+            .subscribe((status) => {
+              if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                channelRef.current = null; // Allow re-init on next check if needed
+              }
+            });
+        }
+      } finally {
+        isInitializing.current = false;
+      }
+    };
+
+    init();
 
     return () => {
-      if (channel) supabase.removeChannel(channel);
+      isMounted = false;
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, []);
 

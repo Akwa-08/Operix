@@ -28,7 +28,7 @@ const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutPr
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <TopNavBar displayName={displayName} onMenuClick={() => setMobileOpen(!mobileOpen)} />
       
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden relative">
         <SharedSideBar
           name={displayName}
           role={roleName || user?.role}
@@ -42,11 +42,13 @@ const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutPr
         />
         
         <main
-          className={`flex-1 p-4 md:p-6 mt-16 transition-all duration-300 ${
+          className={`flex-1 min-w-0 overflow-x-hidden p-4 md:p-6 mt-16 transition-all duration-300 ${
             collapsed ? "lg:ml-[72px]" : "lg:ml-[200px]"
           }`}
         >
-          <Outlet />
+          <div className="max-w-full overflow-x-hidden">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

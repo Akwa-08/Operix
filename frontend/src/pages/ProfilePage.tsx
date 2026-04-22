@@ -124,15 +124,15 @@ export const ProfilePage = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="p-4 md:p-8">
-      <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-sm p-8 mb-8">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-bold">Personal Information</h2>
-          <div className="flex gap-3">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm p-6 md:p-10 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Personal Information</h2>
+          <div className="flex gap-3 w-full sm:w-auto">
             {isEditing && (
               <button
                 onClick={handleCancelEdit}
-                className="px-6 py-2 rounded-md border border-gray-300 hover:bg-gray-50 transition">
+                className="flex-1 sm:flex-none px-6 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition active:scale-95">
                 Cancel
               </button>
             )}
@@ -141,66 +141,66 @@ export const ProfilePage = () => {
                 isEditing ? handleSaveProfile() : setIsEditing(true)
               }
               disabled={isSaving}
-              className={`px-6 py-2 rounded-md transition cursor-pointer ${
+              className={`flex-1 sm:flex-none px-6 py-2.5 rounded-xl transition font-bold shadow-md cursor-pointer ${
                 isEditing
-                  ? "bg-sky-500 text-white hover:bg-sky-600"
-                  : "border border-gray-300 hover:bg-gray-50"
-              } disabled:opacity-50`}>
+                  ? "bg-cyan-500 text-white hover:bg-cyan-600 shadow-cyan-100"
+                  : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 shadow-gray-100"
+              } disabled:opacity-50 active:scale-95`}>
               {isSaving
                 ? "Saving..."
                 : isEditing
-                  ? "Save Profile"
+                  ? "Save Changes"
                   : "Edit Profile"}
             </button>
           </div>
         </div>
 
         {/* Profile Header */}
-        <div className="flex items-center gap-6 mb-8 pb-8 border-b border-gray-200">
-          <div className="w-24 h-24 bg-gray-300 rounded-full flex items-center justify-center text-3xl font-bold text-gray-600">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-10 pb-10 border-b border-gray-100 text-center sm:text-left">
+          <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-3xl font-bold text-gray-600 shadow-inner">
             {initials}
           </div>
-          <div>
-            <h3 className="text-2xl font-bold mb-1">{fullName}</h3>
-            <p className="text-lg text-gray-600 mb-1 capitalize">{user?.role || 'Member'}</p>
-            {memberSince && <p className="text-gray-500">Member since {memberSince}</p>}
+          <div className="space-y-1">
+            <h3 className="text-2xl font-bold text-gray-900">{fullName}</h3>
+            <p className="text-lg text-cyan-600 font-semibold capitalize">{user?.role || 'Member'}</p>
+            {memberSince && <p className="text-sm text-gray-400 font-medium">Member since {memberSince}</p>}
           </div>
         </div>
 
         {/* Form Fields */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           <FieldWithIcon
             label="First Name"
-            icon={<User size={20} />}
+            icon={<User size={18} />}
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
             disabled={!isEditing}
           />
           <FieldWithIcon
             label="Last Name"
-            icon={<User size={20} />}
+            icon={<User size={18} />}
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             disabled={!isEditing}
           />
           <FieldWithIcon
             label="Email Address"
-            icon={<Mail size={20} />}
+            icon={<Mail size={18} />}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={!isEditing}
           />
           <FieldWithIcon
             label="Phone Number"
-            icon={<Phone size={20} />}
+            icon={<Phone size={18} />}
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value)}
             disabled={!isEditing}
           />
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <FieldWithIcon
               label="Address"
-              icon={<MapPin size={20} />}
+              icon={<MapPin size={18} />}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               disabled={!isEditing}
@@ -218,42 +218,42 @@ export const ProfilePage = () => {
 
       {/* Password Modal */}
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-10 w-[450px] shadow-xl">
-            <h3 className="text-xl font-semibold mb-8">Change Password</h3>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl p-8 md:p-10 w-full max-w-md shadow-2xl relative overflow-y-auto max-h-[90vh]">
+            <h3 className="text-2xl font-bold text-gray-900 mb-8">Change Password</h3>
 
             <div className="mb-6">
-              <label className="text-sm font-semibold text-gray-600">
+              <label className="text-sm font-bold text-gray-600 mb-2 block">
                 New Password
               </label>
-              <div className="relative mt-2">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type={showNew ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-3 text-base focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-2.5 text-gray-500">
+                  className="w-full bg-gray-50 border-none rounded-xl pl-12 pr-12 py-3.5 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                   {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            <div className="mb-6">
-              <label className="text-sm font-semibold text-gray-600">
+            <div className="mb-8">
+              <label className="text-sm font-bold text-gray-600 mb-2 block">
                 Confirm New Password
               </label>
-              <div className="relative mt-2">
-                <Lock className="absolute left-3 top-3 text-gray-400" size={18} />
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type={showConfirm ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg pl-10 pr-12 py-3 text-base focus:outline-none focus:ring-2 focus:ring-sky-500" />
-                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-2.5 text-gray-500">
+                  className="w-full bg-gray-50 border-none rounded-xl pl-12 pr-12 py-3.5 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
                   {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            <div className="flex gap-3">
-              <button onClick={() => setShowPasswordModal(false)} className="flex-1 px-5 py-3 border border-gray-300 rounded-lg text-base font-semibold hover:bg-gray-50">Cancel</button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button onClick={() => setShowPasswordModal(false)} className="flex-1 px-5 py-3.5 border border-gray-200 rounded-xl text-base font-bold text-gray-600 hover:bg-gray-50 transition active:scale-95">Cancel</button>
               <button onClick={handlePasswordSave} disabled={isPasswordSaving}
-                className="flex-1 bg-sky-500 text-white px-6 py-3 rounded-lg text-base font-semibold hover:bg-sky-600 disabled:opacity-50">
+                className="flex-1 bg-cyan-500 text-white px-6 py-3.5 rounded-xl text-base font-bold hover:bg-cyan-600 shadow-md shadow-cyan-100 disabled:opacity-50 transition active:scale-95">
                 {isPasswordSaving ? "Saving..." : "Change Password"}
               </button>
             </div>
@@ -279,9 +279,9 @@ const FieldWithIcon = ({
   disabled: boolean;
 }) => (
   <div>
-    <label className="block text-sm font-semibold mb-2">{label}</label>
+    <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">{label}</label>
     <div className="relative">
-      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-cyan-500">
         {icon}
       </div>
       <input
@@ -289,8 +289,8 @@ const FieldWithIcon = ({
         value={value}
         onChange={onChange}
         disabled={disabled}
-        className={`w-full pl-10 pr-4 py-3 border border-gray-200 rounded-md transition ${
-          disabled ? "bg-gray-50" : "bg-white focus:ring-2 focus:ring-sky-500"
+        className={`w-full pl-12 pr-4 py-3.5 border-none rounded-xl transition-all duration-200 ${
+          disabled ? "bg-gray-50 text-gray-500" : "bg-white text-gray-900 shadow-sm focus:ring-2 focus:ring-cyan-500"
         }`}
       />
     </div>

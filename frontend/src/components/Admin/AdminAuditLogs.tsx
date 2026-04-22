@@ -149,21 +149,21 @@ const AdminLogs = () => {
             System-wide audit trail of staff actions, order history, and inventory changes.
           </p>
         </div>
-        <div className="flex gap-2 self-start sm:self-auto">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <button
             id="audit-export-csv"
             onClick={() => exportCSV(filteredLogs)}
             disabled={filteredLogs.length === 0}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-40"
+            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm disabled:opacity-40 active:scale-95 whitespace-nowrap"
           >
-            <Download size={14} /> Export CSV
+            <Download size={15} /> Export CSV
           </button>
           <button
             id="audit-refresh"
             onClick={() => refresh()}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+            className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm active:scale-95 whitespace-nowrap"
           >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> Refresh
+            <RefreshCw size={15} className={`text-cyan-500 ${loading ? "animate-spin" : ""}`} /> Refresh
           </button>
         </div>
       </div>
@@ -193,9 +193,9 @@ const AdminLogs = () => {
       </div>
 
       {/* ── FILTERS ─────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-wrap gap-3 items-center">
+      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex flex-col md:flex-row flex-wrap gap-3 md:items-center">
         {/* Search */}
-        <div className="flex-1 min-w-[200px] relative">
+        <div className="flex-1 min-w-[200px] relative w-full md:w-auto">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             id="audit-search"
@@ -203,46 +203,48 @@ const AdminLogs = () => {
             placeholder="Search user, action, details…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 transition-colors"
           />
         </div>
 
-        {/* Role filter */}
-        <div className="relative min-w-[140px]">
-          <Briefcase size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <select
-            id="audit-role-filter"
-            value={roleFilter}
-            onChange={e => setRoleFilter(e.target.value)}
-            className="w-full pl-8 pr-7 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm appearance-none focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 capitalize"
-          >
-            {roles.map(r => <option key={r} value={r}>{r === "all" ? "All Roles" : r}</option>)}
-          </select>
-          <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-        </div>
+        <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
+          {/* Role filter */}
+          <div className="relative flex-1 md:min-w-[140px]">
+            <Briefcase size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <select
+              id="audit-role-filter"
+              value={roleFilter}
+              onChange={e => setRoleFilter(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-medium appearance-none focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 capitalize"
+            >
+              {roles.map(r => <option key={r} value={r}>{r === "all" ? "All Roles" : r}</option>)}
+            </select>
+            <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
 
-        {/* Date From */}
-        <div className="relative min-w-[150px]">
-          <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            id="audit-date-from"
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          />
-        </div>
+          {/* Date From */}
+          <div className="relative flex-1 md:min-w-[150px]">
+            <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              id="audit-date-from"
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border-none rounded-xl font-medium text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
 
-        {/* Date To */}
-        <div className="relative min-w-[150px]">
-          <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            id="audit-date-to"
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
-          />
+          {/* Date To */}
+          <div className="relative flex-1 md:min-w-[150px]">
+            <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              id="audit-date-to"
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border-none rounded-xl font-medium text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            />
+          </div>
         </div>
 
         {/* Clear filters */}
@@ -260,9 +262,45 @@ const AdminLogs = () => {
         </span>
       </div>
 
-      {/* ── LOGS TABLE ──────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto min-h-[400px]">
+      {/* ── LOGS TABLE / CARDS ──────────────────────────────────────────────────────── */}
+      <div className="bg-white md:rounded-2xl md:border border-gray-200 shadow-sm overflow-hidden">
+        
+        {/* MOBILE VIEW — CARDS */}
+        <div className="md:hidden divide-y divide-gray-100 border-y border-gray-200 bg-white">
+          {filteredLogs.length === 0 ? (
+            <div className="px-5 py-20 text-center">
+              <div className="flex flex-col items-center gap-2 text-gray-400">
+                <Activity size={32} className="opacity-30" />
+                <p className="font-medium">No activity logs found</p>
+              </div>
+            </div>
+          ) : (
+            filteredLogs.map((log) => (
+              <div key={log.id} className="p-4 bg-white hover:bg-gray-50">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <User size={15} className="text-[#E80088]" />
+                    <span className="text-base font-bold text-gray-900">{log.user}</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${moduleColor(log.module)}`}>
+                    {log.module}
+                  </span>
+                </div>
+                <div className="mb-2">
+                  <p className="text-sm font-semibold text-gray-900">{log.action}</p>
+                  {log.details && <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{log.details}</p>}
+                </div>
+                <div className="flex justify-between items-center text-xs text-gray-400 font-medium">
+                  <span>{log.date}</span>
+                  <span className="capitalize bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{log.role}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* DESKTOP VIEW — TABLE */}
+        <div className="hidden md:block overflow-x-auto min-h-[400px]">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-200">
@@ -302,24 +340,23 @@ const AdminLogs = () => {
                 filteredLogs.map(log => (
                   <tr key={log.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-5 py-3.5 whitespace-nowrap">
-                      <span className="text-xs text-gray-500 font-medium">{log.date}</span>
+                      <span className="text-sm text-gray-600 font-medium">{log.date}</span>
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1.5">
-                        <User size={13} className="text-[#E80088] shrink-0" />
-                        <span className="text-sm font-semibold text-gray-900">{log.user}</span>
+                        <span className="text-sm font-bold text-gray-900">{log.user}</span>
                       </div>
-                      <span className="text-xs text-gray-400 capitalize">{log.role}</span>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full font-semibold capitalize mt-1 inline-block">{log.role}</span>
                     </td>
                     <td className="px-5 py-3.5 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border capitalize ${moduleColor(log.module)}`}>
+                      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${moduleColor(log.module)}`}>
                         {log.module}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-gray-900 font-semibold whitespace-nowrap">
+                    <td className="px-5 py-3.5 text-sm text-gray-900 font-bold whitespace-nowrap">
                       {log.action}
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-gray-500 max-w-xs truncate" title={log.details}>
+                    <td className="px-5 py-3.5 text-sm text-gray-600 max-w-sm truncate" title={log.details}>
                       {log.details || <span className="italic text-gray-300">—</span>}
                     </td>
                   </tr>
