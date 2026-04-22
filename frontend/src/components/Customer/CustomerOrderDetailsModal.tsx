@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Modal } from "../Shared/UI/Modal";
 import type { Order } from "../../Types";
-import { Clock, Palette, CreditCard, Hammer, Truck, CheckCircle2, User, Package, ImageIcon, Check, ImageIcon as IconImage } from "lucide-react";
+import { Clock, Palette, CreditCard, Hammer, Truck, CheckCircle2, User, Package, ImageIcon, Check } from "lucide-react";
 import toast from "react-hot-toast";
 
 type OrderStatus = "Queue" | "Design" | "Payment" | "Production" | "Pick-up" | "Complete";
@@ -36,14 +36,14 @@ interface CustomerOrderDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: Order;
-  onRefresh?: () => void; // Called after uploading image
+
 }
 
 export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps> = ({
   isOpen,
   onClose,
   order,
-  onRefresh,
+
 }) => {
 
   // Local copy of the design file — updates immediately on upload,

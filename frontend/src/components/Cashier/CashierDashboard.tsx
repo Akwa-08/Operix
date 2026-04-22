@@ -104,7 +104,7 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
     if (checking) return <span className="flex items-center gap-1 text-xs text-gray-400"><Loader size={12} className="animate-spin"/>Checking...</span>;
     if (!eligibility) return null;
     if (eligibility.eligible) {
-      const pct = Math.round((eligibility.totalUsed / CA_LIMIT) * 100);
+
       return (
         <div className="flex items-center gap-1.5">
           {eligibility.totalUsed > 0 && (
