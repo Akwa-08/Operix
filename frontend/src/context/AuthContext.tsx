@@ -96,9 +96,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const nextUser: AuthUser = {
           id: freshUser.id,
           email: freshUser.email ?? '',
-          role: (profile.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
-          firstName: profile.first_name ?? freshUser.user_metadata?.first_name ?? null,
-          lastName: profile.last_name ?? freshUser.user_metadata?.last_name ?? null,
+          role: (profile?.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
+          firstName: profile?.first_name ?? freshUser.user_metadata?.first_name ?? null,
+          lastName: profile?.last_name ?? freshUser.user_metadata?.last_name ?? null,
         };
 
         // Defensive check: only update if data actually changed to reduce redundant re-renders
