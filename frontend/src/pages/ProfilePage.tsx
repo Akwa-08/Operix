@@ -124,8 +124,8 @@ export const ProfilePage = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl ml-auto bg-white rounded-lg shadow-sm p-8 mb-8">
+    <div className="p-4 md:p-8">
+      <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-sm p-8 mb-8">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-3xl font-bold">Personal Information</h2>
           <div className="flex gap-3">

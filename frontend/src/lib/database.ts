@@ -1280,17 +1280,9 @@ export const db = {
         .neq("id", user.id); // never show yourself
 
       // Customers may only discover staff, not other customers
+      // TST_07_03: Customers cannot start new conversations, so return empty list for them
       if (!isStaff) {
-        query = query.in("role", [
-          "admin",
-          "cashier",
-          "designer",
-          "production",
-          "Admin",
-          "Cashier",
-          "Designer",
-          "Production",
-        ]);
+        return [];
       }
 
       const {data, error} = await query.order("first_name");
