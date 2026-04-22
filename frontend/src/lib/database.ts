@@ -280,6 +280,7 @@ export const db = {
         "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
       )
       .order("created_at", {ascending: false});
+      .order("name");
     if (error) throw error;
     return data || [];
   },
@@ -324,6 +325,8 @@ export const db = {
       .from("products")
       .select("*")
       .order("created_at", { ascending: false });
+      .order("category")
+      .order("name");
     if (filters?.category) query = query.eq("category", filters.category);
     if (filters?.search)
       query = query.or(
@@ -1279,17 +1282,9 @@ export const db = {
         .neq("id", user.id); // never show yourself
 
       // Customers may only discover staff, not other customers
+      // TST_07_03: Customers cannot start new conversations, so return empty list for them
       if (!isStaff) {
-        query = query.in("role", [
-          "admin",
-          "cashier",
-          "designer",
-          "production",
-          "Admin",
-          "Cashier",
-          "Designer",
-          "Production",
-        ]);
+        return [];
       }
 
       const {data, error} = await query.order("first_name");

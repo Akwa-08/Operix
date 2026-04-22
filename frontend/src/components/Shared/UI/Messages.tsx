@@ -144,6 +144,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
 
   // ── Discovery ──────────────────────────────────────────────────────────────
   const handleStartDiscovery = async () => {
+    if (!isStaff) return; // Customers cannot start new conversations
     setIsDiscovering(true);
     if (potentialRecipients.length === 0 && user) {
       try {
@@ -335,12 +336,14 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                   <ArrowLeft size={14} /> Back
                 </button>
               ) : (
-                <button
-                  onClick={handleStartDiscovery}
-                  className="p-1.5 text-cyan-600 bg-cyan-50 rounded-full hover:bg-cyan-100 transition-colors"
-                  title="New Message">
-                  <PlusCircle size={20} />
-                </button>
+                isStaff && (
+                  <button
+                    onClick={handleStartDiscovery}
+                    className="p-1.5 text-cyan-600 bg-cyan-50 rounded-full hover:bg-cyan-100 transition-colors"
+                    title="New Message">
+                    <PlusCircle size={20} />
+                  </button>
+                )
               )}
             </div>
 
