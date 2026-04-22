@@ -46,7 +46,7 @@ app.get('/health', (_, res) =>
 // USER MANAGEMENT
 app.post('/api/admin/users', requireAdmin, async (req, res) => {
   try {
-    const { email, password, role, first_name, last_name, username, contact_number } = req.body;
+    const { email, password, role, first_name, last_name, contact_number } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
     const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
       email, password, email_confirm: true,
@@ -54,7 +54,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
     });
     if (authErr) return res.status(authErr.message.includes('already') ? 409 : 400).json({ error: authErr.message });
     if (authData.user) {
-      await supabase.from('users').update({ username: username || null, role: (role || 'customer').toLowerCase(), contact_number: contact_number || null }).eq('id', authData.user.id);
+      await supabase.from('users').update({ role: (role || 'customer').toLowerCase(), contact_number: contact_number || null }).eq('id', authData.user.id);
     }
     const { data: profile } = await supabase.from('users').select('*').eq('id', authData.user.id).single();
     res.status(201).json({ success: true, data: profile });
@@ -64,7 +64,7 @@ app.post('/api/admin/users', requireAdmin, async (req, res) => {
 app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, password, role, first_name, last_name, contact_number, address, is_active, username } = req.body;
+    const { email, password, role, first_name, last_name, contact_number, address, is_active } = req.body;
     const authPayload = {}; const metadata = {};
     if (email) authPayload.email = email;
     if (password) authPayload.password = password;
@@ -84,7 +84,7 @@ app.put('/api/admin/users/:id', requireAdmin, async (req, res) => {
     if (contact_number !== undefined) dbPayload.contact_number = contact_number;
     if (address !== undefined) dbPayload.address = address;
     if (is_active !== undefined) dbPayload.is_active = is_active;
-    if (username !== undefined) dbPayload.username = username;
+
     if (Object.keys(dbPayload).length) await supabase.from('users').update(dbPayload).eq('id', id);
     const { data: profile } = await supabase.from('users').select('*').eq('id', id).single();
     res.json({ success: true, data: profile });

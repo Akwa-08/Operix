@@ -111,14 +111,26 @@ const AdminManagement: React.FC = () => {
   const handleSubmitCreateUser = async () => {
     if (userForm.password !== userForm.confirmPassword) { alert("Passwords do not match"); return; }
     if (!userForm.email || !userForm.password || !userForm.role) { alert("Fill all required fields (Email, Password, Role)"); return; }
-    const r = await createUser({ firstName: userForm.firstName, lastName: userForm.lastName, email: userForm.email, username: userForm.email, password: userForm.password, role: userForm.role, phoneNumber: userForm.phoneNumber });
+    const r = await createUser({ firstName: userForm.firstName, lastName: userForm.lastName, email: userForm.email, password: userForm.password, role: userForm.role, phoneNumber: userForm.phoneNumber });
     if (r.success) { alert("Account created!"); setShowCreateUserModal(false); } else alert("Error: " + r.error);
   };
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
-    const r = await updateUser(selectedUser.id, { firstName: editUserForm.firstName, lastName: editUserForm.lastName, email: editUserForm.email, phoneNumber: editUserForm.phoneNumber, role: editUserForm.role });
-    if (r.success) { alert("Account updated!"); setShowViewUserModal(false); } else alert("Error: " + r.error);
+    const r = await updateUser(selectedUser.id, { 
+      firstName: editUserForm.firstName, 
+      lastName: editUserForm.lastName, 
+      email: editUserForm.email, 
+      phoneNumber: editUserForm.phoneNumber, 
+      role: editUserForm.role 
+    });
+    if (r.success) { 
+      alert("Account updated!"); 
+      setShowViewUserModal(false); 
+      // Important: refresh is handled by hook
+    } else {
+      alert("Error: " + r.error);
+    }
   };
 
   const handleDeactivate = async () => {
@@ -181,10 +193,14 @@ const AdminManagement: React.FC = () => {
 
   // ── Filtering ────────────────────────────────────────────────────────
   const filteredUsers = users.filter(u => {
-    const ms = !searchQuery || [u.firstName, u.lastName, u.email, u.userName].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()));
+    const ms = !searchQuery || [u.firstName, u.lastName, u.email].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()));
     const mr = selectedRole === "Select Role" || u.role === selectedRole;
     return ms && mr;
-  }).sort((a, b) => (a.isActive === b.isActive ? 0 : a.isActive ? -1 : 1));
+  }).sort((a, b) => {
+    if (a.isActive && !b.isActive) return -1;
+    if (!a.isActive && b.isActive) return 1;
+    return 0;
+  });
   const filteredEmployees = employees.filter(e =>
     !searchQuery || [e.fullName, e.position, e.employeeCode, (e as any).role || ''].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -241,8 +257,18 @@ const AdminManagement: React.FC = () => {
         <div className="flex gap-3">
           <button onClick={() => setShowViewUserModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
           {selectedUser?.isActive && (
-            <button onClick={() => { if (selectedUser) { setUserToDeactivate(selectedUser); setShowViewUserModal(false); setShowDeactivateModal(true); } }}
-              className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl">Deactivate</button>
+            <button 
+              onClick={() => { 
+                if (selectedUser) { 
+                  setUserToDeactivate(selectedUser); 
+                  setShowViewUserModal(false); 
+                  setShowDeactivateModal(true); 
+                } 
+              }}
+              className="px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl"
+            >
+              Deactivate
+            </button>
           )}
           <button onClick={handleUpdateUser} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
             <Check size={18} />Save
@@ -444,7 +470,6 @@ const AdminManagement: React.FC = () => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b"><tr>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-700">Username</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Email</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-700">Role</th>
@@ -456,7 +481,6 @@ const AdminManagement: React.FC = () => {
                 {filteredUsers.map((u: FrontendUser) => (
                   <tr key={u.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{u.firstName} {u.lastName}</td>
-                    <td className="px-4 py-3 text-gray-600">{u.userName || '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{u.email}</td>
                     <td className="px-4 py-3 text-gray-600">{u.contactNumber || '—'}</td>
                     <td className="px-4 py-3">

@@ -26,7 +26,7 @@ const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutPr
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <TopNavBar userName={displayName} onMenuClick={() => setMobileOpen(!mobileOpen)} />
+      <TopNavBar displayName={displayName} onMenuClick={() => setMobileOpen(!mobileOpen)} />
       
       <div className="flex flex-1">
         <SharedSideBar

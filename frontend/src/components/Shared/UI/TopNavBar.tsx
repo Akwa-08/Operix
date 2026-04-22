@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../../../config/supabaseClient";
 
 type NavbarProps = {
-  userName?: string;
+  displayName?: string;
   onMenuClick?: () => void; // triggers burger menu
 };
 
@@ -42,7 +42,7 @@ const moduleIcon: Record<string, string> = {
   system: "⚙️",
 };
 
-const TopNavBar: React.FC<NavbarProps> = ({ userName, onMenuClick }) => {
+const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
   const navigate = useNavigate();
   const [showNotif, setShowNotif] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -145,10 +145,10 @@ const TopNavBar: React.FC<NavbarProps> = ({ userName, onMenuClick }) => {
 
       {/* Right: user chip + bell */}
       <div className="flex items-center gap-3">
-        {userName && (
-          <div className="hidden sm:block font-bold text-sm text-slate-800 px-3 py-1.5 bg-slate-100 rounded-xl">
-            {userName}
-          </div>
+        {displayName && (
+          <span className="hidden sm:inline-block text-sm font-semibold text-gray-700">
+            {displayName}
+          </span>
         )}
 
         {/* Bell */}

@@ -192,7 +192,7 @@ const AdminInventory = () => {
             <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" />
             <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateMaterialModal(true)}>Add New Material</Button>
@@ -240,7 +240,7 @@ const AdminInventory = () => {
             <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
             <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" />
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search products..." />
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => { setSelectedProduct(null); setShowCreateProduct(true); }}>Add New Product</Button>
@@ -270,7 +270,7 @@ const AdminInventory = () => {
             <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
             <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" />
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search deliveries..." />
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateDelivery(true)}>Request Restock</Button>

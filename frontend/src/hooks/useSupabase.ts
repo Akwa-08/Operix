@@ -152,7 +152,6 @@ function mapUser(raw: any): FrontendUser {
     firstName: raw.first_name || "",
     lastName: raw.last_name || "",
     email: raw.email || "",
-    userName: raw.username || "",
     role: raw.role
       ? raw.role.charAt(0).toUpperCase() + raw.role.slice(1)
       : "Customer",
@@ -310,7 +309,7 @@ export function useOrdersData(filters?: { status?: string }) {
     .filter((u: any) => u.role?.toLowerCase() === "designer")
     .map((u: any) => ({
       id: u.id,
-      name: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username,
+      name: `${u.first_name || ""} ${u.last_name || ""}`.trim() || "Unknown",
     })), [allUsers]);
 
   // Production Staff are from Registered Employees
@@ -680,7 +679,6 @@ export function useManagementData() {
       firstName: string;
       lastName: string;
       email: string;
-      username: string;
       password: string;
       role: string;
       phoneNumber?: string;
@@ -693,7 +691,6 @@ export function useManagementData() {
             role: data.role.toLowerCase(),
             first_name: data.firstName,
             last_name: data.lastName,
-            username: data.username,
             contact_number: data.phoneNumber,
           })
           .then(() => refreshUsers()),

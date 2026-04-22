@@ -323,8 +323,7 @@ export const db = {
     let query = supabase
       .from("products")
       .select("*")
-      .order("category")
-      .order("name");
+      .order("created_at", { ascending: false });
     if (filters?.category) query = query.eq("category", filters.category);
     if (filters?.search)
       query = query.or(
@@ -1080,7 +1079,7 @@ export const db = {
         conversationsMap.set(otherId, {
           id: otherId,
           userId: otherId,
-          userName: otherProfile
+          displayName: otherProfile
             ? `${otherProfile.first_name || ""} ${otherProfile.last_name || ""}`.trim()
             : "Unknown User",
           userRole: otherProfile?.role || "user",
@@ -1299,7 +1298,7 @@ export const db = {
 
       return data.map((u: any) => ({
         userId: u.id,
-        userName: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
+        displayName: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
         userRole: u.role,
       }));
     },
@@ -1343,7 +1342,7 @@ export const db = {
       if (error) throw error;
     },
     async decline(id: string, reason: string): Promise<void> {
-      const { error } = await supabase.from("cash_advances").update({ status: "cancelled", decline_reason: reason }).eq("id", id);
+      const { error } = await supabase.from("cash_advances").update({ status: "declined", decline_reason: reason }).eq("id", id);
       if (error) throw error;
     },
     async cancel(id: string): Promise<void> {

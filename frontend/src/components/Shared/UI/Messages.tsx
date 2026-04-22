@@ -18,7 +18,7 @@ export interface Message {
 export interface Conversation {
   id: string;
   userId: string;
-  userName: string;
+  displayName: string;
   userRole: string;
   lastMessage: string;
   lastMessageTime: string;
@@ -168,7 +168,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
     const draft: Conversation = {
       id: `draft-${target.userId}`,
       userId: target.userId,
-      userName: target.userName,
+      displayName: target.displayName,
       userRole: target.userRole,
       lastMessage: "",
       lastMessageTime: "",
@@ -294,11 +294,11 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
 
   // ── Filtered views ─────────────────────────────────────────────────────────
   const filteredConversations = conversations.filter((c) =>
-    c.userName.toLowerCase().includes(searchQuery.toLowerCase()),
+    c.displayName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const filteredRecipients = potentialRecipients.filter((r) =>
-    r.userName.toLowerCase().includes(discoverySearch.toLowerCase()),
+    r.displayName.toLowerCase().includes(discoverySearch.toLowerCase()),
   );
 
   if (!user) return null;
@@ -379,12 +379,12 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                     className="w-full p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors border-b border-gray-100 text-left">
                     <div className="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center flex-shrink-0">
                       <span className="text-sm font-semibold text-cyan-700">
-                        {getInitials(r.userName)}
+                        {getInitials(r.displayName)}
                       </span>
                     </div>
                     <div>
                       <p className="text-sm font-bold text-gray-900">
-                        {r.userName}
+                        {r.displayName}
                       </p>
                       <p className="text-xs text-gray-500 capitalize">
                         {r.userRole}
@@ -411,13 +411,13 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                   }`}>
                   <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
                     <span className="text-sm font-semibold text-gray-600">
-                      {getInitials(conv.userName)}
+                      {getInitials(conv.displayName)}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <p className="text-sm font-bold text-gray-900 truncate">
-                        {conv.userName}
+                        {conv.displayName}
                       </p>
                       {conv.unreadCount > 0 && (
                         <span className="ml-2 px-2 py-0.5 bg-cyan-500 text-white text-xs font-bold rounded-full">
@@ -454,12 +454,12 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
               </button>
               <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
                 <span className="text-lg font-semibold text-gray-600">
-                  {getInitials(selectedConv.userName)}
+                  {getInitials(selectedConv.displayName)}
                 </span>
               </div>
               <div>
                 <h3 className="text-lg font-bold text-gray-900">
-                  {selectedConv.userName}
+                  {selectedConv.displayName}
                 </h3>
                 <p className="text-sm text-gray-500 capitalize">
                   {selectedConv.userRole}
@@ -481,7 +481,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                     key={msg.id}
                     className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-md px-4 py-2 rounded-2xl shadow-sm ${
+                      className={`max-w-[85%] md:max-w-md px-4 py-2 rounded-2xl shadow-sm overflow-hidden ${
                         isMine
                           ? "bg-cyan-500 text-white rounded-br-sm"
                           : "bg-white text-gray-900 rounded-bl-sm border border-gray-200"
@@ -498,7 +498,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                         />
                       )}
                       {msg.content && (
-                        <p className="text-sm whitespace-pre-wrap break-words">
+                        <p className="text-sm whitespace-pre-wrap break-words [word-break:break-word]">
                           {msg.content}
                         </p>
                       )}
