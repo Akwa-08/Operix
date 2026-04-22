@@ -52,7 +52,7 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
           </div>
 
           {/* Key Stats */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="flex items-center gap-2 mb-1">
                 <Package size={16} className="text-cyan-600" />
@@ -90,7 +90,7 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
               Complete Information
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoField label="Item Type" value={material.itemType} />
               <InfoField label="Item Variant" value={material.itemVariant} />
               <InfoField
@@ -114,7 +114,7 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
               Available Information
             </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoField label="Item Type" value={material.itemType} />
               <InfoField label="Item Variant" value={material.itemVariant} />
               <InfoField

@@ -95,7 +95,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
               <OrderStatusBadge status={order.status} size="sm" />
             </div>
             {/* Details */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
               <div><span className="text-gray-400">Product:</span> <span className="font-medium text-gray-700">{order.productType || order.product || "—"}</span></div>
               <div><span className="text-gray-400">Qty:</span> <span className="font-medium text-gray-700">{order.quantity}</span></div>
               {perms.canViewAll && (
@@ -118,7 +118,8 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
 
       {/* ── DESKTOP TABLE (hidden on mobile) ─────────────────────────────── */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
@@ -160,6 +161,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             ))}
           </tbody>
         </table>
+</div>
       </div>
     </div>
   );

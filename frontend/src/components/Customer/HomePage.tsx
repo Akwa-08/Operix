@@ -115,8 +115,8 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-white border-b border-gray-100 py-10 px-4 sm:py-14 sm:px-6 md:py-16 md:px-8 lg:py-20 lg:px-10">
         {/* Abstract Background Shapes — hidden on small screens to prevent overflow */}
-        <div className="hidden sm:block absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[400px] h-[400px] md:w-[600px] md:h-[600px] bg-cyan-400/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="hidden sm:block absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[250px] h-[250px] md:w-[400px] md:h-[400px] bg-pink-400/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="hidden sm:block absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-full max-w-2xl mx-4 h-[400px] md:w-[600px] md:h-[600px] bg-cyan-400/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="hidden sm:block absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[250px] h-[250px] md:w-full max-w-md mx-4 md:h-[400px] bg-pink-400/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10">
           <motion.div
@@ -159,7 +159,7 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center gap-4 w-full lg:w-auto">
-              <div className="relative flex-1 lg:w-96">
+              <div className="relative flex-1 lg:w-full max-w-sm mx-4">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 font-bold" />
                 <input
                   type="text"

@@ -75,7 +75,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                 {m.status}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
               <div><span className="text-gray-400">Stock:</span> <span className="font-semibold text-gray-900">{m.usableStocks} {m.stockUnit}</span></div>
               <div><span className="text-gray-400">Reorder at:</span> <span className="font-medium text-gray-700">{m.reorderPoint}</span></div>
               {perms.canViewAll && (
@@ -92,7 +92,8 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
 
       {/* ── DESKTOP TABLE ─────────────────────────────────────────────────── */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Item Type</th>
@@ -134,6 +135,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
             ))}
           </tbody>
         </table>
+</div>
       </div>
     </div>
   );

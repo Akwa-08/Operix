@@ -60,7 +60,7 @@ function StatCard({
   color?: string;
 }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+    <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
       <h3 className="text-sm font-semibold text-gray-700 mb-2">{label}</h3>
       <p className={`text-3xl font-bold mb-1 ${color}`}>{value}</p>
       {sub && <p className="text-xs text-gray-400">{sub}</p>}
@@ -105,7 +105,7 @@ function CreatePeriodModal({
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative"
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-8 relative"
         onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
@@ -183,8 +183,8 @@ function AttendanceEditModal({
   const [saving, setSaving] = useState(false);
 
   const field = (label: string, key: keyof typeof form, step = 1) => (
-    <div key={key} className="flex items-center justify-between">
-      <span className="text-sm text-gray-600">{label}</span>
+    <div key={key} className="flex flex-row items-center justify-between gap-3">
+      <span className="text-sm text-gray-600 flex-1 leading-snug">{label}</span>
       <input
         type="number"
         step={step}
@@ -192,7 +192,7 @@ function AttendanceEditModal({
         onChange={(e) =>
           setForm((f) => ({...f, [key]: parseFloat(e.target.value) || 0}))
         }
-        className="w-28 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-cyan-500"
+        className="w-24 shrink-0 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-cyan-500"
       />
     </div>
   );
@@ -213,7 +213,7 @@ function AttendanceEditModal({
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto"
       onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 my-8 relative"
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-8 my-8 relative"
         onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
@@ -223,8 +223,8 @@ function AttendanceEditModal({
         <h3 className="text-xl font-bold text-gray-900 mb-1">
           Edit Attendance
         </h3>
-        <p className="text-sm text-gray-500 mb-6">{log.fullName}</p>
-        <div className="space-y-3">
+        <p className="text-sm text-gray-500 mb-6 truncate">{log.fullName}</p>
+        <div className="space-y-4">
           {field("Worked Hours", "worked_hours", 0.5)}
           {field("Late (timeslots × 30min)", "late_timeslots")}
           {field("Early Leave (timeslots × 30min)", "early_leave_timeslots")}
@@ -366,7 +366,7 @@ function PayslipModal({
 
         <div className="p-6 bg-gray-50">
           <div
-            className="bg-white p-6 shadow-sm border rounded-lg"
+            className="bg-white p-4 sm:p-6 shadow-sm border rounded-lg"
             style={{fontFamily: "Courier New, monospace"}}>
             <div className="flex justify-between items-start mb-6">
               <div>
@@ -392,7 +392,7 @@ function PayslipModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
               <div>
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">
                   EMPLOYEE INFORMATION
@@ -437,7 +437,7 @@ function PayslipModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">
                   DEDUCTIONS
@@ -573,7 +573,7 @@ function CashAdvanceModal({
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative"
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-8 relative"
         onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
@@ -692,7 +692,7 @@ function DeclineReasonModal({
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative"
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-8 relative"
         onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
@@ -1388,7 +1388,7 @@ const AdminPayroll: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Payroll Breakdown */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
               <h3 className="text-lg font-bold text-gray-900 mb-5">
                 Payroll Breakdown
               </h3>
@@ -1461,7 +1461,7 @@ const AdminPayroll: React.FC = () => {
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 shadow-sm">
               <h3 className="text-lg font-bold text-gray-900 mb-5">
                 Quick Actions
               </h3>
@@ -2044,7 +2044,7 @@ const AdminPayroll: React.FC = () => {
                       <p className="text-[10px] font-bold text-blue-700 mb-2 uppercase tracking-wide">
                         📁 XLS Data Sources (Summary Tab)
                       </p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-blue-700">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-blue-700">
                         {[
                           ["Work Hrs. Actual", "Worked hours"],
                           ["Attend Actual", "Days present"],

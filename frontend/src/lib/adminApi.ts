@@ -30,7 +30,7 @@ async function adminFetch(method: string, path: string, body?: any) {
 
 export const adminApi = {
   // ── Express routes (require service_role) ──
-  createUser: (data: { email: string; password: string; role?: string; first_name?: string; last_name?: string; username?: string; contact_number?: string }) =>
+  createUser: (data: { email: string; password: string; role?: string; first_name?: string; last_name?: string; contact_number?: string }) =>
     adminFetch('POST', '/api/admin/users', data),
 
 updateUser: (id: string, data: { email?: string; password?: string; role?: string; first_name?: string; last_name?: string; username?: string; contact_number?: string; address?: string; is_active?: boolean }) =>    adminFetch('PUT', `/api/admin/users/${id}`, data),

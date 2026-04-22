@@ -65,7 +65,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
                 {p.isActive ? 'Active' : 'Inactive'}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
               {p.sizeSpec && <div><span className="text-gray-400">Size:</span> <span className="font-medium text-gray-700">{p.sizeSpec}</span></div>}
               <div><span className="text-gray-400">Price:</span> <span className="font-bold text-gray-900">₱{p.finalPrice.toLocaleString()}</span></div>
               <div><span className="text-gray-400">Material Cost:</span> <span className="text-gray-700">₱{p.materialCost.toFixed(2)}</span></div>
@@ -78,7 +78,8 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
 
       {/* ── DESKTOP TABLE ─────────────────────────────────────────────────── */}
       <div className="hidden md:block overflow-x-auto">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Product Name</th>
@@ -116,6 +117,7 @@ export const ProductsTable: React.FC<ProductsTableProps> = ({
             ))}
           </tbody>
         </table>
+</div>
       </div>
     </div>
   );

@@ -136,7 +136,7 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
             <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-gray-900">
               <Package size={16} /> Product Information
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="col-span-2">
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-0.5">Product</p>
                 <p className="font-bold text-gray-900 text-sm">{order.productType}</p>
@@ -174,7 +174,7 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
             <h3 className="text-sm font-bold flex items-center gap-2 mb-4 text-gray-900">
               Assigned Staff
             </h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-0.5">Designer</p>
                 <p className="font-medium text-gray-800 text-sm break-all">{order.designerName || "xxxxxxxxx"}</p>

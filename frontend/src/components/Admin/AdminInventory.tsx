@@ -152,7 +152,9 @@ const AdminInventory = () => {
   };
 
   const handleConfirmReceipt = async () => {
-    if (!selectedDelivery || !receipt.receipt_reference_number.trim() || !receipt.received_quantity) { toast.error("Reference number and quantity are required"); return; }
+    if (!selectedDelivery) return;
+    if (!receipt.receipt_reference_number.trim()) { toast.error("Receipt / Reference number is required and cannot be empty."); return; }
+    if (!receipt.received_quantity) { toast.error("Quantity is required."); return; }
     const r = await confirmReceiptFn(selectedDelivery.id, { received_quantity: Number(receipt.received_quantity), receipt_reference_number: receipt.receipt_reference_number });
     if (r.success) { toast.success("Delivery confirmed! Inventory updated."); setShowConfirmReceipt(false); setReceipt({ received_quantity: "", receipt_reference_number: "" }); refreshMat(); }
     else toast.error(r.error || "Failed");
@@ -193,7 +195,7 @@ const AdminInventory = () => {
             <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} />
             <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
               <div className="relative">
@@ -228,7 +230,7 @@ const AdminInventory = () => {
           )}
           {/* Create Material Modal */}
           <Modal show={showCreateMaterialModal} onClose={() => setShowCreateMaterialModal(false)} title="Add New Material">
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Item Name *</label><input type="text" value={newMaterial.name} onChange={e => setNewMaterial({ ...newMaterial, name: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., Tarpaulin Roll 6.1ft" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Stock Unit *</label><input type="text" value={newMaterial.unit_of_measure} onChange={e => setNewMaterial({ ...newMaterial, unit_of_measure: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., feet, ml, pieces" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Purchase Unit</label><input type="text" value={newMaterial.purchase_unit} onChange={e => setNewMaterial({ ...newMaterial, purchase_unit: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., rolls, bottles" /></div>
@@ -256,7 +258,7 @@ const AdminInventory = () => {
             <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
             <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search products..." />
               <div className="relative">
@@ -298,7 +300,7 @@ const AdminInventory = () => {
             <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
             <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" isCurrency={false} />
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search deliveries..." />
               <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateDelivery(true)}>Request Restock</Button>
@@ -320,7 +322,7 @@ const AdminInventory = () => {
                     </div>
                     <span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm">
                     <div><span className="text-gray-400">Qty:</span> <span className="font-semibold">{d.requestedQuantity} {d.materialUnit}</span></div>
                     <div><span className="text-gray-400">Expected:</span> <span className="text-gray-700">{d.expectedArrivalDate || '—'}</span></div>
                     <div><span className="text-gray-400">By:</span> <span className="text-gray-700">{d.requestedByName}</span></div>
@@ -337,7 +339,8 @@ const AdminInventory = () => {
             </div>
             {/* DESKTOP TABLE */}
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left font-semibold text-gray-700">Material</th>
@@ -382,6 +385,7 @@ const AdminInventory = () => {
                   ))}
                 </tbody>
               </table>
+</div>
             </div>
             </div>
 
@@ -401,7 +405,7 @@ const AdminInventory = () => {
                   <option value="">Select supplier (optional)...</option>
                   {suppliers.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select></div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className="block text-sm font-semibold text-gray-700 mb-1">Quantity *</label>
                   <input type="number" min="1" value={newDelivery.requested_quantity} onChange={e => setNewDelivery({ ...newDelivery, requested_quantity: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Amount in purchase units" /></div>

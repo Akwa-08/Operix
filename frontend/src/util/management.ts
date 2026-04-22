@@ -2,7 +2,6 @@ export interface UserAccount {
   id: string;
   firstName: string;
   lastName: string;
-  userName: string;
   email: string;
   contactNumber: string;
   role: string;
@@ -14,7 +13,6 @@ export interface Employee {
   id: string;
   firstName: string;
   lastName: string;
-  userName: string;
   email: string;
   contactNumber: string;
   role: string;
@@ -53,7 +51,6 @@ export const managementData: ManagementData = {
       id: "U001",
       firstName: "Cen",
       lastName: "Tino",
-      userName: "Admin",
       email: "VTALPS@gmail.com",
       contactNumber: "12345678901",
       role: "Admin",
@@ -64,7 +61,6 @@ export const managementData: ManagementData = {
       id: "U002",
       firstName: "Mary Jane",
       lastName: "Centino",
-      userName: "Manager1",
       email: "maryjane@gmail.com",
       contactNumber: "12345678902",
       role: "Management",
@@ -75,7 +71,6 @@ export const managementData: ManagementData = {
       id: "U003",
       firstName: "Cashie",
       lastName: "Yir",
-      userName: "Cashier",
       email: "Cashie@gmail.com",
       contactNumber: "23456789012",
       role: "Cashier",
@@ -88,7 +83,6 @@ export const managementData: ManagementData = {
       id: "E001",
       firstName: "Cen",
       lastName: "Tino",
-      userName: "Admin",
       email: "VTALPS@gmail.com",
       contactNumber: "12345678901",
       role: "Admin",
@@ -99,7 +93,6 @@ export const managementData: ManagementData = {
       id: "E002",
       firstName: "Mary Jane",
       lastName: "Centino",
-      userName: "Admin",
       email: "VTALPS@gmail.com",
       contactNumber: "12345678901",
       role: "Admin",
@@ -110,7 +103,6 @@ export const managementData: ManagementData = {
       id: "E003",
       firstName: "Cashie",
       lastName: "Yir",
-      userName: "Cashier",
       email: "Cashie@gmail.com",
       contactNumber: "23456789012",
       role: "Cashier",
@@ -121,7 +113,6 @@ export const managementData: ManagementData = {
       id: "E004",
       firstName: "Des",
       lastName: "Igner",
-      userName: "Designer1",
       email: "Igner@gmail.com",
       contactNumber: "34567890123",
       role: "Designer",
@@ -132,7 +123,6 @@ export const managementData: ManagementData = {
       id: "E005",
       firstName: "Del",
       lastName: "Sayner",
-      userName: "Designer2",
       email: "Sayner@gmail.com",
       contactNumber: "45678901234",
       role: "Designer",
@@ -143,7 +133,6 @@ export const managementData: ManagementData = {
       id: "E006",
       firstName: "John",
       lastName: "Doe",
-      userName: "Production",
       email: "Doe@gmail.com",
       contactNumber: "78901234567",
       role: "Production",
@@ -154,7 +143,6 @@ export const managementData: ManagementData = {
       id: "E007",
       firstName: "John",
       lastName: "Cena",
-      userName: "Production",
       email: "Cena@gmail.com",
       contactNumber: "89012345678",
       role: "Production",

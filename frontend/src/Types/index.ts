@@ -79,7 +79,6 @@ export interface User {
   lastName: string;
   email: string;
   role: UserRole;
-  username: string;
   contactNumber: string;
   isActive: boolean;
 }
@@ -114,7 +113,6 @@ export interface FrontendUser {
   firstName: string;
   lastName: string;
   email: string;
-  userName: string;
   role: string;
   contactNumber: string;
   isActive: boolean;

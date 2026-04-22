@@ -94,7 +94,7 @@ const SharedSideBar = ({
       {/* ─── LOGOUT MODAL ─────────────────────────────────────────────────── */}
       {showLogoutModal && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-4 sm:p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
                 <LogOut size={24} className="text-red-600" />

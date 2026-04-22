@@ -184,7 +184,8 @@ const AdminProducts = () => {
       <p className="text-sm font-semibold text-gray-700 mb-3">🔗 Linked Materials (Bill of Materials)</p>
       {bom.length > 0 && (
         <div className="border rounded-lg overflow-hidden mb-3">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="px-3 py-2 text-left text-gray-700 font-semibold">Material</th>
@@ -209,6 +210,7 @@ const AdminProducts = () => {
               })}
             </tbody>
           </table>
+</div>
         </div>
       )}
       <div className="flex gap-3 items-end">
@@ -243,7 +245,7 @@ const AdminProducts = () => {
 
       {/* ═══ CREATE PRODUCT MODAL ═══ */}
       <Modal show={showCreate} onClose={() => setShowCreate(false)} title="Add New Product">
-        <div className="grid grid-cols-2 gap-4 mb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
           <F label="Product Name" value={createForm.name} onChange={(v: string) => setCreateForm({ ...createForm, name: v })} required />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
@@ -276,7 +278,7 @@ const AdminProducts = () => {
 
       {/* ═══ EDIT PRODUCT MODAL ═══ */}
       <Modal show={showEdit && !!selectedProduct} onClose={() => setShowEdit(false)} title="Edit Product">
-        <div className="grid grid-cols-2 gap-4 mb-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-2">
           <F label="Product Name" value={editForm.name} onChange={(v: string) => setEditForm({ ...editForm, name: v })} required />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
@@ -333,7 +335,8 @@ const AdminProducts = () => {
           <div className="text-center py-8 text-gray-400 text-base">No materials linked.<br />Open "Edit" to add material links.</div>
         ) : (
           <div className="border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Material</th>
@@ -351,6 +354,7 @@ const AdminProducts = () => {
                 ))}
               </tbody>
             </table>
+</div>
           </div>
         )}
         <div className="mt-6">

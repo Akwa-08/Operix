@@ -12,7 +12,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({ isOpen
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-8 relative" onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-4 sm:p-8 relative" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
         <h3 className="text-2xl font-bold text-gray-900 mb-1">{product.name}</h3>
         <span className={`text-xs font-semibold px-2 py-1 rounded-full ${product.isActive ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
@@ -20,7 +20,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({ isOpen
         </span>
 
         {/* Details grid */}
-        <div className="grid grid-cols-2 gap-4 mt-6 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 mb-6">
           <div><p className="text-xs text-gray-500">Category</p><p className="text-sm font-semibold text-gray-900">{product.category || "—"}</p></div>
           <div><p className="text-xs text-gray-500">Variant</p><p className="text-sm font-semibold text-gray-900">{product.variant || "—"}</p></div>
           <div><p className="text-xs text-gray-500">Size / Spec</p><p className="text-sm font-semibold text-gray-900">{product.sizeSpec || "—"}</p></div>
@@ -40,7 +40,8 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({ isOpen
           <p className="text-sm text-gray-400 text-center py-4 bg-gray-50 rounded-lg">No materials linked to this product.</p>
         ) : (
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto w-full">
+<table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="px-3 py-2 text-left font-semibold text-gray-700">Material</th>
@@ -62,6 +63,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({ isOpen
                 ))}
               </tbody>
             </table>
+</div>
           </div>
         )}
 

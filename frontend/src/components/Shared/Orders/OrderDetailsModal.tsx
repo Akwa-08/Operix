@@ -193,7 +193,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             </div>
 
             {/* Payment summary */}
-            <div className="grid grid-cols-3 gap-3 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
               <div className="text-center p-2 bg-gray-50 rounded-lg">
                 <p className="text-xs text-gray-500">Total</p>
                 <p className="text-sm font-bold text-gray-900">₱{order.totalAmount.toLocaleString()}</p>

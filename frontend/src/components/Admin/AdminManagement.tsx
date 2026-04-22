@@ -8,40 +8,40 @@ import type { FrontendUser, FrontendSupplier, EmployeeRecord, UserRole } from ".
 
 type Supplier = FrontendSupplier;
 
-  // ── Reusable field ───────────────────────────────────────────────────
-  const F = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-      <input type={type} placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm" />
-    </div>
-  );
+// ── Reusable field ───────────────────────────────────────────────────
+const F = ({ label, value, onChange, type = "text", placeholder = "", disabled = false }: any) => (
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+    <input type={type} placeholder={placeholder} value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
+      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm" />
+  </div>
+);
 
-  // ── Reusable select ──────────────────────────────────────────────────
-  const S = ({ label, value, onChange, options, placeholder = "Select...", disabled = false }: any) => (
-    <div>
-      <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-      <select value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm bg-white">
-        <option value="">{placeholder}</option>
-        {options.map((o: string) => <option key={o} value={o.toLowerCase()}>{o}</option>)}
-      </select>
-    </div>
-  );
+// ── Reusable select ──────────────────────────────────────────────────
+const S = ({ label, value, onChange, options, placeholder = "Select...", disabled = false }: any) => (
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
+    <select value={value} onChange={(e: any) => onChange(e.target.value)} disabled={disabled}
+      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 text-sm bg-white">
+      <option value="">{placeholder}</option>
+      {options.map((o: string) => <option key={o} value={o.toLowerCase()}>{o}</option>)}
+    </select>
+  </div>
+);
 
-  // ── Modal wrapper ────────────────────────────────────────────────────
-  const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
-    if (!show) return null;
-    return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-        <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
-          <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
-          {children}
-        </div>
+// ── Modal wrapper ────────────────────────────────────────────────────
+const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
+  if (!show) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className={`bg-white rounded-2xl shadow-2xl ${width} w-full p-8 relative`} onClick={(e: any) => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} className="text-gray-600" /></button>
+        <h3 className="text-2xl font-bold text-gray-900 mb-6">{title}</h3>
+        {children}
       </div>
-    );
-  };
+    </div>
+  );
+};
 
 const AdminManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState("User Account Management");
@@ -104,7 +104,7 @@ const AdminManagement: React.FC = () => {
       setUserForm({ firstName: "", lastName: "", phoneNumber: "", email: "", role: "", password: "", confirmPassword: "" });
       setShowCreateUserModal(true);
     } else if (activeTab === "Employee List Management") {
-      setEmpForm({ employeeCode: "", fullName: "", position: "", role: "", baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
+      setEmpForm({ employeeCode: "", fullName: "", position: "", role: "production" as UserRole, baseHourlyRate: "", hireDate: new Date().toISOString().split('T')[0] });
       setShowCreateEmpModal(true);
     } else {
       setSupplierForm({ name: "", phone: "", email: "" });
@@ -122,14 +122,26 @@ const AdminManagement: React.FC = () => {
   const handleSubmitCreateUser = async () => {
     if (userForm.password !== userForm.confirmPassword) { alert("Passwords do not match"); return; }
     if (!userForm.email || !userForm.password || !userForm.role) { alert("Fill all required fields (Email, Password, Role)"); return; }
-    const r = await createUser({ firstName: userForm.firstName, lastName: userForm.lastName, email: userForm.email, username: userForm.email.split('@')[0], password: userForm.password, role: userForm.role, phoneNumber: userForm.phoneNumber });
+    const r = await createUser({ firstName: userForm.firstName, lastName: userForm.lastName, email: userForm.email, password: userForm.password, role: userForm.role, phoneNumber: userForm.phoneNumber });
     if (r.success) { alert("Account created!"); setShowCreateUserModal(false); } else alert("Error: " + r.error);
   };
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
-    const r = await updateUser(selectedUser.id, { firstName: editUserForm.firstName, lastName: editUserForm.lastName, email: editUserForm.email, phoneNumber: editUserForm.phoneNumber, role: editUserForm.role });
-    if (r.success) { alert("Account updated!"); setShowViewUserModal(false); } else alert("Error: " + r.error);
+    const r = await updateUser(selectedUser.id, { 
+      firstName: editUserForm.firstName, 
+      lastName: editUserForm.lastName, 
+      email: editUserForm.email, 
+      phoneNumber: editUserForm.phoneNumber, 
+      role: editUserForm.role 
+    });
+    if (r.success) { 
+      alert("Account updated!"); 
+      setShowViewUserModal(false); 
+      // Important: refresh is handled by hook
+    } else {
+      alert("Error: " + r.error);
+    }
   };
 
   const handleDeactivate = async () => {
@@ -192,9 +204,13 @@ const AdminManagement: React.FC = () => {
 
   // ── Filtering ────────────────────────────────────────────────────────
   const filteredUsers = users.filter(u => {
-    const ms = !searchQuery || [u.firstName, u.lastName, u.email, u.userName].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()));
+    const ms = !searchQuery || [u.firstName, u.lastName, u.email].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()));
     const mr = selectedRole === "Select Role" || u.role === selectedRole;
     return ms && mr;
+  }).sort((a, b) => {
+    if (a.isActive && !b.isActive) return -1;
+    if (!a.isActive && b.isActive) return 1;
+    return 0;
   });
   const filteredEmployees = employees.filter(e =>
     !searchQuery || [e.fullName, e.position, e.employeeCode, (e as any).role || ''].some((f: string) => (f || '').toLowerCase().includes(searchQuery.toLowerCase()))
@@ -214,20 +230,20 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ CREATE USER MODAL ═══ */}
       <Modal show={showCreateUserModal} onClose={() => setShowCreateUserModal(false)} title="Create Account">
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <F label="First Name" value={userForm.firstName} onChange={(v: string) => setUserForm({...userForm, firstName: v})} />
-          <F label="Last Name" value={userForm.lastName} onChange={(v: string) => setUserForm({...userForm, lastName: v})} />
-          <F label="Email *" type="email" value={userForm.email} onChange={(v: string) => setUserForm({...userForm, email: v})} />
-          <F label="Phone" value={userForm.phoneNumber} onChange={(v: string) => setUserForm({...userForm, phoneNumber: v})} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <F label="First Name" value={userForm.firstName} onChange={(v: string) => setUserForm({ ...userForm, firstName: v })} />
+          <F label="Last Name" value={userForm.lastName} onChange={(v: string) => setUserForm({ ...userForm, lastName: v })} />
+          <F label="Email *" type="email" value={userForm.email} onChange={(v: string) => setUserForm({ ...userForm, email: v })} />
+          <F label="Phone" value={userForm.phoneNumber} onChange={(v: string) => setUserForm({ ...userForm, phoneNumber: v })} />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
-            <select value={userForm.role} onChange={e => setUserForm({...userForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+            <select value={userForm.role} onChange={e => setUserForm({ ...userForm, role: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               <option value="">Select Role</option>
               {accountRoles.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-          <F label="Password *" type="password" value={userForm.password} onChange={(v: string) => setUserForm({...userForm, password: v})} />
-          <F label="Confirm Password *" type="password" value={userForm.confirmPassword} onChange={(v: string) => setUserForm({...userForm, confirmPassword: v})} />
+          <F label="Password *" type="password" value={userForm.password} onChange={(v: string) => setUserForm({ ...userForm, password: v })} />
+          <F label="Confirm Password *" type="password" value={userForm.confirmPassword} onChange={(v: string) => setUserForm({ ...userForm, confirmPassword: v })} />
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowCreateUserModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
@@ -237,14 +253,14 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ VIEW/EDIT USER MODAL ═══ */}
       <Modal show={showViewUserModal && !!selectedUser} onClose={() => setShowViewUserModal(false)} title="Account Info">
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <F label="First Name" value={editUserForm.firstName} onChange={(v: string) => setEditUserForm({...editUserForm, firstName: v})} />
-          <F label="Last Name" value={editUserForm.lastName} onChange={(v: string) => setEditUserForm({...editUserForm, lastName: v})} />
-          <F label="Email" type="email" value={editUserForm.email} onChange={(v: string) => setEditUserForm({...editUserForm, email: v})} />
-          <F label="Phone" value={editUserForm.phoneNumber} onChange={(v: string) => setEditUserForm({...editUserForm, phoneNumber: v})} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <F label="First Name" value={editUserForm.firstName} onChange={(v: string) => setEditUserForm({ ...editUserForm, firstName: v })} />
+          <F label="Last Name" value={editUserForm.lastName} onChange={(v: string) => setEditUserForm({ ...editUserForm, lastName: v })} />
+          <F label="Email" type="email" value={editUserForm.email} onChange={(v: string) => setEditUserForm({ ...editUserForm, email: v })} />
+          <F label="Phone" value={editUserForm.phoneNumber} onChange={(v: string) => setEditUserForm({ ...editUserForm, phoneNumber: v })} />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-            <select value={editUserForm.role} onChange={e => setEditUserForm({...editUserForm, role: e.target.value})} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+            <select value={editUserForm.role} onChange={e => setEditUserForm({ ...editUserForm, role: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               {accountRoles.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
@@ -284,15 +300,15 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ CREATE EMPLOYEE MODAL ═══ */}
       <Modal show={showCreateEmpModal} onClose={() => setShowCreateEmpModal(false)} title="Add Employee Record">
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <F label="Employee Code" value={empForm.employeeCode} onChange={(v: string) => setEmpForm({...empForm, employeeCode: v})} placeholder="EMP-008" />
-          <F label="Full Name *" value={empForm.fullName} onChange={(v: string) => setEmpForm({...empForm, fullName: v})} />
-          <F label="Position *" value={empForm.position} onChange={(v: string) => setEmpForm({...empForm, position: v})} placeholder="e.g., Printer Operator" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <F label="Employee Code" value={empForm.employeeCode} onChange={(v: string) => setEmpForm({ ...empForm, employeeCode: v })} placeholder="EMP-008" />
+          <F label="Full Name *" value={empForm.fullName} onChange={(v: string) => setEmpForm({ ...empForm, fullName: v })} />
+          <F label="Position *" value={empForm.position} onChange={(v: string) => setEmpForm({ ...empForm, position: v })} placeholder="e.g., Printer Operator" />
 
           {/* ── NEW: Role dropdown ── */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role *</label>
-            <select value={empForm.role} onChange={e => setEmpForm({...empForm, role: e.target.value})}
+            <select value={empForm.role} onChange={e => setEmpForm({ ...empForm, role: e.target.value as UserRole })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               <option value="">Select Role</option>
               {employeeRoles.map(r => (
@@ -302,8 +318,8 @@ const AdminManagement: React.FC = () => {
             <p className="text-xs text-gray-400 mt-1">Used for payroll department grouping</p>
           </div>
 
-          <F label="Daily Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({...empForm, baseHourlyRate: v})} placeholder="0.00" />
-          <F label="Hire Date" type="date" value={empForm.hireDate} onChange={(v: string) => setEmpForm({...empForm, hireDate: v})} />
+          <F label="Daily Rate (₱)" type="number" value={empForm.baseHourlyRate} onChange={(v: string) => setEmpForm({ ...empForm, baseHourlyRate: v })} placeholder="0.00" />
+          <F label="Hire Date" type="date" value={empForm.hireDate} onChange={(v: string) => setEmpForm({ ...empForm, hireDate: v })} />
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowCreateEmpModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
@@ -313,15 +329,15 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══ VIEW/EDIT EMPLOYEE MODAL ═══ */}
       <Modal show={showViewEmpModal && !!selectedEmployee} onClose={() => setShowViewEmpModal(false)} title="Employee Record">
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <F label="Employee Code" value={selectedEmployee?.employeeCode || ''} onChange={() => {}} disabled />
-          <F label="Full Name" value={editEmpForm.fullName} onChange={(v: string) => setEditEmpForm({...editEmpForm, fullName: v})} />
-          <F label="Position" value={editEmpForm.position} onChange={(v: string) => setEditEmpForm({...editEmpForm, position: v})} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <F label="Employee Code" value={selectedEmployee?.employeeCode || ''} onChange={() => { }} disabled />
+          <F label="Full Name" value={editEmpForm.fullName} onChange={(v: string) => setEditEmpForm({ ...editEmpForm, fullName: v })} />
+          <F label="Position" value={editEmpForm.position} onChange={(v: string) => setEditEmpForm({ ...editEmpForm, position: v })} />
 
           {/* ── NEW: Role dropdown ── */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Role</label>
-            <select value={editEmpForm.role} onChange={e => setEditEmpForm({...editEmpForm, role: e.target.value})}
+            <select value={editEmpForm.role} onChange={e => setEditEmpForm({ ...editEmpForm, role: e.target.value as UserRole })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               <option value="">Select Role</option>
               {employeeRoles.map(r => (
@@ -330,11 +346,11 @@ const AdminManagement: React.FC = () => {
             </select>
           </div>
 
-          <F label="Daily Rate (₱)" type="number" value={editEmpForm.baseHourlyRate} onChange={(v: string) => setEditEmpForm({...editEmpForm, baseHourlyRate: v})} />
-          <F label="Holiday Multiplier" type="number" value={editEmpForm.holidayMultiplier} onChange={(v: string) => setEditEmpForm({...editEmpForm, holidayMultiplier: v})} />
-          <F label="Overtime Multiplier" type="number" value={editEmpForm.overtimeMultiplier} onChange={(v: string) => setEditEmpForm({...editEmpForm, overtimeMultiplier: v})} />
-          <F label="Hire Date" value={selectedEmployee?.hireDate || ''} onChange={() => {}} disabled />
-          <F label="Status" value={selectedEmployee?.isActive ? 'Active' : 'Inactive'} onChange={() => {}} disabled />
+          <F label="Daily Rate (₱)" type="number" value={editEmpForm.baseHourlyRate} onChange={(v: string) => setEditEmpForm({ ...editEmpForm, baseHourlyRate: v })} />
+          <F label="Holiday Multiplier" type="number" value={editEmpForm.holidayMultiplier} onChange={(v: string) => setEditEmpForm({ ...editEmpForm, holidayMultiplier: v })} />
+          <F label="Overtime Multiplier" type="number" value={editEmpForm.overtimeMultiplier} onChange={(v: string) => setEditEmpForm({ ...editEmpForm, overtimeMultiplier: v })} />
+          <F label="Hire Date" value={selectedEmployee?.hireDate || ''} onChange={() => { }} disabled />
+          <F label="Status" value={selectedEmployee?.isActive ? 'Active' : 'Inactive'} onChange={() => { }} disabled />
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowViewEmpModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
@@ -347,9 +363,9 @@ const AdminManagement: React.FC = () => {
       {/* ═══ CREATE SUPPLIER MODAL ═══ */}
       <Modal show={showCreateSupplierModal} onClose={() => setShowCreateSupplierModal(false)} title="Add New Supplier" width="max-w-lg">
         <div className="space-y-4 mb-6">
-          <F label="Supplier Name *" value={supplierForm.name} onChange={(v: string) => setSupplierForm({...supplierForm, name: v})} placeholder="e.g., ABC Printing Supplies" />
-          <F label="Phone" value={supplierForm.phone} onChange={(v: string) => setSupplierForm({...supplierForm, phone: v})} placeholder="09XX XXX XXXX" />
-          <F label="Email" type="email" value={supplierForm.email} onChange={(v: string) => setSupplierForm({...supplierForm, email: v})} />
+          <F label="Supplier Name *" value={supplierForm.name} onChange={(v: string) => setSupplierForm({ ...supplierForm, name: v })} placeholder="e.g., ABC Printing Supplies" />
+          <F label="Phone" value={supplierForm.phone} onChange={(v: string) => setSupplierForm({ ...supplierForm, phone: v })} placeholder="09XX XXX XXXX" />
+          <F label="Email" type="email" value={supplierForm.email} onChange={(v: string) => setSupplierForm({ ...supplierForm, email: v })} />
         </div>
         <div className="flex gap-3">
           <button onClick={() => setShowCreateSupplierModal(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
@@ -361,7 +377,7 @@ const AdminManagement: React.FC = () => {
       <Modal show={showSupplierInfoModal && !!selectedSupplier} onClose={() => setShowSupplierInfoModal(false)} title="Supplier Info">
         {selectedSupplier && (
           <>
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Name</label><div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">{selectedSupplier.supplierName}</div></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Status</label><div className={`px-4 py-2 border rounded-lg text-sm ${selectedSupplier.supplierStatus === 'Active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>{selectedSupplier.supplierStatus}</div></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label><div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">{selectedSupplier.contactNumber || '—'}</div></div>

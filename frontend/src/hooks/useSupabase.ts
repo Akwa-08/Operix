@@ -6,10 +6,10 @@
 // Pipeline: database.ts (raw queries) → useSupabase.ts (hooks) → Components
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import {useState, useEffect, useCallback, useMemo, useRef} from "react";
-import {supabase} from "../config/supabaseClient";
-import {db} from "../lib/database";
-import {adminApi} from "../lib/adminApi";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { supabase } from "../config/supabaseClient";
+import { db } from "../lib/database";
+import { adminApi } from "../lib/adminApi";
 import type {
   Order,
   OrderStatus,
@@ -57,18 +57,18 @@ function useQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
   useEffect(() => {
     refresh();
   }, [refresh]);
-  return {data, loading, error, refresh};
+  return { data, loading, error, refresh };
 }
 
 /** Wrap an async mutation in { success, error } */
 async function safe(
   fn: () => Promise<any>,
-): Promise<{success: boolean; error: string | null}> {
+): Promise<{ success: boolean; error: string | null }> {
   try {
     await fn();
-    return {success: true, error: null};
+    return { success: true, error: null };
   } catch (err: any) {
-    return {success: false, error: err.message || "Operation failed"};
+    return { success: false, error: err.message || "Operation failed" };
   }
 }
 
@@ -152,7 +152,6 @@ function mapUser(raw: any): FrontendUser {
     firstName: raw.first_name || "",
     lastName: raw.last_name || "",
     email: raw.email || "",
-    userName: raw.username || "",
     role: raw.role
       ? raw.role.charAt(0).toUpperCase() + raw.role.slice(1)
       : "Customer",
@@ -235,47 +234,47 @@ function mapMaterial(item: any): Material {
 // ── Profile ──────────────────────────────────────────────────────────────────
 export function useMyProfile() {
   const q = useQuery(() => db.getMyProfile(), []);
-  return {profile: q.data, ...q};
+  return { profile: q.data, ...q };
 }
 
 // ── Users (raw, internal) ────────────────────────────────────────────────────
-export function useUsers(filters?: {role?: string; status?: string}) {
+export function useUsers(filters?: { role?: string; status?: string }) {
   const q = useQuery(
     () => db.getUsers(filters),
     [filters?.role, filters?.status],
   );
-  return {users: q.data || [], ...q};
+  return { users: q.data || [], ...q };
 }
 
 // ── Employees (raw, internal) ────────────────────────────────────────────────
 export function useEmployees() {
   const q = useQuery(() => db.getEmployees(), []);
-  return {employees: q.data || [], ...q};
+  return { employees: q.data || [], ...q };
 }
 
 // ── Suppliers (raw, internal) ────────────────────────────────────────────────
 export function useSuppliers() {
   const q = useQuery(() => db.getSuppliers(), []);
-  return {suppliers: q.data || [], ...q};
+  return { suppliers: q.data || [], ...q };
 }
 
 // ── Products (raw, internal) ─────────────────────────────────────────────────
-export function useProducts(filters?: {search?: string; category?: string}) {
+export function useProducts(filters?: { search?: string; category?: string }) {
   const q = useQuery(
     () => db.getProducts(filters),
     [filters?.search, filters?.category],
   );
-  return {products: q.data || [], ...q};
+  return { products: q.data || [], ...q };
 }
 
 // ── Orders (raw, internal) ───────────────────────────────────────────────────
-export function useOrders(filters?: {status?: string}) {
+export function useOrders(filters?: { status?: string }) {
   const q = useQuery(() => db.getOrders(filters), [filters?.status]);
   const orders = useMemo<Order[]>(
     () => (q.data || []).map(mapOrder),
     [q.data]
   );
-  
+
   const stats = useMemo(() => {
     const now = new Date();
     return {
@@ -296,21 +295,21 @@ export function useOrders(filters?: {status?: string}) {
     };
   }, [orders]);
 
-  return {orders, stats, ...q};
+  return { orders, stats, ...q };
 }
 
 // ── Orders Data (Enhanced for Admin/Staff) ───────────────────────────────────
-export function useOrdersData(filters?: {status?: string}) {
-  const {orders, stats, loading, error, refresh} = useOrders(filters);
-  const {data: allUsers} = useQuery(() => db.getUsers({status: "active"}), []);
-  const {data: allEmployees} = useQuery(() => db.getEmployees(), []);
+export function useOrdersData(filters?: { status?: string }) {
+  const { orders, stats, loading, error, refresh } = useOrders(filters);
+  const { data: allUsers } = useQuery(() => db.getUsers({ status: "active" }), []);
+  const { data: allEmployees } = useQuery(() => db.getEmployees(), []);
 
   // Designers are from User Accounts
   const designers = useMemo(() => (allUsers || [])
     .filter((u: any) => u.role?.toLowerCase() === "designer")
     .map((u: any) => ({
       id: u.id,
-      name: `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username,
+      name: `${u.first_name || ""} ${u.last_name || ""}`.trim() || "Unknown",
     })), [allUsers]);
 
   // Production Staff are from Registered Employees
@@ -340,7 +339,7 @@ export function useOrdersData(filters?: {status?: string}) {
     updateStatus: async (id: string, status: string) => {
       const dbStatus = status.toLowerCase().replace(/ /g, "_");
       const r = await safe(() =>
-        db.updateOrder(id, {status: dbStatus}).then(() => refresh()),
+        db.updateOrder(id, { status: dbStatus }).then(() => refresh()),
       );
       return r;
     },
@@ -363,7 +362,7 @@ export function useOrdersData(filters?: {status?: string}) {
     selfAssign: async (orderId: string) => {
       const r = await safe(async () => {
         const {
-          data: {user},
+          data: { user },
         } = await supabase.auth.getUser();
         if (!user) throw new Error("Not authenticated");
         await db.updateOrder(orderId, {
@@ -438,30 +437,30 @@ export function useLogsData() {
       }).format(new Date(/[Z+]/.test(ts) ? ts : ts.replace(" ", "T") + "Z"));
 
     // 1. Audit logs (Staff Actions)
-    const {data: auditData} = await supabase
+    const { data: auditData } = await supabase
       .from("audit_logs")
       .select(
         "id, created_at, action, target_table, target_id, metadata, actor_role, actor:actor_id(first_name, last_name)",
       )
-      .order("created_at", {ascending: false})
+      .order("created_at", { ascending: false })
       .limit(500);
 
     // 2. Order logs (Order History)
-    const {data: ordLogs} = await supabase
+    const { data: ordLogs } = await supabase
       .from("order_logs")
       .select(
         "id, created_at, status, note, order_id, user:users!order_logs_updated_by_fkey(id, first_name, last_name, role)",
       )
-      .order("created_at", {ascending: false})
+      .order("created_at", { ascending: false })
       .limit(500);
 
     // 3. Inventory changes (Inventory Changes)
-    const {data: invChanges} = await supabase
+    const { data: invChanges } = await supabase
       .from("inventory_changes")
       .select(
         "id, created_at, change_type, quantity_change, quantity_before, quantity_after, reason, inventory_items:inventory_item_id(id, name, unit_of_measure), changer:changed_by(first_name, last_name, role)",
       )
-      .order("created_at", {ascending: false})
+      .order("created_at", { ascending: false })
       .limit(500);
 
     const staffActions = (auditData || []).map((l: any) => ({
@@ -473,12 +472,12 @@ export function useLogsData() {
       action: l.action,
       details: l.metadata
         ? Object.entries(l.metadata)
-            .map(([k, v]) => `${k}: ${v}`)
-            .join(" | ")
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(" | ")
         : "",
       user: l.actor
         ? `${l.actor.first_name || ""} ${l.actor.last_name || ""}`.trim() ||
-          "System"
+        "System"
         : "System",
       role: l.actor_role || "system",
     }));
@@ -493,7 +492,7 @@ export function useLogsData() {
       details: l.note || "",
       user: l.user
         ? `${l.user.first_name || ""} ${l.user.last_name || ""}`.trim() ||
-          "System"
+        "System"
         : "System",
       role: l.user?.role || "system",
     }));
@@ -508,7 +507,7 @@ export function useLogsData() {
       details: `${l.inventory_items?.name || "—"}: ${l.quantity_before} → ${l.quantity_after} ${l.inventory_items?.unit_of_measure || ""}${l.reason ? ". " + l.reason : ""}`,
       user: l.changer
         ? `${l.changer.first_name || ""} ${l.changer.last_name || ""}`.trim() ||
-          "System"
+        "System"
         : "System",
       role: l.changer?.role || "system",
     }));
@@ -517,7 +516,7 @@ export function useLogsData() {
       (a, b) => b.timestamp - a.timestamp,
     );
 
-    return {all, staffActions, orderHistory, inventoryChanges};
+    return { all, staffActions, orderHistory, inventoryChanges };
   };
 
   return useQuery(fetchLogs);
@@ -531,7 +530,7 @@ export function useProductCatalog(filters?: {
   search?: string;
   category?: string;
 }) {
-  const {products: raw, loading, error, refresh} = useProducts(filters);
+  const { products: raw, loading, error, refresh } = useProducts(filters);
   const products: CatalogProduct[] = raw.map((p: any) => ({
     id: p.id,
     title: p.name,
@@ -542,7 +541,7 @@ export function useProductCatalog(filters?: {
     description: p.description || "",
     isActive: p.is_active,
   }));
-  return {products, loading, error, refresh};
+  return { products, loading, error, refresh };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -605,16 +604,16 @@ export function useCartData() {
     updateQuantity: async (id: string, qty: number) => {
       const r = await safe(() =>
         db
-          .updateCartItem(id, {quantity: Math.max(1, qty)})
+          .updateCartItem(id, { quantity: Math.max(1, qty) })
           .then(() => refresh()),
       );
       return r;
     },
     updateCartItem: async (
       id: string,
-      updates: {quantity?: number; specifications?: string; fileUrl?: string},
+      updates: { quantity?: number; specifications?: string; fileUrl?: string },
     ) => {
-      const dbUpdates: any = {...updates};
+      const dbUpdates: any = { ...updates };
       if (updates.fileUrl) {
         dbUpdates.file_url = updates.fileUrl;
         delete dbUpdates.fileUrl;
@@ -637,9 +636,9 @@ export function useCartData() {
       try {
         const o = await db.checkout(notes, due);
         await refresh();
-        return {success: true, error: null, order: o};
+        return { success: true, error: null, order: o };
       } catch (e: any) {
-        return {success: false, error: e.message, order: null};
+        return { success: false, error: e.message, order: null };
       }
     },
     directOrder: async (data: any) => {
@@ -654,7 +653,7 @@ export function useCartData() {
 // Used by: AdminManagement
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useManagementData() {
-  const {users: rawUsers, loading: uL, refresh: refreshUsers} = useUsers();
+  const { users: rawUsers, loading: uL, refresh: refreshUsers } = useUsers();
   const {
     employees: rawEmps,
     loading: eL,
@@ -680,7 +679,6 @@ export function useManagementData() {
       firstName: string;
       lastName: string;
       email: string;
-      username: string;
       password: string;
       role: string;
       phoneNumber?: string;
@@ -693,7 +691,6 @@ export function useManagementData() {
             role: data.role.toLowerCase(),
             first_name: data.firstName,
             last_name: data.lastName,
-            username: data.username,
             contact_number: data.phoneNumber,
           })
           .then(() => refreshUsers()),
@@ -761,7 +758,7 @@ export function useManagementData() {
     },
     deactivateEmployee: async (id: string) => {
       const r = await safe(() =>
-        db.updateEmployee(id, {is_active: false}).then(() => refreshEmps()),
+        db.updateEmployee(id, { is_active: false }).then(() => refreshEmps()),
       );
       return r;
     },
@@ -785,7 +782,7 @@ export function useManagementData() {
     flagSupplier: async (id: string, flagged: boolean, notes?: string) => {
       const r = await safe(() =>
         db
-          .updateSupplier(id, {is_flagged: flagged, flag_notes: notes || ""})
+          .updateSupplier(id, { is_flagged: flagged, flag_notes: notes || "" })
           .then(() => refreshSups()),
       );
       return r;
@@ -869,10 +866,10 @@ export function useDashboard() {
 }
 
 export function useDashboardData() {
-  const {orders, orderStats, invStats, lowStockItems, recentOrders, loading} =
+  const { orders, orderStats, invStats, lowStockItems, recentOrders, loading } =
     useDashboard();
   return {
-    data: {rawOrders: orders, orderStats, inventoryStats: invStats, lowStockItems, recentOrders},
+    data: { rawOrders: orders, orderStats, inventoryStats: invStats, lowStockItems, recentOrders },
     loading,
   };
 }
@@ -907,7 +904,7 @@ function mapAdminProduct(raw: any): AdminProduct {
 
 export function useProductsData() {
   const q = useQuery(() => db.getProductsWithBOM(), []);
-  const {data: rawMaterials} = useQuery(() => db.getInventoryItems(), []);
+  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), []);
   const raw = q.data || [];
   const products: AdminProduct[] = raw.map(mapAdminProduct);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
@@ -937,7 +934,7 @@ export function useProductsData() {
         final_price: number;
         description?: string;
       },
-      bom: {inventory_item_id: string; quantity_required: number}[],
+      bom: { inventory_item_id: string; quantity_required: number }[],
     ) => {
       const r = await safe(() =>
         db.createProductWithBOM(product, bom).then(() => q.refresh()),
@@ -947,7 +944,7 @@ export function useProductsData() {
     updateProduct: async (
       id: string,
       product: Record<string, any>,
-      bom?: {inventory_item_id: string; quantity_required: number}[],
+      bom?: { inventory_item_id: string; quantity_required: number }[],
     ) => {
       const r = await safe(() =>
         db.updateProductWithBOM(id, product, bom).then(() => q.refresh()),
@@ -998,8 +995,8 @@ function mapDelivery(raw: any): Delivery {
 
 export function useDeliveries() {
   const q = useQuery(() => db.getDeliveries(), []);
-  const {data: rawMaterials} = useQuery(() => db.getInventoryItems(), []);
-  const {data: rawSuppliers} = useQuery(() => db.getSuppliers(), []);
+  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), []);
+  const { data: rawSuppliers } = useQuery(() => db.getSuppliers(), []);
   const raw = q.data || [];
   const deliveries: Delivery[] = raw.map(mapDelivery);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
@@ -1043,7 +1040,7 @@ export function useDeliveries() {
     },
     confirmReceipt: async (
       id: string,
-      receipt: {received_quantity: number; receipt_reference_number: string},
+      receipt: { received_quantity: number; receipt_reference_number: string },
     ) => {
       const r = await safe(() =>
         db.confirmDeliveryReceipt(id, receipt).then(() => q.refresh()),
@@ -1460,7 +1457,7 @@ export function usePayrollData() {
     markPeriodComplete: async (periodId: string) => {
       const r = await safe(() =>
         db.payroll
-          .updatePeriod(periodId, {status: "complete"})
+          .updatePeriod(periodId, { status: "complete" })
           .then(() => periodsQ.refresh()),
       );
       return r;
@@ -1469,7 +1466,7 @@ export function usePayrollData() {
       const r = await safe(async () => {
         const records = await db.payroll.getPayrollRecords(periodId);
         for (const rec of records) {
-          await db.payroll.updatePayrollRecord(rec.id, {status: "paid"});
+          await db.payroll.updatePayrollRecord(rec.id, { status: "paid" });
         }
         payrollQ.refresh();
       });
