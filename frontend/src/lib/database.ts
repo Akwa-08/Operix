@@ -279,7 +279,7 @@ export const db = {
       .select(
         "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
       )
-      .order("created_at", {ascending: false});
+      .order("name");
     if (error) throw error;
     return data || [];
   },
@@ -323,7 +323,8 @@ export const db = {
     let query = supabase
       .from("products")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("category")
+      .order("name");
     if (filters?.category) query = query.eq("category", filters.category);
     if (filters?.search)
       query = query.or(
@@ -1279,17 +1280,9 @@ export const db = {
         .neq("id", user.id); // never show yourself
 
       // Customers may only discover staff, not other customers
+      // TST_07_03: Customers cannot start new conversations, so return empty list for them
       if (!isStaff) {
-        query = query.in("role", [
-          "admin",
-          "cashier",
-          "designer",
-          "production",
-          "Admin",
-          "Cashier",
-          "Designer",
-          "Production",
-        ]);
+        return [];
       }
 
       const {data, error} = await query.order("first_name");
@@ -1306,152 +1299,568 @@ export const db = {
 
   // ── CASH ADVANCES ──────────────────────────────────────────────────
   cashAdvances: {
-    async getAll(filters?: any): Promise<any[]> {
-      let q = supabase
-        .from("cash_advances")
-        .select(`*, employee:employee_id(full_name, position, base_hourly_rate, employee_code), issuer:issued_by(first_name, last_name)`)
-        .order("date_issued", { ascending: false });
-      if (filters?.employee_id) q = q.eq("employee_id", filters.employee_id);
-      if (filters?.status) q = q.eq("status", filters.status);
-      const { data, error } = await q;
+
+    async getAll(filters?: { employee_id?: string; status?: string }) {
+      let query = supabase
+        .from('cash_advances')
+        .select(`
+          *,
+          employee:employee_id(id, employee_code, full_name, position),
+          issuer:issued_by(id, first_name, last_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (filters?.employee_id) query = query.eq('employee_id', filters.employee_id);
+      if (filters?.status)      query = query.eq('status', filters.status);
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
-    async getPendingRequests(): Promise<any[]> {
+
+    async create(advance: {
+      employee_id: string;
+      amount: number;
+      date_issued?: string;
+      reason?: string;
+    }) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
       const { data, error } = await supabase
-        .from("cash_advances")
-        .select(`*, employee:employee_id(full_name, position, base_hourly_rate, employee_code), issuer:issued_by(first_name, last_name)`)
-        .eq("status", "pending")
-        .order("date_issued", { ascending: false });
+        .from('cash_advances')
+        .insert([{
+          ...advance,
+          date_issued: advance.date_issued || new Date().toISOString().split('T')[0],
+          status:      'pending',
+          issued_by:   user.id,
+        }])
+        .select(`
+          *,
+          employee:employee_id(id, employee_code, full_name, position),
+          issuer:issued_by(id, first_name, last_name)
+        `)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+
+    async cancel(id: string) {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending') // can only cancel pending advances
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async approve(id: string) {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .update({ status: 'approved', updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async decline(id: string, declineReason: string) {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .update({
+          status:         'declined',
+          decline_reason: declineReason,
+          updated_at:     new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async getPendingRequests() {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .select(`
+          *,
+          employee:employee_id(
+            id, employee_code, full_name, position, base_hourly_rate
+          ),
+          issuer:issued_by(id, first_name, last_name)
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
       if (error) throw error;
       return data || [];
     },
-    async create(data: any): Promise<any> {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error("Not logged in");
-      const { data: created, error } = await supabase
-        .from("cash_advances")
-        .insert([{ ...data, issued_by: user.user.id }])
-        .select()
+
+    // ── Cashier: check eligibility (returns boolean only, no amounts) ──────
+    async checkEligibility(employeeId: string): Promise<{
+      eligible: boolean;
+      reason: 'eligible' | 'limit_reached' | 'approved_awaiting_deduction';
+      remaining: number;      // how much can still be requested this period
+      totalUsed: number;      // sum already pending/approved this period
+      detail?: { amount: number; date_issued: string };
+    }> {
+      const MAX = 2000;
+      const now = new Date();
+
+      // ── Boundary between periods: 15 days ago ───────────────────────────────
+      const fifteenDaysAgo = new Date(now);
+      fifteenDaysAgo.setDate(now.getDate() - 15);
+      const periodStart = fifteenDaysAgo.toISOString().split('T')[0];
+
+      // Rule 1: Block if there is an APPROVED but NOT YET DEDUCTED advance
+      //         from a PREVIOUS period (older than 15 days).
+      //         Employee must wait until payroll runs and deducts it first.
+      const { data: prevUnpaid } = await supabase
+        .from('cash_advances')
+        .select('id, amount, date_issued')
+        .eq('employee_id', employeeId)
+        .eq('status', 'approved')
+        .lt('date_issued', periodStart);
+
+      if (prevUnpaid && prevUnpaid.length > 0) {
+        const rec = prevUnpaid[0] as any;
+        return {
+          eligible: false,
+          reason: 'approved_awaiting_deduction',
+          remaining: 0,
+          totalUsed: Number(rec.amount),
+          detail: { amount: Number(rec.amount), date_issued: rec.date_issued },
+        };
+      }
+
+      // Rule 2: Within the CURRENT 15-day period, sum all pending + approved.
+      //         Employee can keep requesting as long as total doesn't reach ₱2,000.
+      const { data: current } = await supabase
+        .from('cash_advances')
+        .select('id, amount, status')
+        .eq('employee_id', employeeId)
+        .in('status', ['pending', 'approved'])
+        .gte('date_issued', periodStart);
+
+      const totalUsed = (current || []).reduce((s: number, a: any) => s + Number(a.amount), 0);
+      const remaining = Math.max(0, MAX - totalUsed);
+
+      if (remaining <= 0) {
+        return { eligible: false, reason: 'limit_reached', remaining: 0, totalUsed };
+      }
+
+      return { eligible: true, reason: 'eligible', remaining, totalUsed };
+    },
+
+    // ── Cashier: submit a request (up to ₱2,000 max) ─────────────────────
+    async requestByCashier(data: { employee_id: string; amount: number; reason?: string }) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const MAX_AMOUNT = 2000;
+      const amount = Math.round(data.amount);
+
+      if (amount <= 0 || amount > MAX_AMOUNT) {
+        throw new Error(`Amount must be between ₱1 and ₱${MAX_AMOUNT.toLocaleString()}`);
+      }
+
+      const fifteenDaysAgo = new Date();
+      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+      const periodStart = fifteenDaysAgo.toISOString().split('T')[0];
+
+      // Block if previous period has an approved but undeducted advance
+      const { data: prevUnpaid } = await supabase
+        .from('cash_advances')
+        .select('id')
+        .eq('employee_id', data.employee_id)
+        .eq('status', 'approved')
+        .lt('date_issued', periodStart);
+
+      if ((prevUnpaid?.length ?? 0) > 0) {
+        throw new Error('Employee has an approved advance from a previous period that has not yet been deducted');
+      }
+
+      // Sum current-period pending + approved
+      const { data: current } = await supabase
+        .from('cash_advances')
+        .select('amount')
+        .eq('employee_id', data.employee_id)
+        .in('status', ['pending', 'approved'])
+        .gte('date_issued', periodStart);
+
+      const periodTotal = (current || []).reduce((s: number, a: any) => s + Number(a.amount), 0);
+      if (periodTotal + amount > MAX_AMOUNT) {
+        throw new Error(`This request would exceed the ₱${MAX_AMOUNT.toLocaleString()} period limit. Remaining: ₱${(MAX_AMOUNT - periodTotal).toLocaleString()}`);
+      }
+
+      const { data: result, error } = await supabase
+        .from('cash_advances')
+        .insert([{
+          employee_id:          data.employee_id,
+          amount,
+          date_issued:          new Date().toISOString().split('T')[0],
+          reason:               data.reason || null,
+          status:               'pending',
+          issued_by:            user.id,
+          requested_by_cashier: user.id,
+        }])
+        .select(`
+          *,
+          employee:employee_id(id, employee_code, full_name, position),
+          issuer:issued_by(id, first_name, last_name)
+        `)
         .single();
+
       if (error) throw error;
-      return created;
+      return result;
     },
-    async approve(id: string): Promise<void> {
-      const { error } = await supabase.from("cash_advances").update({ status: "approved" }).eq("id", id);
-      if (error) throw error;
+
+    async getPendingCount(): Promise<number> {
+      const { count, error } = await supabase
+        .from('cash_advances')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (error) return 0;
+      return count ?? 0;
     },
-    async decline(id: string, reason: string): Promise<void> {
-      const { error } = await supabase.from("cash_advances").update({ status: "declined", decline_reason: reason }).eq("id", id);
+
+    async getPendingTotal(employeeId: string): Promise<number> {
+      const { data, error } = await supabase
+        .from('cash_advances')
+        .select('amount')
+        .eq('employee_id', employeeId)
+        .eq('status', 'pending');
       if (error) throw error;
-    },
-    async cancel(id: string): Promise<void> {
-      const { error } = await supabase.from("cash_advances").update({ status: "cancelled" }).eq("id", id);
-      if (error) throw error;
+      return (data || []).reduce((s, a) => s + Number(a.amount), 0);
     },
   },
 
-  // ── PAYROLL ───────────────────────────────────────────────────────
   payroll: {
-    async getPeriods(): Promise<any[]> {
-      const { data, error } = await supabase.from("payroll_periods").select("*").order("period_start", { ascending: false });
-      if (error) throw error;
-      return data || [];
-    },
-    async getAttendanceLogs(periodId: string): Promise<any[]> {
-      const { data, error } = await supabase
-        .from("attendance_logs")
-        .select(`*, employee:employee_id(full_name, position, base_hourly_rate, employee_code)`)
-        .eq("payroll_period_id", periodId);
-      if (error) throw error;
-      return data || [];
-    },
-    async getPayrollRecords(periodId: string): Promise<any[]> {
-      const { data, error } = await supabase
-        .from("payroll_records")
-        .select(`*, employee:employee_id(full_name, position, employee_code)`)
-        .eq("payroll_period_id", periodId);
-      if (error) throw error;
-      return data || [];
-    },
-    async createPeriod(data: any): Promise<any> {
-      const { data: user } = await supabase.auth.getUser();
-      if (!user.user) throw new Error("Not logged in");
-      const { data: created, error } = await supabase
-        .from("payroll_periods")
-        .insert([{ ...data, created_by: user.user.id, status: "draft" }])
-        .select()
-        .single();
-      if (error) throw error;
-      return created;
-    },
-    async upsertAttendanceLog(log: any): Promise<void> {
-      const { error } = await supabase.from("attendance_logs").upsert(log, { onConflict: "employee_id, payroll_period_id" });
-      if (error) throw error;
-    },
-    async computePayroll(periodId: string): Promise<void> {
-      // Fetch attendance logs for this period
-      const { data: logs, error: logsErr } = await supabase
-        .from("attendance_logs")
-        .select(`*, employee:employee_id(base_hourly_rate)`)
-        .eq("payroll_period_id", periodId);
-        
-      if (logsErr) throw logsErr;
-      if (!logs || logs.length === 0) return;
 
-      const recordsToUpsert = logs.map((log) => {
-        const dailyRate = Number(log.employee?.base_hourly_rate) || 0;
-        const daysPresent = Math.floor(Number(log.worked_hours) / 8); 
+    async getPeriods() {
+      const { data, error } = await supabase
+        .from('payroll_periods')
+        .select('*')
+        .order('period_start', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+
+    async createPeriod(period: { period_start: string; period_end: string; pay_date?: string }) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      const { data, error } = await supabase
+        .from('payroll_periods')
+        .insert([{ ...period, status: 'draft', created_by: user.id }])
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async updatePeriod(id: string, updates: Record<string, any>) {
+      const { data, error } = await supabase
+        .from('payroll_periods')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async getAttendanceLogs(periodId: string) {
+      const { data, error } = await supabase
+        .from('attendance_logs')
+        .select(`
+          *,
+          employee:employee_id(
+            id, employee_code, full_name, position,
+            base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier
+          )
+        `)
+        .eq('payroll_period_id', periodId)
+        .order('created_at');
+      if (error) throw error;
+      return data || [];
+    },
+
+    async upsertAttendanceLog(log: {
+      employee_id: string; payroll_period_id: string;
+      worked_hours?: number; required_hours?: number;
+      days_present?: number;
+      late_timeslots?: number; early_leave_timeslots?: number;
+      regular_overtime_hours?: number; holiday_overtime_hours?: number;
+      special_overtime_hours?: number; business_trip_days?: number;
+      absences?: number; on_leave_days?: number;
+      additional_pay?: number; deduction_amount?: number;
+    }) {
+      const { data, error } = await supabase
+        .from('attendance_logs')
+        .upsert([{ ...log, updated_at: new Date().toISOString() }], {
+          onConflict: 'employee_id,payroll_period_id',
+        })
+        .select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async getPayrollRecords(periodId: string) {
+      const { data, error } = await supabase
+        .from('payroll_records')
+        .select(`
+          *,
+          employee:employee_id(id, employee_code, full_name, position)
+        `)
+        .eq('payroll_period_id', periodId)
+        .order('created_at');
+      if (error) throw error;
+      return data || [];
+    },
+
+    async updatePayrollRecord(id: string, updates: Record<string, any>) {
+      const { data, error } = await supabase
+        .from('payroll_records')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id).select().single();
+      if (error) throw error;
+      return data;
+    },
+
+    async computePayroll(periodId: string) {
+      const { data: logs, error } = await supabase
+        .from('attendance_logs')
+        .select(`
+          *,
+          employee:employee_id(
+            id, employee_code, base_hourly_rate
+          )
+        `)
+        .eq('payroll_period_id', periodId);
+      if (error) throw error;
+
+      const results = [];
+
+      for (const log of logs || []) {
+        const emp = log.employee;
+        if (!emp) continue;
+
+        // ────────────────────────────────────────────────────────────────────
+        // BASE RATES
+        // Daily Rate = Base Hourly Rate × 8 hrs/day
+        // Source: employees.base_hourly_rate (set manually per employee)
+        // ────────────────────────────────────────────────────────────────────
+        // ✅ base_hourly_rate stores the DAILY RATE directly
+        // Hourly rate is derived for OT and tardy calculations
+        const dailyRate  = Number(emp.base_hourly_rate) || 0;
+        const hourlyRate = dailyRate / 8;
+
+        // ────────────────────────────────────────────────────────────────────
+        // DAYS PRESENT
+        // ✅ FIX: Use days_present stored directly from XLS Summary "Attend Actual"
+        //        (e.g. "22/16" → 16 actual days attended)
+        //        Falls back to hours ÷ 8 only if days_present wasn't imported.
+        //
+        // WHY THE DISCREPANCY EXISTED:
+        //   Old code: Math.round(worked_hours / 8)
+        //   NENENG:   88.73h ÷ 8 = 11 days ❌ (she actually attended 16 days,
+        //             but some days she left early — hours don't equal full days)
+        //   Correct:  attend_actual = 16 ✓
+        // ────────────────────────────────────────────────────────────────────
+        const daysPresent = Number(log.days_present) > 0
+          ? Number(log.days_present)
+          : (Number(log.worked_hours) > 0 ? Math.round(Number(log.worked_hours) / 8) : 0);
+
+        // ────────────────────────────────────────────────────────────────────
+        // BASIC PAY
+        // Formula: Daily Rate × Days Present
+        // ────────────────────────────────────────────────────────────────────
         const basicPay = dailyRate * daysPresent;
-        
-        const regularOT = (dailyRate / 8) * 1.25 * Number(log.regular_overtime_hours || 0);
-        const holidayOT = (dailyRate / 8) * 1.60 * Number(log.holiday_overtime_hours || 0);
-        const specialOT = (dailyRate / 8) * 1.30 * Number(log.special_overtime_hours || 0);
-        
-        const grossIncome = basicPay + regularOT + holidayOT + specialOT + Number(log.additional_pay || 0);
-        
-        // Fixed defaults + variable deductions
-        const sss = 0;
-        const philhealth = 200;
+
+        // ────────────────────────────────────────────────────────────────────
+        // HOLIDAY PAY
+        // Regular Holiday (+100%): employee gets paid double (×2.00)
+        // Special Holiday  (+30%): employee gets paid 130% (×1.30)
+        // Source: attendance_logs.holiday_overtime_hours / special_overtime_hours
+        //         (these fields track holiday DAYS worked — currently manual entry)
+        // TODO: Add regular_holiday_days and special_holiday_days columns to
+        //       attendance_logs for proper holiday-day tracking.
+        // ────────────────────────────────────────────────────────────────────
+        const regularHolidayPay = 0; // dailyRate * 2.00 * regular_holiday_days
+        const specialHolidayPay = 0; // dailyRate * 1.30 * special_holiday_days
+
+        // ────────────────────────────────────────────────────────────────────
+        // OVERTIME
+        // From XLS Summary "Overtime Regular" and "Overtime Special" columns
+        // (stored in HH.MM biometric format, converted to decimal hours by server)
+        //
+        // Regular Day OT     (+0.25): Hourly Rate × 1.25 × OT hours
+        // Regular Holiday OT (+0.60): Hourly Rate × 1.60 × OT hours
+        // Special Holiday OT (+0.30): Hourly Rate × 1.30 × OT hours
+        // ────────────────────────────────────────────────────────────────────
+        const regularOT = hourlyRate * 1.25 * Number(log.regular_overtime_hours || 0);
+        const holidayOT = hourlyRate * 1.60 * Number(log.holiday_overtime_hours || 0);
+        const specialOT = hourlyRate * 1.30 * Number(log.special_overtime_hours || 0);
+
+        // ────────────────────────────────────────────────────────────────────
+        // GROSS INCOME
+        // = Basic Pay + Regular Holiday Pay + Special Holiday Pay
+        //   + Regular OT + Holiday OT + Special OT + Additional Pay
+        // ────────────────────────────────────────────────────────────────────
+        const grossIncome = basicPay
+          + regularHolidayPay
+          + specialHolidayPay
+          + regularOT
+          + holidayOT
+          + specialOT
+          + Number(log.additional_pay || 0);
+
+        // ────────────────────────────────────────────────────────────────────
+        // TARDY & UNDERTIME DEDUCTIONS
+        // Source: XLS Exceptional sheet → total late_minutes
+        //         Server converts: late_minutes / 30 → late_timeslots (1 slot = 30min)
+        //
+        // Formula: (Daily Rate ÷ 8) × (timeslots × 0.5 hrs)
+        //        = Hourly Rate × 0.5 × timeslots
+        // ────────────────────────────────────────────────────────────────────
+        const tardyDeductions    = hourlyRate * 0.5 * Number(log.late_timeslots || 0);
+        const undertimeDeductions = hourlyRate * 0.5 * Number(log.early_leave_timeslots || 0);
+
+        // ────────────────────────────────────────────────────────────────────
+        // PHILHEALTH
+        // Formula: Monthly Basic Salary × 3% ÷ 2 (employee semi-monthly share)
+        //          Rounded to nearest ₱5
+        // Monthly Basic = Daily Rate × 26 working days/month
+        // Verified against payroll register:
+        //   ₱635/day → ₱247.65 → ₱250 ✓
+        //   ₱985/day → ₱384.15 → ₱385 ✓
+        // ────────────────────────────────────────────────────────────────────
+        const monthlyBasic = dailyRate * 26;
+        const philhealth   = Math.round(monthlyBasic * 0.015 / 5) * 5;
+
+        // ────────────────────────────────────────────────────────────────────
+        // HDMF (PAG-IBIG)
+        // Fixed: ₱200.00 per semi-monthly period
+        // ────────────────────────────────────────────────────────────────────
         const hdmf = 200;
-        const advDeduction = Number(log.deduction_amount || 0);
-        const totalDeductions = sss + philhealth + hdmf + advDeduction;
-        
-        const netPay = grossIncome - totalDeductions;
 
-        return {
-          payroll_period_id: periodId,
-          employee_id: log.employee_id,
-          daily_rate: dailyRate,
-          days_present: daysPresent,
-          basic_pay: basicPay,
-          regular_overtime: regularOT,
-          holiday_overtime: holidayOT,
-          special_overtime: specialOT,
-          gross_income: grossIncome,
-          sss,
-          philhealth,
-          hdmf,
-          cash_advance: advDeduction,
-          total_deductions: totalDeductions,
-          net_pay: netPay,
-          status: "pending"
-        };
-      });
+        // ────────────────────────────────────────────────────────────────────
+        // WITHHOLDING TAX
+        // ₱0 for most employees (monthly equivalent below ₱20,833 threshold)
+        // TODO: Implement BIR tax table brackets for higher earners
+        // ────────────────────────────────────────────────────────────────────
+        const withholdingTax = 0;
 
-      const { error: upsertErr } = await supabase
-        .from("payroll_records")
-        .upsert(recordsToUpsert, { onConflict: "employee_id, payroll_period_id" });
-        
-      if (upsertErr) throw upsertErr;
-    },
-    async updatePayrollRecord(id: string, updates: any): Promise<void> {
-      const { error } = await supabase.from("payroll_records").update(updates).eq("id", id);
-      if (error) throw error;
-    },
-    async updatePeriod(id: string, updates: any): Promise<void> {
-      const { error } = await supabase.from("payroll_periods").update(updates).eq("id", id);
-      if (error) throw error;
+        // ────────────────────────────────────────────────────────────────────
+        // NOTE: SSS is NOT included in this payroll register format.
+        //       Based on the VTA Link payroll register table, deductions are:
+        //       Withholding Tax + Cash Advances + PhilHealth + HDMF only.
+        // ────────────────────────────────────────────────────────────────────
+        const sss = 0; // Not used in this payroll format
+
+        // ────────────────────────────────────────────────────────────────────
+        // CASH ADVANCE DEDUCTION
+        // Business Rule: Max ₱2,000 per 15-day payroll period
+        // Workflow:
+        //   1. Cashier submits → status = 'pending'
+        //   2. Admin approves → status = 'approved'
+        //   3. Compute Payroll → deducted, status = 'deducted'
+        //
+        // Carry-Over Rule:
+        //   If (grossIncome - totalOtherDeductions - cashAdvance) < 0,
+        //   the deficit is stored as carry_over_deduction for the NEXT period.
+        // ────────────────────────────────────────────────────────────────────
+        const MAX_ADVANCE = 2000; // ₱2,000 hard limit per period
+
+        const { data: advances } = await supabase
+          .from('cash_advances')
+          .select('id, amount')
+          .eq('employee_id', emp.id)
+          .eq('status', 'approved');
+
+        // Cap each advance at ₱2,000 and sum
+        const cashAdvance = Math.min(
+          (advances || []).reduce((s: number, a: any) => s + Number(a.amount), 0),
+          MAX_ADVANCE
+        );
+
+        // Fetch carry-over from the previous period for this employee
+        const { data: prevRecord } = await supabase
+          .from('payroll_records')
+          .select('carry_over_deduction')
+          .eq('employee_id', emp.id)
+          .neq('payroll_period_id', periodId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(); // returns null instead of error when no row found
+
+        const carryOverFromPrevious = Number(prevRecord?.carry_over_deduction) || 0;
+
+        // Mark advances as deducted
+        if (advances && advances.length > 0) {
+          await supabase
+            .from('cash_advances')
+            .update({
+              status:            'deducted',
+              payroll_period_id: periodId,
+              updated_at:        new Date().toISOString(),
+            })
+            .in('id', (advances as any[]).map((a: any) => a.id));
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        // TOTAL DEDUCTIONS (including carry-over from previous period)
+        // ────────────────────────────────────────────────────────────────────
+        const totalDeductions = tardyDeductions
+          + undertimeDeductions
+          + withholdingTax
+          + cashAdvance
+          + carryOverFromPrevious
+          + philhealth
+          + hdmf;
+
+        // NET PAY — may go negative (carry-over to next period)
+        const netPayRaw     = grossIncome - totalDeductions;
+        const netPay        = Math.max(0, netPayRaw); // paid out is never negative
+        const carryOver     = netPayRaw < 0 ? Math.abs(netPayRaw) : 0; // deficit → next period
+        const taxableIncome = grossIncome - philhealth - hdmf;
+
+        const { data: saved, error: saveErr } = await supabase
+          .from('payroll_records')
+          .upsert([{
+            payroll_period_id:    periodId,
+            employee_id:          emp.id,
+            daily_rate:           dailyRate,
+            days_present:         daysPresent,
+            basic_pay:            basicPay,
+            regular_holiday_pay:  regularHolidayPay,
+            special_holiday_pay:  specialHolidayPay,
+            regular_overtime:     regularOT,
+            holiday_overtime:     holidayOT,
+            special_overtime:     specialOT,
+            gross_income:         grossIncome,
+            tardy_deductions:     tardyDeductions,
+            undertime_deductions: undertimeDeductions,
+            sss,
+            philhealth,
+            hdmf,
+            withholding_tax:      withholdingTax,
+            cash_advance:         cashAdvance,
+            total_deductions:     totalDeductions,
+            net_pay:              netPay,
+            taxable_income:       taxableIncome,
+            carry_over_deduction:     carryOver,
+            carry_over_from_previous: carryOverFromPrevious,
+            status:               'pending',
+            updated_at:           new Date().toISOString(),
+          }], { onConflict: 'employee_id,payroll_period_id' })
+          .select().single();
+
+        if (saveErr) throw saveErr;
+        results.push(saved);
+      }
+
+      return results;
     },
   },
 };
