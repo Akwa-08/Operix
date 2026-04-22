@@ -851,8 +851,9 @@ function BiometricsUploadButton({onSuccess}: {onSuccess: () => void}) {
       const formData = new FormData();
       formData.append("attendance_file", file);
 
+      const apiBase = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000").replace(/\/+$/, "");
       const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/api/payroll/upload-attendance`,
+        `${apiBase}/api/payroll/upload-attendance`,
         {
           method: "POST",
           headers: {Authorization: `Bearer ${session.access_token}`},
