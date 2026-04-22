@@ -1,49 +1,137 @@
--- Operix Realistic Data Seed Script
--- WARNING: This will delete existing customer orders, cart items, and mock customer accounts.
--- Run this in the Supabase SQL Editor.
+-- ============================================================================
+-- Operix Power Seed Script (v3.0)
+-- Objective: Refresh system data while PRESERVING Payroll and Employee records.
+-- Includes: Auth Synchronization, Functional Accounts, and Realistic Lifecycle Data.
+-- ============================================================================
 
--- 1. Clear related tables first to avoid foreign key conflicts
+-- 1. UTILITY: Setup Catch-all Admin Reference
+-- System Admin ID: 6bbc2e8b-168c-4a1c-98de-5939c6045d69
+DO $$
+BEGIN
+    -- Re-assign critical Payroll/Employee references to the System Admin before purging.
+    -- This ensures we don't break historic payroll records or pending cash advances.
+    
+    UPDATE public.payroll_periods 
+    SET created_by = '6bbc2e8b-168c-4a1c-98de-5939c6045d69' 
+    WHERE created_by NOT IN (SELECT id FROM public.users WHERE role = 'admin');
+
+    UPDATE public.cash_advances 
+    SET issued_by = '6bbc2e8b-168c-4a1c-98de-5939c6045d69' 
+    WHERE issued_by NOT IN (SELECT id FROM public.users WHERE role = 'admin');
+
+    UPDATE public.cash_advances 
+    SET requested_by_cashier = '6bbc2e8b-168c-4a1c-98de-5939c6045d69' 
+    WHERE requested_by_cashier NOT IN (SELECT id FROM public.users WHERE role = 'admin')
+    AND requested_by_cashier IS NOT NULL;
+END $$;
+
+
+-- 2. PHASE 1: DEEP PURGE (Operational Data & Non-Admin Accounts)
+-- ============================================================================
+
+-- A. Clear Backend Operational Tables
 DELETE FROM public.cart_items;
 DELETE FROM public.chat_messages;
-DELETE FROM public.payments;
+DELETE FROM public.notifications;
+DELETE FROM public.sales_reports;
 DELETE FROM public.receipts;
+DELETE FROM public.payments;
 DELETE FROM public.order_logs;
 DELETE FROM public.order_items;
 DELETE FROM public.orders;
-DELETE FROM public.users WHERE role ILIKE 'customer';
+DELETE FROM public.inventory_changes;
+DELETE FROM public.deliveries;
+DELETE FROM public.audit_logs;
 
--- 2. Insert Mock Users (Customers and Staff) with static UUIDs for referencing
-INSERT INTO public.users (id, first_name, last_name, username, contact_number, email, role, is_active)
-VALUES
-('c0000000-0000-0000-0000-000000000001', 'Juan', 'Dela Cruz', 'juandc', '09171112222', 'juan@example.com', 'Customer', true),
-('c0000000-0000-0000-0000-000000000002', 'Maria', 'Santos', 'mariasantos', '09182223333', 'maria.santos@example.com', 'Customer', true),
-('c0000000-0000-0000-0000-000000000003', 'Jose', 'Rizal', 'joserizal', '09193334444', 'jose@example.com', 'Customer', true),
-('c0000000-0000-0000-0000-000000000004', 'Andres', 'Bonifacio', 'andresb', '09204445555', 'andres@example.com', 'Customer', true),
-('d0000000-0000-0000-0000-000000000001', 'Ana', 'Reyes', 'anacashier', '09215556666', 'ana.cashier@example.com', 'cashier', true),
-('d0000000-0000-0000-0000-000000000002', 'Mark', 'Bautista', 'markdesign', '09226667777', 'mark.designer@example.com', 'designer', true),
-('d0000000-0000-0000-0000-000000000003', 'Paolo', 'Luna', 'paoloprod', '09237778888', 'paolo.production@example.com', 'production', true);
+-- B. Sync with Supabase Auth (Delete non-admin identities and users)
+-- We target the IDs that are about to be deleted from public.users
+DELETE FROM auth.identities WHERE user_id NOT IN (SELECT id FROM public.users WHERE lower(role) = 'admin');
+DELETE FROM auth.sessions WHERE user_id NOT IN (SELECT id FROM public.users WHERE lower(role) = 'admin');
+DELETE FROM auth.users WHERE id NOT IN (SELECT id FROM public.users WHERE lower(role) = 'admin');
 
--- 3. Insert Realistic Orders
-INSERT INTO public.orders (id, order_number, customer_id, order_type, status, payment_status, total_amount, amount_paid, special_instructions, created_at, due_date, assigned_designer, assigned_production)
-VALUES
-('00000000-0000-0000-0000-000000000001', 'ORD-2026-001', 'c0000000-0000-0000-0000-000000000001', 'online', 'in_queue', 'unpaid', 1500.00, 0, 'Please rush if possible', NOW() - INTERVAL '2 days', NOW() + INTERVAL '3 days', NULL, NULL),
-('00000000-0000-0000-0000-000000000002', 'ORD-2026-002', 'c0000000-0000-0000-0000-000000000002', 'walk-in', 'production', 'partial', 4500.00, 2000.00, 'Matte finish', NOW() - INTERVAL '5 days', NOW() + INTERVAL '2 days', 'd0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003'),
-('00000000-0000-0000-0000-000000000003', 'ORD-2026-003', 'c0000000-0000-0000-0000-000000000003', 'online', 'completed', 'paid', 850.00, 850.00, '', NOW() - INTERVAL '10 days', NOW() - INTERVAL '1 days', 'd0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003'),
-('00000000-0000-0000-0000-000000000004', 'ORD-2026-004', 'c0000000-0000-0000-0000-000000000004', 'walk-in', 'pickup', 'paid', 12000.00, 12000.00, 'Deliver via courier', NOW() - INTERVAL '1 days', NOW() + INTERVAL '5 days', 'd0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000003');
+-- C. Clear Public Users
+-- Deleting based on ID exclusion of current admins is the most robust way to swipe
+DELETE FROM public.users WHERE lower(role) != 'admin' OR role IS NULL;
 
--- 4. Insert Order Items attached to those realistic orders
-INSERT INTO public.order_items (order_id, product_name, quantity, unit_price, subtotal)
-VALUES
-('00000000-0000-0000-0000-000000000001', 'Custom Corporate T-Shirt', 5, 300.00, 1500.00),
-('00000000-0000-0000-0000-000000000002', 'Tarpaulin 3x4 ft', 10, 450.00, 4500.00),
-('00000000-0000-0000-0000-000000000003', 'Business Cards (100pcs)', 1, 850.00, 850.00),
-('00000000-0000-0000-0000-000000000004', 'Sintra Board Signage', 4, 3000.00, 12000.00);
 
--- 5. Insert Payments corresponding to the paid and partial orders
-INSERT INTO public.payments (order_id, amount, payment_method)
-VALUES
-('00000000-0000-0000-0000-000000000002', 2000.00, 'cash'),
-('00000000-0000-0000-0000-000000000003', 850.00, 'gcash'),
-('00000000-0000-0000-0000-000000000004', 12000.00, 'bank_transfer');
+-- 3. PHASE 2: FUNCTIONAL ACCOUNT CREATION
+-- ============================================================================
 
--- Done!
+-- Helper to insert into both Auth and Public with functional credentials
+-- Passwords: FirstNameLastName123!
+DO $$
+DECLARE
+    uid uuid;
+BEGIN
+    -- STAFF: Ana Reyes (Cashier)
+    uid := 'd0000000-0000-0000-0000-000000000001';
+    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, aud, role)
+    VALUES (uid, 'ana.cashier@example.com', crypt('AnaReyes123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"firstName":"Ana","lastName":"Reyes","role":"cashier"}', 'authenticated', 'authenticated')
+    ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password, raw_user_meta_data = EXCLUDED.raw_user_meta_data;
+    
+    INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at)
+    VALUES (gen_random_uuid(), uid, jsonb_build_object('sub', uid, 'email', 'ana.cashier@example.com'), 'email', uid::text, now())
+    ON CONFLICT (provider, provider_id) DO NOTHING;
+    
+    INSERT INTO public.users (id, first_name, last_name, email, role, contact_number)
+    VALUES (uid, 'Ana', 'Reyes', 'ana.cashier@example.com', 'cashier', '09215556666')
+    ON CONFLICT (id) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, email = EXCLUDED.email, role = EXCLUDED.role;
+
+    -- STAFF: Mark Bautista (Designer)
+    uid := 'd0000000-0000-0000-0000-000000000002';
+    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, aud, role)
+    VALUES (uid, 'mark.designer@example.com', crypt('MarkBautista123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"firstName":"Mark","lastName":"Bautista","role":"designer"}', 'authenticated', 'authenticated')
+    ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password, raw_user_meta_data = EXCLUDED.raw_user_meta_data;
+
+    INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at)
+    VALUES (gen_random_uuid(), uid, jsonb_build_object('sub', uid, 'email', 'mark.designer@example.com'), 'email', uid::text, now())
+    ON CONFLICT (provider, provider_id) DO NOTHING;
+
+    INSERT INTO public.users (id, first_name, last_name, email, role, contact_number)
+    VALUES (uid, 'Mark', 'Bautista', 'mark.designer@example.com', 'designer', '09226667777')
+    ON CONFLICT (id) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, email = EXCLUDED.email, role = EXCLUDED.role;
+
+    -- CUSTOMER: Juan Dela Cruz
+    uid := 'c0000000-0000-0000-0000-000000000001';
+    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, aud, role)
+    VALUES (uid, 'juan@example.com', crypt('JuanDela Cruz123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"firstName":"Juan","lastName":"Dela Cruz","role":"customer"}', 'authenticated', 'authenticated')
+    ON CONFLICT (id) DO UPDATE SET encrypted_password = EXCLUDED.encrypted_password, raw_user_meta_data = EXCLUDED.raw_user_meta_data;
+
+    INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at)
+    VALUES (gen_random_uuid(), uid, jsonb_build_object('sub', uid, 'email', 'juan@example.com'), 'email', uid::text, now())
+    ON CONFLICT (provider, provider_id) DO NOTHING;
+
+    INSERT INTO public.users (id, first_name, last_name, email, role, contact_number)
+    VALUES (uid, 'Juan', 'Dela Cruz', 'juan@example.com', 'customer', '09171112222')
+    ON CONFLICT (id) DO UPDATE SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, email = EXCLUDED.email, role = EXCLUDED.role;
+
+END $$;
+
+
+-- 4. PHASE 3: REALISTIC OPERATIONAL STATE
+-- ============================================================================
+
+-- A. Active Production Orders
+INSERT INTO public.orders (id, order_number, customer_id, order_type, status, payment_status, total_amount, amount_paid, assigned_designer, due_date)
+VALUES 
+('00000000-0000-0000-0000-000000000001', 'ORD-2026-001', 'c0000000-0000-0000-0000-000000000001', 'online', 'designing', 'partial', 5500.00, 2000.00, 'd0000000-0000-0000-0000-000000000002', NOW() + INTERVAL '3 days');
+
+INSERT INTO public.order_items (order_id, product_name, quantity, unit_price, subtotal, specifications)
+VALUES 
+('00000000-0000-0000-0000-000000000001', 'Bulk T-Shirt Printing', 20, 250.00, 5000.00, 'Cotton, Mixed Sizes'),
+('00000000-0000-0000-0000-000000000001', 'Graphic Design Fee', 1, 500.00, 500.00, 'Logo cleanup');
+
+-- B. Accounting (Payment & Receipt)
+INSERT INTO public.payments (id, order_id, amount, payment_method, received_by)
+VALUES ('e0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 2000.00, 'gcash', 'd0000000-0000-0000-0000-000000000001');
+
+INSERT INTO public.receipts (payment_id, issued_by, receipt_number)
+VALUES ('e0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', 'RCPT-2026-001');
+
+-- C. Notifications
+INSERT INTO public.notifications (user_id, related_module, related_id, title, message)
+VALUES 
+('c0000000-0000-0000-0000-000000000001', 'orders', '00000000-0000-0000-0000-000000000001', 'Order Update', 'Your order ORD-2026-001 is now in the Designing phase.'),
+('d0000000-0000-0000-0000-000000000002', 'orders', '00000000-0000-0000-0000-000000000001', 'New Assignment', 'You have been assigned to design order ORD-2026-001.');
+
+-- DONE

@@ -4,20 +4,19 @@
 -- ============================================================================
 
 -- 1. Ensure `public.users` exists and matches the provided snapshot
-INSERT INTO public.users (id, first_name, last_name, username, contact_number, email, role, is_active, address)
+INSERT INTO public.users (id, first_name, last_name, contact_number, email, role, is_active, address)
 VALUES 
-    ('c0000000-0000-0000-0000-000000000001', 'Juan', 'Dela Cruz', 'juandc', '09171112222', 'juan@example.com', 'Customer', true, null),
-    ('c0000000-0000-0000-0000-000000000002', 'Maria', 'Santos', 'mariasantos', '09182223333', 'maria.santos@example.com', 'Customer', true, null),
-    ('c0000000-0000-0000-0000-000000000003', 'Jose', 'Rizal', 'joserizal', '09193334444', 'jose@example.com', 'Customer', true, null),
-    ('c0000000-0000-0000-0000-000000000004', 'Andres', 'Bonifacio', 'andresb', '09204445555', 'andres@example.com', 'Customer', true, null),
-    ('d0000000-0000-0000-0000-000000000001', 'Ana', 'Reyes', 'anacashier', '09215556666', 'ana.cashier@example.com', 'cashier', true, null),
-    ('d0000000-0000-0000-0000-000000000002', 'Mark', 'Bautista', 'markdesign', '09226667777', 'mark.designer@example.com', 'designer', true, null),
-    ('d0000000-0000-0000-0000-000000000003', 'Paolo', 'Luna', 'paoloprod', '09237778888', 'paolo.production@example.com', 'production', true, null),
+    ('c0000000-0000-0000-0000-000000000001', 'Juan', 'Dela Cruz', '09171112222', 'juan@example.com', 'Customer', true, null),
+    ('c0000000-0000-0000-0000-000000000002', 'Maria', 'Santos', '09182223333', 'maria.santos@example.com', 'Customer', true, null),
+    ('c0000000-0000-0000-0000-000000000003', 'Jose', 'Rizal', '09193334444', 'jose@example.com', 'Customer', true, null),
+    ('c0000000-0000-0000-0000-000000000004', 'Andres', 'Bonifacio', '09204445555', 'andres@example.com', 'Customer', true, null),
+    ('d0000000-0000-0000-0000-000000000001', 'Ana', 'Reyes', '09215556666', 'ana.cashier@example.com', 'cashier', true, null),
+    ('d0000000-0000-0000-0000-000000000002', 'Mark', 'Bautista', '09226667777', 'mark.designer@example.com', 'designer', true, null),
+    ('d0000000-0000-0000-0000-000000000003', 'Paolo', 'Luna', '09237778888', 'paolo.production@example.com', 'production', true, null),
     ('6bbc2e8b-168c-4a1c-98de-5939c6045d69', 'Sys', 'Admin', null, null, 'operixadmin@spicysoda.com', 'admin', true, null)
 ON CONFLICT (id) DO UPDATE SET
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
-    username = EXCLUDED.username,
     contact_number = EXCLUDED.contact_number,
     email = EXCLUDED.email,
     role = EXCLUDED.role,
@@ -50,7 +49,7 @@ SELECT
     crypt('password123', gen_salt('bf')),
     now(),
     '{"provider":"email","providers":["email"]}'::jsonb,
-    jsonb_build_object('firstName', first_name, 'lastName', last_name, 'username', username, 'role', role),
+    jsonb_build_object('firstName', first_name, 'lastName', last_name, 'role', role),
     created_at,
     updated_at,
     '', '', '', ''

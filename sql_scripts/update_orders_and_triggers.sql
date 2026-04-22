@@ -11,15 +11,14 @@ ADD COLUMN IF NOT EXISTS tracking_token uuid DEFAULT gen_random_uuid();
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO public.users (id, first_name, last_name, role, email, contact_number, username)
+  INSERT INTO public.users (id, first_name, last_name, role, email, contact_number)
   VALUES (
     new.id,
     new.raw_user_meta_data->>'first_name',
     new.raw_user_meta_data->>'last_name',
     COALESCE(new.raw_user_meta_data->>'role', 'customer'),
     new.email,
-    new.raw_user_meta_data->>'contact_number',
-    new.raw_user_meta_data->>'username'
+    new.raw_user_meta_data->>'contact_number'
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN new;
