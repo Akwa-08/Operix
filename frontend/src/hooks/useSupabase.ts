@@ -698,7 +698,18 @@ export function useManagementData() {
       return r;
     },
     updateUser: async (id: string, data: { firstName?: string; lastName?: string; email?: string; username?: string; phoneNumber?: string; role?: string }) => {
-      const r = await safe(() => adminApi.updateUser(id, { first_name: data.firstName, last_name: data.lastName, email: data.email, username: data.username, contact_number: data.phoneNumber, role: data.role?.toLowerCase() }).then(() => refreshUsers()));
+      const r = await safe(() =>
+        adminApi
+          .updateUser(id, {
+            first_name: data.firstName,
+            last_name: data.lastName,
+            email: data.email,
+            username: data.username,
+            contact_number: data.phoneNumber,
+            role: data.role?.toLowerCase(),
+          })
+          .then(() => refreshUsers()),
+      );
       return r;
     },
     deactivateUsers: async (ids: string[]) => {
@@ -794,7 +805,7 @@ export function useManagementData() {
 // DASHBOARD (aggregated)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useDashboard() {
-  const { orders, stats: orderStats, loading: oL, refresh: refreshOrders } = useOrders();
+  const { orders, stats: orderStats, loading: oL, refresh: refreshOrders } = useOrdersData();
   const { data: inventory, loading: iL, refresh: refreshInv } = useQuery(() => db.getInventoryItems(), []);
   const items = inventory || [];
 
@@ -862,7 +873,7 @@ export function useDashboard() {
 
   const refresh = useCallback(async () => { await Promise.all([refreshOrders(), refreshInv()]); }, [refreshOrders, refreshInv]);
 
-  return { orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, refresh };
+  return { orders, orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, refresh };
 }
 
 export function useDashboardData() {
@@ -1475,37 +1486,6 @@ export function usePayrollData() {
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AUDIT LOGS — useLogsData()
-// Used by: AdminAuditLogs
-// ═══════════════════════════════════════════════════════════════════════════════
-export function useLogsData() {
-  const q = useQuery(async () => {
-    const { data, error } = await supabase
-      .from('order_logs')
-      .select(`*, updated_by_user:updated_by(id, first_name, last_name, role)`)
-      .order('created_at', { ascending: false })
-      .limit(200);
-    if (error) throw error;
-    return data || [];
-  }, []);
-
-  const logs = (q.data || []).map((raw: any) => ({
-    id:        raw.id,
-    orderId:   raw.order_id,
-    updatedBy: raw.updated_by_user
-                 ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim()
-                 : '—',
-    role:      raw.updated_by_user?.role || '—',
-    status:    raw.status || '',
-    note:      raw.note || '',
-    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
-  }));
-
-  return { logs, loading: q.loading, error: q.error, refresh: q.refresh };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // CASHIER CASH ADVANCES — useCashierCashAdvances()
 // Used by: CashierDashboard — submit requests, check eligibility
 // ═══════════════════════════════════════════════════════════════════════════════

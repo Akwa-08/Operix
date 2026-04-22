@@ -523,143 +523,7 @@ function PayslipModal({
   );
 }
 
-// ─── Cash Advance Modal ───────────────────────────────────────────────────────
-function CashAdvanceModal({
-  employees,
-  onClose,
-  onCreate,
-}: {
-  employees: any[];
-  onClose: () => void;
-  onCreate: (d: {
-    employee_id: string;
-    amount: number;
-    date_issued?: string;
-    reason?: string;
-  }) => Promise<any>;
-}) {
-  const [form, setForm] = useState({
-    employee_id: "",
-    amount: "",
-    date_issued: new Date().toISOString().split("T")[0],
-    reason: "",
-  });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
 
-  const handleSubmit = async () => {
-    if (!form.employee_id) {
-      setErr("Select an employee.");
-      return;
-    }
-    if (!form.amount || Number(form.amount) <= 0) {
-      setErr("Enter a valid amount.");
-      return;
-    }
-    setSaving(true);
-    const r = await onCreate({
-      employee_id: form.employee_id,
-      amount: Number(form.amount),
-      date_issued: form.date_issued,
-      reason: form.reason || undefined,
-    });
-    if (!r.success) setErr(r.error || "Failed");
-    else onClose();
-    setSaving(false);
-  };
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-      onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-4 sm:p-8 relative"
-        onClick={(e) => e.stopPropagation()}>
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg">
-          <X size={20} />
-        </button>
-        <h3 className="text-xl font-bold text-gray-900 mb-6">
-          Record Cash Advance
-        </h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Employee *
-            </label>
-            <select
-              value={form.employee_id}
-              onChange={(e) =>
-                setForm((f) => ({...f, employee_id: e.target.value}))
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
-              <option value="">Select employee…</option>
-              {employees.map((emp: any) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.full_name} — {emp.employee_code}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Amount (₱) *
-            </label>
-            <input
-              type="number"
-              min="1"
-              step="0.01"
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({...f, amount: e.target.value}))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Date Issued
-            </label>
-            <input
-              type="date"
-              value={form.date_issued}
-              onChange={(e) =>
-                setForm((f) => ({...f, date_issued: e.target.value}))
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Reason (optional)
-            </label>
-            <textarea
-              value={form.reason}
-              onChange={(e) => setForm((f) => ({...f, reason: e.target.value}))}
-              rows={3}
-              placeholder="e.g. Medical emergency, personal loan…"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
-            />
-          </div>
-          {err && <p className="text-sm text-red-600">{err}</p>}
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
-            {saving ? "Saving…" : "Record Advance"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Decline Reason Modal ─────────────────────────────────────────────────────
 function DeclineReasonModal({
@@ -1081,7 +945,6 @@ const AdminPayroll: React.FC = () => {
     payrollRecords,
     dashboardStats,
     loading,
-    error,
     computing,
     refresh,
     createPeriod,
@@ -1092,7 +955,7 @@ const AdminPayroll: React.FC = () => {
     markAllPaid,
   } = usePayrollData();
 
-  const {employees: rawEmployees} = useEmployees();
+// unused rawEmployees removed to satisfy build
 
   const filteredLogs = attendanceLogs.filter(
     (l) =>
@@ -1753,7 +1616,6 @@ const AdminPayroll: React.FC = () => {
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-cyan-500 transition-all"
                 />
               </div>
-<<<<<<< HEAD
               <div className="flex gap-2">
                 <button
                   onClick={() => activePeriodId && computePayroll(activePeriodId)}
@@ -1768,24 +1630,6 @@ const AdminPayroll: React.FC = () => {
                   <Printer size={16} /> Print
                 </button>
               </div>
-=======
-              <button
-                onClick={() => activePeriodId && computePayroll(activePeriodId)}
-                disabled={
-                  computing || attendanceLogs.length === 0 || !activePeriodId
-                }
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                <RefreshCw
-                  size={16}
-                  className={computing ? "animate-spin" : ""}
-                />
-                {computing ? "Computing…" : "Recompute All"}
-              </button>
-              <button onClick={printPayrollTable}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                <Printer size={16} /> Print All
-              </button>
->>>>>>> 9117a08e0f257b5864955b2fb4b75a9f774b7f1d
             </div>
           </div>
 

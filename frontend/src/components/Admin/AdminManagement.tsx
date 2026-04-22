@@ -401,11 +401,7 @@ const AdminManagement: React.FC = () => {
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* PAGE HEADER */}
-<<<<<<< HEAD
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-=======
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
->>>>>>> 9117a08e0f257b5864955b2fb4b75a9f774b7f1d
         <div>
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage accounts, employee records, and suppliers</p>
@@ -548,11 +544,7 @@ const AdminManagement: React.FC = () => {
                     </td>
                   </tr>
                 ))}
-<<<<<<< HEAD
-                {filteredUsers.length === 0 && <tr><td colSpan={8} className="px-5 py-20 text-center text-gray-400 italic">No accounts found</td></tr>}
-=======
-                {filteredUsers.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No accounts found</td></tr>}
->>>>>>> 9117a08e0f257b5864955b2fb4b75a9f774b7f1d
+                {filteredUsers.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400 font-medium italic">No accounts found</td></tr>}
               </tbody>
             </table>
           </div>
