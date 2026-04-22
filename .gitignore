@@ -6,4 +6,5 @@ build/
 mockdb.sql
 .agents/
 .sql
+/sql_scripts
 Operix*.*

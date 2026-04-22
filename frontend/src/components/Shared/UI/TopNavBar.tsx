@@ -49,38 +49,40 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
   const [tab, setTab] = useState<"all" | "unread">("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // ── Fetch notifications for current user ─────────────────────────────────
-  const fetchNotifs = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data } = await supabase
-      .from("notifications")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (data) setNotifications(data as Notification[]);
-  };
-
+  // ── Fetch notifications & Setup subscription ───────────────────────────
   useEffect(() => {
-    fetchNotifs();
-
-    // Real-time subscription
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    supabase.auth.getUser().then(({ data: { user } }) => {
+
+    const setupNotifications = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // 1. Initial fetch
+      const { data } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (data) setNotifications(data as Notification[]);
+
+      // 2. Real-time subscription
       channel = supabase
-        .channel("notifications_realtime")
+        .channel(`notifications_${user.id}`)
         .on("postgres_changes", {
           event: "*",
           schema: "public",
           table: "notifications",
           filter: `user_id=eq.${user.id}`,
-        }, () => fetchNotifs())
+        }, () => setupNotifications()) // Re-fetch on change
         .subscribe();
-    });
+    };
 
-    return () => { channel?.unsubscribe(); };
+    setupNotifications();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
   }, []);
 
   // Close on outside click
