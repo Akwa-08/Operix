@@ -36,14 +36,13 @@ interface CustomerOrderDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: Order;
-
+  onRefresh?: () => Promise<void>;
 }
 
 export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps> = ({
   isOpen,
   onClose,
   order,
-
 }) => {
 
   // Local copy of the design file — updates immediately on upload,

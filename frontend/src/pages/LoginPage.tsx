@@ -1,17 +1,17 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, AlertCircle, ArrowRight } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import authService from '../services/authService';
-import type { UserRole } from '../context/AuthContext';
+import {useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {Mail, Lock, AlertCircle, ArrowRight, Eye, EyeOff} from "lucide-react";
+import {motion, AnimatePresence} from "framer-motion";
+import authService from "../services/authService";
+import type {UserRole} from "../context/AuthContext";
 
 // ── Role → Dashboard route map ───────────────────────────────────────────────
 const ROLE_ROUTES: Record<UserRole, string> = {
-  customer: '/customer',
-  admin: '/admin',
-  cashier: '/cashier',
-  designer: '/designer',
-  production: '/production',
+  customer: "/customer",
+  admin: "/admin",
+  cashier: "/cashier",
+  designer: "/designer",
+  production: "/production",
 };
 
 const fadeUp = {
@@ -25,45 +25,48 @@ const fadeUp = {
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({email: "", password: ""});
+  const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    setError('');
+    setFormData((prev) => ({...prev, [e.target.name]: e.target.value}));
+    setError("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
-      setError('Email and password are required.');
+      setError("Email and password are required.");
       return;
     }
 
     setLoading(true);
-    setError('');
+    setError("");
 
     const result = await authService.login(formData.email, formData.password);
 
     if (!result.success) {
-      setError(result.error || 'Login failed.');
+      setError(result.error || "Login failed.");
       setLoading(false);
       return;
     }
 
     // ── Redirect based on role ───────────────────────────────────────────
     const role = result.user!.role;
-    const destination = ROLE_ROUTES[role] || '/';
+    const destination = ROLE_ROUTES[role] || "/";
 
     navigate(destination);
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/60 px-6 py-7 sm:px-8" style={{border: "1px solid rgba(0,0,0,.04)"}}>
+    <div
+      className="bg-white rounded-2xl shadow-xl shadow-gray-200/60 px-6 py-7 sm:px-8"
+      style={{border: "1px solid rgba(0,0,0,.04)"}}>
       <div className="mb-5">
         <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">
-          Welcome Back
+          Welcome!
         </h1>
         <p className="mt-1 text-xs text-gray-400">
           Sign in to your Operix account
@@ -82,9 +85,7 @@ export const LoginPage = () => {
               <AlertCircle size={16} className="text-red-500" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-red-800">
-                Login failed
-              </p>
+              <p className="text-sm font-semibold text-red-800">Login failed</p>
               <p className="text-xs text-red-600 mt-1 leading-relaxed">
                 {error}
               </p>
@@ -132,9 +133,8 @@ export const LoginPage = () => {
             </label>
             <button
               type="button"
-              onClick={() => navigate('/forgot-password')}
-              className="text-[#00BEF4] font-semibold text-[11px] hover:underline"
-            >
+              onClick={() => navigate("/forgot-password")}
+              className="text-[#00BEF4] font-semibold text-[11px] hover:underline">
               Forgot password?
             </button>
           </div>
@@ -144,14 +144,20 @@ export const LoginPage = () => {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"
             />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               name="password"
               value={formData.password}
               onChange={handleChange}
               required
               placeholder="••••••••"
-              className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white focus:border-[#E80088] focus:ring-2 focus:ring-[#E80088]/10"
+              className="w-full pl-9 pr-10 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white focus:border-[#E80088] focus:ring-2 focus:ring-[#E80088]/10"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+              {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
           </div>
         </motion.div>
 
