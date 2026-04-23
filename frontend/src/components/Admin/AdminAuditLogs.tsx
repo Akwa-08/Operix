@@ -61,8 +61,21 @@ function exportCSV(logs: LogEntry[]) {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
+// ── Map flat order_logs rows → LogEntry shape ────────────────────────────────
+function mapLogEntry(raw: any): LogEntry {
+  const module = raw.module || "orders";
+  const action = raw.action || (raw.status ? `Status → ${raw.status}` : "Updated");
+  const details = raw.details || raw.note || "";
+  const user = raw.updatedBy || raw.user || "—";
+  const role = raw.role || "—";
+  const ts = raw.createdAt ? new Date(raw.createdAt).getTime() : 0;
+  const date = raw.createdAt || "";
+  const source = (module === "orders" ? "orders" : module === "inventory" ? "inventory" : "audit") as LogEntry["source"];
+  return { id: raw.id || String(ts), source, date, timestamp: ts, module, action, details, user, role };
+}
+
 const AdminLogs = () => {
-  const { data: rawData, loading, error, refresh } = useLogsData();
+  const { logs: rawLogs, loading, error, refresh } = useLogsData();
 
   const [activeTab, setActiveTab]   = useState<TabId>("all");
   const [search, setSearch]         = useState("");
@@ -70,16 +83,21 @@ const AdminLogs = () => {
   const [dateFrom, setDateFrom]     = useState("");
   const [dateTo, setDateTo]         = useState("");
 
+  // ── Convert raw logs → LogEntry array ─────────────────────────────────────
+  const allLogs: LogEntry[] = useMemo(() =>
+    (rawLogs || []).map((raw: any) => mapLogEntry(raw)),
+    [rawLogs]
+  );
+
   // ── Derive the active dataset ──────────────────────────────────────────────
   const tabLogs: LogEntry[] = useMemo(() => {
-    if (!rawData) return [];
     switch (activeTab) {
-      case "staff":     return rawData.staffActions;
-      case "orders":    return rawData.orderHistory;
-      case "inventory": return rawData.inventoryChanges;
-      default:          return rawData.all;
+      case "staff":     return allLogs.filter(l => l.source === "audit");
+      case "orders":    return allLogs.filter(l => l.source === "orders");
+      case "inventory": return allLogs.filter(l => l.source === "inventory");
+      default:          return allLogs;
     }
-  }, [rawData, activeTab]);
+  }, [allLogs, activeTab]);
 
   // ── Unique roles for filter dropdown ──────────────────────────────────────
   const roles = useMemo(() =>
@@ -89,10 +107,10 @@ const AdminLogs = () => {
 
   // ── Count per tab for badge ───────────────────────────────────────────────
   const counts = {
-    all:       rawData?.all.length ?? 0,
-    staff:     rawData?.staffActions.length ?? 0,
-    orders:    rawData?.orderHistory.length ?? 0,
-    inventory: rawData?.inventoryChanges.length ?? 0,
+    all:       allLogs.length,
+    staff:     allLogs.filter(l => l.source === "audit").length,
+    orders:    allLogs.filter(l => l.source === "orders").length,
+    inventory: allLogs.filter(l => l.source === "inventory").length,
   };
 
   // ── Apply filters ─────────────────────────────────────────────────────────
@@ -329,7 +347,7 @@ const AdminLogs = () => {
                       <Activity size={32} className="opacity-30" />
                       <p className="font-medium">No activity logs found</p>
                       <p className="text-xs">
-                        {activeTab === "staff" && !rawData?.staffActions.length
+                        {activeTab === "staff" && !counts.staff
                           ? "Staff actions will appear here once the SQL migration has been run."
                           : "Try adjusting your filters."}
                       </p>

@@ -325,13 +325,42 @@ export function useOrdersData() {
       const r = await safe(async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
-        await db.updateOrder(orderId, { assigned_designer: user.id, status: 'designing' });
+
+        // 1. Accept the order — assign designer + set status to 'designing'
+        const updatedOrder = await db.updateOrder(orderId, {
+          assigned_designer: user.id,
+          status: 'designing',
+        });
+
+        // 2. Auto-message the customer if the order has a customer_id
+        if (updatedOrder?.customer_id) {
+          try {
+            const designerProfile = await db.getMyProfile();
+            const designerName = designerProfile
+              ? `${designerProfile.first_name || ''} ${designerProfile.last_name || ''}`.trim()
+              : 'Your designer';
+            await db.chat.sendMessage(
+              updatedOrder.customer_id,
+              `Hi! Your order **${updatedOrder.order_number}** has been accepted by ${designerName} and is now being designed. We'll keep you posted! 🎨`,
+              orderId,
+            );
+          } catch (msgErr) {
+            // Non-fatal — order already accepted, just log the message failure
+            console.warn('Auto-message failed:', msgErr);
+          }
+        }
+
         await refresh();
       });
       return r;
     },
     updateCustomerDesign: async (orderId: string, url: string) => {
       const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => refresh()));
+      return r;
+    },
+    // Designer uploads the FINAL PREVIEW to orders.final_design_url
+    updateFinalDesign: async (orderId: string, url: string) => {
+      const r = await safe(() => db.updateOrder(orderId, { final_design_url: url }).then(() => refresh()));
       return r;
     },
   };

@@ -36,6 +36,7 @@ interface OrderDetailsModalProps {
   onEdit?: () => void;
   onRecordPayment?: (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; receipt_number?: string; notes?: string }) => Promise<{ success: boolean; error: string | null }>;
   onUpdateCustomerDesign?: (fileUrl: string) => Promise<void>;
+  onUpdateFinalDesign?: (fileUrl: string) => Promise<void>;
   onRefresh?: () => void;
 }
 
@@ -49,10 +50,12 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   onEdit,
   onRecordPayment,
   onUpdateCustomerDesign,
+  onUpdateFinalDesign,
   onRefresh,
 }) => {
   const perms = permissions[userRole].orders;
   const [isCustomerUploadOpen, setIsCustomerUploadOpen] = useState(false);
+  const [isFinalUploadOpen, setIsFinalUploadOpen] = useState(false);
 
   // ── Payment recording state ──────────────────────────────────────────────
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -108,6 +111,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
       setIsCustomerUploadOpen(false);
     } catch (e: any) {
       toast.error(e.message || "Failed to update design", { id: loadingToast });
+    }
+  };
+
+  const handleFinalDesignUploadComplete = async (fileUrl: string) => {
+    if (!onUpdateFinalDesign) return;
+    const loadingToast = toast.loading("Uploading final design...");
+    try {
+      await onUpdateFinalDesign(fileUrl);
+      toast.success("Final design uploaded!", { id: loadingToast });
+      if (onRefresh) onRefresh();
+      setIsFinalUploadOpen(false);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to upload final design", { id: loadingToast });
     }
   };
 
@@ -399,7 +415,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
               {/* Final Design */}
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col h-[400px]">
-                <p className="text-[10px] font-bold text-purple-500 uppercase mb-3">Final Design (Staff)</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold text-purple-500 uppercase">Final Design (Staff)</p>
+                  {/* Designer can upload to Final Preview */}
+                  {onUpdateFinalDesign && (
+                    <button
+                      onClick={() => setIsFinalUploadOpen(true)}
+                      className="text-purple-600 hover:text-purple-700 text-[9px] font-black uppercase tracking-wider bg-white border border-purple-100 px-2 py-0.5 rounded shadow-sm flex items-center gap-1 transition-all active:scale-95"
+                    >
+                      <Upload size={10} strokeWidth={3} />
+                      {order.finalDesignUrl ? "Replace" : "Upload"}
+                    </button>
+                  )}
+                </div>
                 {order.finalDesignUrl ? (
                   <div className="flex-1 flex flex-col gap-2 min-h-0">
                     <div className="flex-1 min-h-0 relative group w-full bg-white rounded-lg border border-purple-100 shadow-sm">
@@ -459,6 +487,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           onClose={() => setIsCustomerUploadOpen(false)}
           onUpload={handleCustomerUploadComplete}
           productName={order.productType || "Order Item"}
+        />
+        {/* Final Design Upload — designer-side only */}
+        <FileUploadModal
+          isOpen={isFinalUploadOpen}
+          onClose={() => setIsFinalUploadOpen(false)}
+          onUpload={handleFinalDesignUploadComplete}
+          productName={`Final Preview — ${order.productType || "Order Item"}`}
         />
       </div>
     </Modal>
