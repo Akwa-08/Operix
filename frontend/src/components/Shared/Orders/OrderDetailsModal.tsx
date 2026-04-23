@@ -369,15 +369,17 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                   )}
                 </div>
                 {order.designFile ? (
-                  <div className="flex-1 flex flex-col gap-2">
-                    <div className="relative group aspect-square w-full bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-                      <a href={sanitizeStorageUrl(order.designFile)} target="_blank" rel="noreferrer" className="block w-full h-full">
-                        <img 
-                          src={sanitizeStorageUrl(order.designFile)} 
-                          alt="Customer Design" 
-                          className="w-full h-full object-contain p-2 group-hover:scale-[1.05] transition-transform duration-300"
-                        />
-                      </a>
+                  <div className="flex-1 flex flex-col gap-2 min-h-0">
+                    <div className="flex-1 min-h-0 relative group w-full bg-white rounded-lg border border-gray-200 shadow-sm">
+                      <div className="absolute inset-0">
+                        <a href={sanitizeStorageUrl(order.designFile)} target="_blank" rel="noreferrer" className="block w-full h-full p-2">
+                          <img 
+                            src={sanitizeStorageUrl(order.designFile)} 
+                            alt="Customer Design" 
+                            className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-300"
+                          />
+                        </a>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <div className="flex items-center gap-2 overflow-hidden">
@@ -399,15 +401,17 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex flex-col h-[400px]">
                 <p className="text-[10px] font-bold text-purple-500 uppercase mb-3">Final Design (Staff)</p>
                 {order.finalDesignUrl ? (
-                  <div className="flex-1 flex flex-col gap-2">
-                    <div className="relative group aspect-square w-full bg-white rounded-lg border border-purple-100 overflow-hidden shadow-sm">
-                      <a href={sanitizeStorageUrl(order.finalDesignUrl)} target="_blank" rel="noreferrer" className="block w-full h-full">
-                        <img 
-                          src={sanitizeStorageUrl(order.finalDesignUrl)} 
-                          alt="Final Design" 
-                          className="w-full h-full object-contain p-2 group-hover:scale-[1.05] transition-transform duration-300"
-                        />
-                      </a>
+                  <div className="flex-1 flex flex-col gap-2 min-h-0">
+                    <div className="flex-1 min-h-0 relative group w-full bg-white rounded-lg border border-purple-100 shadow-sm">
+                      <div className="absolute inset-0">
+                        <a href={sanitizeStorageUrl(order.finalDesignUrl)} target="_blank" rel="noreferrer" className="block w-full h-full p-2">
+                          <img 
+                            src={sanitizeStorageUrl(order.finalDesignUrl)} 
+                            alt="Final Design" 
+                            className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-300"
+                          />
+                        </a>
+                      </div>
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <div className="flex items-center gap-2 overflow-hidden">
