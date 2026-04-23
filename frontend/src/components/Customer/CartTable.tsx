@@ -45,125 +45,132 @@ export const CartTable: React.FC<CartTableProps> = ({
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mb-6">
       <div className="overflow-x-auto w-full">
-<table className="w-full text-left">
-        <thead className="bg-gray-50/50 border-b border-gray-200">
-          <tr className="text-gray-500 font-bold text-sm uppercase tracking-wider">
-            <th className="p-6 w-12 text-center">
-              <input
-                type="checkbox"
-                checked={isAllSelected}
-                onChange={toggleSelectAll}
-                className="w-4 h-4 rounded border-gray-300 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
-              />
-            </th>
-            <th className="p-6">Product</th>
-            <th className="p-6 text-center">Unit Price</th>
-            <th className="p-6 text-center">Quantity</th>
-            <th className="p-6 text-center">Initial Price</th>
-            <th className="p-6 text-center">Status</th>
-            <th className="p-6 text-center">Action</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {products.length === 0 ? (
-            <tr>
-              <td colSpan={7} className="p-12 text-center text-gray-400">
-                Your cart is empty
-              </td>
+        <table className="w-full text-left">
+          <thead className="bg-gray-50/50 border-b border-gray-200">
+            <tr className="text-gray-500 font-bold text-sm uppercase tracking-wider">
+              <th className="p-6 w-12 text-center">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-gray-300 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                />
+              </th>
+              <th className="p-6">Product</th>
+              <th className="p-6 text-center">Unit Price</th>
+              <th className="p-6 text-center">Quantity</th>
+              <th className="p-6 text-center">Initial Price</th>
+              <th className="p-6 text-center">File Status</th>
+              <th className="p-6 text-center">Action</th>
             </tr>
-          ) : (
-            products.map((product) => (
-              <tr
-                key={product.id}
-                className="hover:bg-gray-50/50 transition-colors">
-                <td className="p-6 text-center">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.includes(product.id)}
-                    onChange={() => toggleSelect(product.id)}
-                    className="w-4 h-4 rounded border-gray-300 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
-                  />
-                </td>
-                <td className="p-6">
-                  <div>
-                    <p className="font-bold text-gray-900">{product.title}</p>
-                    <p className="text-sm text-gray-400 font-medium">
-                      {product.variant} - {product.size}
-                    </p>
-                  </div>
-                </td>
-                <td className="p-6 text-center">
-                  <p className="font-bold text-gray-900">
-                    ₱{product.price.toLocaleString()}.00
-                  </p>
-                </td>
-                <td className="p-6">
-                  <div className="flex items-center justify-center gap-3">
-                    <button
-                      onClick={() =>
-                        onUpdateQuantity(
-                          product.id,
-                          (product.quantity || 1) - 1,
-                        )
-                      }
-                      className="p-1 border border-gray-200 rounded hover:bg-gray-100 text-gray-400 transition-colors cursor-pointer">
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="font-bold text-gray-900 w-8 text-center text-lg">
-                      {product.quantity || 1}
-                    </span>
-                    <button
-                      onClick={() =>
-                        onUpdateQuantity(
-                          product.id,
-                          (product.quantity || 1) + 1,
-                        )
-                      }
-                      className="p-1 border border-gray-200 rounded hover:bg-gray-100 text-gray-400 transition-colors cursor-pointer">
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-                <td className="p-6 text-center font-bold text-gray-900">
-                  ₱{(product.price * (product.quantity || 1)).toLocaleString()}
-                  .00
-                </td>
-                <td className="p-6 text-center">
-                  <button
-                    onClick={() => onOpenUpload(product.id, product.title)}
-                    className="cursor-pointer transition-transform active:scale-95">
-                    {product.fileUrl ? (
-                      <span className="px-3 py-1.5 bg-green-50 text-green-600 text-xs font-bold uppercase tracking-wider rounded-lg border border-green-200 hover:bg-green-100 transition-colors">
-                        Uploaded
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1.5 bg-orange-50 text-orange-500 text-xs font-bold uppercase tracking-wider rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors">
-                        Missing
-                      </span>
-                    )}
-                  </button>
-                </td>
-                <td className="p-6">
-                  <div className="flex justify-center gap-1">
-                    <button 
-                      onClick={() => onView(product.id)}
-                      className="px-3 py-1.5 bg-cyan-400 text-white text-xs font-bold rounded-lg hover:bg-cyan-500 transition-colors cursor-pointer"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => onRemove(product.id)}
-                      className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
-                      Delete
-                    </button>
-                  </div>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan={7} className="p-12 text-center text-gray-400">
+                  Your cart is empty
                 </td>
               </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-</div>
+            ) : (
+              products.map((product) => (
+                <tr
+                  key={product.id}
+                  className="hover:bg-gray-50/50 transition-colors">
+                  <td className="p-6 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(product.id)}
+                      onChange={() => toggleSelect(product.id)}
+                      className="w-4 h-4 rounded border-gray-300 text-cyan-500 focus:ring-cyan-500 cursor-pointer"
+                    />
+                  </td>
+                  <td className="p-6">
+                    <div>
+                      <p className="font-bold text-gray-900">{product.title}</p>
+                      <p className="text-sm text-gray-400 font-medium">
+                        {product.variant} - {product.size}
+                      </p>
+                    </div>
+                  </td>
+                  <td className="p-6 text-center">
+                    <p className="font-bold text-gray-900">
+                      ₱{product.price.toLocaleString()}.00
+                    </p>
+                  </td>
+                  <td className="p-6">
+                    <div className="flex items-center justify-center gap-3">
+                      <button
+                        onClick={() =>
+                          onUpdateQuantity(
+                            product.id,
+                            (product.quantity || 1) - 1,
+                          )
+                        }
+                        className="p-1 border border-gray-200 rounded hover:bg-gray-100 text-gray-400 transition-colors cursor-pointer">
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="font-bold text-gray-900 w-8 text-center text-lg">
+                        {product.quantity || 1}
+                      </span>
+                      <button
+                        onClick={() =>
+                          onUpdateQuantity(
+                            product.id,
+                            (product.quantity || 1) + 1,
+                          )
+                        }
+                        className="p-1 border border-gray-200 rounded hover:bg-gray-100 text-gray-400 transition-colors cursor-pointer">
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="p-6 text-center font-bold text-gray-900">
+                    ₱
+                    {(product.price * (product.quantity || 1)).toLocaleString()}
+                    .00
+                  </td>
+                  <td className="p-6 text-center">
+                    <button
+                      onClick={() => onOpenUpload(product.id, product.title)}
+                      className="cursor-pointer transition-transform active:scale-95 block mx-auto">
+                      {product.fileUrl ? (
+                        <div className="relative group w-14 h-14 rounded-lg overflow-hidden border border-gray-200 bg-white shadow-sm flex items-center justify-center">
+                          <img 
+                            src={product.fileUrl.replace("/order-attachments/", "/order-files/")} 
+                            alt="Design Preview" 
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" 
+                          />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                             <span className="text-white text-[10px] font-bold uppercase tracking-wider">Change</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="px-3 py-1.5 bg-orange-50 text-orange-500 text-xs font-bold uppercase tracking-wider rounded-lg border border-orange-200 hover:bg-orange-100 transition-colors">
+                          Missing
+                        </span>
+                      )}
+                    </button>
+                  </td>
+                  <td className="p-6">
+                    <div className="flex justify-center gap-1">
+                      <button
+                        onClick={() => onView(product.id)}
+                        className="px-3 py-1.5 bg-cyan-400 text-white text-xs font-bold rounded-lg hover:bg-cyan-500 transition-colors cursor-pointer">
+                        View
+                      </button>
+                      <button
+                        onClick={() => onRemove(product.id)}
+                        className="px-3 py-1.5 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors cursor-pointer">
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
       {totalPages > 1 && (
         <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/30">
           <p className="text-sm text-gray-500 font-medium">
