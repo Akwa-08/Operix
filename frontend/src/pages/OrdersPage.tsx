@@ -11,6 +11,8 @@ import { FilterDropdown } from "../components/Shared/UI/FilterDropdown";
 import type { Order } from "../Types";
 import { useOrdersData } from "../hooks/useSupabase";
 import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
+import { db } from "../lib/database";
+import toast from "react-hot-toast";
 
 export const OrdersPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -21,7 +23,7 @@ export const OrdersPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const itemsPerPage = 6;
 
-  const { orders, loading } = useOrdersData();
+  const { orders, loading, refresh } = useOrdersData();
 
   // When orders re-fetches (e.g. after a file upload), sync selectedOrder
   // so the modal receives the latest data (including new designFile URLs).
@@ -85,6 +87,28 @@ export const OrdersPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const handleDeleteOrder = async (order: Order) => {
+    if (order.status === "In Queue") {
+      if (!window.confirm(`Cancel order ${order.orderId}? This cannot be undone.`)) return;
+      try {
+        await db.deleteOrder(order.id);
+        toast.success("Order cancelled successfully.");
+        refresh();
+      } catch (err: any) {
+        toast.error(err.message || "Failed to cancel order.");
+      }
+    } else if (order.status === "Designing") {
+      toast(
+        "Your order is currently being designed. Please message our designer to request a cancellation.",
+        { icon: "⚠️", duration: 5000 }
+      );
+    } else {
+      toast.error(
+        "Order cannot be cancelled at this stage. Please contact us for assistance."
+      );
+    }
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -118,7 +142,7 @@ export const OrdersPage: React.FC = () => {
 
         {/* Orders Grid */}
         <div className="mt-8">
-          <OrderCardsGrid orders={pagedOrders} onView={handleViewDetails} />
+          <OrderCardsGrid orders={pagedOrders} onView={handleViewDetails} onDelete={handleDeleteOrder} />
         </div>
 
         {/* Pagination */}

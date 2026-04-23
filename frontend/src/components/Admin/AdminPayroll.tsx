@@ -7,7 +7,6 @@ import {
 import { supabase } from "../../config/supabaseClient";
 import {
   usePayrollData,
-  useEmployees,
   usePendingCashAdvances,
   type AttendanceLog, type PayrollRecord, type PayrollPeriod, type PendingCashAdvance,
 } from "../../hooks/useSupabase";
@@ -353,7 +352,8 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
 }
 
 // ─── Cash Advance Modal ───────────────────────────────────────────────────────
-function CashAdvanceModal({ employees, onClose, onCreate }: {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function CashAdvanceModal({ employees, onClose, onCreate }: {
   employees: any[];
   onClose: () => void;
   onCreate: (d: { employee_id: string; amount: number; date_issued?: string; reason?: string }) => Promise<any>;
@@ -703,7 +703,6 @@ const AdminPayroll: React.FC = () => {
     updatePayrollRecord, markPeriodComplete, markAllPaid,
   } = usePayrollData();
 
-  const { employees: rawEmployees } = useEmployees();
 
   const filteredLogs = attendanceLogs.filter(l =>
     l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
