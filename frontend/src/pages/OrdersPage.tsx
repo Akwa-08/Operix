@@ -1,7 +1,7 @@
 // src/pages/OrdersPage.tsx
 // Customer orders page — fetches real data from Supabase via useOrdersData()
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Search, Package, Clock, CheckCircle } from "lucide-react";
 import { CustomerOrderDetailsModal } from "../components/Customer/CustomerOrderDetailsModal";
@@ -20,26 +20,16 @@ export const OrdersPage: React.FC = () => {
   const [dateFilter, setDateFilter] = useState("All Time");
   const [currentPage, setCurrentPage] = useState(1);
   const [showDetails, setShowDetails] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const itemsPerPage = 6;
 
   const { orders, loading, refresh } = useOrdersData();
 
-  // When orders re-fetches (e.g. after a file upload), sync selectedOrder
-  // so the modal receives the latest data (including new designFile URLs).
-  useEffect(() => {
-    if (selectedOrder) {
-      const fresh = orders.find(o => o.id === selectedOrder.id);
-      // Only update if the reference has changed (e.g. after a memoized re-map)
-      if (fresh && fresh !== selectedOrder) {
-        setSelectedOrder(fresh);
-      } else if (!fresh && selectedOrder) {
-        // Handle case where order might have been deleted/hidden
-        setSelectedOrder(null);
-        setShowDetails(false);
-      }
-    }
-  }, [orders, selectedOrder]);
+  // Derive the full order object from the current orders array.
+  // This always reflects the latest data without needing a useEffect sync.
+  const selectedOrder = selectedOrderId
+    ? orders.find(o => o.id === selectedOrderId) ?? null
+    : null;
 
   const statusOptions = ["All", "In Queue", "Active", "Completed"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
@@ -78,7 +68,7 @@ export const OrdersPage: React.FC = () => {
   const pagedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const handleViewDetails = (order: Order) => {
-    setSelectedOrder(order);
+    setSelectedOrderId(order.id);
     setShowDetails(true);
   };
 
