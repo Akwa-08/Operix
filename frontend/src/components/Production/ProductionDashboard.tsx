@@ -10,7 +10,7 @@ import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
 import {PageHeader} from "../Shared/UI/PageHeader";
 import {InfoBanner} from "../Shared/UI/InfoBanner";
-import {useOrdersData, useInventoryData} from "../../hooks/useSupabase";
+import {useOrdersData, useInventoryData, useMyProfile} from "../../hooks/useSupabase";
 
 const ProductionDashboard = () => {
   const { profile } = useMyProfile();
