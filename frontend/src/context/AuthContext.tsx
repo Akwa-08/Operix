@@ -12,6 +12,7 @@ interface AuthUser {
   role: UserRole;
   firstName: string | null;
   lastName: string | null;
+  avatarUrl?: string | null;
 }
  
 interface AuthContextType {
@@ -32,6 +33,7 @@ const parseUser = (supabaseUser: User | null): AuthUser | null => {
     role: (supabaseUser.user_metadata?.role as UserRole) || 'customer',
     firstName: supabaseUser.user_metadata?.first_name ?? null,
     lastName: supabaseUser.user_metadata?.last_name ?? null,
+    avatarUrl: supabaseUser.user_metadata?.avatar_url ?? null,
   };
 };
  
@@ -40,6 +42,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
  
+  const fetchUserProfile = async (supabaseUser: User) => {
+    try {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('first_name, last_name, role, avatar_url')
+        .eq('id', supabaseUser.id)
+        .single();
+
+      const nextUser: AuthUser = {
+        id: supabaseUser.id,
+        email: supabaseUser.email ?? '',
+        role: (profile?.role as UserRole) || (supabaseUser.user_metadata?.role as UserRole) || 'customer',
+        firstName: profile?.first_name ?? supabaseUser.user_metadata?.first_name ?? null,
+        lastName: profile?.last_name ?? supabaseUser.user_metadata?.last_name ?? null,
+        avatarUrl: profile?.avatar_url ?? supabaseUser.user_metadata?.avatar_url ?? null,
+      };
+
+      setUser((prev) => {
+        if (JSON.stringify(prev) !== JSON.stringify(nextUser)) {
+          return nextUser;
+        }
+        return prev;
+      });
+    } catch (err: any) {
+      console.error("Failed to fetch profile details:", err.message);
+    }
+  };
+
   useEffect(() => {
     // Load existing session on page load
     supabase.auth.getSession().then(({ data: { session }, error }) => {
@@ -52,6 +82,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setSession(session);
       setUser(parseUser(session?.user ?? null));
       setLoading(false);
+      if (session?.user) {
+        fetchUserProfile(session.user);
+      }
     });
  
     // Listen for login / logout / token refresh
@@ -62,6 +95,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       } else {
         setSession(session);
         setUser(parseUser(session?.user ?? null));
+        if (session?.user && event !== 'TOKEN_REFRESHED') {
+          fetchUserProfile(session.user);
+        }
       }
       setLoading(false);
     });
@@ -85,27 +121,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (userError) throw userError;
       if (!freshUser) return;
 
-      // 2. Also fetch from public.users for the most current name
-      //    (auth metadata may be cached by Supabase until next token refresh)
-      const { data: profile } = await supabase
-        .from('users')
-        .select('first_name, last_name, role')
-        .eq('id', freshUser.id)
-        .single();
-
-        const nextUser: AuthUser = {
-          id: freshUser.id,
-          email: freshUser.email ?? '',
-          role: (profile?.role as UserRole) || (freshUser.user_metadata?.role as UserRole) || 'customer',
-          firstName: profile?.first_name ?? freshUser.user_metadata?.first_name ?? null,
-          lastName: profile?.last_name ?? freshUser.user_metadata?.last_name ?? null,
-        };
-
-        // Defensive check: only update if data actually changed to reduce redundant re-renders
-        // that can trigger noisy browser extension "message channel closed" errors.
-        if (JSON.stringify(user) !== JSON.stringify(nextUser)) {
-          setUser(nextUser);
-        }
+      // 2. Fetch the updated profile details
+      await fetchUserProfile(freshUser);
     } catch (err: any) {
       console.error("Failed to refresh user:", err.message);
       if (err.message && (err.message.includes("Refresh Token Not Found") || err.message.includes("Invalid Refresh Token"))) {

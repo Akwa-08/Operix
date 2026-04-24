@@ -41,6 +41,41 @@ export async function uploadOrderFile(file: File): Promise<string> {
   return publicUrl;
 }
 
+/**
+ * Uploads a profile picture to the 'user-profile' storage bucket.
+ */
+export async function uploadProfilePicture(file: File): Promise<string> {
+  const {
+    data: {user},
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  // Validate file size (2MB limit)
+  if (file.size > 2 * 1024 * 1024)
+    throw new Error("File size exceeds 2MB limit");
+
+  const fileExt = file.name.split(".").pop();
+  const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+  const {error: uploadError} = await supabase.storage
+    .from("user-profile")
+    .upload(fileName, file, {
+      cacheControl: "3600",
+      upsert: true,
+    });
+
+  if (uploadError) {
+    console.error("Error uploading profile picture:", uploadError);
+    throw uploadError;
+  }
+
+  const {
+    data: {publicUrl},
+  } = supabase.storage.from("user-profile").getPublicUrl(fileName);
+
+  return publicUrl;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // USERS (own profile — admin CRUD uses backend /api/admin/*)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -66,6 +101,7 @@ export const db = {
     contact_number?: string;
     address?: string;
     email?: string;
+    avatar_url?: string;
   }) {
     const {
       data: {user},
@@ -601,7 +637,7 @@ export const db = {
     const {data, error} = await supabase
       .from("cart_items")
       .insert([
-        {customer_id: user.id, product_id: productId, quantity, specifications},
+        {customer_id: user.id, product_id: productId, quantity, specifications, file_url: fileUrl || null},
       ])
       .select()
       .single();

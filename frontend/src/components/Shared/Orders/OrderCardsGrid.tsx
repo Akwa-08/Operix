@@ -42,11 +42,12 @@ const getStatusColor = (status: CardStatus) => {
 const getPaymentColor = getPaymentStatusColor;
 
 // ── Single card ─────────────────────────────────────────────────────────────
-const StaffOrderCard = ({ order, onView, onEdit, onDelete }: {
+const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay }: {
   order: Order;
   onView: (o: Order) => void;
   onEdit?: (o: Order) => void;
   onDelete?: (o: Order) => void;
+  onPay?: (o: Order) => void;
 }) => {
   const cardStatus = mapStatus(order.status);
   const stepIdx = statusSteps.findIndex(s => s.status === cardStatus);
@@ -111,6 +112,12 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete }: {
           className="flex-1 bg-sky-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-sky-600">
           <Eye size={14} /> View
         </button>
+        {onPay && order.paymentStatus !== "Paid" && (
+          <button onClick={() => onPay(order)}
+            className="flex-1 bg-emerald-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-emerald-600">
+            <CreditCard size={14} /> Pay
+          </button>
+        )}
         {onEdit && (
           <button onClick={() => onEdit(order)}
             className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">
@@ -135,9 +142,10 @@ interface OrderCardsGridProps {
   onView: (order: Order) => void;
   onEdit?: (order: Order) => void;
   onDelete?: (order: Order) => void;
+  onPay?: (order: Order) => void;
 }
 
-export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete }) => {
+export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete, onPay }) => {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
@@ -151,7 +159,7 @@ export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, 
     <AnimatePresence mode="popLayout">
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {orders.map(o => (
-          <StaffOrderCard key={o.id} order={o} onView={onView} onEdit={onEdit} onDelete={onDelete} />
+          <StaffOrderCard key={o.id} order={o} onView={onView} onEdit={onEdit} onDelete={onDelete} onPay={onPay} />
         ))}
       </motion.div>
     </AnimatePresence>
