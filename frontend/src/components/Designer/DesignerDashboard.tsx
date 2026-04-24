@@ -12,7 +12,7 @@ import {
 import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
 import {getOrderStatusColor} from "../../util/formatters";
-import {useOrdersData} from "../../hooks/useSupabase";
+import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
 
 // ─── Quick Action Card ────────────────────────────────────────────────────────
 const QuickActionCard: React.FC<{
@@ -37,7 +37,13 @@ const QuickActionCard: React.FC<{
 );
 
 const DesignerDashboard = () => {
-  const {orders, loading, refresh} = useOrdersData();
+  const { profile } = useMyProfile();
+  const {orders: allOrders, loading, refresh} = useOrdersData();
+
+  const orders = useMemo(() => 
+    allOrders.filter(o => o.assignedDesigner === profile?.id),
+    [allOrders, profile?.id]
+  );
 
   const stats = useMemo(
     () => ({

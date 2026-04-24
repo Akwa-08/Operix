@@ -338,6 +338,7 @@ export const db = {
     assigned_designer?: string;
     assigned_production?: string;
     comments?: string;
+    design_file_url?: string;
     items: {
       product_id?: string;
       product_name: string;
@@ -385,6 +386,7 @@ export const db = {
           amount_paid: 0,
           assigned_designer: order.assigned_designer || null,
           assigned_production: order.assigned_production || null,
+          design_file_url: order.design_file_url || null,
         },
       ])
       .select()
@@ -446,6 +448,56 @@ export const db = {
     await supabase.from("order_items").delete().eq("order_id", id);
     const {error} = await supabase.from("orders").delete().eq("id", id);
     if (error) throw error;
+  },
+
+  async deductInventoryForOrder(orderId: string) {
+    // 1. Get order items
+    const { data: items, error: itemsErr } = await supabase
+      .from("order_items")
+      .select("product_id, quantity")
+      .eq("order_id", orderId);
+    if (itemsErr) throw itemsErr;
+
+    for (const item of items || []) {
+      if (!item.product_id) continue;
+
+      // 2. Get BOM for this product
+      const { data: bom, error: bomErr } = await supabase
+        .from("product_supply_mapping")
+        .select("inventory_item_id, quantity_required")
+        .eq("product_id", item.product_id);
+      if (bomErr) throw bomErr;
+
+      for (const mapping of bom || []) {
+        // 3. Deduct from inventory
+        const { data: inv, error: invErr } = await supabase
+          .from("inventory_items")
+          .select("current_quantity")
+          .eq("id", mapping.inventory_item_id)
+          .single();
+        if (invErr) throw invErr;
+
+        const newQty = Number(inv.current_quantity) - (Number(mapping.quantity_required) * item.quantity);
+        
+        const { error: updateErr } = await supabase
+          .from("inventory_items")
+          .update({ current_quantity: newQty, updated_at: new Date().toISOString() })
+          .eq("id", mapping.inventory_item_id);
+        if (updateErr) throw updateErr;
+
+        // 4. Log the change
+        const { data: { user } } = await supabase.auth.getUser();
+        await supabase.from("inventory_changes").insert([{
+          inventory_item_id: mapping.inventory_item_id,
+          change_type: 'Order Production',
+          quantity_change: -(Number(mapping.quantity_required) * item.quantity),
+          quantity_before: Number(inv.current_quantity),
+          quantity_after: newQty,
+          reason: `Automatic deduction for order ${orderId}`,
+          changed_by: user?.id
+        }]);
+      }
+    }
   },
 
   // ── Payments ─────────────────────────────────────────────────────────
@@ -611,6 +663,7 @@ export const db = {
       order_type: "online",
       special_instructions: specialInstructions,
       due_date: dueDate,
+      design_file_url: cartItems[0]?.file_url,
       items: cartItems.map((ci) => ({
         product_id: ci.product_id,
         product_name: ci.product?.name || "Unknown",

@@ -10,7 +10,7 @@ import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
 import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
 import {Package, Clock, CheckCircle} from "lucide-react";
 import type {Order} from "../../Types";
-import {useOrdersData} from "../../hooks/useSupabase";
+import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
 
 const ProductionOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -18,17 +18,20 @@ const ProductionOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
+  const { profile } = useMyProfile();
   const {
-    orders: rawOrders,
+    orders: allOrders,
     loading,
     updateStatus,
     updateCustomerDesign,
     refresh,
   } = useOrdersData();
-  const orders = rawOrders.map((o) => ({
-    ...o,
-    assignedProduction: "Current User",
-  }));
+
+  // Filter for orders assigned to THIS production staff OR unassigned orders in Production status
+  const orders = allOrders.filter(o => 
+    o.assignedProduction === profile?.id || 
+    (o.status === "Production" && !o.assignedProduction)
+  );
 
   const stats = {
     assigned: orders.length,
