@@ -32,6 +32,7 @@ const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutPr
         <SharedSideBar
           name={displayName}
           role={roleName || user?.role}
+          avatarUrl={user?.avatarUrl}
           items={items}
           profilePath={profilePath}
           onLogout={handleLogout}

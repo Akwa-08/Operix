@@ -13,6 +13,7 @@ export type SidebarItem = {
 export type SharedSideBarProps = {
   name: string;
   role?: string;
+  avatarUrl?: string | null;
   items: SidebarItem[];
   profilePath: string;
   onLogout: () => void;
@@ -25,6 +26,7 @@ export type SharedSideBarProps = {
 const SharedSideBar = ({
   name,
   role,
+  avatarUrl,
   items,
   profilePath,
   onLogout,
@@ -152,7 +154,11 @@ const SharedSideBar = ({
           </button>
 
           <div className={`flex items-center gap-2 px-2 pt-2 pb-1 mt-1 border-t border-gray-100 ${collapsed ? "justify-center" : ""}`}>
-            <CircleUserRound size={28} strokeWidth={1.5} className="text-gray-400 flex-shrink-0" />
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={name} className="w-8 h-8 rounded-full object-cover flex-shrink-0 shadow-sm" />
+            ) : (
+              <CircleUserRound size={28} strokeWidth={1.5} className="text-gray-400 flex-shrink-0" />
+            )}
             {!collapsed && (
               <div className="min-w-0">
                 <p className="text-xs font-bold text-gray-800 truncate">{name}</p>
@@ -197,9 +203,13 @@ const SharedSideBar = ({
         {/* Drawer header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#E80088]/10 flex items-center justify-center">
-              <CircleUserRound size={20} className="text-[#E80088]" />
-            </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={name} className="w-9 h-9 rounded-full object-cover shadow-sm" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-[#E80088]/10 flex items-center justify-center">
+                <CircleUserRound size={20} className="text-[#E80088]" />
+              </div>
+            )}
             <div>
               <p className="text-sm font-bold text-gray-900 leading-tight">{name}</p>
               {role && <p className="text-xs text-gray-500">{role}</p>}

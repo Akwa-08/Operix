@@ -229,9 +229,21 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                       >
                         <Minus className="w-4 h-4" />
                       </button>
-                      <span className="text-xl sm:text-2xl font-black text-gray-900 min-w-[2rem] text-center tabular-nums">
-                        {quantity}
-                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={quantity}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          if (!isNaN(val) && val >= 1) setQuantity(val);
+                          else if (e.target.value === "") setQuantity(1);
+                        }}
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          setQuantity(!isNaN(val) && val >= 1 ? val : 1);
+                        }}
+                        className="w-14 sm:w-16 text-xl sm:text-2xl font-black text-gray-900 text-center tabular-nums bg-transparent border-b-2 border-gray-300 focus:border-cyan-400 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
                       <button
                         onClick={() => setQuantity((q) => q + 1)}
                         className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 hover:border-cyan-400 hover:text-cyan-500 transition-colors cursor-pointer"
@@ -343,7 +355,11 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
         isOpen={showNoFileConfirm}
         onClose={() => setShowNoFileConfirm(false)}
         onConfirm={confirmOrder}
-        confirmLabel={orderButtonText === "Checkout" ? "Checkout Anyway" : "Order Anyway"}
+        confirmLabel={
+          orderButtonText === "Checkout" ? "Checkout Anyway" :
+          orderButtonText === "Confirm"  ? "Confirm Anyway"  :
+          "Order Anyway"
+        }
       />
     </>
   );

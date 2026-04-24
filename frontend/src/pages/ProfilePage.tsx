@@ -8,7 +8,7 @@ import {User, Mail, Phone, MapPin, Lock, Eye, EyeOff} from "lucide-react";
 import toast from "react-hot-toast";
 import {useAuth} from "../context/AuthContext";
 import authService from "../services/authService";
-import {db} from "../lib/database";
+import { db, uploadProfilePicture } from "../lib/database";
 import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
 
 export const ProfilePage = () => {
@@ -27,6 +27,9 @@ export const ProfilePage = () => {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [address, setAddress] = useState("");
   const [memberSince, setMemberSince] = useState("");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [isUploadingPicture, setIsUploadingPicture] = useState(false);
 
   // Password fields
   const [newPassword, setNewPassword] = useState("");
@@ -45,6 +48,7 @@ export const ProfilePage = () => {
         setEmail(profile.email || "");
         setPhoneNumber(profile.contact_number || "");
         setAddress(profile.address || "");
+        setAvatarUrl(profile.avatar_url || "");
         if (profile.created_at) {
           setMemberSince(
             new Date(profile.created_at).toLocaleDateString("en-US", {
@@ -75,12 +79,23 @@ export const ProfilePage = () => {
 
     setIsSaving(true);
     try {
+      let finalAvatarUrl = avatarUrl;
+      
+      if (profilePictureFile) {
+        setIsUploadingPicture(true);
+        finalAvatarUrl = await uploadProfilePicture(profilePictureFile);
+        setAvatarUrl(finalAvatarUrl);
+        setProfilePictureFile(null);
+        setIsUploadingPicture(false);
+      }
+
       await db.updateMyProfile({
         first_name: firstName,
         last_name: lastName,
         email,
         contact_number: phoneNumber,
         address,
+        avatar_url: finalAvatarUrl,
       });
       await refreshUser();
       setIsEditing(false);
@@ -93,6 +108,7 @@ export const ProfilePage = () => {
 
   const handleCancelEdit = () => {
     setIsEditing(false);
+    setProfilePictureFile(null);
     loadProfile();
   };
 
@@ -157,8 +173,35 @@ export const ProfilePage = () => {
 
         {/* Profile Header */}
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-10 pb-10 border-b border-gray-100 text-center sm:text-left">
-          <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-3xl font-bold text-gray-600 shadow-inner">
-            {initials}
+          <div className="relative group w-24 h-24 rounded-full">
+            {avatarUrl || (profilePictureFile && URL.createObjectURL(profilePictureFile)) ? (
+              <img 
+                src={profilePictureFile ? URL.createObjectURL(profilePictureFile) : avatarUrl} 
+                alt="Profile" 
+                className="w-full h-full object-cover rounded-full shadow-inner" 
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-3xl font-bold text-gray-600 shadow-inner">
+                {initials}
+              </div>
+            )}
+            
+            {isEditing && (
+              <label className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer overflow-hidden">
+                {isUploadingPicture ? "Uploading..." : "Add/Edit"}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  disabled={isUploadingPicture || isSaving}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      setProfilePictureFile(e.target.files[0]);
+                    }
+                  }} 
+                />
+              </label>
+            )}
           </div>
           <div className="space-y-1">
             <h3 className="text-2xl font-bold text-gray-900">{fullName}</h3>

@@ -127,7 +127,7 @@ export const Cart: React.FC = () => {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="w-full pt-6 px-8 pb-0 bg-gray-50 flex flex-col gap-2 min-h-[calc(100vh-4rem)]">
+    <div className="w-full pt-4 sm:pt-6 px-4 sm:px-6 md:px-8 pb-0 bg-gray-50 flex flex-col gap-2 min-h-[calc(100vh-4rem)]">
       <CartHeader totalItems={totalItems} />
       <CartFilters searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       <CartTable
@@ -191,18 +191,19 @@ export const Cart: React.FC = () => {
           initialFileUrl={selectedViewItem.fileUrl}
           initialInstructions={selectedViewItem.specifications}
           showAddToCart={false}
-          onAddToCart={() => {}} // Not used in view mode
+          onAddToCart={() => {}} // Not used in view/edit mode
           onOrder={async (data) => {
-            // Update item in cart, then immediately trigger checkout
-            await updateCartItem(selectedViewItem.id, { 
-              quantity: data.quantity, 
+            // Save the edits to this cart item — that's all.
+            // Checkout is done exclusively via the main Checkout button on the page.
+            await updateCartItem(selectedViewItem.id, {
+              quantity: data.quantity,
               fileUrl: data.fileUrl,
-              specifications: data.specialInstructions 
+              specifications: data.specialInstructions,
             });
+            showLocalToast("Item updated successfully!", "success");
             setIsViewModalOpen(false);
-            handleProceedToCheckout();
           }}
-          orderButtonText="Checkout"
+          orderButtonText="Confirm"
         />
       )}
 
