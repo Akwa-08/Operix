@@ -112,6 +112,7 @@ const router = createBrowserRouter([
     { index: true,    element: <DesignerDashboard /> },
     { path: 'orders', element: <DesignerOrders /> },
     { path: 'profile', element: <ProfilePage /> },
+    { path: 'messages', element: <AdminMessages /> }, // Designers can use the staff messaging UI
     ],
   },
 
@@ -123,6 +124,8 @@ const router = createBrowserRouter([
       { index: true,       element: <ProductionDashboard /> },
       { path: 'orders',    element: <ProductionOrders /> },
       { path: 'inventory', element: <ProductionInventory /> },
+      { path: 'profile',   element: <ProfilePage /> },
+      { path: 'messages',  element: <AdminMessages /> },
     ],
   },
 

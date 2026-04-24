@@ -13,7 +13,13 @@ import {InfoBanner} from "../Shared/UI/InfoBanner";
 import {useOrdersData, useInventoryData} from "../../hooks/useSupabase";
 
 const ProductionDashboard = () => {
-  const {orders, loading: ordersLoading, refresh} = useOrdersData();
+  const { profile } = useMyProfile();
+  const {orders: allOrders, loading: ordersLoading, refresh} = useOrdersData();
+
+  const orders = useMemo(() => 
+    allOrders.filter(o => o.assignedProduction === profile?.id),
+    [allOrders, profile?.id]
+  );
   const {stats: materialStats, loading: matLoading} = useInventoryData();
   const loading = ordersLoading || matLoading;
 

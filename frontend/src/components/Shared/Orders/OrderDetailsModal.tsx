@@ -62,7 +62,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("cash");
   const [payRef, setPayRef] = useState("");
-  const [payReceipt, setPayReceipt] = useState("");
   const [payNotes, setPayNotes] = useState("");
   const [payLoading, setPayLoading] = useState(false);
 
@@ -85,7 +84,6 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
       amount: amt,
       payment_method: payMethod,
       reference_number: payRef.trim() || undefined,
-      receipt_number: payReceipt.trim() || undefined,
       notes: payNotes.trim() || undefined,
     });
     setPayLoading(false);
@@ -253,8 +251,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                       <option value="cash">Cash</option>
                       <option value="gcash">GCash</option>
                       <option value="bank_transfer">Bank Transfer</option>
-                      <option value="card">Card</option>
-                      <option value="other">Other</option>
+                      <option value="maya">Maya</option>
                     </select>
                   </div>
                 </div>
@@ -274,14 +271,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-gray-700 mb-1">Receipt # (optional)</label>
-                    <input
-                      type="text"
-                      value={payReceipt}
-                      onChange={e => setPayReceipt(e.target.value)}
-                      placeholder="e.g. OR-1025"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                    />
+                    {/* Receipt number tracking is now handled in the receipts table natively */}
                   </div>
                 </div>
                 <div>

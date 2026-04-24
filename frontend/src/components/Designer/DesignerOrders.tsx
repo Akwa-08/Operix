@@ -10,7 +10,7 @@ import {getOrderStatusColor} from "../../util/formatters";
 import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
 import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
 import type {Order} from "../../Types";
-import {useOrdersData} from "../../hooks/useSupabase";
+import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
 
 const DesignerOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -18,15 +18,22 @@ const DesignerOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const {orders, loading, updateStatus, updateCustomerDesign, updateFinalDesign, refresh} =
+  const { profile } = useMyProfile();
+  
+  // Fetch all orders - we'll filter them locally for a better "Queue vs My Orders" experience
+  const {orders: allOrders, loading, updateStatus, updateCustomerDesign, updateFinalDesign, refresh, selfAssign} =
     useOrdersData();
 
+  // Filter for orders assigned to THIS designer OR unassigned orders in queue
+  const orders = allOrders.filter(o => 
+    o.assignedDesigner === profile?.id || 
+    (o.status === "In Queue" && !o.assignedDesigner)
+  );
+
   const stats = {
-    assigned: orders.length,
-    inProgress: orders.filter((o) => o.status === "Designing").length,
-    completed: orders.filter(
-      (o) => !["Designing", "In Queue"].includes(o.status),
-    ).length,
+    assigned: orders.filter(o => o.assignedDesigner === profile?.id).length,
+    inQueue: allOrders.filter(o => o.status === "In Queue" && !o.assignedDesigner).length,
+    inProgress: orders.filter((o) => o.status === "Designing" && o.assignedDesigner === profile?.id).length,
   };
 
   const filteredOrders = orders.filter((o) => {

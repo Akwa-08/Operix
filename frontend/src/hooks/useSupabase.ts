@@ -73,6 +73,7 @@ function mapOrder(raw: any): Order {
     designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
     productionName: raw.production_staff ? raw.production_staff.full_name || '' : '',
     comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
+    finalDesignUrl: raw.final_design_url || '',
   };
 }
 
@@ -166,8 +167,8 @@ export function useProducts(filters?: { search?: string; category?: string }) {
 }
 
 // ── Orders (raw, internal) ───────────────────────────────────────────────────
-export function useOrders(filters?: { status?: string }) {
-  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status]);
+export function useOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
+  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status, filters?.assigned_designer, filters?.assigned_production]);
   const { data: staffList } = useQuery(() => db.getStaffList(), []);
 
   const orders = rawOrders || [];
@@ -281,8 +282,8 @@ export function useCartData() {
 // ORDERS — useOrdersData()
 // Used by: AdminOrders, CashierOrders, DesignerOrders, ProductionOrders
 // ═══════════════════════════════════════════════════════════════════════════════
-export function useOrdersData() {
-  const { orders: rawOrders, stats, staff, loading, error, refresh } = useOrders();
+export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
+  const { orders: rawOrders, stats, staff, loading, error, refresh } = useOrders(filters);
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
   const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
@@ -306,7 +307,18 @@ export function useOrdersData() {
     },
     updateStatus: async (orderId: string, status: string) => {
       const dbStatus = status.toLowerCase().replace(/ /g, '_');
-      const r = await safe(() => db.updateOrder(orderId, { status: dbStatus }).then(() => refresh()));
+      const r = await safe(async () => {
+        await db.updateOrder(orderId, { status: dbStatus });
+        if (dbStatus === 'production') {
+          try {
+            await db.deductInventoryForOrder(orderId);
+          } catch (invErr) {
+            console.error("Inventory deduction failed:", invErr);
+            // We don't fail the whole status update, but we log it
+          }
+        }
+        await refresh();
+      });
       return r;
     },
     assignStaff: async (orderId: string, assignment: { assigned_designer?: string; assigned_production?: string }) => {
