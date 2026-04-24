@@ -21,7 +21,7 @@ const DesignerOrders = () => {
   const { profile } = useMyProfile();
   
   // Fetch all orders - we'll filter them locally for a better "Queue vs My Orders" experience
-  const {orders: allOrders, loading, updateStatus, updateCustomerDesign, updateFinalDesign, refresh, selfAssign} =
+  const {orders: allOrders, loading, updateStatus, updateCustomerDesign, updateFinalDesign, refresh} =
     useOrdersData();
 
   // Filter for orders assigned to THIS designer OR unassigned orders in queue
@@ -34,6 +34,7 @@ const DesignerOrders = () => {
     assigned: orders.filter(o => o.assignedDesigner === profile?.id).length,
     inQueue: allOrders.filter(o => o.status === "In Queue" && !o.assignedDesigner).length,
     inProgress: orders.filter((o) => o.status === "Designing" && o.assignedDesigner === profile?.id).length,
+    completed: orders.filter((o) => ["Payment", "Production", "Pickup", "Completed"].includes(o.status)).length,
   };
 
   const filteredOrders = orders.filter((o) => {
