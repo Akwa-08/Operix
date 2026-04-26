@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
-  X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle, Trash2,
+  X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "../../config/supabaseClient";
 import {
@@ -512,8 +512,7 @@ const AdminPayroll: React.FC = () => {
   const [searchQuery, setSearchQuery]       = useState("");
   const [showPeriodDrop, setShowPeriodDrop] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [markPaidConfirm, setMarkPaidConfirm]       = useState<PayrollRecord | null>(null);
-  const [deletePeriodConfirm, setDeletePeriodConfirm] = useState(false);
+  const [markPaidConfirm, setMarkPaidConfirm]   = useState<PayrollRecord | null>(null);
   const [editingLog, setEditingLog]         = useState<AttendanceLog | null>(null);
   const [viewingRecord, setViewingRecord]   = useState<PayrollRecord | null>(null);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
@@ -525,7 +524,7 @@ const AdminPayroll: React.FC = () => {
     attendanceLogs, payrollRecords, dashboardStats,
     loading, error, computing, resetting, refresh,
     updateAttendanceLog, computePayroll, resetPayroll,
-    updatePayrollRecord, markPeriodComplete, markAllPaid, deletePeriod,
+    updatePayrollRecord, markPeriodComplete, markAllPaid,
   } = usePayrollData();
 
   const filteredLogs    = attendanceLogs.filter(l => l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || l.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -572,46 +571,6 @@ const AdminPayroll: React.FC = () => {
         <AttendanceEditModal log={editingLog} periodId={activePeriodId} onClose={() => setEditingLog(null)} onSave={async d => { const r = await updateAttendanceLog(d); return r; }} />
       )}
       {viewingRecord && <PayslipModal record={viewingRecord} period={currentPeriod} onClose={() => setViewingRecord(null)} />}
-
-      {/* ── Delete Period Confirm Modal ── */}
-      {deletePeriodConfirm && currentPeriod && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeletePeriodConfirm(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setDeletePeriodConfirm(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <Trash2 size={22} className="text-red-600"/>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Delete Period?</h3>
-                <p className="text-sm text-gray-500">This cannot be undone</p>
-              </div>
-            </div>
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
-              <p className="font-semibold text-red-800">{periodLabel(currentPeriod)}</p>
-              <p className="text-red-700 text-xs">This will permanently delete:</p>
-              <ul className="text-red-700 text-xs space-y-1 ml-4 list-disc">
-                <li>All attendance logs for this period</li>
-                <li>All payroll records for this period</li>
-                <li>The payroll period itself</li>
-                <li>Any issued Cash Advances will be reset to Approved</li>
-              </ul>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setDeletePeriodConfirm(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
-              <button
-                onClick={async () => {
-                  if (!activePeriodId) return;
-                  setDeletePeriodConfirm(false);
-                  await deletePeriod(activePeriodId);
-                }}
-                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
-                <Trash2 size={16}/> Delete Period
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Mark as Paid Confirm Modal ── */}
       {markPaidConfirm && (
@@ -719,13 +678,6 @@ const AdminPayroll: React.FC = () => {
             )}
           </div>
           {currentPeriod && <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${currentPeriod.status === "complete" ? "bg-green-100 text-green-700" : currentPeriod.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{currentPeriod.status.charAt(0).toUpperCase() + currentPeriod.status.slice(1)}</span>}
-          {currentPeriod?.status === "draft" && (
-            <button onClick={() => setDeletePeriodConfirm(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors ml-auto"
-              title="Delete this draft period">
-              <Trash2 size={13} /> Delete Period
-            </button>
-          )}
         </div>
       )}
 
