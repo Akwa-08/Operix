@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
-  X, Edit2, RefreshCw, Plus, ThumbsUp, ThumbsDown, Banknote, AlertTriangle,
+  X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle,
 } from "lucide-react";
 import { supabase } from "../../config/supabaseClient";
 import {
@@ -34,59 +34,10 @@ function StatCard({ label, value, sub, color = "text-gray-900" }: {
   );
 }
 
-// ─── Create Period Modal ──────────────────────────────────────────────────────
-function CreatePeriodModal({ onClose, onCreate }: {
-  onClose: () => void;
-  onCreate: (d: { period_start: string; period_end: string; pay_date?: string }) => Promise<any>;
-}) {
-  const [form, setForm] = useState({ period_start: "", period_end: "", pay_date: "" });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState("");
-
-  const handleSubmit = async () => {
-    if (!form.period_start || !form.period_end) { setErr("Start and end date required."); return; }
-    setSaving(true);
-    const r = await onCreate({ ...form, pay_date: form.pay_date || undefined });
-    if (!r.success) setErr(r.error || "Failed");
-    else onClose();
-    setSaving(false);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-        <h3 className="text-xl font-bold text-gray-900 mb-6">New Payroll Period</h3>
-        <div className="space-y-4">
-          {[
-            { label: "Period Start", key: "period_start" },
-            { label: "Period End", key: "period_end" },
-            { label: "Pay Date (optional)", key: "pay_date" },
-          ].map(({ label, key }) => (
-            <div key={key}>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-              <input type="date" value={(form as any)[key]}
-                onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-            </div>
-          ))}
-          {err && <p className="text-sm text-red-600">{err}</p>}
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={handleSubmit} disabled={saving}
-            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
-            {saving ? "Creating…" : "Create Period"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Attendance Edit Modal ────────────────────────────────────────────────────
 function AttendanceEditModal({ log, periodId, onClose, onSave }: {
-  log: AttendanceLog; periodId: string;
+  log: AttendanceLog;
+  periodId: string;
   onClose: () => void;
   onSave: (d: any) => Promise<any>;
 }) {
@@ -244,7 +195,6 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
           <h3 className="text-xl font-bold text-gray-900">Payslip Preview</h3>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
         </div>
-
         <div className="p-6 bg-gray-50">
           <div className="bg-white p-6 shadow-sm border rounded-lg" style={{ fontFamily: "Courier New, monospace" }}>
             <div className="flex justify-between items-start mb-6">
@@ -256,11 +206,9 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
               </div>
               <div className="text-right text-xs">
                 <p className="text-sm font-bold">{new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p>
-                <p className="font-bold mt-1">Position:</p>
-                <p>{record.position}</p>
+                <p className="font-bold mt-1">Position:</p><p>{record.position}</p>
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div>
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">EMPLOYEE INFORMATION</h3>
@@ -292,7 +240,6 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
                 </div>
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">DEDUCTIONS</h3>
@@ -304,8 +251,7 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
                   {record.cashAdvance > 0 && rows("CA Deduction (Prev Period)", record.cashAdvance, "text-red-600")}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
-                    <span>TOTAL DEDUCTIONS:</span>
-                    <span className="text-red-600">-{fmt(record.totalDeductions)}</span>
+                    <span>TOTAL DEDUCTIONS:</span><span className="text-red-600">-{fmt(record.totalDeductions)}</span>
                   </div>
                 </div>
               </div>
@@ -337,7 +283,6 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
             </div>
           </div>
         </div>
-
         <div className="flex gap-3 p-4 border-t bg-white">
           <button onClick={onClose} className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
             <X size={16} /> Close
@@ -351,97 +296,14 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
   );
 }
 
-// ─── Cash Advance Modal ───────────────────────────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function CashAdvanceModal({ employees, onClose, onCreate }: {
-  employees: any[];
-  onClose: () => void;
-  onCreate: (d: { employee_id: string; amount: number; date_issued?: string; reason?: string }) => Promise<any>;
-}) {
-  const [form, setForm] = useState({
-    employee_id: '',
-    amount: '',
-    date_issued: new Date().toISOString().split('T')[0],
-    reason: '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState('');
-
-  const handleSubmit = async () => {
-    if (!form.employee_id) { setErr('Select an employee.'); return; }
-    if (!form.amount || Number(form.amount) <= 0) { setErr('Enter a valid amount.'); return; }
-    setSaving(true);
-    const r = await onCreate({
-      employee_id: form.employee_id,
-      amount:      Number(form.amount),
-      date_issued: form.date_issued,
-      reason:      form.reason || undefined,
-    });
-    if (!r.success) setErr(r.error || 'Failed');
-    else onClose();
-    setSaving(false);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
-        <h3 className="text-xl font-bold text-gray-900 mb-6">Record Cash Advance</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Employee *</label>
-            <select value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
-              <option value="">Select employee…</option>
-              {employees.map((emp: any) => (
-                <option key={emp.id} value={emp.id}>{emp.full_name} — {emp.employee_code}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (₱) *</label>
-            <input type="number" min="1" step="0.01" value={form.amount}
-              onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              placeholder="0.00" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Date Issued</label>
-            <input type="date" value={form.date_issued}
-              onChange={e => setForm(f => ({ ...f, date_issued: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Reason (optional)</label>
-            <textarea value={form.reason}
-              onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-              rows={3} placeholder="e.g. Medical emergency, personal loan…"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none" />
-          </div>
-          {err && <p className="text-sm text-red-600">{err}</p>}
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={handleSubmit} disabled={saving}
-            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
-            {saving ? 'Saving…' : 'Record Advance'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Decline Reason Modal ─────────────────────────────────────────────────────
 function DeclineReasonModal({ advance, onClose, onDecline }: {
-  advance: PendingCashAdvance;
-  onClose: () => void;
+  advance: PendingCashAdvance; onClose: () => void;
   onDecline: (id: string, reason: string) => Promise<any>;
 }) {
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
-
   const handleDecline = async () => {
     if (!reason.trim()) { setErr('Please provide a reason for declining.'); return; }
     setSaving(true);
@@ -450,31 +312,25 @@ function DeclineReasonModal({ advance, onClose, onDecline }: {
     else onClose();
     setSaving(false);
   };
-
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-            <ThumbsDown size={18} className="text-red-600" />
-          </div>
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><ThumbsDown size={18} className="text-red-600" /></div>
           <h3 className="text-lg font-bold text-gray-900">Decline Cash Advance</h3>
         </div>
-        <p className="text-sm text-gray-500 mb-5">
-          Declining <strong>{fmt(advance.amount)}</strong> request from <strong>{advance.employeeName}</strong>.
-        </p>
+        <p className="text-sm text-gray-500 mb-5">Declining <strong>{fmt(advance.amount)}</strong> request from <strong>{advance.employeeName}</strong>.</p>
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">Reason *</label>
-          <textarea value={reason} onChange={e => { setReason(e.target.value); setErr(''); }}
-            rows={4} placeholder="e.g. Already has a pending advance, exceeds allowable limit…"
+          <textarea value={reason} onChange={e => { setReason(e.target.value); setErr(''); }} rows={4}
+            placeholder="e.g. Already has a pending advance, exceeds allowable limit…"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none" autoFocus />
           {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
         </div>
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
-          <button onClick={handleDecline} disabled={saving}
-            className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm disabled:opacity-50">
+          <button onClick={handleDecline} disabled={saving} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm disabled:opacity-50">
             {saving ? 'Declining…' : 'Confirm Decline'}
           </button>
         </div>
@@ -496,102 +352,61 @@ function CashAdvanceApprovalPanel() {
     if (r.success) { setFlashResult({ id: adv.id, type: 'approved' }); setTimeout(() => setFlashResult(null), 2000); }
     setApprovingId(null);
   };
-
   const handleDeclineSubmit = async (id: string, reason: string) => {
     const r = await declineAdvance(id, reason);
     if (r.success) { setFlashResult({ id, type: 'declined' }); setTimeout(() => setFlashResult(null), 2000); }
     return r;
   };
-
   const exceedsLimit = (adv: PendingCashAdvance) => adv.amount > adv.remainingAllowed;
 
   return (
     <>
-      {decliningAdvance && (
-        <DeclineReasonModal advance={decliningAdvance} onClose={() => setDecliningAdvance(null)} onDecline={handleDeclineSubmit} />
-      )}
+      {decliningAdvance && <DeclineReasonModal advance={decliningAdvance} onClose={() => setDecliningAdvance(null)} onDecline={handleDeclineSubmit} />}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-amber-50">
           <div className="flex items-center gap-2">
             <Banknote size={18} className="text-amber-600" />
             <h3 className="text-base font-bold text-gray-900">Cash Advance Requests</h3>
-            {pendingAdvances.length > 0 && (
-              <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">{pendingAdvances.length}</span>
-            )}
+            {pendingAdvances.length > 0 && <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">{pendingAdvances.length}</span>}
           </div>
           <button onClick={refresh} className="p-1.5 hover:bg-amber-100 rounded-lg">
             <RefreshCw size={15} className={`text-amber-600 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
-
         {!loading && pendingAdvances.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 text-gray-400">
             <CheckCircle2 size={32} className="mb-2 text-green-400" />
             <p className="text-sm font-medium text-gray-500">No pending cash advance requests</p>
           </div>
         )}
-
         {!loading && pendingAdvances.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {["ID / Employee", "Position", "Reason", "Requested", "Allowed Limit", "Remaining", "Requested By", "Actions"].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">{h}</th>
-                  ))}
-                </tr>
+                <tr>{["ID / Employee","Position","Reason","Requested","Allowed Limit","Remaining","Requested By","Actions"].map(h => <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">{h}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {pendingAdvances.map(adv => {
-                  const over = exceedsLimit(adv);
-                  const isApproving = approvingId === adv.id;
-                  const justActed = flashResult?.id === adv.id;
+                  const over = exceedsLimit(adv); const isApproving = approvingId === adv.id; const justActed = flashResult?.id === adv.id;
                   return (
                     <tr key={adv.id} className={`transition-colors ${justActed ? (flashResult?.type === 'approved' ? 'bg-green-50' : 'bg-red-50') : over ? 'bg-orange-50' : 'hover:bg-gray-50'}`}>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <p className="font-semibold text-gray-900">{adv.employeeName}</p>
-                        <p className="text-xs text-gray-400 font-mono">{adv.employeeCode}</p>
-                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap"><p className="font-semibold text-gray-900">{adv.employeeName}</p><p className="text-xs text-gray-400 font-mono">{adv.employeeCode}</p></td>
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{adv.employeePosition}</td>
-                      <td className="px-4 py-3 max-w-[160px]">
-                        <p className="text-xs text-gray-600 truncate">{adv.reason || <span className="italic text-gray-300">No reason</span>}</p>
-                      </td>
+                      <td className="px-4 py-3 max-w-[160px]"><p className="text-xs text-gray-600 truncate">{adv.reason || <span className="italic text-gray-300">No reason</span>}</p></td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`font-bold text-sm ${over ? 'text-orange-600' : 'text-gray-900'}`}>{fmt(adv.amount)}</span>
-                        {over && (
-                          <div className="flex items-center gap-1 mt-0.5">
-                            <AlertTriangle size={11} className="text-orange-500" />
-                            <span className="text-[10px] text-orange-500 font-semibold">Exceeds limit</span>
-                          </div>
-                        )}
+                        {over && <div className="flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="text-orange-500" /><span className="text-[10px] text-orange-500 font-semibold">Exceeds limit</span></div>}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className="text-xs font-semibold text-gray-700">{fmt(adv.allowedLimit)}</span>
-                        <p className="text-[10px] text-gray-400">Fixed per 15-day period</p>
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`text-sm font-bold ${adv.remainingAllowed <= 0 ? 'text-red-600' : 'text-green-700'}`}>{fmt(adv.remainingAllowed)}</span>
-                        {adv.pendingTotal > 0 && <p className="text-[10px] text-gray-400">{fmt(adv.pendingTotal)} already pending</p>}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <p className="text-xs text-gray-600">{adv.issuedByName}</p>
-                        <p className="text-[10px] text-gray-400">{adv.dateIssued}</p>
-                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap"><span className="text-xs font-semibold text-gray-700">{fmt(adv.allowedLimit)}</span><p className="text-[10px] text-gray-400">Fixed per 15-day period</p></td>
+                      <td className="px-4 py-3 whitespace-nowrap"><span className={`text-sm font-bold ${adv.remainingAllowed <= 0 ? 'text-red-600' : 'text-green-700'}`}>{fmt(adv.remainingAllowed)}</span>{adv.pendingTotal > 0 && <p className="text-[10px] text-gray-400">{fmt(adv.pendingTotal)} already pending</p>}</td>
+                      <td className="px-4 py-3 whitespace-nowrap"><p className="text-xs text-gray-600">{adv.issuedByName}</p><p className="text-[10px] text-gray-400">{adv.dateIssued}</p></td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {justActed ? (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${flashResult?.type === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            <CheckCircle2 size={12} />{flashResult?.type === 'approved' ? 'Approved' : 'Declined'}
-                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${flashResult?.type === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}><CheckCircle2 size={12} />{flashResult?.type === 'approved' ? 'Approved' : 'Declined'}</span>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <button onClick={() => handleApprove(adv)} disabled={isApproving}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg">
-                              <ThumbsUp size={13} />{isApproving ? '…' : 'Approve'}
-                            </button>
-                            <button onClick={() => setDecliningAdvance(adv)} disabled={isApproving}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-lg">
-                              <ThumbsDown size={13} />Decline
-                            </button>
+                            <button onClick={() => handleApprove(adv)} disabled={isApproving} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg"><ThumbsUp size={13} />{isApproving ? '…' : 'Approve'}</button>
+                            <button onClick={() => setDecliningAdvance(adv)} disabled={isApproving} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-lg"><ThumbsDown size={13} />Decline</button>
                           </div>
                         )}
                       </td>
@@ -602,7 +417,6 @@ function CashAdvanceApprovalPanel() {
             </table>
           </div>
         )}
-
         {pendingAdvances.length > 0 && (
           <div className="px-6 py-3 border-t border-gray-100 bg-amber-50 space-y-1.5">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px] text-gray-600">
@@ -622,11 +436,12 @@ function CashAdvanceApprovalPanel() {
 }
 
 // ─── Biometrics Upload Button ─────────────────────────────────────────────────
+// Uses Supabase Edge Function — works on ALL devices, no server URL needed
 function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [err, setErr] = useState("");
+  const [result, setResult]       = useState<any>(null);
+  const [err, setErr]             = useState("");
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -635,19 +450,16 @@ function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
 
     setUploading(true); setErr(""); setResult(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error("Not authenticated");
-
       const formData = new FormData();
       formData.append("attendance_file", file);
 
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"}/api/payroll/upload-attendance`,
-        { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` }, body: formData }
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Upload failed");
-      setResult(json);
+      const { data, error } = await supabase.functions.invoke("upload-attendance", {
+        body: formData,
+      });
+
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || "Upload failed");
+      setResult(data);
       onSuccess();
     } catch (e: any) {
       setErr(e.message);
@@ -665,16 +477,16 @@ function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
         <Upload size={16} className={uploading ? "animate-bounce" : ""} />
         {uploading ? "Importing…" : "Import Biometrics (.xls)"}
       </button>
-      {err && <p className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
+      {err && (
+        <div className="mt-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 space-y-1">
+          <p className="font-semibold">Import failed:</p><p>{err}</p>
+        </div>
+      )}
       {result && (
         <div className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 space-y-1">
           <p className="font-bold">✓ Import complete — {result.period?.start} to {result.period?.end}</p>
           <p>{result.summary?.matched} employees matched · {result.summary?.syncedToAttendance} synced to payroll</p>
-          {result.summary?.unmatched > 0 && (
-            <p className="text-orange-600 font-semibold">
-              ⚠ {result.summary.unmatched} unmatched employee numbers: {result.summary.unmatchedEmployeeNos?.join(", ")}
-            </p>
-          )}
+          {result.summary?.unmatched > 0 && <p className="text-orange-600 font-semibold">⚠ {result.summary.unmatched} unmatched: {result.summary.unmatchedNames?.join(", ")}</p>}
         </div>
       )}
     </div>
@@ -685,12 +497,12 @@ function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const AdminPayroll: React.FC = () => {
-  const [activeTab, setActiveTab]         = useState("Payroll Dashboard");
-  const [searchQuery, setSearchQuery]     = useState("");
+  const [activeTab, setActiveTab]           = useState("Payroll Dashboard");
+  const [searchQuery, setSearchQuery]       = useState("");
   const [showPeriodDrop, setShowPeriodDrop] = useState(false);
-  const [showCreatePeriod, setShowCreatePeriod] = useState(false);
-  const [editingLog, setEditingLog]       = useState<AttendanceLog | null>(null);
-  const [viewingRecord, setViewingRecord] = useState<PayrollRecord | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);   // ← Reset modal
+  const [editingLog, setEditingLog]         = useState<AttendanceLog | null>(null);
+  const [viewingRecord, setViewingRecord]   = useState<PayrollRecord | null>(null);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
 
   const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History"];
@@ -698,131 +510,36 @@ const AdminPayroll: React.FC = () => {
   const {
     periods, currentPeriod, activePeriodId, setSelectedPeriodId,
     attendanceLogs, payrollRecords, dashboardStats,
-    loading, error, computing, refresh,
-    createPeriod, updateAttendanceLog, computePayroll,
+    loading, error, computing, resetting, refresh,
+    updateAttendanceLog, computePayroll, resetPayroll,
     updatePayrollRecord, markPeriodComplete, markAllPaid,
   } = usePayrollData();
 
+  const filteredLogs    = attendanceLogs.filter(l => l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || l.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredRecords = payrollRecords.filter(r => r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) || r.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
-  const filteredLogs = attendanceLogs.filter(l =>
-    l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    l.employeeCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredRecords = payrollRecords.filter(r =>
-    r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.employeeCode.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // ── Dedicated print via hidden iframe (no new tab opens) ───────────────────
   const printWithIframe = (html: string) => {
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;';
     document.body.appendChild(iframe);
-    iframe.contentDocument!.open();
-    iframe.contentDocument!.write(html);
-    iframe.contentDocument!.close();
-    setTimeout(() => {
-      iframe.contentWindow!.focus();
-      iframe.contentWindow!.print();
-      setTimeout(() => document.body.removeChild(iframe), 1500);
-    }, 300);
+    iframe.contentDocument!.open(); iframe.contentDocument!.write(html); iframe.contentDocument!.close();
+    setTimeout(() => { iframe.contentWindow!.focus(); iframe.contentWindow!.print(); setTimeout(() => document.body.removeChild(iframe), 1500); }, 300);
   };
 
   const printPayrollTable = () => {
     if (!currentPeriod) return;
-    const rows = payrollRecords.map(rec => `
-      <tr>
-        <td>${rec.employeeName}</td>
-        <td>${rec.position}</td>
-        <td class="num">${fmt(rec.dailyRate)}</td>
-        <td class="ctr">${rec.daysPresent}</td>
-        <td class="num">${fmt(rec.basicPay)}</td>
-        <td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td>
-        <td class="num blu">${fmt(rec.grossIncome)}</td>
-        <td class="num red">-${fmt(rec.totalDeductions)}</td>
-        <td class="num grn">${fmt(rec.netPay)}</td>
-        <td class="ctr">${rec.status === 'paid' ? 'Paid' : 'Pending'}</td>
-      </tr>`).join('');
-    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title>
-    <style>
-      @page { size: landscape; margin: 15mm; }
-      body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 0; }
-      h2 { font-size: 14px; font-weight: bold; margin: 0 0 2px; }
-      p { font-size: 10px; color: #555; margin: 0 0 12px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #ccc; padding: 5px 7px; }
-      th { background: #f3f4f6; font-weight: 700; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: .4px; }
-      .num { text-align: right; } .ctr { text-align: center; }
-      .blu { color: #1d4ed8; font-weight: bold; } .red { color: #dc2626; } .grn { color: #16a34a; font-weight: bold; }
-      tfoot td { font-weight: bold; border-top: 2px solid #888; background: #f9fafb; }
-    </style></head><body>
-    <h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2>
-    <p>Period: ${periodLabel(currentPeriod)} &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-    <table>
-      <thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th>
-        <th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead>
-      <tbody>${rows}</tbody>
-      <tfoot><tr>
-        <td colspan="4">TOTALS (${payrollRecords.length} employees)</td>
-        <td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.basicPay, 0))}</td>
-        <td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0))}</td>
-        <td class="num blu">${fmt(payrollRecords.reduce((s, r) => s + r.grossIncome, 0))}</td>
-        <td class="num red">-${fmt(payrollRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td>
-        <td class="num grn">${fmt(payrollRecords.reduce((s, r) => s + r.netPay, 0))}</td>
-        <td></td>
-      </tr></tfoot>
-    </table></body></html>`);
+    const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">-${fmt(rec.totalDeductions)}</td><td class="num grn">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === 'paid' ? 'Paid' : 'Pending'}</td></tr>`).join('');
+    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${new Date().toLocaleDateString('en-PH',{day:'numeric',month:'long',year:'numeric'})}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s,r)=>s+r.basicPay,0))}</td><td class="num">${fmt(payrollRecords.reduce((s,r)=>s+r.regularOvertime+r.holidayOvertime+r.specialOvertime,0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s,r)=>s+r.grossIncome,0))}</td><td class="num red">-${fmt(payrollRecords.reduce((s,r)=>s+r.totalDeductions,0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s,r)=>s+r.netPay,0))}</td><td></td></tr></tfoot></table></body></html>`);
   };
 
   const printAttendanceLogs = () => {
     if (!currentPeriod) return;
-    const rows = attendanceLogs.map(log => `
-      <tr>
-        <td>${log.fullName}</td>
-        <td>${log.position}</td>
-        <td class="num">${log.workedHours}h</td>
-        <td class="num">${fmt(log.dailyRate)}</td>
-        <td class="ctr">${log.lateTimeslots}</td>
-        <td class="ctr">${log.earlyLeaveTimeslots}</td>
-        <td class="ctr">${log.regularOvertimeHours}/${log.holidayOvertimeHours}/${log.specialOvertimeHours}</td>
-        <td class="ctr">${log.businessTripDays}</td>
-        <td class="ctr">${log.absences}</td>
-        <td class="ctr">${log.onLeaveDays}</td>
-        <td class="num grn">${fmt(log.additionalPay)}</td>
-        <td class="num red">${fmt(log.deductionAmount)}</td>
-      </tr>`).join('');
-    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance — ${periodLabel(currentPeriod)}</title>
-    <style>
-      @page { size: landscape; margin: 12mm; }
-      body { font-family: Arial, sans-serif; font-size: 10px; color: #111; margin: 0; }
-      h2 { font-size: 13px; font-weight: bold; margin: 0 0 2px; }
-      p { font-size: 10px; color: #555; margin: 0 0 10px; }
-      table { width: 100%; border-collapse: collapse; }
-      th, td { border: 1px solid #ccc; padding: 4px 6px; }
-      th { background: #f3f4f6; font-weight: 700; text-align: left; font-size: 8.5px; text-transform: uppercase; }
-      .num { text-align: right; } .ctr { text-align: center; }
-      .grn { color: #16a34a; } .red { color: #dc2626; }
-    </style></head><body>
-    <h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2>
-    <p>Period: ${periodLabel(currentPeriod)} &nbsp;|&nbsp; Employees: ${attendanceLogs.length} &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString('en-PH', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-    <table>
-      <thead><tr>
-        <th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th>
-        <th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th>
-        <th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></body></html>`);
+    const rows = attendanceLogs.map(log => `<tr><td>${log.fullName}</td><td>${log.position}</td><td class="num">${log.workedHours}h</td><td class="num">${fmt(log.dailyRate)}</td><td class="ctr">${log.lateTimeslots}</td><td class="ctr">${log.earlyLeaveTimeslots}</td><td class="ctr">${log.regularOvertimeHours}/${log.holidayOvertimeHours}/${log.specialOvertimeHours}</td><td class="ctr">${log.businessTripDays}</td><td class="ctr">${log.absences}</td><td class="ctr">${log.onLeaveDays}</td><td class="num grn">${fmt(log.additionalPay)}</td><td class="num red">${fmt(log.deductionAmount)}</td></tr>`).join('');
+    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0}h2{font-size:13px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:8.5px;text-transform:uppercase}.num{text-align:right}.ctr{text-align:center}.grn{color:#16a34a}.red{color:#dc2626}</style></head><body><h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2><p>Period: ${periodLabel(currentPeriod)} | Employees: ${attendanceLogs.length} | Printed: ${new Date().toLocaleDateString('en-PH',{day:'numeric',month:'long',year:'numeric'})}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th><th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th><th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
   };
 
-  const toggleExpand = (id: string) => {
-    const s = new Set(expandedPeriods);
-    s.has(id) ? s.delete(id) : s.add(id);
-    setExpandedPeriods(s);
-  };
+  const toggleExpand = (id: string) => { const s = new Set(expandedPeriods); s.has(id) ? s.delete(id) : s.add(id); setExpandedPeriods(s); };
 
-  // ── Loading state ──────────────────────────────────────────────────────────
   if (loading && periods.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -838,18 +555,47 @@ const AdminPayroll: React.FC = () => {
     <div className="max-w-7xl mx-auto space-y-6">
 
       {/* ── Modals ── */}
-      {showCreatePeriod && (
-        <CreatePeriodModal onClose={() => setShowCreatePeriod(false)} onCreate={createPeriod} />
-      )}
       {editingLog && activePeriodId && (
-        <AttendanceEditModal
-          log={editingLog} periodId={activePeriodId}
-          onClose={() => setEditingLog(null)}
-          onSave={async d => { const r = await updateAttendanceLog(d); return r; }}
-        />
+        <AttendanceEditModal log={editingLog} periodId={activePeriodId} onClose={() => setEditingLog(null)} onSave={async d => { const r = await updateAttendanceLog(d); return r; }} />
       )}
-      {viewingRecord && (
-        <PayslipModal record={viewingRecord} onClose={() => setViewingRecord(null)} />
+      {viewingRecord && <PayslipModal record={viewingRecord} onClose={() => setViewingRecord(null)} />}
+
+      {/* ── Reset Confirm Modal ── */}
+      {showResetConfirm && currentPeriod && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowResetConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowResetConfirm(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                <RefreshCw size={22} className="text-orange-600"/>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Reset Payroll Computation</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone automatically</p>
+              </div>
+            </div>
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
+              <p className="font-semibold text-orange-800">Period: {periodLabel(currentPeriod)}</p>
+              <p className="text-orange-700">This will:</p>
+              <ul className="text-orange-700 space-y-1 ml-4 list-disc text-xs">
+                <li>Delete all payroll records for this period</li>
+                <li>Reset any Cash Advances issued this period → back to <strong>Approved</strong></li>
+                <li>Restore any CA deductions applied this period → back to pending</li>
+              </ul>
+              <p className="text-xs text-orange-600 font-semibold mt-2">After resetting, select the correct period and click Compute Payroll.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowResetConfirm(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
+              <button
+                onClick={async () => { if (!activePeriodId) return; setShowResetConfirm(false); await resetPayroll(activePeriodId); }}
+                disabled={resetting}
+                className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+                <RefreshCw size={16} className={resetting ? 'animate-spin' : ''}/>
+                {resetting ? 'Resetting…' : 'Reset This Period'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Page Header ── */}
@@ -858,15 +604,9 @@ const AdminPayroll: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Payroll Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage employee payroll, attendance, and salary computations</p>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={refresh} className="p-2 hover:bg-gray-100 rounded-lg" title="Refresh">
-            <RefreshCw size={18} className={`text-gray-600 ${loading ? "animate-spin" : ""}`} />
-          </button>
-          <button onClick={() => setShowCreatePeriod(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold shadow-sm">
-            <Plus size={16} /> New Period
-          </button>
-        </div>
+        <button onClick={refresh} className="p-2 hover:bg-gray-100 rounded-lg" title="Refresh">
+          <RefreshCw size={18} className={`text-gray-600 ${loading ? "animate-spin" : ""}`} />
+        </button>
       </div>
 
       {/* ── Period Selector ── */}
@@ -874,62 +614,44 @@ const AdminPayroll: React.FC = () => {
         <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm flex flex-wrap items-center gap-3">
           <span className="text-sm font-semibold text-gray-700">Active Period:</span>
           <div className="relative">
-            <button onClick={() => setShowPeriodDrop(v => !v)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 hover:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-[240px]">
-              {currentPeriod ? periodLabel(currentPeriod) : "Select a period"}
-              <ChevronDown size={16} className="ml-auto" />
+            <button onClick={() => setShowPeriodDrop(v => !v)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white flex items-center gap-2 hover:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-[240px]">
+              {currentPeriod ? periodLabel(currentPeriod) : "Select a period"}<ChevronDown size={16} className="ml-auto" />
             </button>
             {showPeriodDrop && (
               <div className="absolute top-full mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg z-20 overflow-hidden">
                 {periods.map(p => (
-                  <button key={p.id} onClick={() => { setSelectedPeriodId(p.id); setShowPeriodDrop(false); }}
-                    className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${p.id === activePeriodId ? "bg-cyan-50 font-semibold text-cyan-700" : ""}`}>
+                  <button key={p.id} onClick={() => { setSelectedPeriodId(p.id); setShowPeriodDrop(false); }} className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${p.id === activePeriodId ? "bg-cyan-50 font-semibold text-cyan-700" : ""}`}>
                     {periodLabel(p)}
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${p.status === "complete" ? "bg-green-100 text-green-700" : p.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
-                      {p.status}
-                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${p.status === "complete" ? "bg-green-100 text-green-700" : p.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{p.status}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
-          {currentPeriod && (
-            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${currentPeriod.status === "complete" ? "bg-green-100 text-green-700" : currentPeriod.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
-              {currentPeriod.status.charAt(0).toUpperCase() + currentPeriod.status.slice(1)}
-            </span>
-          )}
+          {currentPeriod && <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${currentPeriod.status === "complete" ? "bg-green-100 text-green-700" : currentPeriod.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{currentPeriod.status.charAt(0).toUpperCase() + currentPeriod.status.slice(1)}</span>}
         </div>
       )}
 
-      {/* ── Empty state ── */}
+      {/* ── Empty state — no period creation button, import XLS instead ── */}
       {periods.length === 0 && (
         <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
-          <Calendar size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500 font-medium mb-4">No payroll periods yet</p>
-          <button onClick={() => setShowCreatePeriod(true)}
-            className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold">
-            Create First Period
-          </button>
+          <Upload size={40} className="mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-700 font-semibold mb-1">No payroll periods yet</p>
+          <p className="text-sm text-gray-400 mb-2">Payroll periods are created automatically when you import a biometrics XLS file.</p>
+          <p className="text-xs text-cyan-600 font-medium">Go to the Attendance Logs tab → Import Biometrics (.xls) to get started.</p>
         </div>
       )}
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{error}</div>
-      )}
+      {error && <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{error}</div>}
 
       {/* ── Tab Navigation ── */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>
-            {tab}
-          </button>
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>{tab}</button>
         ))}
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════════════
-          TAB: PAYROLL DASHBOARD
-      ════════════════════════════════════════════════════════════════════════ */}
+      {/* ════ TAB: PAYROLL DASHBOARD ════ */}
       {activeTab === "Payroll Dashboard" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -938,33 +660,24 @@ const AdminPayroll: React.FC = () => {
             <StatCard label="Net Payroll" value={fmt(dashboardStats.netPayroll)} sub="After deductions" color="text-green-600" />
             <StatCard label="Total Deductions" value={fmt(dashboardStats.totalDeductions)} sub="Taxes & benefits" color="text-red-500" />
           </div>
-
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Payroll Breakdown */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-lg font-bold text-gray-900 mb-5">Payroll Breakdown</h3>
               {payrollRecords.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-sm text-gray-400 mb-3">No payroll computed yet for this period.</p>
-                  {attendanceLogs.length > 0 && (
-                    <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing}
-                      className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                      {computing ? "Computing…" : "Compute Payroll"}
-                    </button>
-                  )}
+                  {attendanceLogs.length > 0 && <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing} className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{computing ? "Computing…" : "Compute Payroll"}</button>}
                 </div>
               ) : (
                 <div className="space-y-3">
                   {[
-                    { label: "Basic Pay", val: payrollRecords.reduce((s, r) => s + r.basicPay, 0) },
-                    { label: "OT & Holiday Pay", val: payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0) },
-                    { label: "Total Deductions", val: payrollRecords.reduce((s, r) => s + r.totalDeductions, 0), isDeduction: true },
+                    { label: "Basic Pay", val: payrollRecords.reduce((s,r)=>s+r.basicPay,0) },
+                    { label: "OT & Holiday Pay", val: payrollRecords.reduce((s,r)=>s+r.regularOvertime+r.holidayOvertime+r.specialOvertime,0) },
+                    { label: "Total Deductions", val: payrollRecords.reduce((s,r)=>s+r.totalDeductions,0), isDeduction: true },
                   ].map(({ label, val, isDeduction }) => (
                     <div key={label} className="flex items-center justify-between px-4 py-3 rounded-lg bg-gray-50">
                       <span className="text-sm font-semibold text-gray-700">{label}</span>
-                      <span className={`text-sm font-bold ${isDeduction ? "text-red-600" : "text-gray-900"}`}>
-                        {isDeduction ? "-" : ""}{fmt(val)}
-                      </span>
+                      <span className={`text-sm font-bold ${isDeduction ? "text-red-600" : "text-gray-900"}`}>{isDeduction ? "-" : ""}{fmt(val)}</span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-4 py-4 rounded-lg bg-green-200 border-2 border-green-300">
@@ -980,74 +693,50 @@ const AdminPayroll: React.FC = () => {
               <h3 className="text-lg font-bold text-gray-900 mb-5">Quick Actions</h3>
               <div className="space-y-3">
                 {[
-                  { icon: RefreshCw, color: "text-blue-600", bg: "hover:bg-blue-50 hover:border-blue-300", label: "Compute Payroll", sub: "Auto-calculate salaries from attendance logs", action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 },
-                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid", sub: "Mark all payroll records as disbursed", action: () => activePeriodId && markAllPaid(activePeriodId), disabled: !activePeriodId || payrollRecords.length === 0 },
-                  { icon: Calendar, color: "text-purple-600", bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period", sub: "Mark this payroll period as complete", action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || currentPeriod?.status === "complete" },
+                  { icon: RefreshCw, color: "text-blue-600",   bg: "hover:bg-blue-50 hover:border-blue-300",   label: "Compute Payroll",   sub: "Auto-calculate salaries from attendance logs",        action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 },
+                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid",  sub: "Mark all payroll records as disbursed",               action: () => activePeriodId && markAllPaid(activePeriodId),   disabled: !activePeriodId || payrollRecords.length === 0 },
+                  { icon: Calendar,  color: "text-purple-600",  bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period",     sub: "Mark this payroll period as complete",                action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || currentPeriod?.status === 'complete' },
+                  { icon: RefreshCw, color: "text-orange-600",  bg: "hover:bg-orange-50 hover:border-orange-300", label: "Reset & Recompute", sub: "Undo this period's computation — select correct period first", action: () => setShowResetConfirm(true), disabled: !activePeriodId || payrollRecords.length === 0 },
                 ].map(({ icon: Icon, color, bg, label, sub, action, disabled }) => (
-                  <button key={label} onClick={action} disabled={disabled}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 ${bg} transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed`}>
+                  <button key={label} onClick={action} disabled={disabled} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 ${bg} transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed`}>
                     <Icon size={18} className={color} />
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{label}</p>
-                      <p className="text-xs text-gray-500">{sub}</p>
-                    </div>
+                    <div><p className="text-sm font-semibold text-gray-900">{label}</p><p className="text-xs text-gray-500">{sub}</p></div>
                   </button>
                 ))}
               </div>
             </div>
           </div>
-
-          {/* ── Cash Advance Approval Panel ── */}
           <CashAdvanceApprovalPanel />
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════════
-          TAB: ATTENDANCE LOGS
-      ════════════════════════════════════════════════════════════════════════ */}
+      {/* ════ TAB: ATTENDANCE LOGS ════ */}
       {activeTab === "Attendance Logs" && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="text" placeholder="Search by name or code…" value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                <input type="text" placeholder="Search by name or code…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
               <BiometricsUploadButton onSuccess={refresh} />
-              <button onClick={printAttendanceLogs}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                <Printer size={16} /> Print
-              </button>
+              <button onClick={printAttendanceLogs} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"><Printer size={16} /> Print</button>
             </div>
           </div>
-
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    {["Employee", "Position", "Worked Hrs", "Daily Rate", "Late", "Early Leave", "OT (R/H/S)", "Biz Trip", "Absent", "On Leave", "Add. Pay", "Deduction", "Actions"].map(h => (
-                      <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
+                  <tr>{["Employee","Position","Worked Hrs","Daily Rate","Late","Early Leave","OT (R/H/S)","Biz Trip","Absent","On Leave","Add. Pay","Deduction","Actions"].map(h => <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>)}</tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredLogs.length === 0 ? (
-                    <tr><td colSpan={13} className="text-center py-12 text-gray-400 text-sm">
-                      {attendanceLogs.length === 0
-                        ? 'No data yet. Import a biometrics .xls file to populate attendance.'
-                        : "No results match your search."}
-                    </td></tr>
+                    <tr><td colSpan={13} className="text-center py-12 text-gray-400 text-sm">{attendanceLogs.length === 0 ? 'No data yet. Import a biometrics .xls file to populate attendance.' : "No results match your search."}</td></tr>
                   ) : filteredLogs.map(log => (
                     <tr key={log.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{log.fullName}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{log.position}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="font-semibold">{log.workedHours}</span>
-                        <span className="text-xs text-gray-400 block">{log.requiredHours}h req.</span>
-                      </td>
+                      <td className="px-4 py-3 text-center"><span className="font-semibold">{log.workedHours}</span><span className="text-xs text-gray-400 block">{log.requiredHours}h req.</span></td>
                       <td className="px-4 py-3 text-center text-xs">{fmt(log.dailyRate)}</td>
                       <td className="px-4 py-3 text-center">{log.lateTimeslots}<span className="text-xs text-gray-400 block">×30m</span></td>
                       <td className="px-4 py-3 text-center">{log.earlyLeaveTimeslots}<span className="text-xs text-gray-400 block">×30m</span></td>
@@ -1057,18 +746,13 @@ const AdminPayroll: React.FC = () => {
                       <td className="px-4 py-3 text-center">{log.onLeaveDays}</td>
                       <td className="px-4 py-3 text-center text-green-700 text-xs">{fmt(log.additionalPay)}</td>
                       <td className="px-4 py-3 text-center text-red-600 text-xs">{fmt(log.deductionAmount)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button onClick={() => setEditingLog(log)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="Edit">
-                          <Edit2 size={16} className="text-cyan-600" />
-                        </button>
-                      </td>
+                      <td className="px-4 py-3 text-center"><button onClick={() => setEditingLog(log)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="Edit"><Edit2 size={16} className="text-cyan-600" /></button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
-
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Total Work Hours" value={`${dashboardStats.totalWorkHours.toFixed(2)}h`} color="text-blue-600" />
             <StatCard label="Total OT Hours" value={`${dashboardStats.totalOvertimeHours.toFixed(2)}h`} color="text-green-600" />
@@ -1078,29 +762,22 @@ const AdminPayroll: React.FC = () => {
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════════
-          TAB: SALARY COMPUTATION
-      ════════════════════════════════════════════════════════════════════════ */}
+      {/* ════ TAB: SALARY COMPUTATION ════ */}
       {activeTab === "Salary Computation" && (
         <div className="space-y-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
             <div className="flex flex-col md:flex-row gap-3">
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type="text" placeholder="Search employee…" value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+                <input type="text" placeholder="Search employee…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
-              <button onClick={() => activePeriodId && computePayroll(activePeriodId)}
-                disabled={computing || attendanceLogs.length === 0 || !activePeriodId}
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                <RefreshCw size={16} className={computing ? "animate-spin" : ""} />
-                {computing ? "Computing…" : "Recompute All"}
+              <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing || attendanceLogs.length === 0 || !activePeriodId} className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                <RefreshCw size={16} className={computing ? "animate-spin" : ""} />{computing ? "Computing…" : "Recompute"}
               </button>
-              <button onClick={printPayrollTable}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                <Printer size={16} /> Print All
+              <button onClick={() => setShowResetConfirm(true)} disabled={resetting || payrollRecords.length === 0} title="Undo this period's computation so you can recompute the correct one" className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                <RefreshCw size={16} className={resetting ? "animate-spin" : ""} />{resetting ? "Resetting…" : "Reset"}
               </button>
+              <button onClick={printPayrollTable} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"><Printer size={16} /> Print</button>
             </div>
           </div>
 
@@ -1109,11 +786,7 @@ const AdminPayroll: React.FC = () => {
               <AlertCircle size={36} className="mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 font-medium mb-1">No payroll computed yet</p>
               <p className="text-sm text-gray-400 mb-4">Add employees with attendance logs first, then compute.</p>
-              <button onClick={() => activePeriodId && computePayroll(activePeriodId)}
-                disabled={computing || attendanceLogs.length === 0}
-                className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                {computing ? "Computing…" : "Compute Payroll Now"}
-              </button>
+              <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing || attendanceLogs.length === 0} className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{computing ? "Computing…" : "Compute Payroll Now"}</button>
             </div>
           ) : (
             <>
@@ -1121,11 +794,7 @@ const AdminPayroll: React.FC = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        {["Employee", "Position", "Daily Rate", "Days", "Basic Pay", "OT Pay", "Gross", "Deductions", "Net Pay", "Status", "Actions"].map(h => (
-                          <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
+                      <tr>{["Employee","Position","Daily Rate","Days","Basic Pay","OT Pay","Gross","Deductions","Net Pay","Status","Actions"].map(h => <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>)}</tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {filteredRecords.map(rec => (
@@ -1139,22 +808,11 @@ const AdminPayroll: React.FC = () => {
                           <td className="px-4 py-3 font-semibold text-blue-700 text-xs">{fmt(rec.grossIncome)}</td>
                           <td className="px-4 py-3 text-red-600 text-xs">-{fmt(rec.totalDeductions)}</td>
                           <td className="px-4 py-3 font-bold text-green-700 text-xs">{fmt(rec.netPay)}</td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                              {rec.status === "paid" ? "Paid" : "Pending"}
-                            </span>
-                          </td>
+                          <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{rec.status === "paid" ? "Paid" : "Pending"}</span></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
-                              <button onClick={() => setViewingRecord(rec)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View payslip">
-                                <Eye size={15} className="text-cyan-600" />
-                              </button>
-                              {rec.status !== "paid" && (
-                                <button onClick={() => updatePayrollRecord(rec.id, { status: "paid" })}
-                                  className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid">
-                                  <CheckCircle2 size={15} className="text-green-600" />
-                                </button>
-                              )}
+                              <button onClick={() => setViewingRecord(rec)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View payslip"><Eye size={15} className="text-cyan-600" /></button>
+                              {rec.status !== "paid" && <button onClick={() => updatePayrollRecord(rec.id, { status: "paid" })} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid"><CheckCircle2 size={15} className="text-green-600" /></button>}
                             </div>
                           </td>
                         </tr>
@@ -1166,130 +824,76 @@ const AdminPayroll: React.FC = () => {
 
               {/* Formula reference */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-base font-bold text-gray-900">Computation Formulas</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">VTA Link Printing Services Payroll Register — 15-day period</p>
-                  </div>
+                <div className="px-6 py-4 border-b bg-gray-50">
+                  <h3 className="text-base font-bold text-gray-900">Computation Formulas</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">VTA Link Printing Services Payroll Register — 15-day period</p>
                 </div>
-
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-
-                  {/* ── EARNINGS ── */}
                   <div>
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">📊 Earnings</p>
                     <div className="space-y-3">
-
                       {[
-                        { step: 1, label: "Daily Rate", formula: "from Employee profile (stored directly)", note: "Set in Management → Employee List → Hourly Rate field", color: "bg-gray-50 border-gray-200" },
-                        { step: 2, label: "Days Present", formula: "XLS Attend Actual field", note: 'e.g. "22/16" → 16 days attended', color: "bg-gray-50 border-gray-200" },
-                        { step: 3, label: "Basic Pay", formula: "Daily Rate × Days Present", note: "Core salary for the period", color: "bg-blue-50 border-blue-200" },
-                        { step: 4, label: "Regular Holiday Pay", formula: "Daily Rate × 2.00", note: "+100% extra on holiday worked", color: "bg-indigo-50 border-indigo-200" },
-                        { step: 5, label: "Special Holiday Pay", formula: "Daily Rate × 1.30", note: "+30% extra on special holiday", color: "bg-indigo-50 border-indigo-200" },
-                        { step: 6, label: "Regular OT", formula: "(Daily Rate ÷ 8) × 1.25 × OT hours", note: "Source: XLS Overtime Regular column", color: "bg-green-50 border-green-200" },
-                        { step: 7, label: "Regular Holiday OT", formula: "(Daily Rate ÷ 8) × 1.60 × OT hours", note: "", color: "bg-green-50 border-green-200" },
-                        { step: 8, label: "Special Holiday OT", formula: "(Daily Rate ÷ 8) × 1.30 × OT hours", note: "Source: XLS Overtime Special column", color: "bg-green-50 border-green-200" },
-                      ].map(({ step, label, formula, note, color }) => (
+                        {step:1,label:"Daily Rate",formula:"from Employee profile (stored directly)",note:"Set in Management → Employee List → Hourly Rate field",color:"bg-gray-50 border-gray-200"},
+                        {step:2,label:"Days Present",formula:"XLS Attend Actual field",note:'e.g. "22/16" → 16 days attended',color:"bg-gray-50 border-gray-200"},
+                        {step:3,label:"Basic Pay",formula:"Daily Rate × Days Present",note:"Core salary for the period",color:"bg-blue-50 border-blue-200"},
+                        {step:4,label:"Regular Holiday Pay",formula:"Daily Rate × 2.00",note:"+100% extra on holiday worked",color:"bg-indigo-50 border-indigo-200"},
+                        {step:5,label:"Special Holiday Pay",formula:"Daily Rate × 1.30",note:"+30% extra on special holiday",color:"bg-indigo-50 border-indigo-200"},
+                        {step:6,label:"Regular OT",formula:"(Daily Rate ÷ 8) × 1.25 × OT hours",note:"Source: XLS Overtime Regular column",color:"bg-green-50 border-green-200"},
+                        {step:7,label:"Regular Holiday OT",formula:"(Daily Rate ÷ 8) × 1.60 × OT hours",note:"",color:"bg-green-50 border-green-200"},
+                        {step:8,label:"Special Holiday OT",formula:"(Daily Rate ÷ 8) × 1.30 × OT hours",note:"Source: XLS Overtime Special column",color:"bg-green-50 border-green-200"},
+                      ].map(({step,label,formula,note,color}) => (
                         <div key={step} className={`flex gap-3 p-3 rounded-lg border ${color}`}>
                           <div className="w-6 h-6 rounded-full bg-gray-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800">{label}</p>
-                            <p className="text-xs font-mono text-gray-700 mt-0.5">= {formula}</p>
-                            {note && <p className="text-[10px] text-gray-400 mt-0.5">{note}</p>}
-                          </div>
+                          <div className="min-w-0"><p className="text-xs font-bold text-gray-800">{label}</p><p className="text-xs font-mono text-gray-700 mt-0.5">= {formula}</p>{note && <p className="text-[10px] text-gray-400 mt-0.5">{note}</p>}</div>
                         </div>
                       ))}
-
                       <div className="flex gap-3 p-3 rounded-lg border-2 border-gray-400 bg-gray-100">
                         <div className="w-6 h-6 rounded-full bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
-                        <div>
-                          <p className="text-xs font-bold text-gray-900">GROSS INCOME</p>
-                          <p className="text-xs font-mono text-gray-700 mt-0.5">= Basic Pay + Holiday Pay + OT Pay + Additional Pay</p>
-                        </div>
+                        <div><p className="text-xs font-bold text-gray-900">GROSS INCOME</p><p className="text-xs font-mono text-gray-700 mt-0.5">= Basic Pay + Holiday Pay + OT Pay + Additional Pay</p></div>
                       </div>
                     </div>
                   </div>
-
-                  {/* ── DEDUCTIONS ── */}
                   <div>
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">📉 Deductions</p>
                     <div className="space-y-3">
-
                       {[
-                        { step: 9,  label: "Tardy / Undertime", formula: "(Daily Rate ÷ 8) × 0.5 × Timeslots", note: "1 timeslot = 30 min late/early. Source: XLS Late Times column", color: "bg-red-50 border-red-200" },
-                        { step: 10, label: "PhilHealth", formula: "(Daily Rate × 26) × 3% ÷ 2", note: "Employee share only, rounded to ₱5. e.g. ₱635/day → ₱250", color: "bg-orange-50 border-orange-200" },
-                        { step: 11, label: "HDMF (Pag-IBIG)", formula: "₱200.00 fixed per period", note: "Constant deduction every 15 days", color: "bg-orange-50 border-orange-200" },
-                        { step: 12, label: "Withholding Tax", formula: "₱0.00 (below threshold)", note: "BIR applies when monthly income > ₱20,833", color: "bg-yellow-50 border-yellow-200" },
-                        { step: 13, label: "Cash Advance (Deduction)", formula: "Sum of PREVIOUS period's issued CAs", note: "Period N: CA issued to employee → Period N+1: deducted. Limit: ₱2,000/period. Employee blocked from CA in the period immediately after receiving one.", color: "bg-amber-50 border-amber-200" },
-                      ].map(({ step, label, formula, note, color }) => (
+                        {step:9, label:"Tardy / Undertime",formula:"(Daily Rate ÷ 8) × 0.5 × Timeslots",note:"1 timeslot = 30 min late/early. Source: XLS Late Times column",color:"bg-red-50 border-red-200"},
+                        {step:10,label:"PhilHealth",formula:"(Daily Rate × 26) × 3% ÷ 2",note:"Employee share only, rounded to ₱5. e.g. ₱635/day → ₱250",color:"bg-orange-50 border-orange-200"},
+                        {step:11,label:"HDMF (Pag-IBIG)",formula:"₱200.00 fixed per period",note:"Constant deduction every 15 days",color:"bg-orange-50 border-orange-200"},
+                        {step:12,label:"Withholding Tax",formula:"₱0.00 (below threshold)",note:"BIR applies when monthly income > ₱20,833",color:"bg-yellow-50 border-yellow-200"},
+                        {step:13,label:"Cash Advance (Deduction)",formula:"Sum of PREVIOUS period's issued CAs",note:"Period N: CA issued → Period N+1: deducted. Limit: ₱2,000/period.",color:"bg-amber-50 border-amber-200"},
+                      ].map(({step,label,formula,note,color}) => (
                         <div key={step} className={`flex gap-3 p-3 rounded-lg border ${color}`}>
                           <div className="w-6 h-6 rounded-full bg-gray-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-gray-800">{label}</p>
-                            <p className="text-xs font-mono text-gray-700 mt-0.5">= {formula}</p>
-                            {note && <p className="text-[10px] text-gray-400 mt-0.5">{note}</p>}
-                          </div>
+                          <div className="min-w-0"><p className="text-xs font-bold text-gray-800">{label}</p><p className="text-xs font-mono text-gray-700 mt-0.5">= {formula}</p>{note && <p className="text-[10px] text-gray-400 mt-0.5">{note}</p>}</div>
                         </div>
                       ))}
-
                       <div className="flex gap-3 p-3 rounded-lg border-2 border-gray-400 bg-gray-100">
                         <div className="w-6 h-6 rounded-full bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
-                        <div>
-                          <p className="text-xs font-bold text-gray-900">NET PAY</p>
-                          <p className="text-xs font-mono text-gray-700 mt-0.5">= Gross Income − Total Deductions</p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">SSS excluded — not in VTA Link payroll format</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Data sources */}
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <p className="text-[10px] font-bold text-blue-700 mb-2 uppercase tracking-wide">📁 XLS Data Sources (Summary Tab)</p>
-                      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] text-blue-700">
-                        {[
-                          ["Work Hrs. Actual", "Worked hours"],
-                          ["Attend Actual", "Days present"],
-                          ["Late Times / Min", "Tardy timeslots"],
-                          ["Overtime Regular", "Regular OT hrs"],
-                          ["Overtime Special", "Special OT hrs"],
-                          ["Absence", "Absent days"],
-                        ].map(([col, desc]) => (
-                          <span key={col}><span className="font-mono bg-blue-100 px-1 rounded">{col}</span> → {desc}</span>
-                        ))}
+                        <div><p className="text-xs font-bold text-gray-900">NET PAY</p><p className="text-xs font-mono text-gray-700 mt-0.5">= Gross Income − Total Deductions</p><p className="text-[10px] text-gray-400 mt-0.5">SSS excluded — not in VTA Link payroll format</p></div>
                       </div>
                     </div>
                   </div>
-
                 </div>
-              </div>            </>
+              </div>
+            </>
           )}
         </div>
       )}
 
-      {/* ════════════════════════════════════════════════════════════════════════
-          TAB: SALARY HISTORY
-      ════════════════════════════════════════════════════════════════════════ */}
+      {/* ════ TAB: SALARY HISTORY ════ */}
       {activeTab === "Salary History" && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">{periods.length} payroll period{periods.length !== 1 ? "s" : ""} total</p>
-            <button onClick={printPayrollTable}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
-              <Printer size={16} /> Print History
-            </button>
+            <button onClick={printPayrollTable} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"><Printer size={16} /> Print History</button>
           </div>
-
           {periods.length === 0 ? (
-            <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
-              <Clock size={36} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No payroll periods found.</p>
-            </div>
+            <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center"><Clock size={36} className="mx-auto text-gray-300 mb-3" /><p className="text-gray-500">No payroll periods found.</p></div>
           ) : (
             <div className="space-y-4">
               {periods.map(period => {
                 const isExpanded = expandedPeriods.has(period.id);
-                // Get records for this specific period from the currently loaded ones
-                // (full history would need a separate query — shown as period summary)
                 return (
                   <div key={period.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex items-center justify-between">
@@ -1297,39 +901,22 @@ const AdminPayroll: React.FC = () => {
                         <Calendar size={20} className="text-gray-500" />
                         <div>
                           <p className="text-sm font-bold text-gray-900">{periodLabel(period)}</p>
-                          {period.payDate && (
-                            <p className="text-xs text-gray-500">Pay Date: {new Date(period.payDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</p>
-                          )}
+                          {period.payDate && <p className="text-xs text-gray-500">Pay Date: {new Date(period.payDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</p>}
                           <p className="text-xs text-gray-400">Created: {period.createdAt}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${period.status === "complete" ? "bg-green-100 text-green-700" : period.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
-                          {period.status.charAt(0).toUpperCase() + period.status.slice(1)}
-                        </span>
-                        <button onClick={() => { setSelectedPeriodId(period.id); setActiveTab("Salary Computation"); }}
-                          className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View computation">
-                          <Eye size={18} className="text-cyan-600" />
-                        </button>
-                        <button onClick={() => toggleExpand(period.id)}
-                          className="p-1.5 hover:bg-gray-200 rounded-lg">
-                          {isExpanded ? <ChevronUp size={18} className="text-gray-600" /> : <ChevronDown size={18} className="text-gray-600" />}
-                        </button>
+                        <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${period.status === "complete" ? "bg-green-100 text-green-700" : period.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{period.status.charAt(0).toUpperCase() + period.status.slice(1)}</span>
+                        <button onClick={() => { setSelectedPeriodId(period.id); setActiveTab("Salary Computation"); }} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View computation"><Eye size={18} className="text-cyan-600" /></button>
+                        <button onClick={() => toggleExpand(period.id)} className="p-1.5 hover:bg-gray-200 rounded-lg">{isExpanded ? <ChevronUp size={18} className="text-gray-600" /> : <ChevronDown size={18} className="text-gray-600" />}</button>
                       </div>
                     </div>
-
                     {isExpanded && period.id === activePeriodId && payrollRecords.length > 0 && (
                       <div className="p-6">
                         <h4 className="text-sm font-bold text-gray-900 mb-3">Employee Payslips — {periodLabel(period)}</h4>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs">
-                            <thead className="bg-gray-50 border-b border-gray-200">
-                              <tr>
-                                {["Employee", "Position", "Gross Income", "Deductions", "Net Pay", "Status", "Actions"].map(h => (
-                                  <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
+                            <thead className="bg-gray-50 border-b border-gray-200"><tr>{["Employee","Position","Gross Income","Deductions","Net Pay","Status","Actions"].map(h => <th key={h} className="px-3 py-2 text-left font-semibold text-gray-700">{h}</th>)}</tr></thead>
                             <tbody className="divide-y divide-gray-100">
                               {payrollRecords.map(rec => (
                                 <tr key={rec.id} className="hover:bg-gray-50">
@@ -1338,16 +925,8 @@ const AdminPayroll: React.FC = () => {
                                   <td className="px-3 py-2 text-blue-600 font-semibold">{fmt(rec.grossIncome)}</td>
                                   <td className="px-3 py-2 text-red-600 font-semibold">-{fmt(rec.totalDeductions)}</td>
                                   <td className="px-3 py-2 text-green-600 font-semibold">{fmt(rec.netPay)}</td>
-                                  <td className="px-3 py-2">
-                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                                      {rec.status === "paid" ? "Paid" : "Pending"}
-                                    </span>
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    <button onClick={() => setViewingRecord(rec)} className="p-1 hover:bg-gray-200 rounded" title="View payslip">
-                                      <Eye size={14} className="text-gray-600" />
-                                    </button>
-                                  </td>
+                                  <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{rec.status === "paid" ? "Paid" : "Pending"}</span></td>
+                                  <td className="px-3 py-2"><button onClick={() => setViewingRecord(rec)} className="p-1 hover:bg-gray-200 rounded" title="View payslip"><Eye size={14} className="text-gray-600" /></button></td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1358,10 +937,7 @@ const AdminPayroll: React.FC = () => {
                     {isExpanded && period.id !== activePeriodId && (
                       <div className="p-6 text-center">
                         <p className="text-sm text-gray-400 mb-3">Switch to this period to view detailed records.</p>
-                        <button onClick={() => { setSelectedPeriodId(period.id); setActiveTab("Salary Computation"); }}
-                          className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold">
-                          View This Period
-                        </button>
+                        <button onClick={() => { setSelectedPeriodId(period.id); setActiveTab("Salary Computation"); }} className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold">View This Period</button>
                       </div>
                     )}
                   </div>
@@ -1371,7 +947,6 @@ const AdminPayroll: React.FC = () => {
           )}
         </div>
       )}
-
     </div>
   );
 };
