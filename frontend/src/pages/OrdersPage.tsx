@@ -33,7 +33,7 @@ export const OrdersPage: React.FC = () => {
   
   const itemsPerPage = 6;
 
-  const { orders, loading, refresh, recordPayment } = useOrdersData();
+  const { orders, loading, refresh, recordPayment, acceptFinalDesignAsCustomer } = useOrdersData();
 
   // Derive the full order object from the current orders array.
   // This always reflects the latest data without needing a useEffect sync.
@@ -130,6 +130,14 @@ export const OrdersPage: React.FC = () => {
     }
   };
 
+  const handleAcceptFinalDesign = async (order: Order) => {
+    const r = await acceptFinalDesignAsCustomer(order.id);
+    if (!r.success) {
+      throw new Error(r.error || "Failed to accept final design");
+    }
+    await refresh();
+  };
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -210,6 +218,7 @@ export const OrdersPage: React.FC = () => {
           isOpen={showDetails} 
           order={selectedOrder} 
           onClose={() => setShowDetails(false)}
+          onAcceptFinalDesign={handleAcceptFinalDesign}
           onPay={(order) => {
             setShowDetails(false);
             handlePayOrder(order);
