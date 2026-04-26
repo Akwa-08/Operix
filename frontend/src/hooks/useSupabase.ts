@@ -206,9 +206,64 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       const dbStatus = status.toLowerCase().replace(/ /g, '_');
       return safe(async () => {
         await db.updateOrder(orderId, { status: dbStatus });
-        if (dbStatus === 'production') { try { await db.deductInventoryForOrder(orderId); } catch (invErr) { console.error("Inventory deduction failed:", invErr); } }
+        if (dbStatus === 'production') {
+          try {
+            await db.deductInventoryForOrder(orderId);
+          } catch (invErr) {
+            console.error("Inventory deduction failed:", invErr);
+            // We don't fail the whole status update, but we log it
+          }
+        }
         await refresh();
       });
+      return r;
+    },
+    assignStaff: async (orderId: string, assignment: { assigned_designer?: string; assigned_production?: string }) => {
+      const r = await safe(async () => {
+        const hasDesigner = !!assignment.assigned_designer;
+        const hasProduction = !!assignment.assigned_production;
+
+        if (hasDesigner && !hasProduction) {
+          await db.assignDesignerForAcceptance(orderId, assignment.assigned_designer!);
+        } else {
+          await db.updateOrder(orderId, assignment);
+        }
+
+        await refresh();
+      });
+      return r;
+    },
+    deleteOrder: async (orderId: string) => {
+      const r = await safe(() => db.deleteOrder(orderId).then(() => refresh()));
+      return r;
+    },
+    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
+      const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh()));
+      return r;
+    },
+    selfAssign: async (orderId: string) => {
+      const r = await safe(async () => {
+        await db.designerSelfPickOrder(orderId);
+        await refresh();
+      });
+      return r;
+    },
+    updateCustomerDesign: async (orderId: string, url: string) => {
+      const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => refresh()));
+      return r;
+    },
+    // Designer uploads the FINAL PREVIEW to orders.final_design_url
+    updateFinalDesign: async (orderId: string, url: string) => {
+      const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => refresh()));
+      return r;
+    },
+    acceptAssignedDesignOrder: async (orderId: string) => {
+      const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => refresh()));
+      return r;
+    },
+    acceptFinalDesignAsCustomer: async (orderId: string) => {
+      const r = await safe(() => db.customerAcceptFinalDesign(orderId).then(() => refresh()));
+      return r;
     },
     assignStaff: async (orderId: string, assignment: { assigned_designer?: string; assigned_production?: string }) => safe(() => db.updateOrder(orderId, assignment).then(() => refresh())),
     deleteOrder: async (orderId: string) => safe(() => db.deleteOrder(orderId).then(() => refresh())),
