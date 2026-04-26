@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react";
+import {useState} from "react";
 import {
   Search,
   Eye,
@@ -8,43 +8,18 @@ import {
   X,
   Check,
   Trash2,
-  CheckCircle,
+
   AlertTriangle,
   Power,
 } from "lucide-react";
 import {useManagementData} from "../../hooks/useSupabase";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
+import {useToast} from "../../context/ToastContext";
 import type {FrontendUser, FrontendSupplier, EmployeeRecord} from "../../Types";
 
 type Supplier = FrontendSupplier;
 
-// ── Toast Notification ────────────────────────────────────────────────
-function Toast({
-  message,
-  type,
-  onDone,
-}: {
-  message: string;
-  type: "success" | "error";
-  onDone: () => void;
-}) {
-  useEffect(() => {
-    const t = setTimeout(onDone, 3000);
-    return () => clearTimeout(t);
-  }, [onDone]);
-  return (
-    <div
-      className={`fixed bottom-6 right-6 z-[200] flex items-center gap-3 px-5 py-3 rounded-xl shadow-2xl text-white font-semibold text-sm
-      ${type === "success" ? "bg-green-600" : "bg-red-600"}`}>
-      {type === "success" ? (
-        <CheckCircle size={18} />
-      ) : (
-        <AlertTriangle size={18} />
-      )}
-      {message}
-    </div>
-  );
-}
+
 
 // ── Inline Error Banner ───────────────────────────────────────────────
 function ErrBanner({msg}: {msg: string}) {
@@ -111,13 +86,7 @@ const AdminManagement: React.FC = () => {
   const [showRoleDropdown, setShowRoleDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
-  // Toast
-  const [toast, setToast] = useState<{
-    message: string;
-    type: "success" | "error";
-  } | null>(null);
-  const showToast = (message: string, type: "success" | "error" = "success") =>
-    setToast({message, type});
+  const toast = useToast();
 
   // Form errors
   const [formErr, setFormErr] = useState("");
@@ -281,7 +250,7 @@ const AdminManagement: React.FC = () => {
       phoneNumber: userForm.phoneNumber,
     });
     if (r.success) {
-      showToast("Account created successfully!");
+      toast.success("Account created successfully!");
       setShowCreateUserModal(false);
     } else setFormErr(r.error || "Failed to create account");
   };
@@ -296,19 +265,19 @@ const AdminManagement: React.FC = () => {
       role: editUserForm.role,
     });
     if (r.success) {
-      showToast("Account updated!");
+      toast.success("Account updated!");
       setShowViewUserModal(false);
-    } else showToast(r.error || "Failed to update account", "error");
+    } else toast.error(r.error || "Failed to update account");
   };
 
   const handleDeactivate = async () => {
     if (!userToDeactivate) return;
     const r = await deactivateUsers([userToDeactivate.id]);
     if (r.success)
-      showToast(
+      toast.success(
         `${userToDeactivate.firstName} ${userToDeactivate.lastName} deactivated`,
       );
-    else showToast(r.error || "Failed to deactivate", "error");
+    else toast.error(r.error || "Failed to deactivate");
     setShowDeactivateModal(false);
     setUserToDeactivate(null);
   };
@@ -348,7 +317,7 @@ const AdminManagement: React.FC = () => {
       hireDate: empForm.hireDate,
     });
     if (r.success) {
-      showToast("Employee record created!");
+      toast.success("Employee record created!");
       setShowCreateEmpModal(false);
     } else setFormErr(r.error || "Failed to create employee");
   };
@@ -364,16 +333,16 @@ const AdminManagement: React.FC = () => {
       overtimeMultiplier: Number(editEmpForm.overtimeMultiplier) || 1.5,
     });
     if (r.success) {
-      showToast("Employee updated!");
+      toast.success("Employee updated!");
       setShowViewEmpModal(false);
-    } else showToast(r.error || "Failed to update employee", "error");
+    } else toast.error(r.error || "Failed to update employee");
   };
 
   const handleDeactivateEmp = async () => {
     if (!empToDeactivate) return;
     const r = await deactivateEmployee(empToDeactivate.id);
-    if (r.success) showToast(`${empToDeactivate.fullName} deactivated`);
-    else showToast(r.error || "Failed to deactivate", "error");
+    if (r.success) toast.success(`${empToDeactivate.fullName} deactivated`);
+    else toast.error(r.error || "Failed to deactivate");
     setEmpToDeactivate(null);
   };
 
@@ -385,7 +354,7 @@ const AdminManagement: React.FC = () => {
 
   const handleSubmitCreateSupplier = async () => {
     if (!supplierForm.name.trim()) {
-      alert("Supplier name required");
+      toast.error("Supplier name required");
       return;
     }
     const r = await createSupplier({
@@ -394,9 +363,9 @@ const AdminManagement: React.FC = () => {
       email: supplierForm.email,
     });
     if (r.success) {
-      alert("Supplier created!");
+      toast.success("Supplier created!");
       setShowCreateSupplierModal(false);
-    } else alert("Error: " + r.error);
+    } else toast.error("Error: " + r.error);
   };
 
   const handleToggleFlag = async (id: string) => {
@@ -413,18 +382,18 @@ const AdminManagement: React.FC = () => {
     const nowActive = s.supplierStatus !== "Active";
     const r = await toggleSupplierActive(s.id, nowActive);
     if (r.success) {
-      showToast(`Supplier ${nowActive ? "activated" : "set to inactive"}`);
+      toast.success(`Supplier ${nowActive ? "activated" : "set to inactive"}`);
       setShowSupplierInfoModal(false);
     } else {
-      showToast(r.error || "Failed to update supplier status", "error");
+      toast.error(r.error || "Failed to update supplier status");
     }
   };
 
   const handleSaveFlagNotes = async () => {
     if (!selectedSupplier) return;
     const r = await flagSupplier(selectedSupplier.id, true, flagNotes);
-    if (r.success) showToast("Notes saved!");
-    else showToast(r.error || "Failed to save notes", "error");
+    if (r.success) toast.success("Notes saved!");
+    else toast.error(r.error || "Failed to save notes");
     setShowFlagNotesModal(false);
   };
 
@@ -489,14 +458,7 @@ const AdminManagement: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onDone={() => setToast(null)}
-        />
-      )}
+
 
       {/* Employee Deactivate Confirm Modal */}
       <Modal

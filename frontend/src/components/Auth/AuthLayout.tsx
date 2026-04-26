@@ -1,6 +1,6 @@
-import { Outlet, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Printer, Palette, Zap } from "lucide-react";
+import {Outlet, useLocation} from "react-router-dom";
+import {motion, AnimatePresence} from "framer-motion";
+import {Printer, Palette, Zap} from "lucide-react";
 
 /* ── Framer Motion variants ─────────────────────────────────────────── */
 const fadeUp = {
@@ -146,12 +146,11 @@ export const AuthLayout = () => {
           custom={0}
           className="relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-sm">
-              <Sparkles size={20} className="text-white" />
-            </div>
-            <span className="text-2xl font-extrabold tracking-tight text-white">
-              OPERIX
-            </span>
+            <img
+              src="/images/DASHBOARD3.png"
+              alt="OPERIX Logo"
+              className="h-8 sm:h-12 w-auto"
+            />
           </div>
         </motion.div>
 
@@ -219,7 +218,6 @@ export const AuthLayout = () => {
         className={`flex-1 flex items-center justify-center px-5 py-6 sm:px-8 bg-gray-50/80 min-h-screen overflow-y-auto relative ${
           isLogin ? "order-1" : "order-2"
         }`}>
-        
         {/* 
           Using AnimatePresence with wait mode ensures the outgoing component
           fades out completely before the new one animates in 
@@ -231,31 +229,20 @@ export const AuthLayout = () => {
             animate={{opacity: 1, x: 0}}
             exit={{opacity: 0, x: isLogin ? 20 : -20}}
             transition={{duration: 0.3}}
-            className="w-full max-w-[420px]"
-          >
+            className="w-full max-w-[420px]">
             {/* Mobile logo only visible on small screens */}
             <div className="lg:hidden text-center mb-5">
               <div className="inline-flex items-center gap-2">
-                <div
-                  className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{
-                    background: "linear-gradient(135deg, #E80088, #AA00FD)",
-                  }}>
-                  <Sparkles size={18} className="text-white" />
-                </div>
-                <span className="text-xl font-extrabold tracking-tight">
-                  <span className="text-[#00BEF4]">O</span>
-                  <span className="text-[#E80088]">P</span>
-                  <span className="text-[#FFD102]">E</span>
-                  <span className="text-[#AA00FD]">R</span>
-                  <span className="text-[#E80088]">I</span>
-                  <span className="text-[#AA00FD]">X</span>
-                </span>
+                <img
+                  src="/images/DASHBOARD3.png"
+                  alt="OPERIX Logo"
+                  className="h-6 sm:h-8 w-auto"
+                />
               </div>
             </div>
 
             <Outlet />
-            
+
             {/* Bottom brand mark */}
             <p className="text-center text-[10px] text-gray-300 mt-4">
               © 2026 VTA Link Printing Services. All rights reserved.

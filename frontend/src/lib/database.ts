@@ -156,18 +156,52 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   // ORDERS
   // ═══════════════════════════════════════════════════════════════════════════
-  async getOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-    let query = supabase.from("orders").select(`*, customer:customer_id(id, first_name, last_name, email, contact_number), designer:assigned_designer(id, first_name, last_name), production_staff:assigned_production(id, full_name), order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url)`).order("created_at", {ascending: false});
-    if (filters?.status && filters.status !== "all") query = query.eq("status", filters.status);
-    if (filters?.assigned_designer) query = query.eq("assigned_designer", filters.assigned_designer);
-    if (filters?.assigned_production) query = query.eq("assigned_production", filters.assigned_production);
+  async getOrders(filters?: {
+    status?: string;
+    assigned_designer?: string;
+    assigned_production?: string;
+  }) {
+    let query = supabase
+      .from("orders")
+      .select(
+        `
+      *,
+      customer:customer_id(id, first_name, last_name, email, contact_number),
+      designer:assigned_designer(id, first_name, last_name),
+      production_staff:assigned_production(id, full_name),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
+      payments(id, amount, payment_method, reference_number, created_at)
+    `,
+      )
+      .order("created_at", {ascending: false});
+
+    if (filters?.status && filters.status !== "all")
+      query = query.eq("status", filters.status);
+    if (filters?.assigned_designer)
+      query = query.eq("assigned_designer", filters.assigned_designer);
+    if (filters?.assigned_production)
+      query = query.eq("assigned_production", filters.assigned_production);
+
     const {data, error} = await query;
     if (error) throw error;
     return data || [];
   },
 
   async getOrderById(id: string) {
-    const {data, error} = await supabase.from("orders").select(`*, customer:customer_id(id, first_name, last_name, email, contact_number), designer:assigned_designer(id, first_name, last_name), production_staff:assigned_production(id, full_name), order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url), payments(id, amount, payment_method, reference_number, notes, received_by, created_at)`).eq("id", id).single();
+    const {data, error} = await supabase
+      .from("orders")
+      .select(
+        `
+      *,
+      customer:customer_id(id, first_name, last_name, email, contact_number),
+      designer:assigned_designer(id, first_name, last_name),
+      production_staff:assigned_production(id, full_name),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
+      payments(id, amount, payment_method, reference_number, created_at)
+    `,
+      )
+      .eq("id", id)
+      .single();
     if (error) throw error;
     return data;
   },
@@ -492,7 +526,15 @@ export const db = {
         const { error: updateErr } = await supabase.from("inventory_items").update({ current_quantity: newQty, updated_at: new Date().toISOString() }).eq("id", mapping.inventory_item_id);
         if (updateErr) throw updateErr;
         const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from("inventory_changes").insert([{ inventory_item_id: mapping.inventory_item_id, change_type: 'Order Production', quantity_change: -(Number(mapping.quantity_required) * item.quantity), quantity_before: Number(inv.current_quantity), quantity_after: newQty, reason: `Automatic deduction for order ${orderId}`, changed_by: user?.id }]);
+        await supabase.from("inventory_changes").insert([{
+          inventory_item_id: mapping.inventory_item_id,
+          change_type: 'Manual Adjustment',
+          quantity_change: -(Number(mapping.quantity_required) * item.quantity),
+          quantity_before: Number(inv.current_quantity),
+          quantity_after: newQty,
+          reason: `Automatic deduction for order ${orderId}`,
+          changed_by: user?.id
+        }]);
       }
     }
   },
@@ -501,7 +543,15 @@ export const db = {
   async recordPayment(orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) {
     const { data: {user} } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
-    const {error: payErr} = await supabase.from("payments").insert([{ order_id: orderId, ...payment, received_by: user.id }]);
+
+    const {error: payErr} = await supabase.from("payments").insert([
+      {
+        order_id: orderId,
+        amount: payment.amount,
+        payment_method: payment.payment_method,
+        reference_number: payment.reference_number,
+      },
+    ]);
     if (payErr) throw payErr;
     const {data: order} = await supabase.from("orders").select("amount_paid, total_amount").eq("id", orderId).single();
     if (order) {
