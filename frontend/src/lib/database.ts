@@ -456,8 +456,158 @@ export const db = {
     return data;
   },
 
+  /**
+   * 2a: Cashier/Admin assigns a designer while order remains in_queue.
+   * Designing starts only when the assigned designer explicitly accepts.
+   */
+  async assignDesignerForAcceptance(orderId: string, designerId: string) {
+    const {data: order, error: fetchError} = await supabase
+      .from("orders")
+      .select("id, status")
+      .eq("id", orderId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error("Order not found");
+
+    if (order.status !== "in_queue") {
+      throw new Error("Only in-queue orders can be assigned for design acceptance");
+    }
+
+    const {data, error} = await supabase
+      .from("orders")
+      .update({
+        assigned_designer: designerId,
+        // Keep in_queue. Designing begins only on explicit designer acceptance.
+        status: "in_queue",
+      })
+      .eq("id", orderId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * 2a: Assigned designer accepts the order and starts designing.
+   */
+  async designerAcceptAssignedOrder(orderId: string) {
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const {data: order, error: fetchError} = await supabase
+      .from("orders")
+      .select("id, order_number, customer_id, assigned_designer, status")
+      .eq("id", orderId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error("Order not found");
+
+    if (order.assigned_designer !== user.id) {
+      throw new Error("Only the assigned designer can accept this order");
+    }
+    if (order.status !== "in_queue") {
+      throw new Error("Only in-queue orders can be accepted for designing");
+    }
+
+    const {data: updated, error: updateErr} = await supabase
+      .from("orders")
+      .update({status: "designing"})
+      .eq("id", orderId)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+
+    if (order.customer_id) {
+      try {
+        const {data: profile} = await supabase
+          .from("users")
+          .select("first_name, last_name")
+          .eq("id", user.id)
+          .single();
+        const designerName = profile
+          ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+          : "Your designer";
+
+        await db.chat.sendMessage(
+          order.customer_id,
+          `Hi! Your order **${order.order_number}** has been accepted by ${designerName} and is now in the Designing phase.`,
+          orderId,
+        );
+      } catch (msgErr) {
+        console.warn("Designer acceptance notification failed:", msgErr);
+      }
+    }
+
+    return updated;
+  },
+
+  /**
+   * 2b: Designer self-picks an unassigned in_queue order and starts designing.
+   */
+  async designerSelfPickOrder(orderId: string) {
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const {data: order, error: fetchError} = await supabase
+      .from("orders")
+      .select("id, order_number, customer_id, assigned_designer, status")
+      .eq("id", orderId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error("Order not found");
+
+    if (order.status !== "in_queue") {
+      throw new Error("Only in-queue orders can be self-picked");
+    }
+    if (order.assigned_designer) {
+      throw new Error("Order is already assigned to another designer");
+    }
+
+    const {data: updated, error: updateErr} = await supabase
+      .from("orders")
+      .update({assigned_designer: user.id, status: "designing"})
+      .eq("id", orderId)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+
+    if (order.customer_id) {
+      try {
+        const {data: profile} = await supabase
+          .from("users")
+          .select("first_name, last_name")
+          .eq("id", user.id)
+          .single();
+        const designerName = profile
+          ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+          : "Your designer";
+
+        await db.chat.sendMessage(
+          order.customer_id,
+          `Hi! Your order **${order.order_number}** has been picked up by ${designerName} and is now in the Designing phase.`,
+          orderId,
+        );
+      } catch (msgErr) {
+        console.warn("Self-pick notification failed:", msgErr);
+      }
+    }
+
+    return updated;
+  },
+
   async updateCustomerDesign(orderId: string, url: string) {
-    // We update the first item in order_items for this order
+    // 3: Customer uploads initial design. Keep both order-level and item-level refs.
+    await supabase
+      .from("orders")
+      .update({design_file_url: url})
+      .eq("id", orderId);
+
+    // We also update the first item in order_items for this order
     const {data: items, error: fetchError} = await supabase
       .from("order_items")
       .select("id")
@@ -476,6 +626,116 @@ export const db = {
       .single();
 
     if (error) throw error;
+    return data;
+  },
+
+  /**
+   * 3: Designer submits final design (preview) while in Designing.
+   */
+  async submitFinalDesign(orderId: string, url: string) {
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const {data: order, error: fetchError} = await supabase
+      .from("orders")
+      .select("id, customer_id, assigned_designer, status")
+      .eq("id", orderId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error("Order not found");
+
+    if (order.assigned_designer !== user.id) {
+      throw new Error("Only the assigned designer can submit final design");
+    }
+    if (order.status !== "designing") {
+      throw new Error("Final design can only be submitted during Designing phase");
+    }
+
+    const {data, error} = await supabase
+      .from("orders")
+      .update({final_design_url: url})
+      .eq("id", orderId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (order.customer_id) {
+      try {
+        await db.chat.sendMessage(
+          order.customer_id,
+          "Your final design preview is ready. Please review and accept it to move your order to Payment.",
+          orderId,
+          url,
+        );
+      } catch (msgErr) {
+        console.warn("Final design notification failed:", msgErr);
+      }
+    }
+
+    return data;
+  },
+
+  /**
+   * 3: Customer accepts final design; order moves from Designing -> Payment.
+   */
+  async customerAcceptFinalDesign(orderId: string) {
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const {data: order, error: fetchError} = await supabase
+      .from("orders")
+      .select("id, customer_id, assigned_designer, status, final_design_url")
+      .eq("id", orderId)
+      .eq("customer_id", user.id)
+      .maybeSingle();
+    if (fetchError) throw fetchError;
+    if (!order) {
+      throw new Error(
+        "Order not found or you do not have access to accept this design",
+      );
+    }
+
+    if (order.customer_id !== user.id) {
+      throw new Error("Only the customer for this order can accept final design");
+    }
+    if (order.status !== "designing") {
+      throw new Error("Order is not currently in Designing phase");
+    }
+    if (!order.final_design_url) {
+      throw new Error("No final design found to accept");
+    }
+
+    const {data, error} = await supabase
+      .from("orders")
+      .update({status: "payment"})
+      .eq("id", orderId)
+      .eq("customer_id", user.id)
+      .eq("status", "designing")
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      throw new Error(
+        "Unable to move order to Payment. Access denied or order state changed.",
+      );
+    }
+
+    if (order.assigned_designer) {
+      try {
+        await db.chat.sendMessage(
+          order.assigned_designer,
+          "Customer accepted the final design. The order has now moved to Payment.",
+          orderId,
+        );
+      } catch (msgErr) {
+        console.warn("Designer payment transition notification failed:", msgErr);
+      }
+    }
+
     return data;
   },
 

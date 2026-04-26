@@ -21,7 +21,15 @@ const DesignerOrders = () => {
   const { profile } = useMyProfile();
   
   // Fetch all orders - we'll filter them locally for a better "Queue vs My Orders" experience
-  const {orders: allOrders, loading, updateStatus, updateCustomerDesign, updateFinalDesign, refresh} =
+  const {
+    orders: allOrders,
+    loading,
+    updateCustomerDesign,
+    updateFinalDesign,
+    refresh,
+    selfAssign,
+    acceptAssignedDesignOrder,
+  } =
     useOrdersData();
 
   // Filter for orders assigned to THIS designer OR unassigned orders in queue
@@ -52,12 +60,14 @@ const DesignerOrders = () => {
     setShowDetailsModal(true);
   };
 
-  const handleUpdateStatus = async (status: string, orderId?: string) => {
-    const targetId = orderId || selectedOrder?.id;
-    if (!targetId) return;
-    const r = await updateStatus(targetId, status);
-    if (r.success) setShowDetailsModal(false);
-    else alert("Error: " + r.error);
+  const handleAcceptAssigned = async (orderId: string) => {
+    const r = await acceptAssignedDesignOrder(orderId);
+    if (!r.success) alert("Error: " + r.error);
+  };
+
+  const handleSelfPick = async (orderId: string) => {
+    const r = await selfAssign(orderId);
+    if (!r.success) alert("Error: " + r.error);
   };
 
   if (loading) return <LoadingSpinner />;
@@ -142,11 +152,25 @@ const DesignerOrders = () => {
                       className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold">
                       <Package size={14} /> View
                     </button>
+                    {o.status === "In Queue" && !o.assignedDesigner && (
+                      <button
+                        onClick={() => handleSelfPick(o.id)}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-lg">
+                        Pick Order
+                      </button>
+                    )}
+                    {o.status === "In Queue" && o.assignedDesigner === profile?.id && (
+                      <button
+                        onClick={() => handleAcceptAssigned(o.id)}
+                        className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-semibold rounded-lg">
+                        Accept
+                      </button>
+                    )}
                     {o.status === "Designing" && (
                       <button
-                        onClick={() => handleUpdateStatus("Payment", o.id)}
+                        onClick={() => handleViewOrder(o)}
                         className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-semibold rounded-lg">
-                        Done →
+                        Continue
                       </button>
                     )}
                   </div>
@@ -210,13 +234,25 @@ const DesignerOrders = () => {
                             className="p-1.5 hover:bg-cyan-100 rounded-lg">
                             <Package size={16} className="text-cyan-600" />
                           </button>
+                          {o.status === "In Queue" && !o.assignedDesigner && (
+                            <button
+                              onClick={() => handleSelfPick(o.id)}
+                              className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold rounded-lg">
+                              Pick
+                            </button>
+                          )}
+                          {o.status === "In Queue" && o.assignedDesigner === profile?.id && (
+                            <button
+                              onClick={() => handleAcceptAssigned(o.id)}
+                              className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg">
+                              Accept
+                            </button>
+                          )}
                           {o.status === "Designing" && (
                             <button
-                              onClick={() =>
-                                handleUpdateStatus("Payment", o.id)
-                              }
+                              onClick={() => handleViewOrder(o)}
                               className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold rounded-lg">
-                              Done →
+                              Continue
                             </button>
                           )}
                         </div>
@@ -251,7 +287,6 @@ const DesignerOrders = () => {
           order={selectedOrder}
           userRole="designer"
           onClose={() => setShowDetailsModal(false)}
-          onUpdateStatus={handleUpdateStatus}
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");
