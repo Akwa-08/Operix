@@ -487,6 +487,24 @@ export const db = {
       return data;
     },
 
+    // Only allowed when period is still 'draft' — deletes period + all related records/logs
+    async deletePeriod(id: string) {
+      // Verify it's still draft before deleting
+      const {data: period} = await supabase.from("payroll_periods").select("status").eq("id", id).single();
+      if (period?.status !== "draft") throw new Error("Only draft periods can be deleted.");
+
+      // Reset any CAs that were issued in this period back to approved
+      await supabase.from("cash_advances").update({ status: "approved", payroll_period_id: null, updated_at: new Date().toISOString() }).eq("status", "added_to_current_payroll").eq("payroll_period_id", id);
+
+      // Delete related data in order
+      await supabase.from("payroll_records").delete().eq("payroll_period_id", id);
+      await supabase.from("attendance_logs").delete().eq("payroll_period_id", id);
+      await supabase.from("attendance_summary_imports").delete().eq("payroll_period_id", id);
+
+      const {error} = await supabase.from("payroll_periods").delete().eq("id", id);
+      if (error) throw error;
+    },
+
     async getAttendanceLogs(periodId: string) {
       const {data, error} = await supabase.from("attendance_logs").select(`*, employee:employee_id(id, employee_code, full_name, position, base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier)`).eq("payroll_period_id", periodId).order("created_at");
       if (error) throw error;

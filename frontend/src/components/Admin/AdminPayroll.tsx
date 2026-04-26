@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
-  X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle,
+  X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle, Trash2,
 } from "lucide-react";
 import { supabase } from "../../config/supabaseClient";
 import {
@@ -104,7 +104,11 @@ function AttendanceEditModal({ log, periodId, onClose, onSave }: {
 }
 
 // ─── Payslip Modal ────────────────────────────────────────────────────────────
-function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () => void }) {
+function PayslipModal({ record, period, onClose }: { record: PayrollRecord; period: PayrollPeriod | null; onClose: () => void }) {
+  const pLabel = period
+    ? `${new Date(period.periodStart).toLocaleDateString("en-PH", { month: "long", day: "numeric" })} – ${new Date(period.periodEnd).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}`
+    : "";
+
   const handlePrint = () => {
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) return;
@@ -113,6 +117,7 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
       body { font-family: 'Courier New', monospace; padding: 24px; font-size: 12px; color: #111; }
       h2 { font-size: 15px; font-weight: bold; margin: 0 0 4px; }
       .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+      .period-bar { background:#f0f9ff; border:1px solid #bae6fd; border-radius:4px; padding:6px 12px; margin-bottom:16px; font-size:11px; color:#0369a1; font-weight:bold; text-align:center; }
       .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 20px; }
       h3 { font-size: 11px; font-weight: bold; border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 8px; letter-spacing: 1px; }
       .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
@@ -132,6 +137,7 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
         <p><b>Position:</b> ${record.position}</p>
       </div>
     </div>
+    ${pLabel ? `<div class="period-bar">📅 Payroll Period: ${pLabel}</div>` : ''}
     <div class="grid2">
       <div>
         <h3>EMPLOYEE INFORMATION</h3>
@@ -197,7 +203,7 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
         </div>
         <div className="p-6 bg-gray-50">
           <div className="bg-white p-6 shadow-sm border rounded-lg" style={{ fontFamily: "Courier New, monospace" }}>
-            <div className="flex justify-between items-start mb-6">
+            <div className="flex justify-between items-start mb-4">
               <div>
                 <h2 className="text-base font-bold mb-1">VTA LINK PRINTING SERVICES</h2>
                 <p className="text-xs font-bold">BILLED TO:</p>
@@ -209,6 +215,11 @@ function PayslipModal({ record, onClose }: { record: PayrollRecord; onClose: () 
                 <p className="font-bold mt-1">Position:</p><p>{record.position}</p>
               </div>
             </div>
+            {pLabel && (
+              <div className="mb-4 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                <span className="text-xs font-bold text-blue-700">📅 Payroll Period: {pLabel}</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div>
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">EMPLOYEE INFORMATION</h3>
@@ -500,7 +511,9 @@ const AdminPayroll: React.FC = () => {
   const [activeTab, setActiveTab]           = useState("Payroll Dashboard");
   const [searchQuery, setSearchQuery]       = useState("");
   const [showPeriodDrop, setShowPeriodDrop] = useState(false);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);   // ← Reset modal
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [markPaidConfirm, setMarkPaidConfirm]       = useState<PayrollRecord | null>(null);
+  const [deletePeriodConfirm, setDeletePeriodConfirm] = useState(false);
   const [editingLog, setEditingLog]         = useState<AttendanceLog | null>(null);
   const [viewingRecord, setViewingRecord]   = useState<PayrollRecord | null>(null);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
@@ -512,7 +525,7 @@ const AdminPayroll: React.FC = () => {
     attendanceLogs, payrollRecords, dashboardStats,
     loading, error, computing, resetting, refresh,
     updateAttendanceLog, computePayroll, resetPayroll,
-    updatePayrollRecord, markPeriodComplete, markAllPaid,
+    updatePayrollRecord, markPeriodComplete, markAllPaid, deletePeriod,
   } = usePayrollData();
 
   const filteredLogs    = attendanceLogs.filter(l => l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || l.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -558,7 +571,84 @@ const AdminPayroll: React.FC = () => {
       {editingLog && activePeriodId && (
         <AttendanceEditModal log={editingLog} periodId={activePeriodId} onClose={() => setEditingLog(null)} onSave={async d => { const r = await updateAttendanceLog(d); return r; }} />
       )}
-      {viewingRecord && <PayslipModal record={viewingRecord} onClose={() => setViewingRecord(null)} />}
+      {viewingRecord && <PayslipModal record={viewingRecord} period={currentPeriod} onClose={() => setViewingRecord(null)} />}
+
+      {/* ── Delete Period Confirm Modal ── */}
+      {deletePeriodConfirm && currentPeriod && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeletePeriodConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setDeletePeriodConfirm(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <Trash2 size={22} className="text-red-600"/>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Delete Period?</h3>
+                <p className="text-sm text-gray-500">This cannot be undone</p>
+              </div>
+            </div>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
+              <p className="font-semibold text-red-800">{periodLabel(currentPeriod)}</p>
+              <p className="text-red-700 text-xs">This will permanently delete:</p>
+              <ul className="text-red-700 text-xs space-y-1 ml-4 list-disc">
+                <li>All attendance logs for this period</li>
+                <li>All payroll records for this period</li>
+                <li>The payroll period itself</li>
+                <li>Any issued Cash Advances will be reset to Approved</li>
+              </ul>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDeletePeriodConfirm(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
+              <button
+                onClick={async () => {
+                  if (!activePeriodId) return;
+                  setDeletePeriodConfirm(false);
+                  await deletePeriod(activePeriodId);
+                }}
+                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
+                <Trash2 size={16}/> Delete Period
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mark as Paid Confirm Modal ── */}
+      {markPaidConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setMarkPaidConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setMarkPaidConfirm(null)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 size={22} className="text-green-600"/>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Mark as Paid?</h3>
+                <p className="text-sm text-gray-500">This cannot be undone easily</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4 mb-5 space-y-1 text-sm">
+              <p className="font-semibold text-gray-800">{markPaidConfirm.employeeName}</p>
+              <p className="text-gray-500 text-xs">{markPaidConfirm.position} · {markPaidConfirm.employeeCode}</p>
+              <div className="flex justify-between pt-2 border-t border-gray-200 mt-2">
+                <span className="text-gray-600">Net Pay:</span>
+                <span className="font-bold text-green-700">{fmt(markPaidConfirm.netPay)}</span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setMarkPaidConfirm(null)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
+              <button
+                onClick={async () => {
+                  await updatePayrollRecord(markPaidConfirm.id, { status: "paid" });
+                  setMarkPaidConfirm(null);
+                }}
+                className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
+                <CheckCircle2 size={16}/> Confirm Paid
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Reset Confirm Modal ── */}
       {showResetConfirm && currentPeriod && (
@@ -629,6 +719,13 @@ const AdminPayroll: React.FC = () => {
             )}
           </div>
           {currentPeriod && <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${currentPeriod.status === "complete" ? "bg-green-100 text-green-700" : currentPeriod.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{currentPeriod.status.charAt(0).toUpperCase() + currentPeriod.status.slice(1)}</span>}
+          {currentPeriod?.status === "draft" && (
+            <button onClick={() => setDeletePeriodConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors ml-auto"
+              title="Delete this draft period">
+              <Trash2 size={13} /> Delete Period
+            </button>
+          )}
         </div>
       )}
 
@@ -812,7 +909,7 @@ const AdminPayroll: React.FC = () => {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
                               <button onClick={() => setViewingRecord(rec)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View payslip"><Eye size={15} className="text-cyan-600" /></button>
-                              {rec.status !== "paid" && <button onClick={() => updatePayrollRecord(rec.id, { status: "paid" })} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid"><CheckCircle2 size={15} className="text-green-600" /></button>}
+                              {rec.status !== "paid" && <button onClick={() => setMarkPaidConfirm(rec)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid"><CheckCircle2 size={15} className="text-green-600" /></button>}
                             </div>
                           </td>
                         </tr>
