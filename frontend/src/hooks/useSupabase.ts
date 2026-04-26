@@ -523,3 +523,5 @@ export function useCashierCashAdvances() {
     submitRequest: async (data: { employee_id: string; amount: number; reason?: string }) => safe(() => db.cashAdvances.requestByCashier(data).then(() => q.refresh())),
   };
 }
+
+//Test
