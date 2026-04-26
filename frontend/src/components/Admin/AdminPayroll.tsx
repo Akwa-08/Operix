@@ -1049,6 +1049,3 @@ const AdminPayroll: React.FC = () => {
 };
 
 export default AdminPayroll;
-
-
-///TEST GIT UPDATE
