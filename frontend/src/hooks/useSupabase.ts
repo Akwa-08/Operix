@@ -74,6 +74,12 @@ function mapOrder(raw: any): Order {
     productionName: raw.production_staff ? raw.production_staff.full_name || '' : '',
     comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
     finalDesignUrl: raw.final_design_url || '',
+    payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
+      amount: Number(p.amount) || 0,
+      payment_method: p.payment_method,
+      reference_number: p.reference_number,
+      created_at: p.created_at
+    })) : [],
   };
 }
 

@@ -11,6 +11,7 @@ import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
 import {Package, Clock, CheckCircle} from "lucide-react";
 import type {Order} from "../../Types";
 import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
+import {useToast} from "../../context/ToastContext";
 
 const ProductionOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -27,17 +28,19 @@ const ProductionOrders = () => {
     refresh,
   } = useOrdersData();
 
+  const toast = useToast();
+
   // Filter for orders assigned to THIS production staff OR unassigned orders in Production status
   const orders = allOrders.filter(o => 
-    o.assignedProduction === profile?.id || 
-    (o.status === "Production" && !o.assignedProduction)
+    o.status === "Production" &&
+    (o.assignedProduction === profile?.id || !o.assignedProduction)
   );
 
   const stats = {
-    assigned: orders.length,
-    inProgress: orders.filter((o) => o.status === "Production").length,
-    completed: orders.filter(
-      (o) => o.status === "Pickup" || o.status === "Completed",
+    assigned: allOrders.filter(o => o.assignedProduction === profile?.id).length,
+    inProgress: allOrders.filter((o) => o.status === "Production" && o.assignedProduction === profile?.id).length,
+    completed: allOrders.filter(
+      (o) => o.assignedProduction === profile?.id && (o.status === "Pickup" || o.status === "Completed"),
     ).length,
   };
 
@@ -57,8 +60,8 @@ const ProductionOrders = () => {
 
   const handleMarkPickup = async (order: Order) => {
     const r = await updateStatus(order.id, "Pickup");
-    if (r.success) alert(`${order.orderId} → Ready for Pickup!`);
-    else alert("Error: " + r.error);
+    if (r.success) toast.success(`${order.orderId} → Ready for Pickup!`);
+    else toast.error("Error: " + r.error);
   };
 
   if (loading) return <LoadingSpinner />;
