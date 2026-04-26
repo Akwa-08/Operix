@@ -467,17 +467,6 @@ export function usePayrollData() {
 
     updatePayrollRecord: async (id: string, updates: Record<string, any>) => safe(() => db.payroll.updatePayrollRecord(id, updates).then(() => payrollQ.refresh())),
     markPeriodComplete:  async (periodId: string) => safe(() => db.payroll.updatePeriod(periodId, { status: 'complete' }).then(() => periodsQ.refresh())),
-    deletePeriod: async (periodId: string) => {
-      const r = await safe(async () => {
-        await db.payroll.deletePeriod(periodId);
-        // If the deleted period was the active one, reset selection
-        if (selectedPeriodId === periodId) setSelectedPeriodId(null);
-        periodsQ.refresh();
-        attendanceQ.refresh();
-        payrollQ.refresh();
-      });
-      return r;
-    },
     markAllPaid: async (periodId: string) => {
       const r = await safe(async () => {
         const records = await db.payroll.getPayrollRecords(periodId);
