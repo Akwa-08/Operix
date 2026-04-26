@@ -80,16 +80,11 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const effectiveAmount =
-    payType === "full"
-      ? remaining
-      : Math.min(parseFloat(partialAmt) || 0, remaining);
-
-  const canSubmit =
-    method !== null &&
-    reference.trim().length > 0 &&
-    effectiveAmount > 0 &&
-    !submitting;
+  const isInitialPayment = amountPaid === 0;
+  const minPayment = isInitialPayment ? totalAmount * 0.5 : 1;
+  const parsedAmt = parseFloat(partialAmt) || 0;
+  
+  const effectiveAmount = payType === "full" ? remaining : parsedAmt;
 
   const handleClose = () => {
     if (submitting) return;
@@ -102,8 +97,26 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!canSubmit || !method) return;
     setError(null);
+    if (!method) {
+      setError("Please select a payment method.");
+      return;
+    }
+    if (payType === "partial") {
+      if (!partialAmt || isNaN(parsedAmt)) {
+        setError("Please enter a valid payment amount.");
+        return;
+      }
+      if (parsedAmt < minPayment || parsedAmt > remaining) {
+        setError(`Amount must be between ₱${minPayment.toLocaleString()} and ₱${remaining.toLocaleString()}.`);
+        return;
+      }
+    }
+    if (!reference.trim()) {
+      setError("Please enter the reference number.");
+      return;
+    }
+
     setSubmitting(true);
 
     const notes =
@@ -111,9 +124,15 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
         ? `Partial payment of ₱${effectiveAmount.toLocaleString()} (remaining: ₱${(remaining - effectiveAmount).toLocaleString()})`
         : `Full payment of ₱${effectiveAmount.toLocaleString()}`;
 
+    const methodMap: Record<string, string> = {
+      "GCash": "gcash",
+      "PayMaya": "maya",
+      "Bank Transfer": "bank_transfer"
+    };
+
     const result = await onSubmit({
       amount: effectiveAmount,
-      payment_method: method,
+      payment_method: methodMap[method] || method.toLowerCase(),
       reference_number: reference.trim(),
       notes,
     });
@@ -219,7 +238,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                     exit={{opacity: 0, height: 0}}
                     className="overflow-hidden mt-3">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 block">
-                      Amount to Pay (max ₱{remaining.toLocaleString()})
+                      Amount to Pay (min ₱{minPayment.toLocaleString()}, max ₱{remaining.toLocaleString()})
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400">
@@ -227,10 +246,29 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                       </span>
                       <input
                         type="number"
-                        min={1}
+                        min={minPayment}
                         max={remaining}
                         value={partialAmt}
-                        onChange={(e) => setPartialAmt(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setPartialAmt("");
+                            return;
+                          }
+                          // Allow typing decimals like "150."
+                          if (val.endsWith(".")) {
+                            setPartialAmt(val);
+                            return;
+                          }
+                          const num = parseFloat(val);
+                          if (num < 0) {
+                            setPartialAmt("0");
+                          } else if (num > remaining) {
+                            setPartialAmt(remaining.toString());
+                          } else {
+                            setPartialAmt(val);
+                          }
+                        }}
                         placeholder="0.00"
                         className="w-full pl-8 pr-4 py-2.5 border-2 border-gray-200 rounded-xl focus:border-cyan-400 focus:outline-none text-sm font-bold text-gray-900 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                       />
@@ -348,7 +386,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={!canSubmit}
+                disabled={submitting}
                 className="flex-1 py-3.5 rounded-xl bg-cyan-400 hover:bg-cyan-500 text-white font-black text-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-cyan-100 active:scale-[0.98]">
                 {submitting
                   ? "Submitting..."
