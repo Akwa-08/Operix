@@ -4,6 +4,7 @@ import { useProductsData } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 import { PageHeader } from "../Shared/UI/PageHeader";
 import type { AdminProduct, BOMItem } from "../../Types";
+import { useToast } from "../../context/ToastContext";
 
 // ── Reusable field ────────────────────────────────────────────────────────
 const F = ({ label, value, onChange, type = "text", placeholder = "", disabled = false, required = false }: any) => (
@@ -69,6 +70,7 @@ const AdminProducts = () => {
   const [newBOMItem, setNewBOMItem] = useState({ inventory_item_id: "", quantity_required: "" });
 
   const { products, materials, loading, createProduct, updateProduct, deleteProduct } = useProductsData();
+  const toast = useToast();
 
   // ── Filtering ────────────────────────────────────────────────────────────
   const filteredProducts = products.filter((p) =>
@@ -110,7 +112,7 @@ const AdminProducts = () => {
 
   const handleCreate = async () => {
     if (!createForm.name.trim() || !createForm.final_price) {
-      alert("Product name and final price are required.");
+      toast.error("Product name and final price are required.");
       return;
     }
     const r = await createProduct(
@@ -122,8 +124,10 @@ const AdminProducts = () => {
       },
       createBOM
     );
-    if (r.success) setShowCreate(false);
-    else alert("Error: " + r.error);
+    if (r.success) {
+      setShowCreate(false);
+      toast.success("Product created!");
+    } else toast.error("Error: " + r.error);
   };
 
   const handleUpdate = async () => {
@@ -138,15 +142,21 @@ const AdminProducts = () => {
       },
       editBOM
     );
-    if (r.success) setShowEdit(false);
-    else alert("Error: " + r.error);
+    if (r.success) {
+      setShowEdit(false);
+      toast.success("Product updated!");
+    } else toast.error("Error: " + r.error);
   };
 
   const handleDelete = async () => {
     if (!selectedProduct) return;
     const r = await deleteProduct(selectedProduct.id);
-    if (r.success) { setShowDelete(false); setShowEdit(false); setSelectedProduct(null); }
-    else alert("Error: " + r.error);
+    if (r.success) { 
+      setShowDelete(false); 
+      setShowEdit(false); 
+      setSelectedProduct(null); 
+      toast.success("Product deleted.");
+    } else toast.error("Error: " + r.error);
   };
 
   // Add a BOM row to the current modal
@@ -155,11 +165,11 @@ const AdminProducts = () => {
     setBOM: React.Dispatch<React.SetStateAction<typeof createBOM>>
   ) => {
     if (!newBOMItem.inventory_item_id || !newBOMItem.quantity_required) {
-      alert("Select a material and enter a quantity.");
+      toast.error("Select a material and enter a quantity.");
       return;
     }
     if (bom.find(b => b.inventory_item_id === newBOMItem.inventory_item_id)) {
-      alert("This material is already linked.");
+      toast.error("This material is already linked.");
       return;
     }
     setBOM([...bom, { inventory_item_id: newBOMItem.inventory_item_id, quantity_required: Number(newBOMItem.quantity_required) }]);

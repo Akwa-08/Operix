@@ -327,7 +327,8 @@ export const db = {
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
-      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url)
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
+      payments(id, amount, payment_method, reference_number, created_at)
     `,
       )
       .order("created_at", {ascending: false});
@@ -354,7 +355,7 @@ export const db = {
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
-      payments(id, amount, payment_method, reference_number, notes, received_by, created_at)
+      payments(id, amount, payment_method, reference_number, created_at)
     `,
       )
       .eq("id", id)
@@ -785,7 +786,7 @@ export const db = {
         const { data: { user } } = await supabase.auth.getUser();
         await supabase.from("inventory_changes").insert([{
           inventory_item_id: mapping.inventory_item_id,
-          change_type: 'Order Production',
+          change_type: 'Manual Adjustment',
           quantity_change: -(Number(mapping.quantity_required) * item.quantity),
           quantity_before: Number(inv.current_quantity),
           quantity_after: newQty,
@@ -814,8 +815,9 @@ export const db = {
     const {error: payErr} = await supabase.from("payments").insert([
       {
         order_id: orderId,
-        ...payment,
-        received_by: user.id,
+        amount: payment.amount,
+        payment_method: payment.payment_method,
+        reference_number: payment.reference_number,
       },
     ]);
     if (payErr) throw payErr;

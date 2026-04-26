@@ -11,6 +11,7 @@ import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
 import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
 import type {Order} from "../../Types";
 import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
+import {useToast} from "../../context/ToastContext";
 
 const DesignerOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -18,8 +19,8 @@ const DesignerOrders = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const { profile } = useMyProfile();
-  
+  const {profile} = useMyProfile();
+
   // Fetch all orders - we'll filter them locally for a better "Queue vs My Orders" experience
   const {
     orders: allOrders,
@@ -29,20 +30,26 @@ const DesignerOrders = () => {
     refresh,
     selfAssign,
     acceptAssignedDesignOrder,
-  } =
-    useOrdersData();
+  } = useOrdersData();
 
-  // Filter for orders assigned to THIS designer OR unassigned orders in queue
-  const orders = allOrders.filter(o => 
-    o.assignedDesigner === profile?.id || 
-    (o.status === "In Queue" && !o.assignedDesigner)
+  const toast = useToast();
+
+  // Filter for orders assigned to THIS designer, excluding those in Payment/Production stages
+  const orders = allOrders.filter(
+    (o) => o.assignedDesigner === profile?.id && !["Payment", "Production", "Pickup"].includes(o.status),
   );
 
   const stats = {
-    assigned: orders.filter(o => o.assignedDesigner === profile?.id).length,
-    inQueue: allOrders.filter(o => o.status === "In Queue" && !o.assignedDesigner).length,
-    inProgress: orders.filter((o) => o.status === "Designing" && o.assignedDesigner === profile?.id).length,
-    completed: orders.filter((o) => ["Payment", "Production", "Pickup", "Completed"].includes(o.status)).length,
+    assigned: allOrders.filter((o) => o.assignedDesigner === profile?.id).length,
+    inQueue: allOrders.filter(
+      (o) => o.status === "In Queue" && !o.assignedDesigner,
+    ).length,
+    inProgress: allOrders.filter(
+      (o) => o.status === "Designing" && o.assignedDesigner === profile?.id,
+    ).length,
+    completed: allOrders.filter((o) =>
+      o.assignedDesigner === profile?.id && ["Payment", "Production", "Pickup", "Completed"].includes(o.status),
+    ).length,
   };
 
   const filteredOrders = orders.filter((o) => {
@@ -62,12 +69,12 @@ const DesignerOrders = () => {
 
   const handleAcceptAssigned = async (orderId: string) => {
     const r = await acceptAssignedDesignOrder(orderId);
-    if (!r.success) alert("Error: " + r.error);
+    if (!r.success) toast.error("Error: " + r.error);
   };
 
   const handleSelfPick = async (orderId: string) => {
     const r = await selfAssign(orderId);
-    if (!r.success) alert("Error: " + r.error);
+    if (!r.success) toast.error("Error: " + r.error);
   };
 
   if (loading) return <LoadingSpinner />;
@@ -159,13 +166,14 @@ const DesignerOrders = () => {
                         Pick Order
                       </button>
                     )}
-                    {o.status === "In Queue" && o.assignedDesigner === profile?.id && (
-                      <button
-                        onClick={() => handleAcceptAssigned(o.id)}
-                        className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-semibold rounded-lg">
-                        Accept
-                      </button>
-                    )}
+                    {o.status === "In Queue" &&
+                      o.assignedDesigner === profile?.id && (
+                        <button
+                          onClick={() => handleAcceptAssigned(o.id)}
+                          className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-semibold rounded-lg">
+                          Accept
+                        </button>
+                      )}
                     {o.status === "Designing" && (
                       <button
                         onClick={() => handleViewOrder(o)}
@@ -238,16 +246,17 @@ const DesignerOrders = () => {
                             <button
                               onClick={() => handleSelfPick(o.id)}
                               className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold rounded-lg">
-                              Pick
-                            </button>
-                          )}
-                          {o.status === "In Queue" && o.assignedDesigner === profile?.id && (
-                            <button
-                              onClick={() => handleAcceptAssigned(o.id)}
-                              className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg">
                               Accept
                             </button>
                           )}
+                          {o.status === "In Queue" &&
+                            o.assignedDesigner === profile?.id && (
+                              <button
+                                onClick={() => handleAcceptAssigned(o.id)}
+                                className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg">
+                                Accept
+                              </button>
+                            )}
                           {o.status === "Designing" && (
                             <button
                               onClick={() => handleViewOrder(o)}
