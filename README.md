@@ -1,73 +1,101 @@
-# React + TypeScript + Vite
+# Operix — Team Setup Guide
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Get the project running locally in 5 steps.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## What You Need Installed First
 
-## React Compiler
+Download and install these if you don't have them:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Node.js 20+** → https://nodejs.org (click the "LTS" download button)
+- **Git** → https://git-scm.com
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Verify after installing — open a terminal and run:
+```bash
+node --version    # must show v20.x.x or higher
+git --version
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Step 1 — Clone the Repository
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+git clone <paste-the-repo-url-here>
+cd operix
 ```
+
+---
+
+## Step 2 — Place the `.env` Files
+
+You should have received **two** `.env` files from the team lead. Place them exactly as shown:
+
+```
+operix/
+├── backend/
+│   └── .env        ← place backend .env here
+└── frontend/
+    └── .env        ← place frontend .env here
+```
+
+> ⚠️ The files are named `.env` — make sure they stay named exactly that (no `.txt`, no renaming).
+> On Windows, if File Explorer hides it, that's fine — just paste it into the folder.
+
+---
+
+## Step 3 — Install Backend Dependencies
+
+```bash
+cd backend
+npm install
+```
+
+---
+
+## Step 4 — Install Frontend Dependencies
+
+Open a **new terminal tab**, then:
+```bash
+cd frontend
+npm install
+```
+
+---
+
+## Step 5 — Run the Project
+
+You need **two terminals open at the same time**.
+
+**Terminal 1 — start the backend:**
+```bash
+cd backend
+npm run dev
+```
+✅ You should see: `OPERIX BACKEND | Port: 5000 | DB: Connected ✓`
+
+**Terminal 2 — start the frontend:**
+```bash
+cd frontend
+npm run dev
+```
+✅ You should see: `Local: http://localhost:5173/`
+
+Open **http://localhost:5173** in your browser. Done.
+
+---
+
+## Troubleshooting
+
+**`npm install` throws errors**
+→ Your Node.js is too old. Download Node 20 LTS from https://nodejs.org and reinstall.
+
+**Backend crashes immediately**
+→ The `.env` file is missing or in the wrong folder. Double-check Step 2.
+
+**Frontend shows a blank screen or crashes**
+→ The frontend `.env` is missing. Double-check Step 2. Also restart `npm run dev` after placing the file.
+
+**Port 5000 or 5173 already in use**
+→ Something else is using that port. Close other dev servers or restart your computer.
