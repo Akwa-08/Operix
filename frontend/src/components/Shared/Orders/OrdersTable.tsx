@@ -103,7 +103,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                   <div><span className="text-gray-400">Amount:</span> <span className="font-semibold text-gray-900">₱{order.totalAmount.toLocaleString()}</span></div>
                   <div>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${paymentColor(order.paymentStatus)}`}>
-                      {order.paymentStatus}
+                      {order.paymentStatus === "Partial" ? "Paid Partially" : order.paymentStatus}
                     </span>
                   </div>
                 </>
@@ -151,7 +151,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                 {perms.canViewAll && (
                   <td className="px-4 py-3 text-center">
                     <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${paymentColor(order.paymentStatus)}`}>
-                      {order.paymentStatus}
+                      {order.paymentStatus === "Partial" ? "Paid Partially" : order.paymentStatus}
                     </span>
                   </td>
                 )}

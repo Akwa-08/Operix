@@ -74,6 +74,12 @@ function mapOrder(raw: any): Order {
     productionName: raw.production_staff ? raw.production_staff.full_name || '' : '',
     comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
     finalDesignUrl: raw.final_design_url || '',
+    payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
+      amount: Number(p.amount) || 0,
+      payment_method: p.payment_method,
+      reference_number: p.reference_number,
+      created_at: p.created_at
+    })) : [],
   };
 }
 
@@ -322,7 +328,18 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       return r;
     },
     assignStaff: async (orderId: string, assignment: { assigned_designer?: string; assigned_production?: string }) => {
-      const r = await safe(() => db.updateOrder(orderId, assignment).then(() => refresh()));
+      const r = await safe(async () => {
+        const hasDesigner = !!assignment.assigned_designer;
+        const hasProduction = !!assignment.assigned_production;
+
+        if (hasDesigner && !hasProduction) {
+          await db.assignDesignerForAcceptance(orderId, assignment.assigned_designer!);
+        } else {
+          await db.updateOrder(orderId, assignment);
+        }
+
+        await refresh();
+      });
       return r;
     },
     deleteOrder: async (orderId: string) => {
@@ -335,33 +352,7 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
     },
     selfAssign: async (orderId: string) => {
       const r = await safe(async () => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        // 1. Accept the order — assign designer + set status to 'designing'
-        const updatedOrder = await db.updateOrder(orderId, {
-          assigned_designer: user.id,
-          status: 'designing',
-        });
-
-        // 2. Auto-message the customer if the order has a customer_id
-        if (updatedOrder?.customer_id) {
-          try {
-            const designerProfile = await db.getMyProfile();
-            const designerName = designerProfile
-              ? `${designerProfile.first_name || ''} ${designerProfile.last_name || ''}`.trim()
-              : 'Your designer';
-            await db.chat.sendMessage(
-              updatedOrder.customer_id,
-              `Hi! Your order **${updatedOrder.order_number}** has been accepted by ${designerName} and is now being designed. We'll keep you posted! 🎨`,
-              orderId,
-            );
-          } catch (msgErr) {
-            // Non-fatal — order already accepted, just log the message failure
-            console.warn('Auto-message failed:', msgErr);
-          }
-        }
-
+        await db.designerSelfPickOrder(orderId);
         await refresh();
       });
       return r;
@@ -372,7 +363,15 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
     },
     // Designer uploads the FINAL PREVIEW to orders.final_design_url
     updateFinalDesign: async (orderId: string, url: string) => {
-      const r = await safe(() => db.updateOrder(orderId, { final_design_url: url }).then(() => refresh()));
+      const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => refresh()));
+      return r;
+    },
+    acceptAssignedDesignOrder: async (orderId: string) => {
+      const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => refresh()));
+      return r;
+    },
+    acceptFinalDesignAsCustomer: async (orderId: string) => {
+      const r = await safe(() => db.customerAcceptFinalDesign(orderId).then(() => refresh()));
       return r;
     },
   };
