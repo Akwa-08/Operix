@@ -114,6 +114,7 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handlePayOrder = (order: Order) => {
+    if (order.status !== "Payment") return;
     setSelectedPayOrderId(order.id);
     setShowPayment(true);
   };

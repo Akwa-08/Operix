@@ -457,6 +457,64 @@ export const db = {
     return data;
   },
 
+  async updateDesignerOrderDetails(
+    orderId: string,
+    updates: {total_amount?: number; due_date?: string},
+  ) {
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const {data: actor, error: actorErr} = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (actorErr) throw actorErr;
+    if ((actor?.role || "").toLowerCase() !== "designer") {
+      throw new Error("Only designers can edit order pricing in this flow");
+    }
+
+    const {data: order, error: orderErr} = await supabase
+      .from("orders")
+      .select("id, assigned_designer, status, total_amount")
+      .eq("id", orderId)
+      .single();
+    if (orderErr) throw orderErr;
+    if (!order) throw new Error("Order not found");
+    if (order.assigned_designer !== user.id) {
+      throw new Error("You can only edit orders assigned to you");
+    }
+    if (order.status !== "designing") {
+      throw new Error("Order can only be edited during Designing phase");
+    }
+
+    const payload: Record<string, any> = {};
+    if (updates.total_amount !== undefined) {
+      const current = Number(order.total_amount) || 0;
+      const incoming = Number(updates.total_amount);
+      if (!Number.isFinite(incoming) || incoming <= 0) {
+        throw new Error("Total amount must be a valid positive number");
+      }
+      if (incoming < current) {
+        throw new Error("Designers can only increase the total amount");
+      }
+      payload.total_amount = incoming;
+    }
+    if (updates.due_date !== undefined) payload.due_date = updates.due_date;
+    if (Object.keys(payload).length === 0) return order;
+
+    const {data, error} = await supabase
+      .from("orders")
+      .update(payload)
+      .eq("id", orderId)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
   /**
    * 2a: Cashier/Admin assigns a designer while order remains in_queue.
    * Designing starts only when the assigned designer explicitly accepts.
@@ -602,6 +660,36 @@ export const db = {
   },
 
   async updateCustomerDesign(orderId: string, url: string) {
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const {data: actor, error: actorErr} = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+    if (actorErr) throw actorErr;
+
+    if ((actor?.role || "").toLowerCase() === "designer") {
+      throw new Error("Designer cannot upload or replace customer initial design");
+    }
+
+    const {data: order, error: orderErr} = await supabase
+      .from("orders")
+      .select("status")
+      .eq("id", orderId)
+      .single();
+    if (orderErr) throw orderErr;
+    if (!order) throw new Error("Order not found");
+
+    if (!["in_queue", "designing"].includes(order.status)) {
+      throw new Error(
+        "Initial design can only be replaced during In-Queue or Designing phase",
+      );
+    }
+
     // 3: Customer uploads initial design. Keep both order-level and item-level refs.
     await supabase
       .from("orders")
@@ -748,6 +836,16 @@ export const db = {
   },
 
   async deductInventoryForOrder(orderId: string) {
+    // Skip if already deducted for this order to avoid double-subtracting.
+    const {data: existingLog, error: existingLogErr} = await supabase
+      .from("inventory_changes")
+      .select("id")
+      .eq("reason", `Automatic deduction for order ${orderId}`)
+      .limit(1)
+      .maybeSingle();
+    if (existingLogErr) throw existingLogErr;
+    if (existingLog?.id) return;
+
     // 1. Get order items
     const { data: items, error: itemsErr } = await supabase
       .from("order_items")

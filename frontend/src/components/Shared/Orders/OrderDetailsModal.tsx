@@ -1,5 +1,5 @@
 // src/components/Shared/Orders/OrderDetailsModal.tsx
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {Modal} from "../UI/Modal";
 import {Button} from "../UI/Button";
 import type {UserRole, Order} from "../../../Types";
@@ -33,7 +33,7 @@ interface OrderDetailsModalProps {
   userRole: UserRole;
   onUploadDesign?: () => void;
   onUpdateStatus?: (newStatus: string) => void;
-  onEdit?: () => void;
+  onEdit?: (updates?: { totalAmount?: number; dueDate?: string }) => Promise<void> | void;
   onRecordPayment?: (
     orderId: string,
     payment: {
@@ -74,6 +74,9 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const [payRef, setPayRef] = useState("");
   const [payNotes, setPayNotes] = useState("");
   const [payLoading, setPayLoading] = useState(false);
+  const [editAmount, setEditAmount] = useState(String(order.totalAmount || ""));
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editingOrder, setEditingOrder] = useState(false);
 
   const outstanding = Math.max(
     0,
@@ -81,6 +84,17 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   );
   const isInitialPayment = !order.amountPaid || order.amountPaid === 0;
   const minPayment = isInitialPayment ? order.totalAmount * 0.5 : 1;
+  const isDesignerDesigning = userRole === "designer" && order.status === "Designing";
+
+  useEffect(() => {
+    setEditAmount(String(order.totalAmount || ""));
+    const parsedDate = order.dueDate ? new Date(order.dueDate) : null;
+    const validIso =
+      parsedDate && !Number.isNaN(parsedDate.getTime())
+        ? parsedDate.toISOString().slice(0, 10)
+        : "";
+    setEditDueDate(validIso);
+  }, [order.id, order.totalAmount, order.dueDate]);
 
   const handleRecordPayment = async () => {
     const amt = parseFloat(payAmount);
@@ -128,7 +142,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const canRecordPayment =
     (perms.canViewAll || userRole === "cashier") &&
     !!onRecordPayment &&
+    order.status === "Payment" &&
     order.paymentStatus !== "Paid";
+
+  const canEditCustomerDesign =
+    !!onUpdateCustomerDesign &&
+    userRole !== "designer" &&
+    ["In Queue", "Designing"].includes(order.status);
 
   const handleCustomerUploadComplete = async (fileUrl: string) => {
     if (!onUpdateCustomerDesign) return;
@@ -151,6 +171,37 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
       setIsFinalUploadOpen(false);
     } catch (e: any) {
       toast.error(e.message || "Failed to upload final design");
+    }
+  };
+
+  const handleDesignerSave = async () => {
+    if (!onEdit) return;
+    const nextAmount = Number(editAmount);
+    if (!Number.isFinite(nextAmount) || nextAmount <= 0) {
+      toast.error("Enter a valid total amount.");
+      return;
+    }
+    if (nextAmount < (order.totalAmount || 0)) {
+      toast.error("Amount can only be increased from current total.");
+      return;
+    }
+    if (!editDueDate) {
+      toast.error("Due date is required.");
+      return;
+    }
+
+    setEditingOrder(true);
+    try {
+      await onEdit({
+        totalAmount: nextAmount,
+        dueDate: editDueDate,
+      });
+      if (onRefresh) onRefresh();
+      toast.success("Order details updated.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to update order");
+    } finally {
+      setEditingOrder(false);
     }
   };
 
@@ -528,7 +579,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                   <p className="text-[10px] font-bold text-gray-500 uppercase">
                     Customer Upload
                   </p>
-                  {onUpdateCustomerDesign && (
+                  {canEditCustomerDesign && (
                     <button
                       onClick={() => setIsCustomerUploadOpen(true)}
                       className="text-cyan-600 hover:text-cyan-700 text-[9px] font-black uppercase tracking-wider bg-white border border-cyan-100 px-2 py-0.5 rounded shadow-sm flex items-center gap-1 transition-all active:scale-95">
@@ -673,6 +724,48 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           )}
 
         {/* Action Buttons */}
+        {isDesignerDesigning && onEdit && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
+            <h3 className="text-sm font-bold text-gray-900">Designing Phase Update</h3>
+            <p className="text-xs text-gray-600">
+              Designer can increase total amount and adjust due date during Designing only.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Total Amount (min current: ₱{order.totalAmount.toLocaleString()})
+                </label>
+                <input
+                  type="number"
+                  min={order.totalAmount}
+                  step="0.01"
+                  value={editAmount}
+                  onChange={(e) => setEditAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Due Date
+                </label>
+                <input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                />
+              </div>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleDesignerSave}
+              disabled={editingOrder}>
+              {editingOrder ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        )}
+
         <div className="flex gap-3 pt-4 border-t border-gray-200">
           {/* Cashier Confirm/Complete Button */}
           {userRole === "cashier" &&
@@ -711,8 +804,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               </Button>
             )}
 
-          {perms.canEditAll && onEdit && (
-            <Button variant="primary" onClick={onEdit} className="flex-1">
+          {perms.canEditAll && onEdit && !isDesignerDesigning && (
+            <Button variant="primary" onClick={() => onEdit()} className="flex-1">
               Edit Order
             </Button>
           )}
