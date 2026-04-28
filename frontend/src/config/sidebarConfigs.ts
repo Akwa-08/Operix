@@ -35,6 +35,7 @@ export const cashierSidebarItems: SidebarItem[] = [
 export const designerSidebarItems: SidebarItem[] = [
   {label: "Dashboard", icon: HouseIcon, path: "/designer", end: true},
   {label: "My Orders", icon: OrderIcon, path: "/designer/orders"},
+  {label: "Messages", icon: MessageIcon, path: "/designer/messages"},
 ];
 
 export const productionSidebarItems: SidebarItem[] = [

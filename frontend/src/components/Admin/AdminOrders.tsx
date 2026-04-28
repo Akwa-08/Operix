@@ -39,7 +39,7 @@ const AdminOrders = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAssignModal, setShowAssignModal]   = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [selectedOrder, setSelectedOrder]       = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId]   = useState<string | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
 
   const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, updateCustomerDesign, refresh } = useOrdersData();
@@ -68,7 +68,11 @@ const AdminOrders = () => {
     return pass;
   });
 
-  const handleViewOrder = (order: Order) => { setSelectedOrder(order); setShowDetailsModal(true); };
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
+
+  const handleViewOrder = (order: Order) => { setSelectedOrderId(order.id); setShowDetailsModal(true); };
 
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
@@ -120,7 +124,7 @@ const AdminOrders = () => {
   };
 
   const openAssign = (order: Order) => {
-    setSelectedOrder(order);
+    setSelectedOrderId(order.id);
     setAssignForm({ designer: (order as any).assignedDesigner || "", production: (order as any).assignedProduction || "" });
     setShowAssignModal(true);
   };
@@ -166,11 +170,11 @@ const AdminOrders = () => {
       {viewMode === "list" ? (
         <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder} searchQuery={searchQuery}
           onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrder(order); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
       ) : (
         <OrderCardsGrid orders={filteredOrders} searchQuery={searchQuery}
           onView={handleViewOrder} onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrder(order); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
       )}
 
       {/* Modals */}

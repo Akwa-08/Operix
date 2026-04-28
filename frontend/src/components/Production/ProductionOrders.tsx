@@ -16,7 +16,7 @@ import {useToast} from "../../context/ToastContext";
 const ProductionOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
   const { profile } = useMyProfile();
@@ -53,8 +53,12 @@ const ProductionOrders = () => {
     );
   });
 
+  const selectedOrder = selectedOrderId
+    ? allOrders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
+
   const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
+    setSelectedOrderId(order.id);
     setShowDetailsModal(true);
   };
 
