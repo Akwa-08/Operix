@@ -329,11 +329,11 @@ export function useManagementData() {
     createEmployee: async (data: { employeeCode?: string; fullName: string; position: string; role?: EmployeeRole; baseHourlyRate?: number; hireDate?: string }) => { const r = await safe(() => db.createEmployee({ employee_code: data.employeeCode, full_name: data.fullName, position: data.position, role: data.role, base_hourly_rate: data.baseHourlyRate, hire_date: data.hireDate }).then(() => refreshEmps())); return r; },
     updateEmployee: async (id: string, data: { fullName?: string; position?: string; role?: string; baseHourlyRate?: number; holidayMultiplier?: number; overtimeMultiplier?: number }) => {
       const updates: Record<string, any> = {};
-      if (data.role !== undefined)             updates.role                  = data.role;
-      if (data.fullName !== undefined)         updates.full_name             = data.fullName;
-      if (data.position !== undefined)         updates.position              = data.position;
-      if (data.baseHourlyRate !== undefined)   updates.base_hourly_rate      = data.baseHourlyRate;
-      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier  = data.holidayMultiplier;
+      if (data.role !== undefined) updates.role = data.role;
+      if (data.fullName !== undefined) updates.full_name = data.fullName;
+      if (data.position !== undefined) updates.position = data.position;
+      if (data.baseHourlyRate !== undefined) updates.base_hourly_rate = data.baseHourlyRate;
+      if (data.holidayMultiplier !== undefined) updates.holiday_rate_multiplier = data.holidayMultiplier;
       if (data.overtimeMultiplier !== undefined) updates.overtime_rate_multiplier = data.overtimeMultiplier;
       const r = await safe(() => db.updateEmployee(id, updates).then(() => refreshEmps()));
       return r;
@@ -501,32 +501,32 @@ function mapPayrollRecord(raw: any): PayrollRecord {
 // ═══════════════════════════════════════════════════════════════════════════════
 export function usePayrollData() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
-  const [computing,  setComputing]  = useState(false);
-  const [resetting,  setResetting]  = useState(false); // ← for Reset & Recompute
+  const [computing, setComputing] = useState(false);
+  const [resetting, setResetting] = useState(false); // ← for Reset & Recompute
 
-  const periodsQ    = useQuery(() => db.payroll.getPeriods(), []);
+  const periodsQ = useQuery(() => db.payroll.getPeriods(), []);
   const periods: PayrollPeriod[] = (periodsQ.data || []).map(mapPeriod);
   const activePeriodId = selectedPeriodId || periods[0]?.id || null;
-  const currentPeriod  = periods.find(p => p.id === activePeriodId) || null;
+  const currentPeriod = periods.find(p => p.id === activePeriodId) || null;
 
   const attendanceQ = useQuery(() => activePeriodId ? db.payroll.getAttendanceLogs(activePeriodId) : Promise.resolve([]), [activePeriodId]);
-  const payrollQ    = useQuery(() => activePeriodId ? db.payroll.getPayrollRecords(activePeriodId)  : Promise.resolve([]), [activePeriodId]);
+  const payrollQ = useQuery(() => activePeriodId ? db.payroll.getPayrollRecords(activePeriodId) : Promise.resolve([]), [activePeriodId]);
 
   const attendanceLogs: AttendanceLog[] = (attendanceQ.data || []).map(mapAttendanceLog);
-  const payrollRecords: PayrollRecord[] = (payrollQ.data  || []).map(mapPayrollRecord);
+  const payrollRecords: PayrollRecord[] = (payrollQ.data || []).map(mapPayrollRecord);
 
   const dashboardStats = {
-    totalEmployees:     attendanceLogs.length,
-    grossPayroll:       payrollRecords.reduce((s, r) => s + r.grossIncome, 0),
-    netPayroll:         payrollRecords.reduce((s, r) => s + r.netPay, 0),
-    totalDeductions:    payrollRecords.reduce((s, r) => s + r.totalDeductions, 0),
-    totalWorkHours:     Math.round(attendanceLogs.reduce((s, l) => s + l.workedHours, 0) * 100) / 100,
+    totalEmployees: attendanceLogs.length,
+    grossPayroll: payrollRecords.reduce((s, r) => s + r.grossIncome, 0),
+    netPayroll: payrollRecords.reduce((s, r) => s + r.netPay, 0),
+    totalDeductions: payrollRecords.reduce((s, r) => s + r.totalDeductions, 0),
+    totalWorkHours: Math.round(attendanceLogs.reduce((s, l) => s + l.workedHours, 0) * 100) / 100,
     totalOvertimeHours: Math.round(attendanceLogs.reduce((s, l) => s + l.regularOvertimeHours + l.holidayOvertimeHours + l.specialOvertimeHours, 0) * 100) / 100,
-    totalAbsences:      attendanceLogs.reduce((s, l) => s + l.absences, 0),
+    totalAbsences: attendanceLogs.reduce((s, l) => s + l.absences, 0),
   };
 
   const loading = periodsQ.loading || attendanceQ.loading || payrollQ.loading;
-  const error   = periodsQ.error   || attendanceQ.error   || payrollQ.error;
+  const error = periodsQ.error || attendanceQ.error || payrollQ.error;
 
   const refresh = useCallback(() => {
     periodsQ.refresh(); attendanceQ.refresh(); payrollQ.refresh();

@@ -52,7 +52,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
   initialInstructions = "",
   orderButtonText = "Order",
 }) => {
-  const [quantity, setQuantity] = useState(initialQuantity);
+  const [quantity, setQuantity] = useState<number | string>(initialQuantity);
   const [fileUrl, setFileUrl] = useState<string | undefined>(initialFileUrl);
   const [fileName, setFileName] = useState<string | undefined>(undefined);
   const [specialInstructions, setSpecialInstructions] = useState(initialInstructions);
@@ -78,7 +78,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
 
   if (!isOpen || !product) return null;
 
-  const initialPrice = product.price * quantity;
+  const initialPrice = product.price * Number(quantity || 0);
 
   const resetState = () => {
     setQuantity(1);
@@ -99,7 +99,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
     setIsSubmitting(true);
     await onAddToCart({
       product,
-      quantity,
+      quantity: Number(quantity) || 1,
       fileUrl,
       specialInstructions: specialInstructions.trim() || undefined,
     });
@@ -119,7 +119,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
     setIsSubmitting(true);
     await onOrder({
       product,
-      quantity,
+      quantity: Number(quantity) || 1,
       fileUrl,
       specialInstructions: specialInstructions.trim() || undefined,
     });
@@ -223,9 +223,9 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                     </p>
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                        onClick={() => setQuantity((q) => Math.max(1, Number(q) - 1))}
                         className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 hover:border-cyan-400 hover:text-cyan-500 transition-colors cursor-pointer disabled:opacity-30"
-                        disabled={quantity <= 1}
+                        disabled={Number(quantity) <= 1}
                       >
                         <Minus className="w-4 h-4" />
                       </button>
@@ -234,18 +234,22 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                         min={1}
                         value={quantity}
                         onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          if (!isNaN(val) && val >= 1) setQuantity(val);
-                          else if (e.target.value === "") setQuantity(1);
+                          const val = e.target.value;
+                          if (val === "") {
+                            setQuantity("");
+                            return;
+                          }
+                          const num = parseInt(val, 10);
+                          if (!isNaN(num)) setQuantity(num);
                         }}
                         onBlur={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          setQuantity(!isNaN(val) && val >= 1 ? val : 1);
+                          const num = parseInt(e.target.value, 10);
+                          setQuantity(!isNaN(num) && num >= 1 ? num : 1);
                         }}
                         className="w-14 sm:w-16 text-xl sm:text-2xl font-black text-gray-900 text-center tabular-nums bg-transparent border-b-2 border-gray-300 focus:border-cyan-400 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button
-                        onClick={() => setQuantity((q) => q + 1)}
+                        onClick={() => setQuantity((q) => Number(q || 0) + 1)}
                         className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 hover:border-cyan-400 hover:text-cyan-500 transition-colors cursor-pointer"
                       >
                         <Plus className="w-4 h-4" />

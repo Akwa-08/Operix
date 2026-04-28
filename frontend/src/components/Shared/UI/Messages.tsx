@@ -65,6 +65,17 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
     : false;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+  const renderContent = (content: string) => {
+    if (!content) return null;
+    const parts = content.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={i}>{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+  };
+
   const getInitials = (name: string) =>
     name
       .split(" ")
@@ -502,7 +513,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                       )}
                       {msg.content && (
                         <p className="text-sm whitespace-pre-wrap break-words [word-break:break-word]">
-                          {msg.content}
+                          {renderContent(msg.content)}
                         </p>
                       )}
                       <p

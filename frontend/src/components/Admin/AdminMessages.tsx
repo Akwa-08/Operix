@@ -1,4 +1,4 @@
-import React from "react";
+import { useAuth } from "../../context/AuthContext";
 import Messages from "../Shared/UI/Messages";
 
 /**
@@ -7,7 +7,10 @@ import Messages from "../Shared/UI/Messages";
  * Admins can see all users in the discovery panel and message anyone.
  */
 const AdminMessages: React.FC = () => {
-  return <Messages title="Admin Messages" />;
+  const { user } = useAuth();
+  const roleName = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "Staff";
+  
+  return <Messages title={`${roleName} Messages`} />;
 };
 
 export default AdminMessages;
