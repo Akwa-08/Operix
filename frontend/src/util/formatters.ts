@@ -5,6 +5,15 @@ export function fmtMoney(v: number | undefined | null): string {
   if (val >= 1_000)     return `₱${(val / 1_000).toFixed(0)}k`;
   return `₱${val.toLocaleString()}`;
 }
+}
+
+/** Parse a database timestamp, enforcing UTC if no timezone is provided */
+export function parseDbDate(iso: string | null | undefined): Date | null {
+  if (!iso) return null;
+  const normalized = /[Z+]/.test(iso) ? iso : iso.replace(" ", "T") + "Z";
+  const date = new Date(normalized);
+  return isNaN(date.getTime()) ? null : date;
+}
 
 // ── Status Color Mappings (Single Source of Truth) ─────────────────────────
 
