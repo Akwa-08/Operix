@@ -22,7 +22,7 @@ const CashierOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
   const {
@@ -60,7 +60,7 @@ const CashierOrders = () => {
   };
 
   const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
+    setSelectedOrderId(order.id);
     setShowDetailsModal(true);
   };
 
@@ -78,6 +78,10 @@ const CashierOrders = () => {
       o.productType?.toLowerCase().includes(q)
     );
   });
+
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
 
   return (
     <div className="max-w-7xl mx-auto">

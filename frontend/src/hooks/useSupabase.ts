@@ -315,7 +315,7 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       const dbStatus = status.toLowerCase().replace(/ /g, '_');
       const r = await safe(async () => {
         await db.updateOrder(orderId, { status: dbStatus });
-        if (dbStatus === 'production') {
+        if (dbStatus === 'pickup') {
           try {
             await db.deductInventoryForOrder(orderId);
           } catch (invErr) {
@@ -372,6 +372,13 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
     },
     acceptFinalDesignAsCustomer: async (orderId: string) => {
       const r = await safe(() => db.customerAcceptFinalDesign(orderId).then(() => refresh()));
+      return r;
+    },
+    updateDesignerOrderDetails: async (orderId: string, updates: { totalAmount?: number; dueDate?: string }) => {
+      const payload: { total_amount?: number; due_date?: string } = {};
+      if (updates.totalAmount !== undefined) payload.total_amount = updates.totalAmount;
+      if (updates.dueDate !== undefined) payload.due_date = updates.dueDate;
+      const r = await safe(() => db.updateDesignerOrderDetails(orderId, payload).then(() => refresh()));
       return r;
     },
   };

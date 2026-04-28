@@ -16,7 +16,7 @@ import {useToast} from "../../context/ToastContext";
 const DesignerOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
   const {profile} = useMyProfile();
@@ -27,6 +27,7 @@ const DesignerOrders = () => {
     loading,
     updateCustomerDesign,
     updateFinalDesign,
+    updateDesignerOrderDetails,
     refresh,
     selfAssign,
     acceptAssignedDesignOrder,
@@ -62,8 +63,12 @@ const DesignerOrders = () => {
     );
   });
 
+  const selectedOrder = selectedOrderId
+    ? allOrders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
+
   const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
+    setSelectedOrderId(order.id);
     setShowDetailsModal(true);
   };
 
@@ -174,13 +179,6 @@ const DesignerOrders = () => {
                           Accept
                         </button>
                       )}
-                    {o.status === "Designing" && (
-                      <button
-                        onClick={() => handleViewOrder(o)}
-                        className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-semibold rounded-lg">
-                        Continue
-                      </button>
-                    )}
                   </div>
                 </div>
               ))
@@ -257,13 +255,6 @@ const DesignerOrders = () => {
                                 Accept
                               </button>
                             )}
-                          {o.status === "Designing" && (
-                            <button
-                              onClick={() => handleViewOrder(o)}
-                              className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold rounded-lg">
-                              Continue
-                            </button>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -296,6 +287,13 @@ const DesignerOrders = () => {
           order={selectedOrder}
           userRole="designer"
           onClose={() => setShowDetailsModal(false)}
+          onEdit={async (updates) => {
+            const r = await updateDesignerOrderDetails(selectedOrder.id, {
+              totalAmount: updates?.totalAmount,
+              dueDate: updates?.dueDate,
+            });
+            if (!r.success) throw new Error(r.error || "Update failed");
+          }}
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");

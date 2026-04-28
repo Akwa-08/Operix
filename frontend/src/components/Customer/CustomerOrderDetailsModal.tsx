@@ -184,7 +184,7 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
                   <span className={`font-semibold text-sm ${order.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-red-500'}`}>
                     {order.paymentStatus}
                   </span>
-                  {order.paymentStatus !== 'Paid' && onPay && (
+                  {order.status === "Payment" && order.paymentStatus !== 'Paid' && onPay && (
                     <button 
                       onClick={() => onPay(order)}
                       className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] uppercase tracking-wider px-2 py-1 flex items-center gap-1 rounded transition-colors font-bold shadow-sm"
