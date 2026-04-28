@@ -15,11 +15,12 @@ import type {
   UserRole, FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
   AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole,
 } from '../Types';
+import { parseDbDate } from '../util/formatters';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Generic fetch-and-cache pattern
 // ═══════════════════════════════════════════════════════════════════════════════
-function useQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
+function useQuery<T>(fetcher: () => Promise<T>, deps: any[] = [], realtimeTables: string[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,21 @@ function useQuery<T>(fetcher: () => Promise<T>, deps: any[] = []) {
   }, deps);
 
   useEffect(() => { refresh(); }, [refresh]);
+  
+  useEffect(() => {
+    if (!realtimeTables || realtimeTables.length === 0) return;
+    
+    let channel = supabase.channel(`multi_${realtimeTables.join('_')}`);
+    realtimeTables.forEach(table => {
+      channel = channel.on('postgres_changes' as any, { event: '*', schema: 'public', table }, () => {
+        refresh();
+      });
+    });
+    
+    channel.subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [realtimeTables?.join('_'), refresh]);
+
   return { data, loading, error, refresh };
 }
 
@@ -66,8 +82,8 @@ function mapOrder(raw: any): Order {
     quantity: items.reduce((s: number, i: any) => s + (i.quantity || 0), 0),
     totalAmount: Number(raw.total_amount) || 0,
     status: mapStatus(raw.status), paymentStatus: mapPayment(raw.payment_status),
-    dateOrdered: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
-    dueDate: raw.due_date ? new Date(raw.due_date).toLocaleDateString() : '',
+    dateOrdered: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
+    dueDate: parseDbDate(raw.due_date)?.toLocaleDateString() || '',
     specialInstructions: raw.special_instructions || items[0]?.specifications || '', designFile: raw.design_file_url || items[0]?.file_url || '',
     assignedDesigner: raw.assigned_designer || '', assignedProduction: raw.assigned_production || '',
     designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
@@ -89,7 +105,7 @@ function mapUser(raw: any): FrontendUser {
     email: raw.email || '',
     role: raw.role ? raw.role.charAt(0).toUpperCase() + raw.role.slice(1) : 'Customer',
     contactNumber: raw.contact_number || '', isActive: raw.is_active ?? true,
-    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    createdAt: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
   };
 }
 
@@ -99,7 +115,7 @@ function mapSupplier(raw: any): FrontendSupplier {
     contactNumber: raw.phone || '', address: raw.address || '',
     supplierStatus: raw.is_active ? 'Active' : 'Inactive',
     isFlagged: raw.is_flagged ?? false, flagNotes: raw.flag_notes || '',
-    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    createdAt: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
   };
 }
 
@@ -111,7 +127,7 @@ function mapEmployee(raw: any): EmployeeRecord {
     baseHourlyRate: Number(raw.base_hourly_rate) || 0,
     holidayRateMultiplier: Number(raw.holiday_rate_multiplier) || 2.0,
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
-    hireDate: raw.hire_date ? new Date(raw.hire_date).toLocaleDateString() : '',
+    hireDate: parseDbDate(raw.hire_date)?.toLocaleDateString() || '',
     isActive: raw.is_active ?? true,
   };
 }
@@ -174,8 +190,8 @@ export function useProducts(filters?: { search?: string; category?: string }) {
 
 // ── Orders (raw, internal) ───────────────────────────────────────────────────
 export function useOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status, filters?.assigned_designer, filters?.assigned_production]);
-  const { data: staffList } = useQuery(() => db.getStaffList(), []);
+  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status, filters?.assigned_designer, filters?.assigned_production], ['orders', 'order_items']);
+  const { data: staffList } = useQuery(() => db.getStaffList(), [], ['employees', 'users']);
 
   const orders = rawOrders || [];
   const staff = (staffList || []).map((s: any) => ({
@@ -203,7 +219,7 @@ export function useOrders(filters?: { status?: string; assigned_designer?: strin
 // Used by: AdminInventory, CashierInventory, ProductionInventory
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useInventoryData() {
-  const q = useQuery(() => db.getInventoryItems(), []);
+  const q = useQuery(() => db.getInventoryItems(), [], ['inventory_items', 'item_suppliers', 'suppliers']);
   const raw = q.data || [];
 
   const materials: Material[] = raw.map(mapMaterial);
