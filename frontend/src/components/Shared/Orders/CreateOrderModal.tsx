@@ -5,8 +5,10 @@ import { Modal } from "../UI/Modal";
 import { Button } from "../UI/Button";
 import type { UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
-import { Info } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useEffect } from "react";
+import { db } from "../../../lib/database";
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -30,13 +32,42 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     customerEmail: "",
     customerPhone: "",
     productType: "",
-    quantity: 0,
+    quantity: "" as number | string,
     totalAmount: 0,
-    paymentStatus: "Unpaid",
     dueDate: "",
     specialInstructions: "",
     comments: "",
   });
+
+  const [products, setProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+
+  // Load real products from inventory
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const data = await db.getProductsWithBOM();
+        setProducts(data.filter(p => p.is_active));
+      } catch (err) {
+        console.error("Failed to load products:", err);
+        toast.error("Could not load product list");
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    loadProducts();
+  }, []);
+
+  // Auto-calculate total amount
+  useEffect(() => {
+    const selectedProduct = products.find(p => p.title === formData.productType);
+    if (selectedProduct && formData.quantity) {
+      const total = selectedProduct.final_price * Number(formData.quantity);
+      setFormData(prev => ({ ...prev, totalAmount: total }));
+    } else {
+      setFormData(prev => ({ ...prev, totalAmount: 0 }));
+    }
+  }, [formData.productType, formData.quantity, products]);
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -45,11 +76,15 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const handleSubmit = () => {
     if (!formData.customerName.trim()) { toast.error("Customer name is required"); return; }
     if (!formData.productType)         { toast.error("Product type is required"); return; }
-    if (!formData.quantity || formData.quantity < 1) { toast.error("Quantity must be at least 1"); return; }
+    if (!formData.quantity || Number(formData.quantity) < 1) { toast.error("Quantity must be at least 1"); return; }
     if (!formData.dueDate)             { toast.error("Due date is required"); return; }
     if (formData.totalAmount <= 0)     { toast.error("Total amount must be greater than 0"); return; }
 
-    onSave(formData);
+    onSave({
+      ...formData,
+      quantity: Number(formData.quantity),
+      paymentStatus: "Unpaid" // Default for new orders
+    });
     onClose();
   };
 
@@ -133,20 +168,26 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               <label className="block text-sm font-semibold text-gray-700 mb-1">
                 Product Type *
               </label>
-              <select
-                value={formData.productType}
-                onChange={(e) => handleChange("productType", e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              >
-                <option value="">Select Product</option>
-                <option value="Tarpaulin">Tarpaulin</option>
-                <option value="T-Shirt">T-Shirt</option>
-                <option value="Mug">Mug</option>
-                <option value="Sticker">Sticker</option>
-                <option value="Banner">Banner</option>
-                <option value="ID Card">ID Card</option>
-                <option value="Other">Other</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={formData.productType}
+                  onChange={(e) => handleChange("productType", e.target.value)}
+                  disabled={loadingProducts}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-50 disabled:cursor-not-allowed appearance-none"
+                >
+                  <option value="">Select Product</option>
+                  {products.map(product => (
+                    <option key={product.id} value={product.title}>
+                      {product.title} (₱{product.final_price})
+                    </option>
+                  ))}
+                </select>
+                {loadingProducts && (
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
@@ -157,44 +198,40 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 type="number"
                 min="1"
                 value={formData.quantity}
-                onChange={(e) => handleChange("quantity", Number(e.target.value))}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "") {
+                    handleChange("quantity", "");
+                    return;
+                  }
+                  const num = parseInt(val, 10);
+                  if (!isNaN(num)) handleChange("quantity", num);
+                }}
+                onBlur={(e) => {
+                  const num = parseInt(e.target.value, 10);
+                  handleChange("quantity", !isNaN(num) && num >= 1 ? num : 1);
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                placeholder="0"
+                placeholder="1"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+            <div className="sm:col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Total Amount (₱) *
+                Total Amount (₱)
               </label>
               <input
                 type="number"
-                min="0"
-                step="0.01"
                 value={formData.totalAmount}
-                onChange={(e) =>
-                  handleChange("totalAmount", Number(e.target.value))
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                readOnly
+                className="w-full px-4 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-600 font-bold cursor-not-allowed"
                 placeholder="0.00"
               />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Payment Status *
-              </label>
-              <select
-                value={formData.paymentStatus}
-                onChange={(e) => handleChange("paymentStatus", e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              >
-                <option value="Unpaid">Unpaid</option>
-                <option value="Partial">Partial</option>
-                <option value="Paid">Paid</option>
-              </select>
+              <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-bold">
+                * Auto-calculated based on product price and quantity
+              </p>
             </div>
           </div>
 
