@@ -1,4 +1,5 @@
 import {useMemo, useState} from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Package,
   Clock,
@@ -40,6 +41,7 @@ const QuickActionCard: React.FC<{
 );
 
 const DesignerDashboard = () => {
+  const navigate = useNavigate();
   const {profile} = useMyProfile();
   const {orders: allOrders, loading, refresh, selfAssign} = useOrdersData();
   const toast = useToast();
@@ -160,28 +162,28 @@ const DesignerDashboard = () => {
               description="View assigned orders"
               icon={<Package size={20} />}
               color="bg-purple-100 text-purple-600"
-              onClick={() => (window.location.href = "/designer/orders")}
+              onClick={() => navigate("/designer/orders")}
             />
             <QuickActionCard
               title="In Progress"
               description="Continue designing"
               icon={<Pencil size={20} />}
               color="bg-cyan-100 text-cyan-600"
-              onClick={() => (window.location.href = "/designer/orders")}
+              onClick={() => navigate("/designer/orders")}
             />
             <QuickActionCard
               title="Queue"
               description="Pickup new orders"
               icon={<Eye size={20} />}
               color="bg-blue-100 text-blue-600"
-              onClick={() => (window.location.href = "/designer/orders")}
+              onClick={() => navigate("/designer/orders")}
             />
             <QuickActionCard
               title="Messages"
               description="Chat with team"
               icon={<MessageSquare size={20} />}
               color="bg-pink-100 text-pink-600"
-              onClick={() => (window.location.href = "/designer/messages")}
+              onClick={() => navigate("/designer/messages")}
             />
           </div>
         </div>

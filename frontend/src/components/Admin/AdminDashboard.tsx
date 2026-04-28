@@ -1,4 +1,5 @@
 import {useState, useMemo} from "react";
+import { useNavigate } from "react-router-dom";
 import {
   RefreshCw,
   TrendingUp,
@@ -394,6 +395,7 @@ const BarChart: React.FC<{
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [period, setPeriod] = useState<Period>("month");
   const [chartType, setChartType] = useState<ChartType>("revenue");
   const {data: liveData, loading, refresh} = useDashboardData();
@@ -572,42 +574,42 @@ const AdminDashboard = () => {
             description="Create a walk-in order"
             icon={<Package size={20} />}
             color="bg-cyan-100 text-cyan-600"
-            onClick={() => (window.location.href = "/admin/orders")}
+            onClick={() => navigate("/admin/orders")}
           />
           <QuickActionCard
             title="Manage Users"
             description="Staff & customer accounts"
             icon={<Users size={20} />}
             color="bg-blue-100 text-blue-600"
-            onClick={() => (window.location.href = "/admin/users")}
+            onClick={() => navigate("/admin/users")}
           />
           <QuickActionCard
             title="Inventory"
             description="Stock levels & deliveries"
             icon={<Warehouse size={20} />}
             color="bg-purple-100 text-purple-600"
-            onClick={() => (window.location.href = "/admin/inventory")}
+            onClick={() => navigate("/admin/inventory")}
           />
           <QuickActionCard
             title="Payroll"
             description="Attendance & salary"
             icon={<ClipboardList size={20} />}
             color="bg-green-100 text-green-600"
-            onClick={() => (window.location.href = "/admin/payroll")}
+            onClick={() => navigate("/admin/payroll")}
           />
           <QuickActionCard
             title="Audit Logs"
             description="System activity trail"
             icon={<Activity size={20} />}
             color="bg-orange-100 text-orange-600"
-            onClick={() => (window.location.href = "/admin/logs")}
+            onClick={() => navigate("/admin/logs")}
           />
           <QuickActionCard
             title="Messages"
             description="Chat with staff & clients"
             icon={<MessageSquare size={20} />}
             color="bg-pink-100 text-pink-600"
-            onClick={() => (window.location.href = "/admin/messages")}
+            onClick={() => navigate("/admin/messages")}
           />
         </div>
       </div>

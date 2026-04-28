@@ -1,7 +1,7 @@
 // frontend/src/components/Shared/UI/TopNavBar.tsx
 import {useState, useEffect, useRef} from "react";
 import {Bell, X, Menu} from "lucide-react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate, useLocation} from "react-router-dom";
 import {supabase} from "../../../config/supabaseClient";
 
 type NavbarProps = {
@@ -44,6 +44,7 @@ const moduleIcon: Record<string, string> = {
 
 const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showNotif, setShowNotif] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [tab, setTab] = useState<"all" | "unread">("all");
@@ -166,7 +167,7 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
     setShowNotif(false);
 
     // Detect base path from current URL so navigation works for all roles
-    const path = window.location.pathname;
+    const path = location.pathname;
     const base = path.startsWith("/admin")
       ? "/admin"
       : path.startsWith("/cashier")
