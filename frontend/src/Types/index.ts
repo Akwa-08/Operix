@@ -42,6 +42,12 @@ export interface Order {
   comments?: string;
   amountPaid?: number;
   orderType?: string;
+  payments?: {
+    amount: number;
+    payment_method: string;
+    reference_number?: string;
+    created_at: string;
+  }[];
 }
 
 export interface Material {

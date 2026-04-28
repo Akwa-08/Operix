@@ -38,6 +38,7 @@ interface CustomerOrderDetailsModalProps {
   order: Order;
   onRefresh?: () => Promise<void>;
   onPay?: (order: Order) => void;
+  onAcceptFinalDesign?: (order: Order) => Promise<void>;
 }
 
 export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps> = ({
@@ -45,7 +46,9 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
   onClose,
   order,
   onPay,
+  onAcceptFinalDesign,
 }) => {
+  const [acceptingFinalDesign, setAcceptingFinalDesign] = useState(false);
 
   // Local copy of the design file — updates immediately on upload,
   // independent of the parent's stale selectedOrder snapshot.
@@ -57,6 +60,27 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
   const currentStep = mapBackendStatusToStep(order.status);
   const currentStepIndex = statusSteps.findIndex((s) => s.status === currentStep);
 
+
+  const canAcceptFinalDesign =
+    order.status === "Designing" && !!order.finalDesignUrl;
+
+  const handleAcceptFinalDesign = async () => {
+    if (!onAcceptFinalDesign) return;
+    if (!canAcceptFinalDesign) {
+      toast.error("Final design is not yet available for acceptance.");
+      return;
+    }
+
+    setAcceptingFinalDesign(true);
+    try {
+      await onAcceptFinalDesign(order);
+      toast.success("Final design accepted. Order moved to Payment.");
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to accept final design");
+    } finally {
+      setAcceptingFinalDesign(false);
+    }
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Order Details" size="xl">
@@ -160,7 +184,7 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
                   <span className={`font-semibold text-sm ${order.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-red-500'}`}>
                     {order.paymentStatus}
                   </span>
-                  {order.paymentStatus !== 'Paid' && onPay && (
+                  {order.status === "Payment" && order.paymentStatus !== 'Paid' && onPay && (
                     <button 
                       onClick={() => onPay(order)}
                       className="bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] uppercase tracking-wider px-2 py-1 flex items-center gap-1 rounded transition-colors font-bold shadow-sm"
@@ -282,10 +306,11 @@ export const CustomerOrderDetailsModal: React.FC<CustomerOrderDetailsModalProps>
         {/* ── Actions ────────────────────────────────────────────────────── */}
         <div className="pt-2">
           <button 
-            className="bg-[#00BEF4] hover:bg-[#00a9d9] text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors w-full sm:w-auto"
-            onClick={() => toast("Approve functionality not fully implemented yet 🚧")}
+            className="bg-[#00BEF4] hover:bg-[#00a9d9] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors w-full sm:w-auto"
+            disabled={!canAcceptFinalDesign || acceptingFinalDesign}
+            onClick={handleAcceptFinalDesign}
           >
-            Approve Design
+            {acceptingFinalDesign ? "Approving..." : "Approve Design"}
           </button>
         </div>
 

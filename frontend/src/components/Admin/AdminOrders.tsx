@@ -3,6 +3,7 @@ import { Plus, Trash2, X, Check } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { Button } from "../Shared/UI/Button";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { useToast } from "../../context/ToastContext";
 import { ViewToggle } from "../Shared/UI/ViewToggle";
 import { Package, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { OrdersTable } from "../Shared/Orders/OrdersTable";
@@ -38,10 +39,11 @@ const AdminOrders = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showAssignModal, setShowAssignModal]   = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [selectedOrder, setSelectedOrder]       = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId]   = useState<string | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
 
   const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, updateCustomerDesign, refresh } = useOrdersData();
+  const toast = useToast();
 
   const statusOptions = ["All", "In Queue", "Active", "Completed", "Overdue"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
@@ -66,7 +68,11 @@ const AdminOrders = () => {
     return pass;
   });
 
-  const handleViewOrder = (order: Order) => { setSelectedOrder(order); setShowDetailsModal(true); };
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
+
+  const handleViewOrder = (order: Order) => { setSelectedOrderId(order.id); setShowDetailsModal(true); };
 
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
@@ -82,8 +88,10 @@ const AdminOrders = () => {
       assigned_production: orderData.assignedProduction || null,
       comments: orderData.comments || null,
     });
-    if (result.success) setShowCreateModal(false);
-    else alert("Error: " + result.error);
+    if (result.success) {
+      setShowCreateModal(false);
+      toast.success("Order created successfully!");
+    } else toast.error("Error: " + result.error);
   };
 
   const handleAssign = async () => {
@@ -92,25 +100,31 @@ const AdminOrders = () => {
     if (assignForm.designer)   payload.assigned_designer = assignForm.designer;
     if (assignForm.production) payload.assigned_production = assignForm.production;
     const r = await assignStaff(selectedOrder.id, payload);
-    if (r.success) setShowAssignModal(false);
-    else alert("Error: " + r.error);
+    if (r.success) {
+      setShowAssignModal(false);
+      toast.success("Staff assigned successfully!");
+    } else toast.error("Error: " + r.error);
   };
 
   const handleDelete = async () => {
     if (!selectedOrder) return;
     const r = await deleteOrder(selectedOrder.id);
-    if (r.success) { setShowDeleteConfirm(false); setShowDetailsModal(false); }
-    else alert("Error: " + r.error);
+    if (r.success) { 
+      setShowDeleteConfirm(false); 
+      setShowDetailsModal(false); 
+      toast.success("Order deleted.");
+    } else toast.error("Error: " + r.error);
   };
 
   const handleStatusChange = async (order: Order, status?: string) => {
     if (!status) return;
     const r = await updateStatus(order.id, status);
-    if (!r.success) alert("Error: " + r.error);
+    if (r.success) toast.success("Status updated!");
+    else toast.error("Error: " + r.error);
   };
 
   const openAssign = (order: Order) => {
-    setSelectedOrder(order);
+    setSelectedOrderId(order.id);
     setAssignForm({ designer: (order as any).assignedDesigner || "", production: (order as any).assignedProduction || "" });
     setShowAssignModal(true);
   };
@@ -156,11 +170,11 @@ const AdminOrders = () => {
       {viewMode === "list" ? (
         <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder} searchQuery={searchQuery}
           onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrder(order); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
       ) : (
         <OrderCardsGrid orders={filteredOrders} searchQuery={searchQuery}
           onView={handleViewOrder} onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrder(order); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
       )}
 
       {/* Modals */}

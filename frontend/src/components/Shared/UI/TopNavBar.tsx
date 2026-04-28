@@ -1,8 +1,8 @@
 // frontend/src/components/Shared/UI/TopNavBar.tsx
-import { useState, useEffect, useRef } from "react";
-import { Bell, X, Menu } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../../../config/supabaseClient";
+import {useState, useEffect, useRef} from "react";
+import {Bell, X, Menu} from "lucide-react";
+import {useNavigate, useLocation} from "react-router-dom";
+import {supabase} from "../../../config/supabaseClient";
 
 type NavbarProps = {
   displayName?: string;
@@ -23,7 +23,7 @@ function timeAgo(iso: string) {
   // Supabase stores timestamps as UTC without the Z suffix.
   // Without normalization, JS parses them as local time, causing an offset equal
   // to the client's UTC offset (e.g. 8 h for UTC+8). Appending Z fixes this.
-  const normalized = /[Z+]/.test(iso) ? iso : iso.replace(' ', 'T') + 'Z';
+  const normalized = /[Z+]/.test(iso) ? iso : iso.replace(" ", "T") + "Z";
   const diff = Date.now() - new Date(normalized).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return "Just now";
@@ -42,8 +42,9 @@ const moduleIcon: Record<string, string> = {
   system: "⚙️",
 };
 
-const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
+const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showNotif, setShowNotif] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [tab, setTab] = useState<"all" | "unread">("all");
@@ -55,19 +56,19 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
 
   useEffect(() => {
     let isMounted = true;
-    const isFetching = { current: false };
+    const isFetching = {current: false};
 
     const fetchNotifications = async (userId: string) => {
       if (isFetching.current || !isMounted) return;
       isFetching.current = true;
       try {
-        const { data } = await supabase
+        const {data} = await supabase
           .from("notifications")
           .select("*")
           .eq("user_id", userId)
-          .order("created_at", { ascending: false })
+          .order("created_at", {ascending: false})
           .limit(50);
-        
+
         if (data && isMounted) {
           setNotifications(data as Notification[]);
         }
@@ -83,7 +84,9 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
       isInitializing.current = true;
 
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const {
+          data: {user},
+        } = await supabase.auth.getUser();
         if (!user || !isMounted) return;
 
         // 1. Initial fetch
@@ -93,16 +96,20 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
         if (isMounted && !channelRef.current) {
           channelRef.current = supabase
             .channel(`notifs_${user.id}`) // Shortened name
-            .on("postgres_changes", {
-              event: "*",
-              schema: "public",
-              table: "notifications",
-              filter: `user_id=eq.${user.id}`,
-            }, () => {
-               fetchNotifications(user.id);
-            })
+            .on(
+              "postgres_changes",
+              {
+                event: "*",
+                schema: "public",
+                table: "notifications",
+                filter: `user_id=eq.${user.id}`,
+              },
+              () => {
+                fetchNotifications(user.id);
+              },
+            )
             .subscribe((status) => {
-              if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+              if (status === "CLOSED" || status === "CHANNEL_ERROR") {
                 channelRef.current = null; // Allow re-init on next check if needed
               }
             });
@@ -126,7 +133,10 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
   // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setShowNotif(false);
       }
     };
@@ -136,36 +146,46 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
 
   const markRead = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    await supabase.from("notifications").update({is_read: true}).eq("id", id);
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? {...n, is_read: true} : n)),
+    );
   };
 
   const markAllRead = async () => {
-    const ids = notifications.filter(n => !n.is_read).map(n => n.id);
+    const ids = notifications.filter((n) => !n.is_read).map((n) => n.id);
     if (!ids.length) return;
-    await supabase.from("notifications").update({ is_read: true }).in("id", ids);
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    await supabase.from("notifications").update({is_read: true}).in("id", ids);
+    setNotifications((prev) => prev.map((n) => ({...n, is_read: true})));
   };
 
   const handleClick = async (n: Notification) => {
-    await supabase.from("notifications").update({ is_read: true }).eq("id", n.id);
-    setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+    await supabase.from("notifications").update({is_read: true}).eq("id", n.id);
+    setNotifications((prev) =>
+      prev.map((x) => (x.id === n.id ? {...x, is_read: true} : x)),
+    );
     setShowNotif(false);
 
     // Detect base path from current URL so navigation works for all roles
-    const path = window.location.pathname;
-    const base =
-      path.startsWith("/admin") ? "/admin" :
-      path.startsWith("/cashier") ? "/cashier" :
-      path.startsWith("/designer") ? "/designer" :
-      path.startsWith("/production") ? "/production" : "";
+    const path = location.pathname;
+    const base = path.startsWith("/admin")
+      ? "/admin"
+      : path.startsWith("/cashier")
+        ? "/cashier"
+        : path.startsWith("/designer")
+          ? "/designer"
+          : path.startsWith("/production")
+            ? "/production"
+            : "";
 
     if (n.related_module === "messages") navigate(`${base}/messages`);
-    else if (n.related_module === "orders" || n.related_module === "payment") navigate(`${base}/orders`);
+    else if (n.related_module === "orders" || n.related_module === "payment")
+      navigate(`${base}/orders`);
   };
 
-  const displayed = tab === "unread" ? notifications.filter(n => !n.is_read) : notifications;
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const displayed =
+    tab === "unread" ? notifications.filter((n) => !n.is_read) : notifications;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   return (
     <div className="fixed top-0 left-0 w-full h-16 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 justify-between z-50 shadow-sm">
@@ -175,12 +195,15 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
           <button
             onClick={onMenuClick}
             className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            aria-label="Open menu"
-          >
+            aria-label="Open menu">
             <Menu size={22} className="text-gray-700" />
           </button>
         )}
-        <span className="text-xl font-black tracking-wider text-slate-900">OPERIX</span>
+        <img
+          src="/images/DASHBOARD3.png"
+          alt="OPERIX Logo"
+          className="h-6 sm:h-8 w-auto"
+        />
       </div>
 
       {/* Right: user chip + bell */}
@@ -194,10 +217,9 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
         {/* Bell */}
         <div className="relative" ref={dropdownRef}>
           <button
-            onClick={() => setShowNotif(v => !v)}
+            onClick={() => setShowNotif((v) => !v)}
             className="relative p-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
-            aria-label="Notifications"
-          >
+            aria-label="Notifications">
             <Bell className="w-5 h-5 text-slate-800" />
             {unreadCount > 0 && (
               <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
@@ -214,16 +236,26 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
               <div className="p-4 border-b border-gray-100">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-bold text-gray-900">Notifications</h3>
-                  <button onClick={() => setShowNotif(false)} className="p-1 hover:bg-gray-100 rounded-lg">
+                  <button
+                    onClick={() => setShowNotif(false)}
+                    className="p-1 hover:bg-gray-100 rounded-lg">
                     <X size={16} className="text-gray-500" />
                   </button>
                 </div>
                 <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-                  {(["all", "unread"] as const).map(t => (
-                    <button key={t} onClick={() => setTab(t)}
+                  {(["all", "unread"] as const).map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setTab(t)}
                       className={`flex-1 py-1 rounded-md text-xs font-semibold transition-all capitalize ${
-                        tab === t ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
-                      }`}>{t} {t === "unread" && unreadCount > 0 ? `(${unreadCount})` : ""}
+                        tab === t
+                          ? "bg-white shadow-sm text-gray-900"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}>
+                      {t}{" "}
+                      {t === "unread" && unreadCount > 0
+                        ? `(${unreadCount})`
+                        : ""}
                     </button>
                   ))}
                 </div>
@@ -233,38 +265,50 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
               <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                 {displayed.length === 0 ? (
                   <div className="p-8 text-center text-gray-400 text-sm">
-                    {tab === "unread" ? "No unread notifications" : "No notifications yet"}
+                    {tab === "unread"
+                      ? "No unread notifications"
+                      : "No notifications yet"}
                   </div>
-                ) : displayed.map(n => (
-                  <div
-                    key={n.id}
-                    onClick={() => handleClick(n)}
-                    className={`flex items-start gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors ${!n.is_read ? "bg-blue-50/60" : ""}`}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-base">
-                      {moduleIcon[n.related_module || "system"] || "📋"}
+                ) : (
+                  displayed.map((n) => (
+                    <div
+                      key={n.id}
+                      onClick={() => handleClick(n)}
+                      className={`flex items-start gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors ${!n.is_read ? "bg-blue-50/60" : ""}`}>
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-base">
+                        {moduleIcon[n.related_module || "system"] || "📋"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`text-sm leading-snug mb-0.5 ${!n.is_read ? "font-semibold text-gray-900" : "text-gray-700"}`}>
+                          {n.title}
+                        </p>
+                        {n.message && (
+                          <p className="text-xs text-gray-500 truncate">
+                            {n.message}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {timeAgo(n.created_at)}
+                        </p>
+                      </div>
+                      {!n.is_read && (
+                        <button
+                          onClick={(e) => markRead(n.id, e)}
+                          className="text-xs text-cyan-600 hover:text-cyan-700 font-semibold whitespace-nowrap flex-shrink-0 mt-0.5">
+                          Mark read
+                        </button>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm leading-snug mb-0.5 ${!n.is_read ? "font-semibold text-gray-900" : "text-gray-700"}`}>
-                        {n.title}
-                      </p>
-                      {n.message && <p className="text-xs text-gray-500 truncate">{n.message}</p>}
-                      <p className="text-xs text-gray-400 mt-0.5">{timeAgo(n.created_at)}</p>
-                    </div>
-                    {!n.is_read && (
-                      <button onClick={e => markRead(n.id, e)}
-                        className="text-xs text-cyan-600 hover:text-cyan-700 font-semibold whitespace-nowrap flex-shrink-0 mt-0.5">
-                        Mark read
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
 
               {/* Footer */}
               {unreadCount > 0 && (
                 <div className="p-3 border-t border-gray-100 bg-gray-50">
-                  <button onClick={markAllRead}
+                  <button
+                    onClick={markAllRead}
                     className="w-full text-xs text-cyan-600 hover:text-cyan-700 font-semibold">
                     Mark all as read
                   </button>

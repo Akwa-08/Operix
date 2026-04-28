@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, DollarSign, CreditCard,
   Package, AlertTriangle, CheckCircle, Clock,
@@ -321,6 +322,7 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
 }
 
 const CashierDashboard = () => {
+  const navigate = useNavigate();
   const { orderStats, invStats, recentOrders, loading } = useDashboard();
   const { pendingCount, submitRequest, checkEligibility, refresh: refreshCA } = useCashierCashAdvances();
   const [showCA, setShowCA] = useState(false);
@@ -364,10 +366,10 @@ const CashierDashboard = () => {
         <div className="lg:col-span-1 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-3">
-            <QuickActionCard title="New Order" description="Create a walk-in order" icon={<Package size={20}/>} color="bg-cyan-100 text-cyan-600" onClick={() => (window.location.href="/cashier/orders")}/>
-            <QuickActionCard title="Process Payment" description="Manage balance dues" icon={<CreditCard size={20}/>} color="bg-green-100 text-green-600" onClick={() => (window.location.href="/cashier/orders")}/>
-            <QuickActionCard title="Deliveries" description="Receive incoming stock" icon={<Package size={20}/>} color="bg-purple-100 text-purple-600" onClick={() => (window.location.href="/cashier/inventory")}/>
-            <QuickActionCard title="Low Stock" description="View depleted inventory" icon={<AlertTriangle size={20}/>} color="bg-red-100 text-red-600" onClick={() => (window.location.href="/cashier/inventory")}/>
+            <QuickActionCard title="New Order" description="Create a walk-in order" icon={<Package size={20}/>} color="bg-cyan-100 text-cyan-600" onClick={() => navigate("/cashier/orders")}/>
+            <QuickActionCard title="Process Payment" description="Manage balance dues" icon={<CreditCard size={20}/>} color="bg-green-100 text-green-600" onClick={() => navigate("/cashier/orders")}/>
+            <QuickActionCard title="Deliveries" description="Receive incoming stock" icon={<Package size={20}/>} color="bg-purple-100 text-purple-600" onClick={() => navigate("/cashier/inventory")}/>
+            <QuickActionCard title="Low Stock" description="View depleted inventory" icon={<AlertTriangle size={20}/>} color="bg-red-100 text-red-600" onClick={() => navigate("/cashier/inventory")}/>
             <QuickActionCard title="Cash Advance" description={`Request ${fmt(CA_LIMIT)} for employee`} icon={<Banknote size={20}/>} color="bg-amber-100 text-amber-600" onClick={() => setShowCA(true)}/>
           </div>
         </div>
@@ -376,7 +378,7 @@ const CashierDashboard = () => {
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-base font-bold text-gray-900">Recent Orders</h3>
-            <button onClick={() => (window.location.href="/cashier/orders")} className="text-xs font-semibold text-cyan-600 hover:text-cyan-700">View All</button>
+            <button onClick={() => navigate("/cashier/orders")} className="text-xs font-semibold text-cyan-600 hover:text-cyan-700">View All</button>
           </div>
           {!recentOrders?.length ? (
             <div className="text-center py-10 text-gray-400 text-sm">No recent orders.</div>
@@ -393,7 +395,7 @@ const CashierDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {recentOrders.map((o: any) => (
-                    <tr key={o.id} className="hover:bg-gray-50/50 cursor-pointer" onClick={() => (window.location.href="/cashier/orders")}>
+                    <tr key={o.id} className="hover:bg-gray-50/50 cursor-pointer" onClick={() => navigate("/cashier/orders")}>
                       <td className="py-3 pr-4 font-medium text-gray-900 text-sm">{o.orderId || o.id?.slice(0,8)}</td>
                       <td className="py-3 px-4 text-gray-600 text-sm hidden sm:table-cell truncate max-w-[120px]">{o.customerName || 'Walk-in'}</td>
                       <td className="py-3 px-4">

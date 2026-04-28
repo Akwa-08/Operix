@@ -16,12 +16,13 @@ import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
 import {CreateOrderModal} from "../Shared/Orders/CreateOrderModal";
 import type {Order} from "../../Types";
 import {useOrdersData} from "../../hooks/useSupabase";
+import {useToast} from "../../context/ToastContext";
 
 const CashierOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
   const {
@@ -31,8 +32,11 @@ const CashierOrders = () => {
     createOrder,
     recordPayment,
     updateCustomerDesign,
+    updateStatus,
     refresh,
   } = useOrdersData();
+
+  const toast = useToast();
 
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
@@ -49,18 +53,23 @@ const CashierOrders = () => {
       special_instructions: orderData.specialInstructions,
       due_date: orderData.dueDate,
     });
-    if (result.success) setShowCreateModal(false);
-    else alert("Error: " + result.error);
+    if (result.success) {
+      setShowCreateModal(false);
+      toast.success("Order created successfully!");
+    } else toast.error("Error: " + result.error);
   };
 
   const handleViewOrder = (order: Order) => {
-    setSelectedOrder(order);
+    setSelectedOrderId(order.id);
     setShowDetailsModal(true);
   };
 
   if (loading) return <LoadingSpinner />;
 
   const filteredOrders = orders.filter((o) => {
+    // Only show orders in Payment or Pickup status
+    if (!["Payment", "Pickup"].includes(o.status)) return false;
+
     const q = searchQuery.toLowerCase();
     return (
       !q ||
@@ -69,6 +78,10 @@ const CashierOrders = () => {
       o.productType?.toLowerCase().includes(q)
     );
   });
+
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -285,6 +298,11 @@ const CashierOrders = () => {
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");
+          }}
+          onUpdateStatus={async (status) => {
+            const r = await updateStatus(selectedOrder.id, status);
+            if (!r.success) throw new Error(r.error || "Update failed");
+            setShowDetailsModal(false);
           }}
           onRefresh={refresh}
         />

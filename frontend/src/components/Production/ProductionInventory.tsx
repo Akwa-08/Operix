@@ -4,6 +4,7 @@ import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { useToast } from "../../context/ToastContext";
 import { PageHeader } from "../Shared/UI/PageHeader";
 import { InfoBanner } from "../Shared/UI/InfoBanner";
 import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
@@ -20,11 +21,12 @@ const ProductionInventory = () => {
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
 
   const { materials, stats: materialStats, loading } = useInventoryData();
+  const toast = useToast();
 
   const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
   const handleEditMaterial = (material: Material) => { setSelectedMaterial(material); setShowEditModal(true); };
   const handleSaveEdit = (data: Partial<Material>) => { console.log("Production updating stock:", data); setShowEditModal(false); };
-  const handleCreateResupply = () => { alert("Create resupply request - to be implemented"); };
+  const handleCreateResupply = () => { toast.success("Resupply request feature coming soon!"); };
 
   if (loading) return <LoadingSpinner />;
 
