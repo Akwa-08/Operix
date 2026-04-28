@@ -1927,7 +1927,39 @@ export const db = {
         results.push(saved);
       }
 
-      return results;
+     return results;
+    },
+
+    async resetPayroll(periodId: string) {
+      const {error: delErr} = await supabase.from("payroll_records").delete().eq("payroll_period_id", periodId);
+      if (delErr) throw delErr;
+
+      const {data: issuedCAs} = await supabase.from("cash_advances").select("id").eq("status", "added_to_current_payroll").eq("payroll_period_id", periodId);
+      if (issuedCAs && issuedCAs.length > 0) {
+        await supabase.from("cash_advances").update({ status: "approved", payroll_period_id: null, updated_at: new Date().toISOString() }).in("id", (issuedCAs as any[]).map((a: any) => a.id));
+      }
+
+      const {data: thisPeriodData} = await supabase.from("payroll_periods").select("period_start").eq("id", periodId).single();
+      if (thisPeriodData) {
+        const {data: prevPeriodData} = await supabase.from("payroll_periods").select("id").lt("period_end", thisPeriodData.period_start).order("period_end", {ascending: false}).limit(1).maybeSingle();
+        if (prevPeriodData) {
+          await supabase.from("cash_advances").update({ status: "added_to_current_payroll", updated_at: new Date().toISOString() }).eq("status", "deducted").eq("payroll_period_id", prevPeriodData.id);
+        }
+      }
+      return {success: true};
+    },
+
+    async deletePeriod(id: string) {
+      const {data: period} = await supabase.from("payroll_periods").select("status").eq("id", id).single();
+      if (period?.status !== "draft") throw new Error("Only draft periods can be deleted.");
+
+      await supabase.from("cash_advances").update({ status: "approved", payroll_period_id: null, updated_at: new Date().toISOString() }).eq("status", "added_to_current_payroll").eq("payroll_period_id", id);
+      await supabase.from("payroll_records").delete().eq("payroll_period_id", id);
+      await supabase.from("attendance_logs").delete().eq("payroll_period_id", id);
+      await supabase.from("attendance_summary_imports").delete().eq("payroll_period_id", id);
+
+      const {error} = await supabase.from("payroll_periods").delete().eq("id", id);
+      if (error) throw error;
     },
   },
 
