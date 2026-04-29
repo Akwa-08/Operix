@@ -6,7 +6,7 @@
 // Pipeline: database.ts (raw queries) → useSupabase.ts (hooks) → Components
 // ═══════════════════════════════════════════════════════════════════════════════
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../config/supabaseClient';
 import { db } from '../lib/database';
 import { adminApi } from '../lib/adminApi';
@@ -626,11 +626,71 @@ export function usePayrollData() {
 // ═══════════════════════════════════════════════════════════════════════════════
 export function useLogsData() {
   const q = useQuery(async () => {
-    const { data, error } = await supabase.from('order_logs').select(`*, updated_by_user:updated_by(id, first_name, last_name, role)`).order('created_at', { ascending: false }).limit(200);
-    if (error) throw error;
-    return data || [];
+    const [ordersRes, invRes, auditRes] = await Promise.all([
+      supabase.from('order_logs').select(`*, updated_by_user:updated_by(id, first_name, last_name, role)`).order('created_at', { ascending: false }).limit(200),
+      supabase.from('inventory_changes').select(`*, changed_by_user:changed_by(id, first_name, last_name, role), item:inventory_item_id(name)`).order('created_at', { ascending: false }).limit(200),
+      supabase.from('audit_logs').select(`*, actor_user:actor_id(id, first_name, last_name, role)`).order('created_at', { ascending: false }).limit(200)
+    ]);
+    if (ordersRes.error) console.error("Order logs error:", ordersRes.error);
+    if (invRes.error) console.error("Inventory logs error:", invRes.error);
+    if (auditRes.error) console.error("Audit logs error:", auditRes.error);
+
+    return {
+      orders: ordersRes.data || [],
+      inventory: invRes.data || [],
+      audit: auditRes.data || []
+    };
   }, []);
-  const logs = (q.data || []).map((raw: any) => ({ id: raw.id, orderId: raw.order_id, updatedBy: raw.updated_by_user ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim() : '—', role: raw.updated_by_user?.role || '—', status: raw.status || '', note: raw.note || '', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '' }));
+
+  const logs = useMemo(() => {
+    if (!q.data) return [];
+    const combined: any[] = [];
+
+    // Map Order Logs
+    q.data.orders.forEach((raw: any) => {
+      combined.push({
+        id: raw.id,
+        module: 'orders',
+        action: raw.status ? `Status → ${raw.status}` : 'Order Updated',
+        details: raw.note || `Order ID: ${raw.order_id || 'Unknown'}`,
+        user: raw.updated_by_user ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim() : 'Customer / System',
+        role: raw.updated_by_user?.role || 'customer',
+        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
+      });
+    });
+
+    // Map Inventory Changes
+    q.data.inventory.forEach((raw: any) => {
+      combined.push({
+        id: raw.id,
+        module: 'inventory',
+        action: raw.change_type || 'Inventory Changed',
+        details: `${raw.item?.name || 'Item'} changed by ${raw.quantity_change}. Reason: ${raw.reason || 'N/A'}`,
+        user: raw.changed_by_user ? `${raw.changed_by_user.first_name || ''} ${raw.changed_by_user.last_name || ''}`.trim() : 'System',
+        role: raw.changed_by_user?.role || 'system',
+        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
+      });
+    });
+
+    // Map General Audit Logs
+    q.data.audit.forEach((raw: any) => {
+      combined.push({
+        id: raw.id,
+        module: raw.target_table || 'system',
+        action: raw.action || 'System Action',
+        details: raw.metadata ? JSON.stringify(raw.metadata) : '',
+        user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System',
+        role: raw.actor_role || raw.actor_user?.role || 'system',
+        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
+      });
+    });
+
+    return combined.sort((a, b) => b.timestamp - a.timestamp);
+  }, [q.data]);
+
   return { logs, loading: q.loading, error: q.error, refresh: q.refresh };
 }
 
