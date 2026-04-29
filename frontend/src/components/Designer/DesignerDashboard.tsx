@@ -1,14 +1,10 @@
 import {useMemo, useState} from "react";
-import { useNavigate } from "react-router-dom";
 import {
   Package,
   Clock,
   CheckCircle,
   Upload,
   RefreshCw,
-  Pencil,
-  MessageSquare,
-  Eye,
 } from "lucide-react";
 import {useToast} from "../../context/ToastContext";
 import {KpiCard} from "../Shared/UI/KpiCard";
@@ -21,7 +17,6 @@ import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
 // ─── Designer Dashboard ────────────────────────────────────────────────────────
 
 const DesignerDashboard = () => {
-  const navigate = useNavigate();
   const {profile} = useMyProfile();
   const {orders: allOrders, loading, refresh, selfAssign} = useOrdersData();
   const toast = useToast();
