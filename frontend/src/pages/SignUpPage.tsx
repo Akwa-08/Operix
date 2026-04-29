@@ -23,33 +23,6 @@ const fadeUp = {
   }),
 };
 
-/* ── Minimal CSS (non-animation styles only) ────────────────────────── */
-const styleTag =
-  document.getElementById("signup-styles") ||
-  (() => {
-    const s = document.createElement("style");
-    s.id = "signup-styles";
-    s.textContent = `
-    .su-input-wrap input:focus{border-color:#E80088 !important;box-shadow:0 0 0 3px rgba(232,0,136,.1) !important}
-    .su-submit-btn{
-      background:linear-gradient(135deg,#E80088 0%,#AA00FD 50%,#00BEF4 100%);
-      background-size:200% 200%;
-      transition:all .3s ease;
-    }
-    .su-submit-btn:hover:not(:disabled){
-      background-position:100% 0;
-      transform:translateY(-2px);
-      box-shadow:0 8px 30px rgba(232,0,136,.35);
-    }
-    .su-submit-btn:active:not(:disabled){transform:translateY(0);box-shadow:0 4px 15px rgba(232,0,136,.25)}
-    .su-glass{backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25)}
-    .su-link:hover{color:#E80088 !important}
-  `;
-    document.head.appendChild(s);
-    return s;
-  })();
-void styleTag;
-
 export const SignUpPage = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({

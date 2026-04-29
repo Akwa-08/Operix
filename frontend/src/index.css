@@ -14,10 +14,51 @@
 
   body {
     overflow-x: hidden;
-    @apply bg-slate-50 text-slate-900 transition-colors duration-300 antialiased;
+    background-color: var(--color-slate-50, #f8fafc);
+    color: var(--color-slate-900, #0f172a);
+    transition-property:
+      color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   button {
-    @apply cursor-pointer;
+    cursor: pointer;
   }
+}
+
+/* ── Auth Form Utilities (Shared) ────────────────────────────────────────── */
+.su-input-wrap input:focus {
+  border-color: #e80088 !important;
+  box-shadow: 0 0 0 3px rgba(232, 0, 136, 0.1) !important;
+}
+
+.su-submit-btn {
+  background: linear-gradient(135deg, #e80088 0%, #aa00fd 50%, #00bef4 100%);
+  background-size: 200% 200%;
+  transition: all 0.3s ease;
+}
+
+.su-submit-btn:hover:not(:disabled) {
+  background-position: 100% 0;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(232, 0, 136, 0.35);
+}
+
+.su-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 4px 15px rgba(232, 0, 136, 0.25);
+}
+
+.su-glass {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.su-link:hover {
+  color: #e80088 !important;
 }

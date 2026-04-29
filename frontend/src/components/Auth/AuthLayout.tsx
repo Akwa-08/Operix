@@ -40,7 +40,7 @@ export const AuthLayout = () => {
   const features = [
     {icon: Printer, label: "Custom Printing", desc: "High-quality prints"},
     {icon: Palette, label: "Design Studio", desc: "Professional designs"},
-    {icon: Zap, label: "Fast Delivery", desc: "Quick turnaround"},
+    {icon: Zap, label: "Fast Production", desc: "Quick turnaround"},
   ];
 
   return (
