@@ -94,6 +94,7 @@ function mapOrder(raw: any): Order {
     comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
     finalDesignUrl: raw.final_design_url || '',
     payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
+      id: p.id,
       amount: Number(p.amount) || 0,
       payment_method: p.payment_method,
       reference_number: p.reference_number,

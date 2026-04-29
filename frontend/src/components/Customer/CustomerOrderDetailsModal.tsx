@@ -54,13 +54,12 @@ interface CustomerOrderDetailsModalProps {
   onClose: () => void;
   order: Order;
   onRefresh?: () => Promise<void>;
-  onPay?: (order: Order) => void;
   onAcceptFinalDesign?: (order: Order) => Promise<void>;
 }
 
 export const CustomerOrderDetailsModal: React.FC<
   CustomerOrderDetailsModalProps
-> = ({isOpen, onClose, order, onPay, onAcceptFinalDesign}) => {
+> = ({isOpen, onClose, order, onAcceptFinalDesign}) => {
   const toast = useToast();
   const [acceptingFinalDesign, setAcceptingFinalDesign] = useState(false);
 
