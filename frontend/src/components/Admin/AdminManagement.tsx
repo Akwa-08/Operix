@@ -454,7 +454,7 @@ const AdminManagement: React.FC = () => {
     return colors[role?.toLowerCase()] || "bg-gray-100 text-gray-600";
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="max-w-7xl mx-auto">

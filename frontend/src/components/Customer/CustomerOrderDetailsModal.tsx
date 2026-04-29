@@ -13,7 +13,7 @@ import {
   ImageIcon,
   Check,
 } from "lucide-react";
-import toast from "react-hot-toast";
+import { useToast } from "../../context/ToastContext";
 
 type OrderStatus =
   | "Queue"
@@ -61,6 +61,7 @@ interface CustomerOrderDetailsModalProps {
 export const CustomerOrderDetailsModal: React.FC<
   CustomerOrderDetailsModalProps
 > = ({isOpen, onClose, order, onPay, onAcceptFinalDesign}) => {
+  const toast = useToast();
   const [acceptingFinalDesign, setAcceptingFinalDesign] = useState(false);
 
   // Local copy of the design file — updates immediately on upload,

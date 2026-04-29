@@ -248,7 +248,7 @@ const AdminProducts = () => {
     </div>
   );
 
-  if (loading) return <LoadingSpinner message="Loading products..." />;
+  if (loading) return <LoadingSpinner type="table" message="Loading products..." />;
 
   return (
     <div className="max-w-7xl mx-auto">

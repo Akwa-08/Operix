@@ -11,9 +11,10 @@ import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
 import { Package, CheckCircle, AlertTriangle, Truck } from "lucide-react";
 import type { Material, Delivery, DeliveryStatus } from "../../Types";
 import { useInventoryData, useDeliveries } from "../../hooks/useSupabase";
-import toast from "react-hot-toast";
+import { useToast } from "../../context/ToastContext";
 
 const CashierInventory = () => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState("Materials");
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -64,7 +65,7 @@ const CashierInventory = () => {
     else toast.error("Update failed: " + r.error);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">

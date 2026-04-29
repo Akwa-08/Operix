@@ -6,7 +6,7 @@ import { Button } from "../UI/Button";
 import type { UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
 import { Info, Loader2 } from "lucide-react";
-import toast from "react-hot-toast";
+import { useToast } from "../../../context/ToastContext";
 import { useEffect } from "react";
 import { db } from "../../../lib/database";
 
@@ -23,6 +23,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   userRole,
   onSave,
 }) => {
+  const toast = useToast();
   const perms = permissions[userRole].orders;
 
   // Form state

@@ -34,7 +34,10 @@ interface OrderDetailsModalProps {
   userRole: UserRole;
   onUploadDesign?: () => void;
   onUpdateStatus?: (newStatus: string) => void;
-  onEdit?: (updates?: { totalAmount?: number; dueDate?: string }) => Promise<void> | void;
+  onEdit?: (updates?: {
+    totalAmount?: number;
+    dueDate?: string;
+  }) => Promise<void> | void;
   onRecordPayment?: (
     orderId: string,
     payment: {
@@ -86,7 +89,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   );
   const isInitialPayment = !order.amountPaid || order.amountPaid === 0;
   const minPayment = isInitialPayment ? order.totalAmount * 0.5 : 1;
-  const isDesignerDesigning = userRole === "designer" && order.status === "Designing";
+  const isDesignerDesigning =
+    userRole === "designer" && order.status === "Designing";
 
   useEffect(() => {
     setEditAmount(String(order.totalAmount || ""));
@@ -728,14 +732,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
         {/* Action Buttons */}
         {isDesignerDesigning && onEdit && (
           <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-bold text-gray-900">Designing Phase Update</h3>
+            <h3 className="text-sm font-bold text-gray-900">
+              Designing Phase Update
+            </h3>
             <p className="text-xs text-gray-600">
-              Designer can increase total amount and adjust due date during Designing only.
+              Designer can increase total amount and adjust due date during
+              Designing only.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Total Amount (min current: ₱{order.totalAmount.toLocaleString()})
+                  Total Amount (min current: ₱
+                  {order.totalAmount.toLocaleString()})
                 </label>
                 <input
                   type="number"
@@ -796,7 +804,10 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             )}
 
           {perms.canEditAll && onEdit && !isDesignerDesigning && (
-            <Button variant="primary" onClick={() => onEdit()} className="flex-1">
+            <Button
+              variant="primary"
+              onClick={() => onEdit()}
+              className="flex-1">
               Edit Order
             </Button>
           )}
@@ -810,12 +821,14 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           onClose={() => setIsCustomerUploadOpen(false)}
           onUpload={handleCustomerUploadComplete}
           productName={order.productType || "Order Item"}
+          oldUrl={order.designFile}
         />
         <FileUploadModal
           isOpen={isFinalUploadOpen}
           onClose={() => setIsFinalUploadOpen(false)}
           onUpload={handleFinalDesignUploadComplete}
           productName={`Final Preview — ${order.productType || "Order Item"}`}
+          oldUrl={order.finalDesignUrl}
         />
 
         {/* Confirmation for unpaid orders */}
@@ -824,15 +837,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           onClose={() => setShowPaymentConfirm(false)}
           onConfirm={() => {
             if (!onUpdateStatus) return;
-            const nextStatus = order.status === "Pickup" ? "Completed" : "Production";
-            const targetName = nextStatus === "Completed" ? "Completed" : "Production";
+            const nextStatus =
+              order.status === "Pickup" ? "Completed" : "Production";
+            const targetName =
+              nextStatus === "Completed" ? "Completed" : "Production";
             onUpdateStatus(nextStatus);
-            toast.success(`Order sent to ${targetName} despite pending payment.`);
+            toast.success(
+              `Order sent to ${targetName} despite pending payment.`,
+            );
           }}
           title="Payment Pending"
           message={`This order is not fully paid (₱${outstanding.toLocaleString()} remaining). Proceed to ${order.status === "Pickup" ? "Completed" : "Production"} anyway?`}
           confirmLabel="Proceed Anyway"
-          cancelLabel="Wait, Record Payment"
+          cancelLabel="Cancel"
           variant="warning"
         />
       </div>

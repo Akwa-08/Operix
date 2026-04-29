@@ -28,7 +28,7 @@ const ProductionInventory = () => {
   const handleSaveEdit = (data: Partial<Material>) => { console.log("Production updating stock:", data); setShowEditModal(false); };
   const handleCreateResupply = () => { toast.success("Resupply request feature coming soon!"); };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="max-w-7xl mx-auto">
