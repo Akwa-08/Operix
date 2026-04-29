@@ -48,6 +48,7 @@ interface OrderDetailsModalProps {
       notes?: string;
     },
   ) => Promise<{success: boolean; error: string | null}>;
+  onDeclinePayment?: (paymentId: string) => Promise<{success: boolean; error: string | null}>;
   onUpdateCustomerDesign?: (fileUrl: string) => Promise<void>;
   onUpdateFinalDesign?: (fileUrl: string) => Promise<void>;
   onRefresh?: () => void;
@@ -62,6 +63,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   onUpdateStatus,
   onEdit,
   onRecordPayment,
+  onDeclinePayment,
   onUpdateCustomerDesign,
   onUpdateFinalDesign,
   onRefresh,
@@ -521,6 +523,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                       <th className="px-4 py-3 text-right">Amount</th>
                       <th className="px-4 py-3">Method</th>
                       <th className="px-4 py-3">Reference</th>
+                      {onDeclinePayment && <th className="px-4 py-3 text-right">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -547,6 +550,22 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                         <td className="px-4 py-3 font-mono text-gray-500">
                           {p.reference_number || "—"}
                         </td>
+                        {onDeclinePayment && (
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              onClick={async () => {
+                                if (window.confirm("Are you sure you want to decline this payment?")) {
+                                  const r = await onDeclinePayment(p.id);
+                                  if (r.success) toast.success("Payment declined");
+                                  else toast.error(r.error || "Failed to decline payment");
+                                }
+                              }}
+                              className="text-red-500 hover:text-red-700 text-xs font-semibold px-2 py-1 rounded bg-red-50 hover:bg-red-100 transition-colors"
+                            >
+                              Decline
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

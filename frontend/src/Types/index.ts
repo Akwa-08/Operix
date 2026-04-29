@@ -43,6 +43,7 @@ export interface Order {
   amountPaid?: number;
   orderType?: string;
   payments?: {
+    id: string;
     amount: number;
     payment_method: string;
     reference_number?: string;

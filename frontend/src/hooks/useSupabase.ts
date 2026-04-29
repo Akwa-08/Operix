@@ -94,6 +94,7 @@ function mapOrder(raw: any): Order {
     comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
     finalDesignUrl: raw.final_design_url || '',
     payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
+      id: p.id,
       amount: Number(p.amount) || 0,
       payment_method: p.payment_method,
       reference_number: p.reference_number,
@@ -239,7 +240,13 @@ export function useInventoryData() {
     restocking: raw.filter((i: any) => Number(i.current_quantity) <= 0).length,
     phasedOut: raw.filter((i: any) => !i.is_active).length,
   };
-  return { materials, stats, loading: q.loading, error: q.error, refresh: q.refresh };
+  return {
+    materials, stats, loading: q.loading, error: q.error, refresh: q.refresh,
+    updateMaterial: async (id: string, updates: any) => {
+      const r = await safe(() => db.updateInventoryItem(id, updates).then(() => q.refresh()));
+      return r;
+    }
+  };
 }
 
 export function useProductCatalog(filters?: { search?: string; category?: string }) {
@@ -295,16 +302,19 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => refresh()));
       return r;
     },
-    updateStatus: async (orderId: string, status: string) => {
+    updateStatus: async (orderId: string, status: string, excessUsage?: Record<string, number>) => {
       const dbStatus = status.toLowerCase().replace(/ /g, '_');
       const r = await safe(async () => {
         await db.updateOrder(orderId, { status: dbStatus });
         if (dbStatus === 'pickup') {
-          try { await db.deductInventoryForOrder(orderId); } catch (invErr) { console.error("Inventory deduction failed:", invErr); }
+          try { await db.deductInventoryForOrder(orderId, excessUsage); } catch (invErr) { console.error("Inventory deduction failed:", invErr); }
         }
         await refresh();
       });
       return r;
+    },
+    getOrderBOM: async (orderId: string) => {
+      return await db.getOrderBOM(orderId);
     },
     assignStaff: async (orderId: string, assignment: { assigned_designer?: string; assigned_production?: string }) => {
       const r = await safe(async () => {
@@ -321,6 +331,7 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
     },
     deleteOrder: async (orderId: string) => { const r = await safe(() => db.deleteOrder(orderId).then(() => refresh())); return r; },
     recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => { const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh())); return r; },
+    declinePayment: async (paymentId: string) => { const r = await safe(() => db.declinePayment(paymentId).then(() => refresh())); return r; },
     selfAssign: async (orderId: string) => { const r = await safe(async () => { await db.designerSelfPickOrder(orderId); await refresh(); }); return r; },
     updateCustomerDesign: async (orderId: string, url: string) => { const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => refresh())); return r; },
     updateFinalDesign: async (orderId: string, url: string) => { const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => refresh())); return r; },

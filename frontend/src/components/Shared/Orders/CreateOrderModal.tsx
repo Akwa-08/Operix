@@ -61,7 +61,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
   // Auto-calculate total amount
   useEffect(() => {
-    const selectedProduct = products.find(p => p.title === formData.productType);
+    const selectedProduct = products.find(p => p.name === formData.productType);
     if (selectedProduct && formData.quantity) {
       const total = selectedProduct.final_price * Number(formData.quantity);
       setFormData(prev => ({ ...prev, totalAmount: total }));
@@ -178,8 +178,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 >
                   <option value="">Select Product</option>
                   {products.map(product => (
-                    <option key={product.id} value={product.title}>
-                      {product.title} (₱{product.final_price})
+                    <option key={product.id} value={product.name}>
+                      {product.name} (₱{product.final_price})
                     </option>
                   ))}
                 </select>

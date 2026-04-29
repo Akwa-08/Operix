@@ -42,12 +42,13 @@ const getStatusColor = (status: CardStatus) => {
 const getPaymentColor = getPaymentStatusColor;
 
 // ── Single card ─────────────────────────────────────────────────────────────
-const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay }: {
+const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen }: {
   order: Order;
   onView: (o: Order) => void;
   onEdit?: (o: Order) => void;
   onDelete?: (o: Order) => void;
   onPay?: (o: Order) => void;
+  hideDeleteWhen?: (o: Order) => boolean;
 }) => {
   const cardStatus = mapStatus(order.status);
   const stepIdx = statusSteps.findIndex(s => s.status === cardStatus);
@@ -124,7 +125,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay }: {
             <Edit2 size={14} className="text-gray-600" />
           </button>
         )}
-        {onDelete && (
+        {onDelete && (!hideDeleteWhen || !hideDeleteWhen(order)) && (
           <button onClick={() => onDelete(order)}
             className="px-3 py-2 bg-red-50 rounded-lg hover:bg-red-100">
             <Trash2 size={14} className="text-red-600" />
@@ -143,9 +144,10 @@ interface OrderCardsGridProps {
   onEdit?: (order: Order) => void;
   onDelete?: (order: Order) => void;
   onPay?: (order: Order) => void;
+  hideDeleteWhen?: (order: Order) => boolean;
 }
 
-export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete, onPay }) => {
+export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete, onPay, hideDeleteWhen }) => {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
@@ -159,7 +161,7 @@ export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, 
     <AnimatePresence mode="popLayout">
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {orders.map(o => (
-          <StaffOrderCard key={o.id} order={o} onView={onView} onEdit={onEdit} onDelete={onDelete} onPay={onPay} />
+          <StaffOrderCard key={o.id} order={o} onView={onView} onEdit={onEdit} onDelete={onDelete} onPay={onPay} hideDeleteWhen={hideDeleteWhen} />
         ))}
       </motion.div>
     </AnimatePresence>

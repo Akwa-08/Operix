@@ -893,23 +893,60 @@ export const db = {
     if (error) throw error;
   },
 
-  async deductInventoryForOrder(orderId: string) {
-    // Skip if already deducted for this order to avoid double-subtracting.
-    const {data: existingLog, error: existingLogErr} = await supabase
-      .from("inventory_changes")
-      .select("id")
-      .eq("reason", `Automatic deduction for order ${orderId}`)
-      .limit(1)
-      .maybeSingle();
-    if (existingLogErr) throw existingLogErr;
-    if (existingLog?.id) return;
+  async getOrderBOM(orderId: string) {
+    const {data: items, error: itemsErr} = await supabase
+      .from("order_items")
+      .select("product_id, quantity, product_name")
+      .eq("order_id", orderId);
+    if (itemsErr) throw itemsErr;
 
+    const materials: {
+      inventory_item_id: string;
+      material_name: string;
+      quantity_required: number;
+      unit: string;
+      total_standard_usage: number;
+    }[] = [];
+
+    for (const item of items || []) {
+      if (!item.product_id) continue;
+      const {data: bom, error: bomErr} = await supabase
+        .from("product_supply_mapping")
+        .select(
+          "inventory_item_id, quantity_required, inventory_items:inventory_item_id(name, unit_of_measure)",
+        )
+        .eq("product_id", item.product_id);
+      if (bomErr) throw bomErr;
+
+      for (const mapping of bom || []) {
+        const invItem = (mapping as any).inventory_items;
+        materials.push({
+          inventory_item_id: mapping.inventory_item_id,
+          material_name: invItem?.name || "Unknown Material",
+          quantity_required: Number(mapping.quantity_required),
+          unit: invItem?.unit_of_measure || "",
+          total_standard_usage:
+            Number(mapping.quantity_required) * item.quantity,
+        });
+      }
+    }
+    return materials;
+  },
+
+  async deductInventoryForOrder(
+    orderId: string,
+    excessUsage?: Record<string, number>,
+  ) {
     // 1. Get order items
     const {data: items, error: itemsErr} = await supabase
       .from("order_items")
       .select("product_id, quantity")
       .eq("order_id", orderId);
     if (itemsErr) throw itemsErr;
+
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
 
     for (const item of items || []) {
       if (!item.product_id) continue;
@@ -930,9 +967,11 @@ export const db = {
           .single();
         if (invErr) throw invErr;
 
-        const newQty =
-          Number(inv.current_quantity) -
-          Number(mapping.quantity_required) * item.quantity;
+        const standardUsage = Number(mapping.quantity_required) * item.quantity;
+        const excess = excessUsage?.[mapping.inventory_item_id] || 0;
+        const totalDeduction = standardUsage + excess;
+
+        const newQty = Number(inv.current_quantity) - totalDeduction;
 
         const {error: updateErr} = await supabase
           .from("inventory_items")
@@ -944,19 +983,17 @@ export const db = {
         if (updateErr) throw updateErr;
 
         // 4. Log the change
-        const {
-          data: {user},
-        } = await supabase.auth.getUser();
         await supabase.from("inventory_changes").insert([
           {
             inventory_item_id: mapping.inventory_item_id,
             change_type: "Manual Adjustment",
-            quantity_change: -(
-              Number(mapping.quantity_required) * item.quantity
-            ),
+            quantity_change: -totalDeduction,
             quantity_before: Number(inv.current_quantity),
             quantity_after: newQty,
-            reason: `Automatic deduction for order ${orderId}`,
+            reason:
+              excess > 0
+                ? `Automatic deduction for order ${orderId} (includes ${excess} excess)`
+                : `Automatic deduction for order ${orderId}`,
             changed_by: user?.id,
           },
         ]);
@@ -1002,6 +1039,59 @@ export const db = {
         .from("orders")
         .update({amount_paid: newPaid, payment_status: ps})
         .eq("id", orderId);
+    }
+  },
+
+  async declinePayment(paymentId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: payment, error: pErr } = await supabase
+      .from("payments")
+      .select("order_id")
+      .eq("id", paymentId)
+      .single();
+    if (pErr) throw pErr;
+    if (!payment) throw new Error("Payment not found");
+
+    const { error: delErr } = await supabase
+      .from("payments")
+      .delete()
+      .eq("id", paymentId);
+    if (delErr) throw delErr;
+
+    const { data: order } = await supabase
+      .from("orders")
+      .select("customer_id, order_number, total_amount")
+      .eq("id", payment.order_id)
+      .single();
+
+    if (order && order.customer_id) {
+      try {
+        await db.chat.sendMessage(
+          order.customer_id,
+          `Your payment for order ${order.order_number} was declined (invalid reference number). Please try paying again.`,
+          payment.order_id
+        );
+      } catch (err) {
+        console.warn("Failed to notify customer of declined payment", err);
+      }
+    }
+
+    // Recalculate totals
+    const { data: remainingPayments } = await supabase
+      .from("payments")
+      .select("amount")
+      .eq("order_id", payment.order_id);
+    
+    const sum = (remainingPayments || []).reduce((acc, p) => acc + parseFloat(p.amount), 0);
+    if (order) {
+      const total = parseFloat(order.total_amount);
+      const ps = sum >= total ? "paid" : sum > 0 ? "partial" : "unpaid";
+      await supabase
+        .from("orders")
+        .update({ amount_paid: sum, payment_status: ps })
+        .eq("id", payment.order_id);
     }
   },
 

@@ -199,7 +199,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("uploaded file is more than 2MB");
+      toast.error("Image too large! Maximum file size is 2MB.");
       return;
     }
     if (!file.type.startsWith("image/")) {
