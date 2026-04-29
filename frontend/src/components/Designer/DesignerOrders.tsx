@@ -31,6 +31,7 @@ const DesignerOrders = () => {
     refresh,
     selfAssign,
     acceptAssignedDesignOrder,
+    approveOrderDesign,
   } = useOrdersData();
 
   const toast = useToast();
@@ -301,6 +302,10 @@ const DesignerOrders = () => {
           onUpdateFinalDesign={async (url) => {
             const r = await updateFinalDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Upload failed");
+          }}
+          onApproveDesign={async () => {
+            const r = await approveOrderDesign(selectedOrder.id);
+            if (!r.success) throw new Error(r.error || "Approval failed");
           }}
           onRefresh={refresh}
         />

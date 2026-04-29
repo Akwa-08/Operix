@@ -103,6 +103,7 @@ const router = createBrowserRouter([
     { path: 'orders',    element: <CashierOrders /> },
     { path: 'inventory', element: <CashierInventory /> },
     { path: 'profile',   element: <ProfilePage /> },
+    { path: 'messages',  element: <AdminMessages /> },
   ],
 },
 

@@ -12,8 +12,8 @@ import {
   Package,
   ImageIcon,
   Check,
+  AlertCircle,
 } from "lucide-react";
-import { useToast } from "../../context/ToastContext";
 
 type OrderStatus =
   | "Queue"
@@ -54,15 +54,14 @@ interface CustomerOrderDetailsModalProps {
   onClose: () => void;
   order: Order;
   onRefresh?: () => Promise<void>;
-  onAcceptFinalDesign?: (order: Order) => Promise<void>;
+  onMarkAsRead?: (
+    orderId: string,
+  ) => Promise<{success: boolean; error: string | null}>;
 }
 
 export const CustomerOrderDetailsModal: React.FC<
   CustomerOrderDetailsModalProps
-> = ({isOpen, onClose, order, onAcceptFinalDesign}) => {
-  const toast = useToast();
-  const [acceptingFinalDesign, setAcceptingFinalDesign] = useState(false);
-
+> = ({isOpen, onClose, order, onMarkAsRead}) => {
   // Local copy of the design file — updates immediately on upload,
   // independent of the parent's stale selectedOrder snapshot.
   const [localDesignFile, setLocalDesignFile] = useState(
@@ -72,31 +71,16 @@ export const CustomerOrderDetailsModal: React.FC<
     setLocalDesignFile(order.designFile || "");
   }, [order.id, order.designFile]);
 
+  useEffect(() => {
+    if (isOpen && order.hasUnreadDecline && onMarkAsRead) {
+      onMarkAsRead(order.id);
+    }
+  }, [isOpen, order.id, order.hasUnreadDecline, onMarkAsRead]);
+
   const currentStep = mapBackendStatusToStep(order.status);
   const currentStepIndex = statusSteps.findIndex(
     (s) => s.status === currentStep,
   );
-
-  const canAcceptFinalDesign =
-    order.status === "Designing" && !!order.finalDesignUrl;
-
-  const handleAcceptFinalDesign = async () => {
-    if (!onAcceptFinalDesign) return;
-    if (!canAcceptFinalDesign) {
-      toast.error("Final design is not yet available for acceptance.");
-      return;
-    }
-
-    setAcceptingFinalDesign(true);
-    try {
-      await onAcceptFinalDesign(order);
-      toast.success("Final design accepted. Order moved to Payment.");
-    } catch (e: any) {
-      toast.error(e?.message || "Failed to accept final design");
-    } finally {
-      setAcceptingFinalDesign(false);
-    }
-  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Order Details" size="xl">
@@ -245,7 +229,13 @@ export const CustomerOrderDetailsModal: React.FC<
                 </p>
                 <div className="flex items-center gap-2">
                   <span
-                    className={`font-semibold text-sm ${order.paymentStatus === "Paid" ? "text-emerald-600" : "text-red-500"}`}>
+                    className={`font-semibold text-sm ${
+                      order.paymentStatus === "Paid"
+                        ? "text-emerald-600"
+                        : order.paymentStatus === "Partially paid"
+                          ? "text-yellow-600"
+                          : "text-red-500"
+                    }`}>
                     {order.paymentStatus}
                   </span>
                 </div>
@@ -288,6 +278,97 @@ export const CustomerOrderDetailsModal: React.FC<
             </p>
           </div>
         </div>
+
+        {/* ── Payment Transactions ────────────────────────────────────────── */}
+        {order.payments && order.payments.length > 0 && (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm mt-4">
+            <div className="bg-gray-50 border-b border-gray-200 px-5 py-3 flex items-center gap-2">
+              <CreditCard size={18} className="text-emerald-600" />
+              <h3 className="text-sm font-bold text-gray-900">
+                Payment Transactions
+              </h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-gray-50/50 border-b border-gray-100 text-gray-500 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="px-5 py-3">Date</th>
+                    <th className="px-5 py-3 text-right">Amount</th>
+                    <th className="px-5 py-3">Method</th>
+                    <th className="px-5 py-3">Reference</th>
+                    <th className="px-5 py-3 text-center">Status</th>
+                    <th className="px-5 py-3 text-center">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {order.payments.map((p, i) => (
+                    <tr
+                      key={i}
+                      className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-5 py-3 text-gray-600 font-medium">
+                        {new Date(p.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-3 text-right font-bold text-gray-900">
+                        ₱{p.amount.toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            p.payment_method === "cash"
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                              : "bg-blue-50 text-blue-700 border border-blue-100"
+                          }`}>
+                          {p.payment_method
+                            .replace(/_/g, " ")
+                            .replace(/\b\w/g, (l) => l.toUpperCase())}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 font-mono text-gray-500">
+                        {p.reference_number || "—"}
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                            p.status === "declined"
+                              ? "bg-red-50 text-red-700 border border-red-100"
+                              : p.status === "pending"
+                                ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
+                                : "bg-green-50 text-green-700 border border-green-100"
+                          }`}>
+                          {p.status || "pending"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-center">
+                        {p.status === "declined" ? (
+                          <div
+                            className="flex justify-center cursor-help"
+                            title={p.decline_reason || "Declined by cashier"}>
+                            <AlertCircle size={18} className="text-red-500" />
+                          </div>
+                        ) : p.status === "pending" ? (
+                          <div
+                            className="flex justify-center cursor-help"
+                            title="Awaiting cashier verification">
+                            <Clock size={18} className="text-yellow-500" />
+                          </div>
+                        ) : (
+                          <div
+                            className="flex justify-center cursor-help"
+                            title="Payment approved">
+                            <CheckCircle2
+                              size={18}
+                              className="text-emerald-500"
+                            />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* ── Design Section ────────────────────────────────────────────── */}
         <div className="bg-gray-50/70 border border-gray-200 rounded-xl p-5 shadow-sm mt-2">
@@ -394,18 +475,6 @@ export const CustomerOrderDetailsModal: React.FC<
             </p>
           </div>
         </div>
-
-        {/* ── Actions ────────────────────────────────────────────────────── */}
-        {canAcceptFinalDesign && (
-          <div className="pt-2">
-            <button
-              className="bg-[#00BEF4] hover:bg-[#00a9d9] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg shadow-md transition-colors w-full sm:w-auto"
-              disabled={acceptingFinalDesign}
-              onClick={handleAcceptFinalDesign}>
-              {acceptingFinalDesign ? "Approving..." : "Approve Design"}
-            </button>
-          </div>
-        )}
       </div>
     </Modal>
   );

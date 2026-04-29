@@ -12,7 +12,7 @@ export interface Order {
   order: string; // product/customer field names may differ
   product: string;
   quantity: number;
-  paymentStatus: "Paid" | "Unpaid" | "Partial";
+  paymentStatus: "Paid" | "Unpaid" | "Partially paid";
   dateOrdered: string;
   dueDate: string;
   specialInstructions?: string;

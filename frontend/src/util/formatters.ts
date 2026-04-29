@@ -30,9 +30,9 @@ const ORDER_STATUS_COLORS: Record<string, string> = {
 
 /** Payment status → Tailwind badge classes */
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  Paid:    "bg-green-100 text-green-700",
-  Partial: "bg-yellow-100 text-yellow-700",
-  Unpaid:  "bg-red-100 text-red-700",
+  Paid:    "bg-green-100 text-green-700 border-green-200",
+  "Partially paid": "bg-yellow-100 text-yellow-700 border-yellow-200",
+  Unpaid:  "bg-red-100 text-red-700 border-red-200",
   None:    "bg-gray-100 text-gray-500",
 };
 

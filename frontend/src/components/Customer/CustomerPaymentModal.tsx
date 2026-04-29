@@ -225,7 +225,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
                     }`}>
                     {t === "full"
                       ? `Full  ₱${remaining.toLocaleString()}`
-                      : "Partial"}
+                      : "Partially paid"}
                   </button>
                 ))}
               </div>

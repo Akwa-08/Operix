@@ -12,7 +12,7 @@ export type OrderStatus =
   | "Completed"
   | "Overdue";
 
-export type PaymentStatus = "Paid" | "Unpaid" | "Partial";
+export type PaymentStatus = "Paid" | "Unpaid" | "Partially paid";
 
 export type MaterialStatus = "Available" | "Low Stock" | "Restocking" | "Phased Out";
 
@@ -48,7 +48,11 @@ export interface Order {
     payment_method: string;
     reference_number?: string;
     created_at: string;
+    status?: "approved" | "declined" | "pending";
+    decline_reason?: string;
   }[];
+  lastDeclineReason?: string;
+  hasUnreadDecline?: boolean;
 }
 
 export interface Material {

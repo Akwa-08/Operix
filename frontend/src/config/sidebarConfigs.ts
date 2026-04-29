@@ -30,6 +30,7 @@ export const cashierSidebarItems: SidebarItem[] = [
   {label: "Dashboard", icon: HouseIcon, path: "/cashier", end: true},
   {label: "Orders", icon: OrderIcon, path: "/cashier/orders"},
   {label: "Inventory", icon: CartIcon, path: "/cashier/inventory"},
+  {label: "Messages", icon: MessageIcon, path: "/cashier/messages"},
 ];
 
 export const designerSidebarItems: SidebarItem[] = [
@@ -42,4 +43,5 @@ export const productionSidebarItems: SidebarItem[] = [
   {label: "Dashboard", icon: HouseIcon, path: "/production", end: true},
   {label: "Orders", icon: OrderIcon, path: "/production/orders"},
   {label: "Inventory", icon: CartIcon, path: "/production/inventory"},
+  {label: "Messages", icon: MessageIcon, path: "/production/messages"},
 ];

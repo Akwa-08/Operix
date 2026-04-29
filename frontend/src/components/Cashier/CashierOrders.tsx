@@ -32,6 +32,7 @@ const CashierOrders = () => {
     loading,
     createOrder,
     recordPayment,
+    approvePayment,
     declinePayment,
     updateCustomerDesign,
     updateStatus,
@@ -309,7 +310,16 @@ const CashierOrders = () => {
           userRole="cashier"
           onClose={() => setShowDetailsModal(false)}
           onRecordPayment={recordPayment}
-          onDeclinePayment={declinePayment}
+          onApprovePayment={async (paymentId, orderId) => {
+            const r = await approvePayment(paymentId, orderId);
+            if (!r.success) throw new Error(r.error || "Approval failed");
+            toast.success("Payment approved!");
+          }}
+          onDeclinePayment={async (paymentId, orderId, reason) => {
+            const r = await declinePayment(paymentId, orderId, reason);
+            if (!r.success) throw new Error(r.error || "Decline failed");
+            toast.success("Payment declined.");
+          }}
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");
