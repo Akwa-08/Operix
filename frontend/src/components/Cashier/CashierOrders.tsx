@@ -32,6 +32,7 @@ const CashierOrders = () => {
     loading,
     createOrder,
     recordPayment,
+    declinePayment,
     updateCustomerDesign,
     updateStatus,
     refresh,
@@ -308,6 +309,7 @@ const CashierOrders = () => {
           userRole="cashier"
           onClose={() => setShowDetailsModal(false)}
           onRecordPayment={recordPayment}
+          onDeclinePayment={declinePayment}
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");

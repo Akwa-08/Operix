@@ -179,7 +179,13 @@ export const OrdersPage: React.FC = () => {
 
         {/* Orders Grid */}
         <div>
-          <OrderCardsGrid orders={pagedOrders} onView={handleViewDetails} onDelete={handleDeleteOrder} onPay={handlePayOrder} />
+          <OrderCardsGrid 
+            orders={pagedOrders} 
+            onView={handleViewDetails} 
+            onDelete={handleDeleteOrder} 
+            onPay={handlePayOrder} 
+            hideDeleteWhen={(o) => o.status !== "In Queue" && o.status !== "Designing"}
+          />
         </div>
 
         {/* Pagination */}

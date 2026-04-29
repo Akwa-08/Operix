@@ -20,12 +20,23 @@ const ProductionInventory = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
 
-  const { materials, stats: materialStats, loading } = useInventoryData();
+  const { materials, stats: materialStats, loading, updateMaterial } = useInventoryData();
   const toast = useToast();
 
   const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
   const handleEditMaterial = (material: Material) => { setSelectedMaterial(material); setShowEditModal(true); };
-  const handleSaveEdit = (data: Partial<Material>) => { console.log("Production updating stock:", data); setShowEditModal(false); };
+  const handleSaveEdit = async (data: Partial<Material>) => {
+    if (!selectedMaterial) return;
+    const r = await updateMaterial(selectedMaterial.id, {
+      current_quantity: data.usableStocks,
+    });
+    if (r.success) {
+      toast.success("Stock level updated");
+      setShowEditModal(false);
+    } else {
+      toast.error("Update failed: " + r.error);
+    }
+  };
   const handleCreateResupply = () => { toast.success("Resupply request feature coming soon!"); };
 
   if (loading) return <LoadingSpinner type="table" />;

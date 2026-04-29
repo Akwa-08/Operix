@@ -42,7 +42,8 @@ const AdminOrders = () => {
   const [selectedOrderId, setSelectedOrderId]   = useState<string | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
 
-  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, updateCustomerDesign, refresh } = useOrdersData();
+  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
+
   const toast = useToast();
 
   const statusOptions = ["All", "In Queue", "Active", "Completed", "Overdue"];
@@ -186,6 +187,7 @@ const AdminOrders = () => {
           onUpdateStatus={(status) => handleStatusChange(selectedOrder, status)}
           onEdit={() => { setShowDetailsModal(false); openAssign(selectedOrder); }}
           onRecordPayment={recordPayment}
+          onDeclinePayment={declinePayment}
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");
