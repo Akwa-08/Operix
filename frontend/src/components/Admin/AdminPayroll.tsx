@@ -10,6 +10,7 @@ import {
   usePendingCashAdvances,
   type AttendanceLog, type PayrollRecord, type PayrollPeriod, type PendingCashAdvance,
 } from "../../hooks/useSupabase";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -554,14 +555,7 @@ const AdminPayroll: React.FC = () => {
   const toggleExpand = (id: string) => { const s = new Set(expandedPeriods); s.has(id) ? s.delete(id) : s.add(id); setExpandedPeriods(s); };
 
   if (loading && periods.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Loading payroll data…</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner type="table" message="Loading payroll data..." />;
   }
 
   return (

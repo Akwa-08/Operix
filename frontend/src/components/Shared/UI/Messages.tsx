@@ -2,7 +2,7 @@ import React, {useState, useRef, useEffect, useCallback} from "react";
 import {Search, Send, PlusCircle, ArrowLeft, ImageIcon, X} from "lucide-react";
 import {useAuth} from "../../../context/AuthContext";
 import {db} from "../../../lib/database";
-import toast from "react-hot-toast";
+import { useToast } from "../../../context/ToastContext";
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 export interface Message {
@@ -36,6 +36,7 @@ const MAX_CHARS = 500; // TST_07_01 — character limit
 // ─── Component ────────────────────────────────────────────────────────────────
 const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
   const {user} = useAuth();
+  const toast = useToast();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<Conversation | null>(null);
@@ -198,7 +199,7 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("Image must be under 2 MB");
+      toast.error("uploaded file is more than 2MB");
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -408,7 +409,17 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
                 ))
               )
             ) : loading ? (
-              <p className="p-4 text-center text-sm text-gray-400">Loading…</p>
+              <div className="p-4 space-y-4">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="flex gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gray-100 animate-pulse" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
+                      <div className="h-2 w-full bg-gray-50 rounded animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
             ) : filteredConversations.length === 0 ? (
               <p className="p-4 text-center text-sm text-gray-500">
                 No active conversations

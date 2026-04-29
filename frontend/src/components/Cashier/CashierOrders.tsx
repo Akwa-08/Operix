@@ -65,7 +65,7 @@ const CashierOrders = () => {
     setShowDetailsModal(true);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   const filteredOrders = orders.filter((o) => {
     // Filter by status if not "All"

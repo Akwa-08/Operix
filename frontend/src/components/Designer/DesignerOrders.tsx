@@ -82,7 +82,7 @@ const DesignerOrders = () => {
     if (!r.success) toast.error("Error: " + r.error);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="max-w-7xl mx-auto">

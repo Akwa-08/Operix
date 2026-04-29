@@ -1,10 +1,10 @@
 //src\components\Shared\Inventory\EditMaterialModal.tsx
 
-import { useState } from "react";
-import { Modal } from "../UI/Modal";
-import { Button } from "../UI/Button";
-import type { Material, UserRole } from "../../../Types";
-import { permissions } from "../../../util/permissions";
+import {useState} from "react";
+import {Modal} from "../UI/Modal";
+import {Button} from "../UI/Button";
+import type {Material, UserRole} from "../../../Types";
+import {permissions} from "../../../util/permissions";
 
 interface EditMaterialModalProps {
   isOpen: boolean;
@@ -36,7 +36,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
   });
 
   const handleChange = (field: keyof Material, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({...prev, [field]: value}));
   };
 
   const handleSubmit = () => {
@@ -99,8 +99,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                 <select
                   value={formData.stockUnit}
                   onChange={(e) => handleChange("stockUnit", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                >
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
                   <option>Feet</option>
                   <option>Pieces</option>
                   <option>Liters</option>
@@ -132,8 +131,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                 <select
                   value={formData.purchaseUnit}
                   onChange={(e) => handleChange("purchaseUnit", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                >
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
                   <option>Roll</option>
                   <option>Box</option>
                   <option>Bottle</option>
@@ -162,8 +160,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
               <select
                 value={formData.status}
                 onChange={(e) => handleChange("status", e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-              >
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
                 <option>Available</option>
                 <option>Low Stock</option>
                 <option>Restocking</option>
@@ -188,7 +185,9 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                   </p>
                 </div>
                 <div>
-                  <span className="text-gray-500 font-medium">Item Variant:</span>
+                  <span className="text-gray-500 font-medium">
+                    Item Variant:
+                  </span>
                   <p className="text-gray-900 font-semibold">
                     {material.itemVariant}
                   </p>
@@ -201,7 +200,9 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                 </div>
                 <div>
                   <span className="text-gray-500 font-medium">Status:</span>
-                  <p className="text-gray-900 font-semibold">{material.status}</p>
+                  <p className="text-gray-900 font-semibold">
+                    {material.status}
+                  </p>
                 </div>
               </div>
             </div>
@@ -209,7 +210,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
             {/* Editable Stock Field */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Usable Stocks * (You can edit this)
+                Usable Stocks
               </label>
               <input
                 type="number"

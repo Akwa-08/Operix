@@ -352,6 +352,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
         onClose={() => setShowFileUpload(false)}
         onUpload={handleFileUploaded}
         productName={product.title}
+        oldUrl={fileUrl}
       />
 
       {/* No-File Confirmation Modal */}

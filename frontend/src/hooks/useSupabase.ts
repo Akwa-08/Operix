@@ -20,9 +20,14 @@ import { parseDbDate } from '../util/formatters';
 // ═══════════════════════════════════════════════════════════════════════════════
 // Generic fetch-and-cache pattern
 // ═══════════════════════════════════════════════════════════════════════════════
-function useQuery<T>(fetcher: () => Promise<T>, deps: any[] = [], realtimeTables: string[] = []) {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+function useQuery<T>(
+  fetcher: () => Promise<T>,
+  deps: any[] = [],
+  realtimeTables: string[] = [],
+  initialData: T | null = null,
+) {
+  const [data, setData] = useState<T | null>(initialData);
+  const [loading, setLoading] = useState(!initialData);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -156,10 +161,27 @@ function mapMaterial(item: any): Material {
 // HOOKS — named exactly as components expect
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// Profile cache to prevent redundant fetches and flickering
+let profileCache: any = null;
+
 export function useMyProfile() {
-  const q = useQuery(() => db.getMyProfile(), []);
-  return { profile: q.data, ...q };
+  const q = useQuery(async () => {
+    if (profileCache) return profileCache;
+    const data = await db.getMyProfile();
+    profileCache = data;
+    return data;
+  }, [], [], profileCache);
+
+  const refresh = useCallback(async () => {
+    profileCache = null;
+    return q.refresh();
+  }, [q.refresh]);
+
+  return { profile: q.data, ...q, refresh };
 }
+
+/** Clear profile cache (call after updates) */
+export const clearProfileCache = () => { profileCache = null; };
 
 export function useUsers(filters?: { role?: string; status?: string }) {
   const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status]);

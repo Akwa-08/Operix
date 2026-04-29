@@ -2,12 +2,14 @@ import React, {useState, useRef} from "react";
 import {motion, AnimatePresence} from "framer-motion";
 import {X, Upload, Link, File, AlertCircle, Loader2} from "lucide-react";
 import { uploadOrderFile } from "../../lib/database";
+import { useToast } from "../../context/ToastContext";
 
 interface FileUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpload: (fileUrl: string) => void;
   productName: string;
+  oldUrl?: string;
 }
 
 export const FileUploadModal: React.FC<FileUploadModalProps> = ({
@@ -15,7 +17,9 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
   onClose,
   onUpload,
   productName,
+  oldUrl,
 }) => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<"upload" | "url">("upload");
   const [file, setFile] = useState<File | null>(null);
   const [url, setUrl] = useState("");
@@ -33,7 +37,9 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
 
   const validateAndSetFile = (f: File) => {
     if (f.size > MAX_SIZE) {
-      setError(`File is too large (${(f.size / 1024 / 1024).toFixed(1)}MB). Maximum allowed is 2MB.`);
+      const msg = "uploaded file is more than 2MB";
+      setError(msg);
+      toast.error(msg);
       setFile(null);
       return;
     }
@@ -78,7 +84,7 @@ export const FileUploadModal: React.FC<FileUploadModalProps> = ({
           setUploadProgress(prev => Math.min(prev + 15, 90));
         }, 200);
 
-        finalUrl = await uploadOrderFile(file!);
+        finalUrl = await uploadOrderFile(file!, oldUrl);
 
         clearInterval(progressInterval);
         setUploadProgress(100);

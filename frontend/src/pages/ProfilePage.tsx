@@ -5,14 +5,16 @@
 
 import {useState, useEffect} from "react";
 import {User, Mail, Phone, MapPin, Lock, Eye, EyeOff} from "lucide-react";
-import toast from "react-hot-toast";
+import { useToast } from "../context/ToastContext";
 import {useAuth} from "../context/AuthContext";
 import authService from "../services/authService";
 import { db, uploadProfilePicture } from "../lib/database";
+import { clearProfileCache } from "../hooks/useSupabase";
 import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
 
 export const ProfilePage = () => {
   const { refreshUser, user } = useAuth();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -83,7 +85,8 @@ export const ProfilePage = () => {
       
       if (profilePictureFile) {
         setIsUploadingPicture(true);
-        finalAvatarUrl = await uploadProfilePicture(profilePictureFile);
+        // Pass the current avatarUrl to delete the old file after new upload
+        finalAvatarUrl = await uploadProfilePicture(profilePictureFile, avatarUrl);
         setAvatarUrl(finalAvatarUrl);
         setProfilePictureFile(null);
         setIsUploadingPicture(false);
@@ -97,6 +100,7 @@ export const ProfilePage = () => {
         address,
         avatar_url: finalAvatarUrl,
       });
+      clearProfileCache();
       await refreshUser();
       setIsEditing(false);
       toast.success("Profile updated successfully");
@@ -137,7 +141,7 @@ export const ProfilePage = () => {
     }
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="form" />;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
@@ -196,7 +200,12 @@ export const ProfilePage = () => {
                   disabled={isUploadingPicture || isSaving}
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
-                      setProfilePictureFile(e.target.files[0]);
+                      const file = e.target.files[0];
+                      if (file.size > 2 * 1024 * 1024) {
+                        toast.error("uploaded file is more than 2MB");
+                        return;
+                      }
+                      setProfilePictureFile(file);
                     }
                   }} 
                 />
