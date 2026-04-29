@@ -15,7 +15,7 @@ export interface TopOrder {
   customer: string;
   productType: string;
   amount: number;
-  status: "Paid" | "Unpaid" | "Partial";
+  status: "Paid" | "Unpaid" | "Partially paid";
   date: string;
 }
 
@@ -46,7 +46,7 @@ export interface OrderDetails {
     name: string;
     quantity: number;
     totalAmount: number;
-    status: "Paid" | "Unpaid" | "Partial";
+    status: "Paid" | "Unpaid" | "Partially paid";
   };
   assignedStaff: {
     designer: string;
@@ -167,7 +167,7 @@ export const dashboardData: DashboardData = {
       customer: "Local Restaurant",
       productType: "Stickers",
       amount: 9900,
-      status: "Partial",
+      status: "Partially paid",
       date: "Dec 26, 2024",
     },
     {
@@ -191,7 +191,7 @@ export const dashboardData: DashboardData = {
       customer: "University Campus",
       productType: "ID Printing",
       amount: 9800,
-      status: "Partial",
+      status: "Partially paid",
       date: "Dec 23, 2024",
     },
     {

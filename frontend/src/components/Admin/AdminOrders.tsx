@@ -42,7 +42,7 @@ const AdminOrders = () => {
   const [selectedOrderId, setSelectedOrderId]   = useState<string | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
 
-  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
+  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, approvePayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
 
   const toast = useToast();
 
@@ -187,7 +187,16 @@ const AdminOrders = () => {
           onUpdateStatus={(status) => handleStatusChange(selectedOrder, status)}
           onEdit={() => { setShowDetailsModal(false); openAssign(selectedOrder); }}
           onRecordPayment={recordPayment}
-          onDeclinePayment={declinePayment}
+          onApprovePayment={async (paymentId, orderId) => {
+            const r = await approvePayment(paymentId, orderId);
+            if (!r.success) throw new Error(r.error || "Approval failed");
+            toast.success("Payment approved!");
+          }}
+          onDeclinePayment={async (paymentId, orderId, reason) => {
+            const r = await declinePayment(paymentId, orderId, reason);
+            if (!r.success) throw new Error(r.error || "Decline failed");
+            toast.success("Payment declined.");
+          }}
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");

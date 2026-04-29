@@ -70,7 +70,7 @@ function mapStatus(s: string): OrderStatus {
   return m[s] || (s as OrderStatus);
 }
 function mapPayment(s: string): PaymentStatus {
-  const m: Record<string, PaymentStatus> = { paid: 'Paid', unpaid: 'Unpaid', partial: 'Partial' };
+  const m: Record<string, PaymentStatus> = { paid: 'Paid', unpaid: 'Unpaid', partial: 'Partially paid' };
   return m[s] || (s as PaymentStatus);
 }
 
@@ -93,12 +93,16 @@ function mapOrder(raw: any): Order {
     productionName: raw.production_staff ? raw.production_staff.full_name || '' : '',
     comments: raw.comments || '', amountPaid: Number(raw.amount_paid) || 0, orderType: raw.order_type || 'walk-in',
     finalDesignUrl: raw.final_design_url || '',
+    lastDeclineReason: raw.last_decline_reason || '',
+    hasUnreadDecline: !!raw.has_unread_decline,
     payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
       id: p.id,
       amount: Number(p.amount) || 0,
       payment_method: p.payment_method,
       reference_number: p.reference_number,
-      created_at: p.created_at
+      created_at: p.created_at,
+      status: (p.status || "pending") as "approved" | "declined" | "pending",
+      decline_reason: p.decline_reason
     })) : [],
   };
 }
@@ -331,12 +335,14 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
     },
     deleteOrder: async (orderId: string) => { const r = await safe(() => db.deleteOrder(orderId).then(() => refresh())); return r; },
     recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => { const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh())); return r; },
-    declinePayment: async (paymentId: string) => { const r = await safe(() => db.declinePayment(paymentId).then(() => refresh())); return r; },
+    approvePayment: async (paymentId: string, orderId: string) => { const r = await safe(() => db.approvePayment(paymentId, orderId).then(() => refresh())); return r; },
+    declinePayment: async (paymentId: string, orderId: string, reason: string) => { const r = await safe(() => db.declinePayment(paymentId, orderId, reason).then(() => refresh())); return r; },
+    markDeclineAsRead: async (orderId: string) => { const r = await safe(() => db.markDeclineAsRead(orderId).then(() => refresh())); return r; },
     selfAssign: async (orderId: string) => { const r = await safe(async () => { await db.designerSelfPickOrder(orderId); await refresh(); }); return r; },
     updateCustomerDesign: async (orderId: string, url: string) => { const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => refresh())); return r; },
     updateFinalDesign: async (orderId: string, url: string) => { const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => refresh())); return r; },
     acceptAssignedDesignOrder: async (orderId: string) => { const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => refresh())); return r; },
-    acceptFinalDesignAsCustomer: async (orderId: string) => { const r = await safe(() => db.customerAcceptFinalDesign(orderId).then(() => refresh())); return r; },
+    approveOrderDesign: async (orderId: string) => { const r = await safe(() => db.approveOrderDesign(orderId).then(() => refresh())); return r; },
     updateDesignerOrderDetails: async (orderId: string, updates: { totalAmount?: number; dueDate?: string }) => {
       const payload: { total_amount?: number; due_date?: string } = {};
       if (updates.totalAmount !== undefined) payload.total_amount = updates.totalAmount;
