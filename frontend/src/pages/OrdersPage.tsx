@@ -221,10 +221,6 @@ export const OrdersPage: React.FC = () => {
           order={selectedOrder} 
           onClose={() => setShowDetails(false)}
           onAcceptFinalDesign={handleAcceptFinalDesign}
-          onPay={(order) => {
-            setShowDetails(false);
-            handlePayOrder(order);
-          }}
         />
       )}
 
