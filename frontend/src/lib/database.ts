@@ -3,6 +3,7 @@
 // RLS handles all security. This file is the ONLY data access layer.
 
 import { supabase } from "../config/supabaseClient";
+import { sanitizeInput, isValidUUID } from "../util/security";
 
 /**
  * Uploads a file to the 'order-files' storage bucket.
@@ -281,10 +282,14 @@ export const db = {
       .order("category")
       .order("name");
     if (filters?.category) query = query.eq("category", filters.category);
-    if (filters?.search)
-      query = query.or(
-        `name.ilike.%${filters.search}%,category.ilike.%${filters.search}%`,
-      );
+    if (filters?.search) {
+      const cleanSearch = sanitizeInput(filters.search);
+      if (cleanSearch) {
+        query = query.or(
+          `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
+        );
+      }
+    }
     const { data, error } = await query;
     if (error) throw error;
     return data || [];
@@ -1298,6 +1303,20 @@ export const db = {
   // CHAT
   // ═══════════════════════════════════════════════════════════════════════════
   chat: {
+    formatChatTimestamp(dateStr: string) {
+      if (!dateStr) return "";
+      const date = new Date(dateStr);
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      if (isToday) {
+        return date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    },
+
     async getConversations() {
       const {
         data: { user },
@@ -1353,6 +1372,11 @@ export const db = {
       } = await supabase.auth.getUser();
       if (!user) return [];
 
+      if (!isValidUUID(otherUserId)) {
+        console.error("Invalid otherUserId:", otherUserId);
+        return [];
+      }
+
       const { data, error } = await supabase
         .from("chat_messages")
         .select(
@@ -1389,13 +1413,16 @@ export const db = {
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      if (!isValidUUID(receiverId)) throw new Error("Invalid receiverId");
+      if (orderId && !isValidUUID(orderId)) throw new Error("Invalid orderId");
+
       const { data, error } = await supabase
         .from("chat_messages")
         .insert([
           {
             sender_id: user.id,
             receiver_id: receiverId,
-            message,
+            message: message.trim(),
             order_id: orderId || null,
             attachment_url: attachmentUrl || null,
           },

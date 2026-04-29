@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import {FileUploadModal} from "../../Customer/FileUploadModal";
+import {ConfirmModal} from "../UI/ConfirmModal";
 
 const sanitizeStorageUrl = (url: string | null | undefined): string => {
   if (!url) return "";
@@ -65,6 +66,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const perms = permissions[userRole].orders;
   const [isCustomerUploadOpen, setIsCustomerUploadOpen] = useState(false);
   const [isFinalUploadOpen, setIsFinalUploadOpen] = useState(false);
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const toast = useToast();
 
   // ── Payment recording state ──────────────────────────────────────────────
@@ -786,18 +788,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                     onUpdateStatus(nextStatus);
                     toast.success(`Order confirmed and set to ${targetName}!`);
                   } else {
-                    const remaining =
-                      (order.totalAmount || 0) - (order.amountPaid || 0);
-                    if (
-                      window.confirm(
-                        `This order is not fully paid (₱${remaining.toLocaleString()} remaining). Proceed to ${targetName} anyway?`,
-                      )
-                    ) {
-                      onUpdateStatus(nextStatus);
-                      toast.success(
-                        `Order sent to ${targetName} despite pending payment.`,
-                      );
-                    }
+                    setShowPaymentConfirm(true);
                   }
                 }}>
                 {order.status === "Pickup" ? "Complete Order" : "Confirm"}
@@ -820,12 +811,29 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           onUpload={handleCustomerUploadComplete}
           productName={order.productType || "Order Item"}
         />
-        {/* Final Design Upload — designer-side only */}
         <FileUploadModal
           isOpen={isFinalUploadOpen}
           onClose={() => setIsFinalUploadOpen(false)}
           onUpload={handleFinalDesignUploadComplete}
           productName={`Final Preview — ${order.productType || "Order Item"}`}
+        />
+
+        {/* Confirmation for unpaid orders */}
+        <ConfirmModal
+          isOpen={showPaymentConfirm}
+          onClose={() => setShowPaymentConfirm(false)}
+          onConfirm={() => {
+            if (!onUpdateStatus) return;
+            const nextStatus = order.status === "Pickup" ? "Completed" : "Production";
+            const targetName = nextStatus === "Completed" ? "Completed" : "Production";
+            onUpdateStatus(nextStatus);
+            toast.success(`Order sent to ${targetName} despite pending payment.`);
+          }}
+          title="Payment Pending"
+          message={`This order is not fully paid (₱${outstanding.toLocaleString()} remaining). Proceed to ${order.status === "Pickup" ? "Completed" : "Production"} anyway?`}
+          confirmLabel="Proceed Anyway"
+          cancelLabel="Wait, Record Payment"
+          variant="warning"
         />
       </div>
     </Modal>
