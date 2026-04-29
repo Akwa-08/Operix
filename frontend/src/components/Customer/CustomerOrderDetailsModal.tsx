@@ -121,7 +121,9 @@ export const CustomerOrderDetailsModal: React.FC<
                   "bg-emerald-500 text-white shadow-md border-transparent";
               } else if (isCurrent) {
                 circleColor =
-                  "bg-[#E80088] text-white shadow-md border-transparent"; // Active Magenta
+                  step.status === "Complete"
+                    ? "bg-emerald-500 text-white shadow-md border-transparent"
+                    : "bg-[#E80088] text-white shadow-md border-transparent"; // Active Magenta
               }
 
               let lineClass = "";
@@ -138,7 +140,7 @@ export const CustomerOrderDetailsModal: React.FC<
                   className="flex flex-col items-center flex-1 relative z-0">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${circleColor}`}>
-                    {isPast ? (
+                    {isPast || (isCurrent && step.status === "Complete") ? (
                       <Check className="w-5 h-5" />
                     ) : (
                       <Icon className="w-5 h-5" />
