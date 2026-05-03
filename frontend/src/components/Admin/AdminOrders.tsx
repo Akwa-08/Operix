@@ -215,7 +215,7 @@ const AdminOrders = () => {
             <select value={assignForm.designer} onChange={e => setAssignForm({ ...assignForm, designer: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {designers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {designers.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div>
@@ -223,7 +223,7 @@ const AdminOrders = () => {
             <select value={assignForm.production} onChange={e => setAssignForm({ ...assignForm, production: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {productionStaff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {productionStaff.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>

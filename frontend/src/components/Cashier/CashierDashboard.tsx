@@ -359,15 +359,48 @@ const CashierDashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Quick Actions */}
-        <div className="lg:col-span-1 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <h3 className="text-base font-bold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <QuickActionCard title="New Order" description="Create a walk-in order" icon={<Package size={20}/>} color="bg-cyan-100 text-cyan-600" onClick={() => navigate("/cashier/orders")}/>
-            <QuickActionCard title="Process Payment" description="Manage balance dues" icon={<CreditCard size={20}/>} color="bg-green-100 text-green-600" onClick={() => navigate("/cashier/orders")}/>
-            <QuickActionCard title="Deliveries" description="Receive incoming stock" icon={<Package size={20}/>} color="bg-purple-100 text-purple-600" onClick={() => navigate("/cashier/inventory")}/>
-            <QuickActionCard title="Low Stock" description="View depleted inventory" icon={<AlertTriangle size={20}/>} color="bg-red-100 text-red-600" onClick={() => navigate("/cashier/inventory")}/>
-            <QuickActionCard title="Cash Advance" description={`Request ${fmt(CA_LIMIT)} for employee`} icon={<Banknote size={20}/>} color="bg-amber-100 text-amber-600" onClick={() => setShowCA(true)}/>
+        {/* Primary Action Section */}
+        <div className="lg:col-span-1 space-y-5">
+          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 shadow-lg shadow-amber-200 relative overflow-hidden group transition-all hover:shadow-xl hover:-translate-y-1">
+            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all"/>
+            
+            <div className="relative z-10">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center mb-5 border border-white/30">
+                <Banknote size={24} className="text-white"/>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Request Cash Advance</h3>
+              <p className="text-amber-100 text-sm mb-6 leading-relaxed">
+                Quickly submit financial assistance requests for employees. Maximum ₱2,000 per period.
+              </p>
+              
+              <button 
+                onClick={() => setShowCA(true)}
+                className="w-full py-3 bg-white text-orange-600 font-bold rounded-xl text-sm shadow-sm hover:bg-orange-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+              >
+                Start New Request
+                <CheckCircle size={16}/>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <AlertTriangle size={16} className="text-amber-500"/>
+              Inventory Alerts
+            </h3>
+            {invStats?.lowStock > 0 ? (
+              <div className="space-y-3">
+                <p className="text-xs text-gray-500">{invStats.lowStock} items are below reorder point.</p>
+                <button 
+                  onClick={() => navigate("/cashier/inventory")}
+                  className="w-full py-2 bg-red-50 text-red-600 text-xs font-bold rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  Restock Now
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400">All inventory levels are healthy.</p>
+            )}
           </div>
         </div>
 

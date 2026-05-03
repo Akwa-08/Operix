@@ -761,7 +761,61 @@ export function useLogsData() {
       combined.push({ id: raw.id, module: 'inventory', action: raw.change_type || 'Inventory Changed', details: `${raw.item?.name || 'Item'} changed by ${raw.quantity_change}. Reason: ${raw.reason || 'N/A'}`, user: raw.changed_by_user ? `${raw.changed_by_user.first_name || ''} ${raw.changed_by_user.last_name || ''}`.trim() : 'System', role: raw.changed_by_user?.role || 'system', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
     });
     q.data.audit.forEach((raw: any) => {
-      combined.push({ id: raw.id, module: raw.target_table || 'system', action: raw.action || 'System Action', details: raw.metadata ? JSON.stringify(raw.metadata) : '', user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System', role: raw.actor_role || raw.actor_user?.role || 'system', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
+      let details = '';
+      const m = raw.metadata || {};
+      switch(raw.action) {
+        case 'Update Inventory':
+          details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`;
+          break;
+        case 'Create Order':
+          details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`;
+          break;
+        case 'Record Payment':
+          details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_',' ')} (Ref: ${m.ref || 'N/A'}).`;
+          break;
+        case 'Approve Payment':
+          details = `Payment approved for order.`;
+          break;
+        case 'Decline Payment':
+          details = `Payment declined. Reason: ${m.reason}`;
+          break;
+        case 'Request Cash Advance':
+          details = `Requested ₱${m.amount?.toLocaleString()} for ${m.employee_name}.`;
+          break;
+        case 'Create Employee':
+          details = `New employee: ${m.name} (${m.position})`;
+          break;
+        case 'Update Employee':
+          details = `Updated employee info. Fields: ${Object.keys(m.updates || {}).join(', ')}`;
+          break;
+        case 'Create Supplier':
+          details = `New supplier: ${m.name}`;
+          break;
+        case 'Update Supplier':
+          details = `Updated supplier info. Fields: ${Object.keys(m.updates || {}).join(', ')}`;
+          break;
+        case 'Create Inventory Item':
+          details = `New inventory item: ${m.name}`;
+          break;
+        case 'Create Product':
+          details = `New product: ${m.name} (${m.category})`;
+          break;
+        case 'Update Product':
+          details = `Updated product info. Fields: ${Object.keys(m.updates || {}).join(', ')}`;
+          break;
+        default:
+          details = typeof raw.metadata === 'object' ? JSON.stringify(raw.metadata) : String(raw.metadata || '');
+      }
+      combined.push({ 
+        id: raw.id, 
+        module: raw.target_table || 'system', 
+        action: raw.action || 'System Action', 
+        details, 
+        user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System', 
+        role: raw.actor_role || raw.actor_user?.role || 'system', 
+        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', 
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 
+      });
     });
     return combined.sort((a, b) => b.timestamp - a.timestamp);
   }, [q.data]);
