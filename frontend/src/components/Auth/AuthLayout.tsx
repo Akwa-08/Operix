@@ -55,7 +55,7 @@ export const AuthLayout = () => {
         }`}
         style={{
           background:
-            "linear-gradient(160deg, #AA00FD 0%, #E80088 40%, #C70070 70%, #AA00FD 100%)",
+           "linear-gradient(160deg, #131358 0%, #0D2B4E 35%, #911d7f 70%, #a50a7e 100%)",
         }}>
         {/* Decorative floating shapes */}
         <motion.div

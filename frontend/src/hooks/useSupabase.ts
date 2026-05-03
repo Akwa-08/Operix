@@ -515,24 +515,92 @@ export function usePendingCashAdvances() {
 // PAYROLL TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export interface PayrollPeriod { id: string; periodStart: string; periodEnd: string; payDate: string; status: 'draft' | 'processing' | 'complete'; createdAt: string; }
-export interface AttendanceLog { id: string; employeeId: string; employeeCode: string; fullName: string; position: string; dailyRate: number; workedHours: number; requiredHours: number; lateTimeslots: number; earlyLeaveTimeslots: number; regularOvertimeHours: number; holidayOvertimeHours: number; specialOvertimeHours: number; businessTripDays: number; absences: number; onLeaveDays: number; additionalPay: number; deductionAmount: number; }
-export interface PayrollRecord { id: string; employeeId: string; employeeName: string; employeeCode: string; position: string; dailyRate: number; daysPresent: number; basicPay: number; regularHolidayPay: number; specialHolidayPay: number; regularOvertime: number; holidayOvertime: number; specialOvertime: number; grossIncome: number; tardyDeductions: number; undertimeDeductions: number; sss: number; philhealth: number; hdmf: number; withholdingTax: number; cashAdvance: number; cashAdvanceIssued: number; totalDeductions: number; netPay: number; taxableIncome: number; status: 'pending' | 'paid'; }
+export interface PayrollPeriod {
+  id: string; periodStart: string; periodEnd: string; payDate: string;
+  status: 'draft' | 'processing' | 'complete'; createdAt: string;
+}
+
+// ── BUG 2 FIX: Added daysPresent, hasIncompletePunch, incompletePunchDates ──
+export interface AttendanceLog {
+  id: string; employeeId: string; employeeCode: string; fullName: string;
+  position: string; dailyRate: number; workedHours: number; requiredHours: number;
+  lateTimeslots: number; earlyLeaveTimeslots: number; regularOvertimeHours: number;
+  holidayOvertimeHours: number; specialOvertimeHours: number; businessTripDays: number;
+  absences: number; onLeaveDays: number; additionalPay: number; deductionAmount: number;
+  daysPresent: number;            // days resolved from punch logs
+  hasIncompletePunch: boolean;    // true if any time_in has no matching time_out
+  incompletePunchDates: string[]; // e.g. ['Jan 03', 'Jan 07']
+}
+
+export interface PayrollRecord {
+  id: string; employeeId: string; employeeName: string; employeeCode: string;
+  position: string; dailyRate: number; daysPresent: number; basicPay: number;
+  regularHolidayPay: number; specialHolidayPay: number; regularOvertime: number;
+  holidayOvertime: number; specialOvertime: number; grossIncome: number;
+  tardyDeductions: number; undertimeDeductions: number; sss: number; philhealth: number;
+  hdmf: number; withholdingTax: number; cashAdvance: number; cashAdvanceIssued: number;
+  carryOverFromPrevious: number;  
+  totalDeductions: number; netPay: number; taxableIncome: number; status: 'pending' | 'paid';
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PAYROLL MAPPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function mapPeriod(raw: any): PayrollPeriod { return { id: raw.id, periodStart: raw.period_start, periodEnd: raw.period_end, payDate: raw.pay_date || '', status: raw.status, createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '' }; }
+function mapPeriod(raw: any): PayrollPeriod {
+  return {
+    id: raw.id, periodStart: raw.period_start, periodEnd: raw.period_end,
+    payDate: raw.pay_date || '', status: raw.status,
+    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+  };
+}
 
+// ── BUG 2 FIX: Maps the 3 new columns from attendance_logs ──
 function mapAttendanceLog(raw: any): AttendanceLog {
-  const emp = raw.employee; const dailyRate = Number(emp?.base_hourly_rate) || 0;
-  return { id: raw.id, employeeId: raw.employee_id, employeeCode: emp?.employee_code || '', fullName: emp?.full_name || '', position: emp?.position || '', dailyRate, workedHours: Number(raw.worked_hours) || 0, requiredHours: Number(raw.required_hours) || 160, lateTimeslots: Number(raw.late_timeslots) || 0, earlyLeaveTimeslots: Number(raw.early_leave_timeslots) || 0, regularOvertimeHours: Number(raw.regular_overtime_hours) || 0, holidayOvertimeHours: Number(raw.holiday_overtime_hours) || 0, specialOvertimeHours: Number(raw.special_overtime_hours) || 0, businessTripDays: Number(raw.business_trip_days) || 0, absences: Number(raw.absences) || 0, onLeaveDays: Number(raw.on_leave_days) || 0, additionalPay: Number(raw.additional_pay) || 0, deductionAmount: Number(raw.deduction_amount) || 0 };
+  const emp = raw.employee;
+  const dailyRate = Number(emp?.base_hourly_rate) || 0;
+  return {
+    id: raw.id,
+    employeeId: raw.employee_id,
+    employeeCode: emp?.employee_code || '',
+    fullName: emp?.full_name || '',
+    position: emp?.position || '',
+    dailyRate,
+    workedHours: Number(raw.worked_hours) || 0,
+    requiredHours: Number(raw.required_hours) || 160,
+    lateTimeslots: Number(raw.late_timeslots) || 0,
+    earlyLeaveTimeslots: Number(raw.early_leave_timeslots) || 0,
+    regularOvertimeHours: Number(raw.regular_overtime_hours) || 0,
+    holidayOvertimeHours: Number(raw.holiday_overtime_hours) || 0,
+    specialOvertimeHours: Number(raw.special_overtime_hours) || 0,
+    businessTripDays: Number(raw.business_trip_days) || 0,
+    absences: Number(raw.absences) || 0,
+    onLeaveDays: Number(raw.on_leave_days) || 0,
+    additionalPay: Number(raw.additional_pay) || 0,
+    deductionAmount: Number(raw.deduction_amount) || 0,
+    daysPresent: Number(raw.days_present) || 0,
+    hasIncompletePunch: raw.has_incomplete_punch ?? false,
+    incompletePunchDates: raw.incomplete_punch_dates ?? [],
+  };
 }
 
 function mapPayrollRecord(raw: any): PayrollRecord {
   const emp = raw.employee;
-  return { id: raw.id, employeeId: raw.employee_id, employeeName: emp?.full_name || '', employeeCode: emp?.employee_code || '', position: emp?.position || '', dailyRate: Number(raw.daily_rate) || 0, daysPresent: Number(raw.days_present) || 0, basicPay: Number(raw.basic_pay) || 0, regularHolidayPay: Number(raw.regular_holiday_pay) || 0, specialHolidayPay: Number(raw.special_holiday_pay) || 0, regularOvertime: Number(raw.regular_overtime) || 0, holidayOvertime: Number(raw.holiday_overtime) || 0, specialOvertime: Number(raw.special_overtime) || 0, grossIncome: Number(raw.gross_income) || 0, tardyDeductions: Number(raw.tardy_deductions) || 0, undertimeDeductions: Number(raw.undertime_deductions) || 0, sss: Number(raw.sss) || 0, philhealth: Number(raw.philhealth) || 0, hdmf: Number(raw.hdmf) || 0, withholdingTax: Number(raw.withholding_tax) || 0, cashAdvance: Number(raw.cash_advance) || 0, cashAdvanceIssued: Number(raw.cash_advance_issued) || 0, totalDeductions: Number(raw.total_deductions) || 0, netPay: Number(raw.net_pay) || 0, taxableIncome: Number(raw.taxable_income) || 0, status: raw.status || 'pending' };
+  return {
+    id: raw.id, employeeId: raw.employee_id, employeeName: emp?.full_name || '',
+    employeeCode: emp?.employee_code || '', position: emp?.position || '',
+    dailyRate: Number(raw.daily_rate) || 0, daysPresent: Number(raw.days_present) || 0,
+    basicPay: Number(raw.basic_pay) || 0, regularHolidayPay: Number(raw.regular_holiday_pay) || 0,
+    specialHolidayPay: Number(raw.special_holiday_pay) || 0, regularOvertime: Number(raw.regular_overtime) || 0,
+    holidayOvertime: Number(raw.holiday_overtime) || 0, specialOvertime: Number(raw.special_overtime) || 0,
+    grossIncome: Number(raw.gross_income) || 0, tardyDeductions: Number(raw.tardy_deductions) || 0,
+    undertimeDeductions: Number(raw.undertime_deductions) || 0, sss: Number(raw.sss) || 0,
+    philhealth: Number(raw.philhealth) || 0, hdmf: Number(raw.hdmf) || 0,
+    withholdingTax: Number(raw.withholding_tax) || 0,  cashAdvance: Number(raw.cash_advance) || 0,
+    cashAdvanceIssued: Number(raw.cash_advance_issued) || 0, carryOverFromPrevious: Number(raw.carry_over_from_previous) || 0, totalDeductions: Number(raw.total_deductions) || 0,
+    netPay: Number(raw.net_pay) || 0, taxableIncome: Number(raw.taxable_income) || 0,
+    status: raw.status || 'pending',
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -541,15 +609,21 @@ function mapPayrollRecord(raw: any): PayrollRecord {
 export function usePayrollData() {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [computing, setComputing] = useState(false);
-  const [resetting, setResetting] = useState(false); // ← for Reset & Recompute
+  const [resetting, setResetting] = useState(false);
 
   const periodsQ = useQuery(() => db.payroll.getPeriods(), []);
   const periods: PayrollPeriod[] = (periodsQ.data || []).map(mapPeriod);
   const activePeriodId = selectedPeriodId || periods[0]?.id || null;
   const currentPeriod = periods.find(p => p.id === activePeriodId) || null;
 
-  const attendanceQ = useQuery(() => activePeriodId ? db.payroll.getAttendanceLogs(activePeriodId) : Promise.resolve([]), [activePeriodId]);
-  const payrollQ = useQuery(() => activePeriodId ? db.payroll.getPayrollRecords(activePeriodId) : Promise.resolve([]), [activePeriodId]);
+  const attendanceQ = useQuery(
+    () => activePeriodId ? db.payroll.getAttendanceLogs(activePeriodId) : Promise.resolve([]),
+    [activePeriodId]
+  );
+  const payrollQ = useQuery(
+    () => activePeriodId ? db.payroll.getPayrollRecords(activePeriodId) : Promise.resolve([]),
+    [activePeriodId]
+  );
 
   const attendanceLogs: AttendanceLog[] = (attendanceQ.data || []).map(mapAttendanceLog);
   const payrollRecords: PayrollRecord[] = (payrollQ.data || []).map(mapPayrollRecord);
@@ -581,19 +655,34 @@ export function usePayrollData() {
       return r;
     },
 
-    updateAttendanceLog: async (log: { employee_id: string; payroll_period_id: string; worked_hours?: number; required_hours?: number; late_timeslots?: number; early_leave_timeslots?: number; regular_overtime_hours?: number; holiday_overtime_hours?: number; special_overtime_hours?: number; business_trip_days?: number; absences?: number; on_leave_days?: number; additional_pay?: number; deduction_amount?: number }) => {
+    updateAttendanceLog: async (log: {
+      employee_id: string; payroll_period_id: string; worked_hours?: number;
+      required_hours?: number; late_timeslots?: number; early_leave_timeslots?: number;
+      regular_overtime_hours?: number; holiday_overtime_hours?: number;
+      special_overtime_hours?: number; business_trip_days?: number;
+      absences?: number; on_leave_days?: number; additional_pay?: number; deduction_amount?: number;
+    }) => {
       const r = await safe(() => db.payroll.upsertAttendanceLog(log).then(() => attendanceQ.refresh()));
       return r;
     },
 
+    // ── BUG 2 FIX: Calls fix_incomplete_punches_for_period before computing ──
     computePayroll: async (periodId: string) => {
       setComputing(true);
-      const r = await safe(() => db.payroll.computePayroll(periodId).then(() => payrollQ.refresh()));
+      const r = await safe(async () => {
+        // Step 1: Fix incomplete punches — treat time_in with no time_out as full day and flag it
+        await supabase.rpc('fix_incomplete_punches_for_period', { p_period_id: periodId });
+        // Step 2: Refresh attendance logs so UI reflects the fix
+        await attendanceQ.refresh();
+        // Step 3: Run payroll computation
+        await db.payroll.computePayroll(periodId);
+        // Step 4: Refresh payroll records
+        await payrollQ.refresh();
+      });
       setComputing(false);
       return r;
     },
 
-    // ── Reset wrong-period computation ────────────────────────────────────
     resetPayroll: async (periodId: string) => {
       setResetting(true);
       const r = await safe(async () => {
@@ -605,7 +694,6 @@ export function usePayrollData() {
       return r;
     },
 
-    // ── Delete a draft period ─────────────────────────────────────────────
     deletePeriod: async (periodId: string) => {
       const r = await safe(async () => {
         await db.payroll.deletePeriod(periodId);
@@ -651,60 +739,21 @@ export function useLogsData() {
     if (ordersRes.error) console.error("Order logs error:", ordersRes.error);
     if (invRes.error) console.error("Inventory logs error:", invRes.error);
     if (auditRes.error) console.error("Audit logs error:", auditRes.error);
-
-    return {
-      orders: ordersRes.data || [],
-      inventory: invRes.data || [],
-      audit: auditRes.data || []
-    };
+    return { orders: ordersRes.data || [], inventory: invRes.data || [], audit: auditRes.data || [] };
   }, []);
 
   const logs = useMemo(() => {
     if (!q.data) return [];
     const combined: any[] = [];
-
-    // Map Order Logs
     q.data.orders.forEach((raw: any) => {
-      combined.push({
-        id: raw.id,
-        module: 'orders',
-        action: raw.status ? `Status → ${raw.status}` : 'Order Updated',
-        details: raw.note || `Order ID: ${raw.order_id || 'Unknown'}`,
-        user: raw.updated_by_user ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim() : 'Customer / System',
-        role: raw.updated_by_user?.role || 'customer',
-        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
-        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
-      });
+      combined.push({ id: raw.id, module: 'orders', action: raw.status ? `Status → ${raw.status}` : 'Order Updated', details: raw.note || `Order ID: ${raw.order_id || 'Unknown'}`, user: raw.updated_by_user ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim() : 'Customer / System', role: raw.updated_by_user?.role || 'customer', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
     });
-
-    // Map Inventory Changes
     q.data.inventory.forEach((raw: any) => {
-      combined.push({
-        id: raw.id,
-        module: 'inventory',
-        action: raw.change_type || 'Inventory Changed',
-        details: `${raw.item?.name || 'Item'} changed by ${raw.quantity_change}. Reason: ${raw.reason || 'N/A'}`,
-        user: raw.changed_by_user ? `${raw.changed_by_user.first_name || ''} ${raw.changed_by_user.last_name || ''}`.trim() : 'System',
-        role: raw.changed_by_user?.role || 'system',
-        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
-        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
-      });
+      combined.push({ id: raw.id, module: 'inventory', action: raw.change_type || 'Inventory Changed', details: `${raw.item?.name || 'Item'} changed by ${raw.quantity_change}. Reason: ${raw.reason || 'N/A'}`, user: raw.changed_by_user ? `${raw.changed_by_user.first_name || ''} ${raw.changed_by_user.last_name || ''}`.trim() : 'System', role: raw.changed_by_user?.role || 'system', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
     });
-
-    // Map General Audit Logs
     q.data.audit.forEach((raw: any) => {
-      combined.push({
-        id: raw.id,
-        module: raw.target_table || 'system',
-        action: raw.action || 'System Action',
-        details: raw.metadata ? JSON.stringify(raw.metadata) : '',
-        user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System',
-        role: raw.actor_role || raw.actor_user?.role || 'system',
-        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
-        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
-      });
+      combined.push({ id: raw.id, module: raw.target_table || 'system', action: raw.action || 'System Action', details: raw.metadata ? JSON.stringify(raw.metadata) : '', user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System', role: raw.actor_role || raw.actor_user?.role || 'system', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
     });
-
     return combined.sort((a, b) => b.timestamp - a.timestamp);
   }, [q.data]);
 
