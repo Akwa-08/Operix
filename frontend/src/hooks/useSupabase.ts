@@ -7,6 +7,11 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { 
+  useQuery as useTanStackQuery, 
+  useQueryClient,
+} from '@tanstack/react-query';
+import type { QueryKey } from '@tanstack/react-query';
 import { supabase } from '../config/supabaseClient';
 import { db } from '../lib/database';
 import { adminApi } from '../lib/adminApi';
@@ -18,41 +23,55 @@ import type {
 import { parseDbDate } from '../util/formatters';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Generic fetch-and-cache pattern
+// Generic fetch-and-cache pattern (Refactored to use TanStack Query)
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/** 
+ * Adapter for existing components to use TanStack Query.
+ * Keeps the same API: { data, loading, error, refresh }
+ */
 function useQuery<T>(
   fetcher: () => Promise<T>,
   deps: any[] = [],
   realtimeTables: string[] = [],
   initialData: T | null = null,
 ) {
-  const [data, setData] = useState<T | null>(initialData);
-  const [loading, setLoading] = useState(!initialData);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  
+  // Create a unique key based on the dependencies and the fetcher logic.
+  // We include a string representation of the fetcher to help distinguish different queries with same deps.
+  const queryKey: QueryKey = ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try { setData(await fetcher()); }
-    catch (err: any) { setError(err.message || 'Unknown error'); }
-    finally { setLoading(false); }
-  }, deps);
+  const { data, isLoading, error, refetch } = useTanStackQuery({
+    queryKey,
+    queryFn: fetcher,
+    initialData: initialData ?? undefined,
+  });
 
-  useEffect(() => { refresh(); }, [refresh]);
-
+  // Realtime subscription logic
   useEffect(() => {
     if (!realtimeTables || realtimeTables.length === 0) return;
-    let channel = supabase.channel(`multi_${realtimeTables.join('_')}`);
+    
+    const channelName = `realtime_${realtimeTables.join('_')}_${JSON.stringify(deps).slice(0, 20)}`;
+    let channel = supabase.channel(channelName);
+    
     realtimeTables.forEach(table => {
       channel = channel.on('postgres_changes' as any, { event: '*', schema: 'public', table }, () => {
-        refresh();
+        // Invalidate and refetch to keep UI in sync with DB
+        queryClient.invalidateQueries({ queryKey });
       });
     });
+    
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [realtimeTables?.join('_'), refresh]);
+  }, [realtimeTables?.join('_'), JSON.stringify(deps)]);
 
-  return { data, loading, error, refresh };
+  return { 
+    data: data as T | null, 
+    loading: isLoading, 
+    error: error ? (error as Error).message : null, 
+    refresh: () => refetch() 
+  };
 }
 
 /** Wrap an async mutation in { success, error } */
@@ -166,27 +185,16 @@ function mapMaterial(item: any): Material {
 // HOOKS — named exactly as components expect
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Profile cache to prevent redundant fetches and flickering
-let profileCache: any = null;
-
 export function useMyProfile() {
   const q = useQuery(async () => {
-    if (profileCache) return profileCache;
-    const data = await db.getMyProfile();
-    profileCache = data;
-    return data;
-  }, [], [], profileCache);
+    return await db.getMyProfile();
+  }, ['my-profile'], ['users']); // Listen to users table for profile updates
 
-  const refresh = useCallback(async () => {
-    profileCache = null;
-    return q.refresh();
-  }, [q.refresh]);
-
-  return { profile: q.data, ...q, refresh };
+  return { profile: q.data, ...q };
 }
 
-/** Clear profile cache (call after updates) */
-export const clearProfileCache = () => { profileCache = null; };
+/** Clear profile cache (No longer needed with RQ, but keeping signature for compatibility) */
+export const clearProfileCache = () => { /* Handled by RQ query keys */ };
 
 export function useUsers(filters?: { role?: string; status?: string }) {
   const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status]);
