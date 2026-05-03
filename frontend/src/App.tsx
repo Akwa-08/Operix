@@ -1,53 +1,55 @@
 // frontend/src/App.tsx
 // REFACTORED: Removed Redux — all state flows through Supabase hooks + AuthContext
 // REFACTORED: All ProtectedRoute redirectTo now point to '/' 
+import { lazy, Suspense } from 'react';
 
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ProtectedRoute } from './components/Auth/ProtectedRoute';
 
 // Pages
-import { LandingPage } from './pages/LandingPage';
-import { AuthLayout } from './components/Auth/AuthLayout';
-import { SignUpPage } from './pages/SignUpPage';
-import { LoginPage } from './pages/LoginPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import { ResetPasswordPage } from './pages/ResetPasswordPage';
+const LandingPage = lazy(() => import('./pages/LandingPage').then(m => ({ default: m.LandingPage })));
+const SignUpPage = lazy(() => import('./pages/SignUpPage').then(m => ({ default: m.SignUpPage })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
+const AuthLayout = lazy(() => import('./components/Auth/AuthLayout').then(m => ({ default: m.AuthLayout })));
 
 // Customer
-import { RootLayout } from './pages/RootLayout';
-import { CustomerPage } from './pages/CustomerPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { CartPage } from './pages/CartPage';
-import { OrdersPage } from './pages/OrdersPage';
-import { MessagesPage } from './pages/MessagesPage';
+const RootLayout = lazy(() => import('./pages/RootLayout').then(m => ({ default: m.RootLayout })));
+const CustomerPage = lazy(() => import('./pages/CustomerPage').then(m => ({ default: m.CustomerPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const CartPage = lazy(() => import('./pages/CartPage').then(m => ({ default: m.CartPage })));
+const OrdersPage = lazy(() => import('./pages/OrdersPage').then(m => ({ default: m.OrdersPage })));
+const MessagesPage = lazy(() => import('./pages/MessagesPage').then(m => ({ default: m.MessagesPage })));
 
 // Admin
-import AdminPage from './pages/AdminPage';
-import AdminDashboard from './components/Admin/AdminDashboard';
-import AdminManagement from './components/Admin/AdminManagement';
-import AdminOrders from './components/Admin/AdminOrders';
-import AdminMessages from './components/Admin/AdminMessages';
-import AdminInventory from './components/Admin/AdminInventory';
-import AdminPayroll from './components/Admin/AdminPayroll';
-
-import AdminAuditLogs from './components/Admin/AdminAuditLogs';
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const AdminDashboard = lazy(() => import('./components/Admin/AdminDashboard'));
+const AdminManagement = lazy(() => import('./components/Admin/AdminManagement'));
+const AdminOrders = lazy(() => import('./components/Admin/AdminOrders'));
+const AdminMessages = lazy(() => import('./components/Admin/AdminMessages'));
+const AdminInventory = lazy(() => import('./components/Admin/AdminInventory'));
+const AdminPayroll = lazy(() => import('./components/Admin/AdminPayroll'));
+const AdminAuditLogs = lazy(() => import('./components/Admin/AdminAuditLogs'));
 
 // Cashier
-import CashierPage from './pages/CashierPage';
-import CashierDashboard from './components/Cashier/CashierDashboard';
-import CashierOrders from './components/Cashier/CashierOrders';
-import CashierInventory from './components/Cashier/CashierInventory';
+const CashierPage = lazy(() => import('./pages/CashierPage'));
+const CashierDashboard = lazy(() => import('./components/Cashier/CashierDashboard'));
+const CashierOrders = lazy(() => import('./components/Cashier/CashierOrders'));
+const CashierInventory = lazy(() => import('./components/Cashier/CashierInventory'));
 
 // Designer
-import DesignerPage from './pages/DesignerPage';
-import DesignerDashboard from './components/Designer/DesignerDashboard';
-import DesignerOrders from './components/Designer/DesignerOrders';
+const DesignerPage = lazy(() => import('./pages/DesignerPage'));
+const DesignerDashboard = lazy(() => import('./components/Designer/DesignerDashboard'));
+const DesignerOrders = lazy(() => import('./components/Designer/DesignerOrders'));
 
 // Production
-import ProductionPage from './pages/ProductionPage';
-import ProductionDashboard from './components/Production/ProductionDashboard';
-import ProductionOrders from './components/Production/ProductionOrders';
-import ProductionInventory from './components/Production/ProductionInventory';
+const ProductionPage = lazy(() => import('./pages/ProductionPage'));
+const ProductionDashboard = lazy(() => import('./components/Production/ProductionDashboard'));
+const ProductionOrders = lazy(() => import('./components/Production/ProductionOrders'));
+const ProductionInventory = lazy(() => import('./components/Production/ProductionInventory'));
+
+import { LoadingSpinner } from './components/Shared/UI/LoadingSpinner';
 
 const router = createBrowserRouter([
 
@@ -101,6 +103,7 @@ const router = createBrowserRouter([
     { path: 'orders',    element: <CashierOrders /> },
     { path: 'inventory', element: <CashierInventory /> },
     { path: 'profile',   element: <ProfilePage /> },
+    { path: 'messages',  element: <AdminMessages /> },
   ],
 },
 
@@ -134,7 +137,9 @@ const router = createBrowserRouter([
 ]);
 
 const App = () => (
-  <RouterProvider router={router} />
+  <Suspense fallback={<LoadingSpinner />}>
+    <RouterProvider router={router} />
+  </Suspense>
 );
 
 export default App;

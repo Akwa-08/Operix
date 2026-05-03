@@ -89,17 +89,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
  
     // Listen for login / logout / token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth Event:", event);
+      
       if (event === 'SIGNED_OUT') {
         setUser(null);
         setSession(null);
-      } else {
+        setLoading(false);
+      } else if (session?.user) {
         setSession(session);
-        setUser(parseUser(session?.user ?? null));
-        if (session?.user && event !== 'TOKEN_REFRESHED') {
+        
+        // Only set the "partial" user from metadata if we don't have a user yet
+        // or if the user ID has changed. This prevents "flickering" back to 
+        // default icons when we already have the full profile in state.
+        setUser((current) => {
+          if (!current || current.id !== session.user.id) {
+            return parseUser(session.user);
+          }
+          return current;
+        });
+
+        // Always attempt to fetch the latest profile details in the background
+        if (event !== 'TOKEN_REFRESHED') {
           fetchUserProfile(session.user);
         }
+        setLoading(false);
+      } else {
+        setLoading(false);
       }
-      setLoading(false);
     });
  
     return () => subscription.unsubscribe();

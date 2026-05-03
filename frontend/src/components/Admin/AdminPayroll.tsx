@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
-  X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle, Trash2,
+  X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle, Trash2, Lock,
 } from "lucide-react";
 import { supabase } from "../../config/supabaseClient";
 import {
@@ -10,6 +10,7 @@ import {
   usePendingCashAdvances,
   type AttendanceLog, type PayrollRecord, type PayrollPeriod, type PendingCashAdvance,
 } from "../../hooks/useSupabase";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -78,6 +79,12 @@ function AttendanceEditModal({ log, periodId, onClose, onSave }: {
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
         <h3 className="text-xl font-bold text-gray-900 mb-1">Edit Attendance</h3>
         <p className="text-sm text-gray-500 mb-6">{log.fullName}</p>
+        {log.hasIncompletePunch && (
+          <div className="mb-4 flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+            <AlertTriangle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <p>Missing time-out on: <strong>{log.incompletePunchDates.join(', ')}</strong>. These days were counted as full days. Adjust manually if needed.</p>
+          </div>
+        )}
         <div className="space-y-3">
           {field("Worked Hours", "worked_hours", 0.5)}
           {field("Late (timeslots × 30min)", "late_timeslots")}
@@ -167,6 +174,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div class="row"><span>HDMF (Pag-IBIG):</span><span class="blue">${fmt(record.hdmf)}</span></div>
         <div class="row"><span>Withholding Tax:</span><span>${fmt(record.withholdingTax)}</span></div>
         ${record.cashAdvance > 0 ? `<div class="row"><span>CA Deduction (Prev Period):</span><span class="red">${fmt(record.cashAdvance)}</span></div>` : ''}
+        ${record.carryOverFromPrevious > 0 ? `<div class="row"><span>Carry-Over Deduction (Prev Period):</span><span class="red">${fmt(record.carryOverFromPrevious)}</span></div>` : ''}
         <div class="total-row"><span>TOTAL DEDUCTIONS:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
       </div>
       <div>
@@ -261,6 +269,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
                   {record.cashAdvance > 0 && rows("CA Deduction (Prev Period)", record.cashAdvance, "text-red-600")}
+                  {record.carryOverFromPrevious > 0 && rows("Carry-Over Deduction (Prev Period)", record.carryOverFromPrevious, "text-red-600")}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
                     <span>TOTAL DEDUCTIONS:</span><span className="text-red-600">-{fmt(record.totalDeductions)}</span>
                   </div>
@@ -447,7 +456,6 @@ function CashAdvanceApprovalPanel() {
 }
 
 // ─── Biometrics Upload Button ─────────────────────────────────────────────────
-// Uses Supabase Edge Function — works on ALL devices, no server URL needed
 function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -528,6 +536,9 @@ const AdminPayroll: React.FC = () => {
     updatePayrollRecord, markPeriodComplete, markAllPaid, deletePeriod,
   } = usePayrollData();
 
+  // ── BUG 1 FIX: Period is locked when status is 'complete' ──
+  const periodIsComplete = currentPeriod?.status === 'complete';
+
   const filteredLogs    = attendanceLogs.filter(l => l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || l.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredRecords = payrollRecords.filter(r => r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) || r.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -554,14 +565,7 @@ const AdminPayroll: React.FC = () => {
   const toggleExpand = (id: string) => { const s = new Set(expandedPeriods); s.has(id) ? s.delete(id) : s.add(id); setExpandedPeriods(s); };
 
   if (loading && periods.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Loading payroll data…</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner type="table" message="Loading payroll data..." />;
   }
 
   return (
@@ -579,13 +583,8 @@ const AdminPayroll: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setDeletePeriodConfirm(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <Trash2 size={22} className="text-red-600"/>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Delete Period?</h3>
-                <p className="text-sm text-gray-500">This cannot be undone</p>
-              </div>
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0"><Trash2 size={22} className="text-red-600"/></div>
+              <div><h3 className="text-lg font-bold text-gray-900">Delete Period?</h3><p className="text-sm text-gray-500">This cannot be undone</p></div>
             </div>
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
               <p className="font-semibold text-red-800">{periodLabel(currentPeriod)}</p>
@@ -599,15 +598,7 @@ const AdminPayroll: React.FC = () => {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setDeletePeriodConfirm(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
-              <button
-                onClick={async () => {
-                  if (!activePeriodId) return;
-                  setDeletePeriodConfirm(false);
-                  await deletePeriod(activePeriodId);
-                }}
-                className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
-                <Trash2 size={16}/> Delete Period
-              </button>
+              <button onClick={async () => { if (!activePeriodId) return; setDeletePeriodConfirm(false); await deletePeriod(activePeriodId); }} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2"><Trash2 size={16}/> Delete Period</button>
             </div>
           </div>
         </div>
@@ -619,13 +610,8 @@ const AdminPayroll: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setMarkPaidConfirm(null)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
-                <CheckCircle2 size={22} className="text-green-600"/>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Mark as Paid?</h3>
-                <p className="text-sm text-gray-500">This cannot be undone easily</p>
-              </div>
+              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><CheckCircle2 size={22} className="text-green-600"/></div>
+              <div><h3 className="text-lg font-bold text-gray-900">Mark as Paid?</h3><p className="text-sm text-gray-500">This cannot be undone easily</p></div>
             </div>
             <div className="bg-gray-50 rounded-xl p-4 mb-5 space-y-1 text-sm">
               <p className="font-semibold text-gray-800">{markPaidConfirm.employeeName}</p>
@@ -637,14 +623,7 @@ const AdminPayroll: React.FC = () => {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setMarkPaidConfirm(null)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
-              <button
-                onClick={async () => {
-                  await updatePayrollRecord(markPaidConfirm.id, { status: "paid" });
-                  setMarkPaidConfirm(null);
-                }}
-                className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
-                <CheckCircle2 size={16}/> Confirm Paid
-              </button>
+              <button onClick={async () => { await updatePayrollRecord(markPaidConfirm.id, { status: "paid" }); setMarkPaidConfirm(null); }} className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2"><CheckCircle2 size={16}/> Confirm Paid</button>
             </div>
           </div>
         </div>
@@ -656,13 +635,8 @@ const AdminPayroll: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setShowResetConfirm(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <RefreshCw size={22} className="text-orange-600"/>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Reset Payroll Computation</h3>
-                <p className="text-sm text-gray-500">This action cannot be undone automatically</p>
-              </div>
+              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0"><RefreshCw size={22} className="text-orange-600"/></div>
+              <div><h3 className="text-lg font-bold text-gray-900">Reset Payroll Computation</h3><p className="text-sm text-gray-500">This action cannot be undone automatically</p></div>
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
               <p className="font-semibold text-orange-800">Period: {periodLabel(currentPeriod)}</p>
@@ -676,12 +650,8 @@ const AdminPayroll: React.FC = () => {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowResetConfirm(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-              <button
-                onClick={async () => { if (!activePeriodId) return; setShowResetConfirm(false); await resetPayroll(activePeriodId); }}
-                disabled={resetting}
-                className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
-                <RefreshCw size={16} className={resetting ? 'animate-spin' : ''}/>
-                {resetting ? 'Resetting…' : 'Reset This Period'}
+              <button onClick={async () => { if (!activePeriodId) return; setShowResetConfirm(false); await resetPayroll(activePeriodId); }} disabled={resetting} className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+                <RefreshCw size={16} className={resetting ? 'animate-spin' : ''}/>{resetting ? 'Resetting…' : 'Reset This Period'}
               </button>
             </div>
           </div>
@@ -718,18 +688,20 @@ const AdminPayroll: React.FC = () => {
               </div>
             )}
           </div>
-          {currentPeriod && <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${currentPeriod.status === "complete" ? "bg-green-100 text-green-700" : currentPeriod.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>{currentPeriod.status.charAt(0).toUpperCase() + currentPeriod.status.slice(1)}</span>}
+          {currentPeriod && (
+            <span className={`text-xs px-2.5 py-1 rounded-full font-bold ${currentPeriod.status === "complete" ? "bg-green-100 text-green-700" : currentPeriod.status === "processing" ? "bg-yellow-100 text-yellow-700" : "bg-gray-100 text-gray-600"}`}>
+              {currentPeriod.status.charAt(0).toUpperCase() + currentPeriod.status.slice(1)}
+            </span>
+          )}
           {currentPeriod?.status === "draft" && (
-            <button onClick={() => setDeletePeriodConfirm(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors ml-auto"
-              title="Delete this draft period">
+            <button onClick={() => setDeletePeriodConfirm(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors ml-auto" title="Delete this draft period">
               <Trash2 size={13} /> Delete Period
             </button>
           )}
         </div>
       )}
 
-      {/* ── Empty state — no period creation button, import XLS instead ── */}
+      {/* ── Empty state ── */}
       {periods.length === 0 && (
         <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
           <Upload size={40} className="mx-auto text-gray-300 mb-3" />
@@ -790,10 +762,10 @@ const AdminPayroll: React.FC = () => {
               <h3 className="text-lg font-bold text-gray-900 mb-5">Quick Actions</h3>
               <div className="space-y-3">
                 {[
-                  { icon: RefreshCw, color: "text-blue-600",   bg: "hover:bg-blue-50 hover:border-blue-300",   label: "Compute Payroll",   sub: "Auto-calculate salaries from attendance logs",        action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 },
-                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid",  sub: "Mark all payroll records as disbursed",               action: () => activePeriodId && markAllPaid(activePeriodId),   disabled: !activePeriodId || payrollRecords.length === 0 },
-                  { icon: Calendar,  color: "text-purple-600",  bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period",     sub: "Mark this payroll period as complete",                action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || currentPeriod?.status === 'complete' },
-                  { icon: RefreshCw, color: "text-orange-600",  bg: "hover:bg-orange-50 hover:border-orange-300", label: "Reset & Recompute", sub: "Undo this period's computation — select correct period first", action: () => setShowResetConfirm(true), disabled: !activePeriodId || payrollRecords.length === 0 },
+                  { icon: RefreshCw, color: "text-blue-600",   bg: "hover:bg-blue-50 hover:border-blue-300",   label: "Compute Payroll",   sub: "Auto-calculate salaries from attendance logs",        action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 || periodIsComplete },
+                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid",  sub: "Mark all payroll records as disbursed",               action: () => activePeriodId && markAllPaid(activePeriodId),   disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
+                  { icon: Calendar,  color: "text-purple-600",  bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period",     sub: "Mark this payroll period as complete",                action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || periodIsComplete },
+                  { icon: RefreshCw, color: "text-orange-600",  bg: "hover:bg-orange-50 hover:border-orange-300", label: "Reset & Recompute", sub: "Undo this period's computation — select correct period first", action: () => setShowResetConfirm(true), disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
                 ].map(({ icon: Icon, color, bg, label, sub, action, disabled }) => (
                   <button key={label} onClick={action} disabled={disabled} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 ${bg} transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed`}>
                     <Icon size={18} className={color} />
@@ -820,6 +792,23 @@ const AdminPayroll: React.FC = () => {
               <button onClick={printAttendanceLogs} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"><Printer size={16} /> Print</button>
             </div>
           </div>
+
+          {/* ── BUG 2 FIX: Warning banner for incomplete punches ── */}
+          {attendanceLogs.some(l => l.hasIncompletePunch) && (
+            <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+              <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold">Missing time-out detected for some employees</p>
+                <p className="text-amber-700 text-xs mt-0.5">
+                  These employees had a time-in recorded but no time-out. Their attendance has been counted as a <strong>full day</strong>. You can correct this manually using the Edit button if needed.
+                </p>
+                <p className="text-amber-600 text-xs mt-1 font-semibold">
+                  Affected: {attendanceLogs.filter(l => l.hasIncompletePunch).map(l => l.fullName).join(', ')}
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -830,8 +819,25 @@ const AdminPayroll: React.FC = () => {
                   {filteredLogs.length === 0 ? (
                     <tr><td colSpan={13} className="text-center py-12 text-gray-400 text-sm">{attendanceLogs.length === 0 ? 'No data yet. Import a biometrics .xls file to populate attendance.' : "No results match your search."}</td></tr>
                   ) : filteredLogs.map(log => (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{log.fullName}</td>
+                    // ── BUG 2 FIX: Highlight rows with incomplete punches ──
+                    <tr key={log.id} className={`${log.hasIncompletePunch ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`}>
+                      <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span>{log.fullName}</span>
+                          {log.hasIncompletePunch && (
+                            <div className="relative group">
+                              <AlertTriangle size={14} className="text-amber-500 cursor-help flex-shrink-0" />
+                              {/* Tooltip */}
+                              <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 w-60 shadow-lg pointer-events-none">
+                                <p className="font-bold mb-1">⚠ Missing time-out</p>
+                                <p className="text-gray-300">Counted as full day. Dates affected:</p>
+                                <p className="text-amber-300 mt-1 font-semibold">{log.incompletePunchDates.join(', ')}</p>
+                                <p className="text-gray-400 mt-1 text-[10px]">Edit manually if incorrect.</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{log.position}</td>
                       <td className="px-4 py-3 text-center"><span className="font-semibold">{log.workedHours}</span><span className="text-xs text-gray-400 block">{log.requiredHours}h req.</span></td>
                       <td className="px-4 py-3 text-center text-xs">{fmt(log.dailyRate)}</td>
@@ -868,22 +874,47 @@ const AdminPayroll: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type="text" placeholder="Search employee…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
-              <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing || attendanceLogs.length === 0 || !activePeriodId} className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                <RefreshCw size={16} className={computing ? "animate-spin" : ""} />{computing ? "Computing…" : "Recompute"}
+              {/* ── BUG 1 FIX: Recompute disabled when period is complete ── */}
+              <button
+                onClick={() => activePeriodId && computePayroll(activePeriodId)}
+                disabled={computing || attendanceLogs.length === 0 || !activePeriodId || periodIsComplete}
+                title={periodIsComplete ? "Period is closed — cannot recompute" : "Recompute payroll"}
+                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={computing ? "animate-spin" : ""} />
+                {computing ? "Computing…" : "Recompute"}
               </button>
-              <button onClick={() => setShowResetConfirm(true)} disabled={resetting || payrollRecords.length === 0} title="Undo this period's computation so you can recompute the correct one" className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                <RefreshCw size={16} className={resetting ? "animate-spin" : ""} />{resetting ? "Resetting…" : "Reset"}
+              {/* ── BUG 1 FIX: Reset disabled when period is complete ── */}
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                disabled={resetting || payrollRecords.length === 0 || periodIsComplete}
+                title={periodIsComplete ? "Period is closed — cannot reset" : "Reset payroll computation"}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={resetting ? "animate-spin" : ""} />
+                {resetting ? "Resetting…" : "Reset"}
               </button>
               <button onClick={printPayrollTable} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"><Printer size={16} /> Print</button>
             </div>
           </div>
+
+          {/* ── BUG 1 FIX: Locked period banner ── */}
+          {periodIsComplete && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
+              <Lock size={16} className="text-green-600 flex-shrink-0" />
+              <p>
+                <span className="font-bold">This period is closed.</span> Payroll records are locked and cannot be modified or recomputed.
+                To make changes, reset the period status first or select a different period.
+              </p>
+            </div>
+          )}
 
           {payrollRecords.length === 0 ? (
             <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
               <AlertCircle size={36} className="mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500 font-medium mb-1">No payroll computed yet</p>
               <p className="text-sm text-gray-400 mb-4">Add employees with attendance logs first, then compute.</p>
-              <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing || attendanceLogs.length === 0} className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{computing ? "Computing…" : "Compute Payroll Now"}</button>
+              <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing || attendanceLogs.length === 0 || periodIsComplete} className="px-5 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">{computing ? "Computing…" : "Compute Payroll Now"}</button>
             </div>
           ) : (
             <>
@@ -909,7 +940,18 @@ const AdminPayroll: React.FC = () => {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
                               <button onClick={() => setViewingRecord(rec)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View payslip"><Eye size={15} className="text-cyan-600" /></button>
-                              {rec.status !== "paid" && <button onClick={() => setMarkPaidConfirm(rec)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid"><CheckCircle2 size={15} className="text-green-600" /></button>}
+                              {/* ── BUG 1 FIX: Mark paid hidden when period is complete ── */}
+                              {!periodIsComplete && rec.status !== "paid" && (
+                                <button onClick={() => setMarkPaidConfirm(rec)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid">
+                                  <CheckCircle2 size={15} className="text-green-600" />
+                                </button>
+                              )}
+                              {/* ── BUG 1 FIX: Show lock icon when period is complete ── */}
+                              {periodIsComplete && (
+                                <span className="p-1.5 text-gray-300 cursor-not-allowed" title="Period is closed — cannot modify">
+                                  <Lock size={14} />
+                                </span>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -931,13 +973,13 @@ const AdminPayroll: React.FC = () => {
                     <div className="space-y-3">
                       {[
                         {step:1,label:"Daily Rate",formula:"from Employee profile (stored directly)",note:"Set in Management → Employee List → Hourly Rate field",color:"bg-gray-50 border-gray-200"},
-                        {step:2,label:"Days Present",formula:"XLS Attend Actual field",note:'e.g. "22/16" → 16 days attended',color:"bg-gray-50 border-gray-200"},
+                        {step:2,label:"Days Present",formula:"Resolved from biometric punch logs",note:"Time-in with no time-out is counted as full day and flagged",color:"bg-gray-50 border-gray-200"},
                         {step:3,label:"Basic Pay",formula:"Daily Rate × Days Present",note:"Core salary for the period",color:"bg-blue-50 border-blue-200"},
                         {step:4,label:"Regular Holiday Pay",formula:"Daily Rate × 2.00",note:"+100% extra on holiday worked",color:"bg-indigo-50 border-indigo-200"},
                         {step:5,label:"Special Holiday Pay",formula:"Daily Rate × 1.30",note:"+30% extra on special holiday",color:"bg-indigo-50 border-indigo-200"},
                         {step:6,label:"Regular OT",formula:"(Daily Rate ÷ 8) × 1.25 × OT hours",note:"Source: XLS Overtime Regular column",color:"bg-green-50 border-green-200"},
                         {step:7,label:"Regular Holiday OT",formula:"(Daily Rate ÷ 8) × 1.60 × OT hours",note:"",color:"bg-green-50 border-green-200"},
-                        {step:8,label:"Special Holiday OT",formula:"(Daily Rate ÷ 8) × 1.30 × OT hours",note:"Source: XLS Overtime Special column",color:"bg-green-50 border-green-200"},
+                        {step:8,label:"Special Holiday OT",formula:"(Daily Rate ÷ 8) × 1.39 × OT hours",note:"Source: XLS Overtime Special column",color:"bg-green-50 border-green-200"},
                       ].map(({step,label,formula,note,color}) => (
                         <div key={step} className={`flex gap-3 p-3 rounded-lg border ${color}`}>
                           <div className="w-6 h-6 rounded-full bg-gray-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
@@ -1049,4 +1091,3 @@ const AdminPayroll: React.FC = () => {
 };
 
 export default AdminPayroll;
-//Test2

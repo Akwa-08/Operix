@@ -32,7 +32,7 @@ export interface Order {
   dueDate: string;
   price: number;
   isPriceEstimated?: boolean;
-  paymentStatus: "Partial" | "Paid" | "None";
+  paymentStatus: "Partially paid" | "Paid" | "None";
   note?: string;
 }
 
@@ -106,8 +106,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
     switch (status) {
       case "Paid":
         return "bg-green-100 text-green-700 border-green-200";
-      case "Partial":
-        return "bg-orange-100 text-orange-700 border-orange-200";
+      case "Partially paid":
+        return "bg-yellow-100 text-yellow-700 border-yellow-200";
       default:
         return "bg-gray-100 text-gray-500 border-gray-200";
     }
@@ -238,7 +238,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <Eye className="w-4 h-4" />
           View Details
         </button>
-        {order.currentStatus === "Payment" && onPay && (
+        {(["Payment", "Production", "Pickup"].includes(order.currentStatus)) && order.paymentStatus !== "Paid" && onPay && (
           <button
             onClick={() => onPay(order.id)}
             className="flex-shrink-0 bg-green-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-green-600 transition-colors shadow-sm">

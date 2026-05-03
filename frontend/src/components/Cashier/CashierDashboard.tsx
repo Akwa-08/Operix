@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useDashboard, useCashierCashAdvances, useEmployees } from "../../hooks/useSupabase";
 import type { CashAdvanceEligibility } from "../../hooks/useSupabase";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
 const CA_LIMIT = 2000;
 const fmt = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
@@ -335,11 +336,7 @@ const CashierDashboard = () => {
     return r;
   };
 
-  if (loading) return (
-    <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"/>
-    </div>
-  );
+  if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">

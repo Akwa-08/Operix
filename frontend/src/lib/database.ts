@@ -3,12 +3,17 @@
 // RLS handles all security. This file is the ONLY data access layer.
 
 import {supabase} from "../config/supabaseClient";
+import {sanitizeInput, isValidUUID} from "../util/security";
 
 /**
  * Uploads a file to the 'order-files' storage bucket.
  * Organizes files by user ID and timestamp to avoid collisions.
+ * If an oldUrl is provided, it attempts to delete the previous file from storage.
  */
-export async function uploadOrderFile(file: File): Promise<string> {
+export async function uploadOrderFile(
+  file: File,
+  oldUrl?: string,
+): Promise<string> {
   const {
     data: {user},
   } = await supabase.auth.getUser();
@@ -34,6 +39,22 @@ export async function uploadOrderFile(file: File): Promise<string> {
     throw uploadError;
   }
 
+  // Delete old file if it exists and belongs to the 'order-files' bucket
+  if (oldUrl && oldUrl.includes("order-files/")) {
+    try {
+      const oldPath = oldUrl.split("order-files/").pop();
+      if (oldPath) {
+        await supabase.storage.from("order-files").remove([oldPath]);
+        console.log(
+          "Successfully removed old order file from storage:",
+          oldPath,
+        );
+      }
+    } catch (deleteError) {
+      console.warn("Failed to delete old order file:", deleteError);
+    }
+  }
+
   const {
     data: {publicUrl},
   } = supabase.storage.from("order-files").getPublicUrl(filePath);
@@ -43,8 +64,12 @@ export async function uploadOrderFile(file: File): Promise<string> {
 
 /**
  * Uploads a profile picture to the 'user-profile' storage bucket.
+ * If an oldUrl is provided, it attempts to delete the previous file from storage.
  */
-export async function uploadProfilePicture(file: File): Promise<string> {
+export async function uploadProfilePicture(
+  file: File,
+  oldUrl?: string,
+): Promise<string> {
   const {
     data: {user},
   } = await supabase.auth.getUser();
@@ -54,9 +79,11 @@ export async function uploadProfilePicture(file: File): Promise<string> {
   if (file.size > 2 * 1024 * 1024)
     throw new Error("File size exceeds 2MB limit");
 
+  // 1. Prepare new file info
   const fileExt = file.name.split(".").pop();
   const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
+  // 2. Upload new file
   const {error: uploadError} = await supabase.storage
     .from("user-profile")
     .upload(fileName, file, {
@@ -67,6 +94,22 @@ export async function uploadProfilePicture(file: File): Promise<string> {
   if (uploadError) {
     console.error("Error uploading profile picture:", uploadError);
     throw uploadError;
+  }
+
+  // 3. Delete old file if it exists and belongs to the 'user-profile' bucket
+  if (oldUrl && oldUrl.includes("user-profile/")) {
+    try {
+      // Extract the path after 'user-profile/'
+      // URL format: .../storage/v1/object/public/user-profile/uuid/timestamp.png
+      const oldPath = oldUrl.split("user-profile/").pop();
+      if (oldPath) {
+        await supabase.storage.from("user-profile").remove([oldPath]);
+        console.log("Successfully removed old avatar from storage:", oldPath);
+      }
+    } catch (deleteError) {
+      // We don't throw here to avoid failing the whole update just because of cleanup
+      console.warn("Failed to delete old profile picture:", deleteError);
+    }
   }
 
   const {
@@ -281,10 +324,14 @@ export const db = {
       .order("category")
       .order("name");
     if (filters?.category) query = query.eq("category", filters.category);
-    if (filters?.search)
-      query = query.or(
-        `name.ilike.%${filters.search}%,category.ilike.%${filters.search}%`,
-      );
+    if (filters?.search) {
+      const cleanSearch = sanitizeInput(filters.search);
+      if (cleanSearch) {
+        query = query.or(
+          `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
+        );
+      }
+    }
     const {data, error} = await query;
     if (error) throw error;
     return data || [];
@@ -328,7 +375,7 @@ export const db = {
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
-      payments(id, amount, payment_method, reference_number, created_at)
+      payments(id, amount, payment_method, reference_number, created_at, status, decline_reason)
     `,
       )
       .order("created_at", {ascending: false});
@@ -355,7 +402,7 @@ export const db = {
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
-      payments(id, amount, payment_method, reference_number, created_at)
+      payments(id, amount, payment_method, reference_number, created_at, status, decline_reason)
     `,
       )
       .eq("id", id)
@@ -529,7 +576,9 @@ export const db = {
     if (!order) throw new Error("Order not found");
 
     if (order.status !== "in_queue") {
-      throw new Error("Only in-queue orders can be assigned for design acceptance");
+      throw new Error(
+        "Only in-queue orders can be assigned for design acceptance",
+      );
     }
 
     const {data, error} = await supabase
@@ -673,7 +722,9 @@ export const db = {
     if (actorErr) throw actorErr;
 
     if ((actor?.role || "").toLowerCase() === "designer") {
-      throw new Error("Designer cannot upload or replace customer initial design");
+      throw new Error(
+        "Designer cannot upload or replace customer initial design",
+      );
     }
 
     const {data: order, error: orderErr} = await supabase
@@ -739,7 +790,9 @@ export const db = {
       throw new Error("Only the assigned designer can submit final design");
     }
     if (order.status !== "designing") {
-      throw new Error("Final design can only be submitted during Designing phase");
+      throw new Error(
+        "Final design can only be submitted during Designing phase",
+      );
     }
 
     const {data, error} = await supabase
@@ -767,61 +820,63 @@ export const db = {
   },
 
   /**
-   * 3: Customer accepts final design; order moves from Designing -> Payment.
+   * 3: Designer approves final design; order moves from Designing -> Payment.
    */
-  async customerAcceptFinalDesign(orderId: string) {
+  async approveOrderDesign(orderId: string) {
     const {
       data: {user},
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    const {data: actor} = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const isDesigner = (actor?.role || "").toLowerCase() === "designer";
+    const isAdmin = (actor?.role || "").toLowerCase() === "admin";
+
+    if (!isDesigner && !isAdmin) {
+      throw new Error("Only designers or admins can approve the final design");
+    }
+
     const {data: order, error: fetchError} = await supabase
       .from("orders")
       .select("id, customer_id, assigned_designer, status, final_design_url")
       .eq("id", orderId)
-      .eq("customer_id", user.id)
-      .maybeSingle();
+      .single();
     if (fetchError) throw fetchError;
-    if (!order) {
-      throw new Error(
-        "Order not found or you do not have access to accept this design",
-      );
-    }
+    if (!order) throw new Error("Order not found");
 
-    if (order.customer_id !== user.id) {
-      throw new Error("Only the customer for this order can accept final design");
+    if (isDesigner && order.assigned_designer !== user.id) {
+      throw new Error("You can only approve designs for orders assigned to you");
     }
     if (order.status !== "designing") {
       throw new Error("Order is not currently in Designing phase");
     }
     if (!order.final_design_url) {
-      throw new Error("No final design found to accept");
+      throw new Error("No final design found to approve");
     }
 
     const {data, error} = await supabase
       .from("orders")
       .update({status: "payment"})
       .eq("id", orderId)
-      .eq("customer_id", user.id)
       .eq("status", "designing")
       .select()
-      .maybeSingle();
+      .single();
     if (error) throw error;
-    if (!data) {
-      throw new Error(
-        "Unable to move order to Payment. Access denied or order state changed.",
-      );
-    }
 
-    if (order.assigned_designer) {
+    if (order.customer_id) {
       try {
         await db.chat.sendMessage(
-          order.assigned_designer,
-          "Customer accepted the final design. The order has now moved to Payment.",
+          order.customer_id,
+          "Your final design has been approved by our team. Your order is now in the Payment phase.",
           orderId,
         );
       } catch (msgErr) {
-        console.warn("Designer payment transition notification failed:", msgErr);
+        console.warn("Customer notification failed:", msgErr);
       }
     }
 
@@ -835,29 +890,66 @@ export const db = {
     if (error) throw error;
   },
 
-  async deductInventoryForOrder(orderId: string) {
-    // Skip if already deducted for this order to avoid double-subtracting.
-    const {data: existingLog, error: existingLogErr} = await supabase
-      .from("inventory_changes")
-      .select("id")
-      .eq("reason", `Automatic deduction for order ${orderId}`)
-      .limit(1)
-      .maybeSingle();
-    if (existingLogErr) throw existingLogErr;
-    if (existingLog?.id) return;
+  async getOrderBOM(orderId: string) {
+    const {data: items, error: itemsErr} = await supabase
+      .from("order_items")
+      .select("product_id, quantity, product_name")
+      .eq("order_id", orderId);
+    if (itemsErr) throw itemsErr;
 
+    const materials: {
+      inventory_item_id: string;
+      material_name: string;
+      quantity_required: number;
+      unit: string;
+      total_standard_usage: number;
+    }[] = [];
+
+    for (const item of items || []) {
+      if (!item.product_id) continue;
+      const {data: bom, error: bomErr} = await supabase
+        .from("product_supply_mapping")
+        .select(
+          "inventory_item_id, quantity_required, inventory_items:inventory_item_id(name, unit_of_measure)",
+        )
+        .eq("product_id", item.product_id);
+      if (bomErr) throw bomErr;
+
+      for (const mapping of bom || []) {
+        const invItem = (mapping as any).inventory_items;
+        materials.push({
+          inventory_item_id: mapping.inventory_item_id,
+          material_name: invItem?.name || "Unknown Material",
+          quantity_required: Number(mapping.quantity_required),
+          unit: invItem?.unit_of_measure || "",
+          total_standard_usage:
+            Number(mapping.quantity_required) * item.quantity,
+        });
+      }
+    }
+    return materials;
+  },
+
+  async deductInventoryForOrder(
+    orderId: string,
+    excessUsage?: Record<string, number>,
+  ) {
     // 1. Get order items
-    const { data: items, error: itemsErr } = await supabase
+    const {data: items, error: itemsErr} = await supabase
       .from("order_items")
       .select("product_id, quantity")
       .eq("order_id", orderId);
     if (itemsErr) throw itemsErr;
 
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+
     for (const item of items || []) {
       if (!item.product_id) continue;
 
       // 2. Get BOM for this product
-      const { data: bom, error: bomErr } = await supabase
+      const {data: bom, error: bomErr} = await supabase
         .from("product_supply_mapping")
         .select("inventory_item_id, quantity_required")
         .eq("product_id", item.product_id);
@@ -865,32 +957,43 @@ export const db = {
 
       for (const mapping of bom || []) {
         // 3. Deduct from inventory
-        const { data: inv, error: invErr } = await supabase
+        const {data: inv, error: invErr} = await supabase
           .from("inventory_items")
           .select("current_quantity")
           .eq("id", mapping.inventory_item_id)
           .single();
         if (invErr) throw invErr;
 
-        const newQty = Number(inv.current_quantity) - (Number(mapping.quantity_required) * item.quantity);
-        
-        const { error: updateErr } = await supabase
+        const standardUsage = Number(mapping.quantity_required) * item.quantity;
+        const excess = excessUsage?.[mapping.inventory_item_id] || 0;
+        const totalDeduction = standardUsage + excess;
+
+        const newQty = Number(inv.current_quantity) - totalDeduction;
+
+        const {error: updateErr} = await supabase
           .from("inventory_items")
-          .update({ current_quantity: newQty, updated_at: new Date().toISOString() })
+          .update({
+            current_quantity: newQty,
+            updated_at: new Date().toISOString(),
+          })
           .eq("id", mapping.inventory_item_id);
         if (updateErr) throw updateErr;
 
         // 4. Log the change
-        const { data: { user } } = await supabase.auth.getUser();
-        await supabase.from("inventory_changes").insert([{
-          inventory_item_id: mapping.inventory_item_id,
-          change_type: 'Manual Adjustment',
-          quantity_change: -(Number(mapping.quantity_required) * item.quantity),
-          quantity_before: Number(inv.current_quantity),
-          quantity_after: newQty,
-          reason: `Automatic deduction for order ${orderId}`,
-          changed_by: user?.id
-        }]);
+        await supabase.from("inventory_changes").insert([
+          {
+            inventory_item_id: mapping.inventory_item_id,
+            change_type: "Manual Adjustment",
+            quantity_change: -totalDeduction,
+            quantity_before: Number(inv.current_quantity),
+            quantity_after: newQty,
+            reason:
+              excess > 0
+                ? `Automatic deduction for order ${orderId} (includes ${excess} excess)`
+                : `Automatic deduction for order ${orderId}`,
+            changed_by: user?.id,
+          },
+        ]);
       }
     }
   },
@@ -910,30 +1013,135 @@ export const db = {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    // We insert as 'pending' by default. 
+    // We DO NOT update the order's amount_paid yet. 
+    // That only happens when the cashier approves.
     const {error: payErr} = await supabase.from("payments").insert([
       {
         order_id: orderId,
         amount: payment.amount,
         payment_method: payment.payment_method,
         reference_number: payment.reference_number,
+        status: "pending",
       },
     ]);
     if (payErr) throw payErr;
+  },
 
+  async approvePayment(paymentId: string, orderId: string) {
+    // 1. Update the payment record to 'approved'
+    const {error: updateError} = await supabase
+      .from("payments")
+      .update({status: "approved"})
+      .eq("id", paymentId);
+
+    if (updateError) throw updateError;
+
+    // 2. Recalculate everything to be safe
+    return this.syncOrderPaymentStatus(orderId);
+  },
+
+  async declinePayment(paymentId: string, orderId: string, reason: string) {
+    // 1. Update the payment record to 'declined'
+    const {error: updateError} = await supabase
+      .from("payments")
+      .update({
+        status: "declined",
+        decline_reason: reason,
+      })
+      .eq("id", paymentId);
+
+    if (updateError) throw updateError;
+
+    // 2. Get order details for notification
     const {data: order} = await supabase
       .from("orders")
-      .select("amount_paid, total_amount")
+      .select("customer_id, order_number")
       .eq("id", orderId)
       .single();
-    if (order) {
-      const newPaid = parseFloat(order.amount_paid) + payment.amount;
-      const total = parseFloat(order.total_amount);
-      const ps = newPaid >= total ? "paid" : newPaid > 0 ? "partial" : "unpaid";
-      await supabase
-        .from("orders")
-        .update({amount_paid: newPaid, payment_status: ps})
-        .eq("id", orderId);
+
+    // 3. Notify customer via chat if possible
+    if (order && order.customer_id) {
+      try {
+        await db.chat.sendMessage(
+          order.customer_id,
+          `Your payment for order ${order.order_number} was declined. Reason: ${reason}. Please try paying again.`,
+          orderId,
+        );
+      } catch (err) {
+        console.warn("Failed to notify customer of declined payment", err);
+      }
     }
+
+    // 4. Update the order with decline metadata
+    await supabase
+      .from("orders")
+      .update({
+        last_decline_reason: reason,
+        has_unread_decline: true,
+      })
+      .eq("id", orderId);
+
+    // 5. Sync totals
+    return this.syncOrderPaymentStatus(orderId);
+  },
+
+  /**
+   * Helper to ensure order total and status are perfectly in sync with approved payments.
+   * Call this after any approval or decline.
+   */
+  async syncOrderPaymentStatus(orderId: string) {
+    // 1. Get all approved payments
+    const {data: approvedPayments, error: sumError} = await supabase
+      .from("payments")
+      .select("amount")
+      .eq("order_id", orderId)
+      .eq("status", "approved");
+
+    if (sumError) throw sumError;
+
+    // 2. Calculate total approved
+    const totalApproved = (approvedPayments || []).reduce(
+      (sum, p) => sum + Number(p.amount),
+      0,
+    );
+
+    // 3. Get order total
+    const {data: order, error: orderFetchError} = await supabase
+      .from("orders")
+      .select("total_amount")
+      .eq("id", orderId)
+      .single();
+
+    if (orderFetchError) throw orderFetchError;
+
+    // 4. Determine status
+    const totalAmount = parseFloat(order.total_amount);
+    let newStatus: "paid" | "partial" | "unpaid" = "unpaid";
+    if (totalApproved >= totalAmount) newStatus = "paid";
+    else if (totalApproved > 0) newStatus = "partial";
+
+    // 5. Update order
+    const {error: finalError} = await supabase
+      .from("orders")
+      .update({
+        amount_paid: totalApproved,
+        payment_status: newStatus,
+      })
+      .eq("id", orderId);
+
+    if (finalError) throw finalError;
+
+    return {success: true};
+  },
+
+
+  async markDeclineAsRead(orderId: string) {
+    const {error} = await supabase
+      .from("orders")
+      .update({has_unread_decline: false})
+      .eq("id", orderId);
+    if (error) throw error;
   },
 
   async getPayments(orderId: string) {
@@ -985,7 +1193,11 @@ export const db = {
         const existing = existingList[0];
         const {data, error} = await supabase
           .from("cart_items")
-          .update({quantity: existing.quantity + quantity, specifications, file_url: fileUrl})
+          .update({
+            quantity: existing.quantity + quantity,
+            specifications,
+            file_url: fileUrl,
+          })
           .eq("id", existing.id)
           .select()
           .single();
@@ -997,7 +1209,13 @@ export const db = {
     const {data, error} = await supabase
       .from("cart_items")
       .insert([
-        {customer_id: user.id, product_id: productId, quantity, specifications, file_url: fileUrl || null},
+        {
+          customer_id: user.id,
+          product_id: productId,
+          quantity,
+          specifications,
+          file_url: fileUrl || null,
+        },
       ])
       .select()
       .single();
@@ -1007,10 +1225,15 @@ export const db = {
 
   async updateCartItem(
     cartItemId: string,
-    updates: {quantity?: number; specifications?: string; fileUrl?: string; file_url?: string},
+    updates: {
+      quantity?: number;
+      specifications?: string;
+      fileUrl?: string;
+      file_url?: string;
+    },
   ) {
-    const dbUpdates: any = { ...updates };
-    if ('fileUrl' in dbUpdates) {
+    const dbUpdates: any = {...updates};
+    if ("fileUrl" in dbUpdates) {
       dbUpdates.file_url = dbUpdates.fileUrl;
       delete dbUpdates.fileUrl;
     }
@@ -1298,6 +1521,20 @@ export const db = {
   // CHAT
   // ═══════════════════════════════════════════════════════════════════════════
   chat: {
+    formatChatTimestamp(dateStr: string) {
+      if (!dateStr) return "";
+      const date = new Date(dateStr);
+      const now = new Date();
+      const isToday = date.toDateString() === now.toDateString();
+      if (isToday) {
+        return date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+      return date.toLocaleDateString([], {month: "short", day: "numeric"});
+    },
+
     async getConversations() {
       const {
         data: {user},
@@ -1337,11 +1574,7 @@ export const db = {
             : "Unknown User",
           userRole: otherProfile?.role || "user",
           lastMessage: msg.message,
-          lastMessageTime: new Date(msg.sent_at).toLocaleTimeString("en-US", {
-            timeZone: "Asia/Manila",
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+          lastMessageTime: this.formatChatTimestamp(msg.sent_at),
           unreadCount: 0,
           isActive: true,
           messages: [],
@@ -1356,6 +1589,11 @@ export const db = {
         data: {user},
       } = await supabase.auth.getUser();
       if (!user) return [];
+
+      if (!isValidUUID(otherUserId)) {
+        console.error("Invalid otherUserId:", otherUserId);
+        return [];
+      }
 
       const {data, error} = await supabase
         .from("chat_messages")
@@ -1380,22 +1618,26 @@ export const db = {
           : "Unknown",
         content: msg.message,
         attachmentUrl: msg.attachment_url || undefined,
-        timestamp: new Date(msg.sent_at).toLocaleTimeString("en-US", {
-          timeZone: "Asia/Manila",
-          hour: "numeric",
-          minute: "2-digit",
-        }),
+        timestamp: this.formatChatTimestamp(msg.sent_at),
         isFromAdmin: STAFF_ROLES.includes(
           (msg.sender?.role || "").toLowerCase(),
         ),
       }));
     },
 
-    async sendMessage(receiverId: string, message: string, orderId?: string, attachmentUrl?: string) {
+    async sendMessage(
+      receiverId: string,
+      message: string,
+      orderId?: string,
+      attachmentUrl?: string,
+    ) {
       const {
         data: {user},
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+
+      if (!isValidUUID(receiverId)) throw new Error("Invalid receiverId");
+      if (orderId && !isValidUUID(orderId)) throw new Error("Invalid orderId");
 
       const {data, error} = await supabase
         .from("chat_messages")
@@ -1403,7 +1645,7 @@ export const db = {
           {
             sender_id: user.id,
             receiver_id: receiverId,
-            message,
+            message: message.trim(),
             order_id: orderId || null,
             attachment_url: attachmentUrl || null,
           },
@@ -1415,7 +1657,7 @@ export const db = {
       return data;
     },
 
-    async uploadChatImage(file: File): Promise<string> {
+    async uploadChatImage(file: File, oldUrl?: string): Promise<string> {
       const {
         data: {user},
       } = await supabase.auth.getUser();
@@ -1430,6 +1672,22 @@ export const db = {
         .from("chat-attachments")
         .upload(path, file, {upsert: false});
       if (upErr) throw upErr;
+
+      // Delete old file if it exists and belongs to the 'chat-attachments' bucket
+      if (oldUrl && oldUrl.includes("chat-attachments/")) {
+        try {
+          const oldPath = oldUrl.split("chat-attachments/").pop();
+          if (oldPath) {
+            await supabase.storage.from("chat-attachments").remove([oldPath]);
+            console.log(
+              "Successfully removed old chat attachment from storage:",
+              oldPath,
+            );
+          }
+        } catch (deleteError) {
+          console.warn("Failed to delete old chat attachment:", deleteError);
+        }
+      }
 
       const {data: urlData} = supabase.storage
         .from("chat-attachments")
@@ -1927,38 +2185,97 @@ export const db = {
         results.push(saved);
       }
 
-     return results;
+      return results;
     },
 
     async resetPayroll(periodId: string) {
-      const {error: delErr} = await supabase.from("payroll_records").delete().eq("payroll_period_id", periodId);
+      const {error: delErr} = await supabase
+        .from("payroll_records")
+        .delete()
+        .eq("payroll_period_id", periodId);
       if (delErr) throw delErr;
 
-      const {data: issuedCAs} = await supabase.from("cash_advances").select("id").eq("status", "added_to_current_payroll").eq("payroll_period_id", periodId);
+      const {data: issuedCAs} = await supabase
+        .from("cash_advances")
+        .select("id")
+        .eq("status", "added_to_current_payroll")
+        .eq("payroll_period_id", periodId);
       if (issuedCAs && issuedCAs.length > 0) {
-        await supabase.from("cash_advances").update({ status: "approved", payroll_period_id: null, updated_at: new Date().toISOString() }).in("id", (issuedCAs as any[]).map((a: any) => a.id));
+        await supabase
+          .from("cash_advances")
+          .update({
+            status: "approved",
+            payroll_period_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .in(
+            "id",
+            (issuedCAs as any[]).map((a: any) => a.id),
+          );
       }
 
-      const {data: thisPeriodData} = await supabase.from("payroll_periods").select("period_start").eq("id", periodId).single();
+      const {data: thisPeriodData} = await supabase
+        .from("payroll_periods")
+        .select("period_start")
+        .eq("id", periodId)
+        .single();
       if (thisPeriodData) {
-        const {data: prevPeriodData} = await supabase.from("payroll_periods").select("id").lt("period_end", thisPeriodData.period_start).order("period_end", {ascending: false}).limit(1).maybeSingle();
+        const {data: prevPeriodData} = await supabase
+          .from("payroll_periods")
+          .select("id")
+          .lt("period_end", thisPeriodData.period_start)
+          .order("period_end", {ascending: false})
+          .limit(1)
+          .maybeSingle();
         if (prevPeriodData) {
-          await supabase.from("cash_advances").update({ status: "added_to_current_payroll", updated_at: new Date().toISOString() }).eq("status", "deducted").eq("payroll_period_id", prevPeriodData.id);
+          await supabase
+            .from("cash_advances")
+            .update({
+              status: "added_to_current_payroll",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("status", "deducted")
+            .eq("payroll_period_id", prevPeriodData.id);
         }
       }
       return {success: true};
     },
 
     async deletePeriod(id: string) {
-      const {data: period} = await supabase.from("payroll_periods").select("status").eq("id", id).single();
-      if (period?.status !== "draft") throw new Error("Only draft periods can be deleted.");
+      const {data: period} = await supabase
+        .from("payroll_periods")
+        .select("status")
+        .eq("id", id)
+        .single();
+      if (period?.status !== "draft")
+        throw new Error("Only draft periods can be deleted.");
 
-      await supabase.from("cash_advances").update({ status: "approved", payroll_period_id: null, updated_at: new Date().toISOString() }).eq("status", "added_to_current_payroll").eq("payroll_period_id", id);
-      await supabase.from("payroll_records").delete().eq("payroll_period_id", id);
-      await supabase.from("attendance_logs").delete().eq("payroll_period_id", id);
-      await supabase.from("attendance_summary_imports").delete().eq("payroll_period_id", id);
+      await supabase
+        .from("cash_advances")
+        .update({
+          status: "approved",
+          payroll_period_id: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("status", "added_to_current_payroll")
+        .eq("payroll_period_id", id);
+      await supabase
+        .from("payroll_records")
+        .delete()
+        .eq("payroll_period_id", id);
+      await supabase
+        .from("attendance_logs")
+        .delete()
+        .eq("payroll_period_id", id);
+      await supabase
+        .from("attendance_summary_imports")
+        .delete()
+        .eq("payroll_period_id", id);
 
-      const {error} = await supabase.from("payroll_periods").delete().eq("id", id);
+      const {error} = await supabase
+        .from("payroll_periods")
+        .delete()
+        .eq("id", id);
       if (error) throw error;
     },
   },

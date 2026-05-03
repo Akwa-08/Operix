@@ -20,6 +20,7 @@ import {useToast} from "../../context/ToastContext";
 
 const CashierOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -31,6 +32,8 @@ const CashierOrders = () => {
     loading,
     createOrder,
     recordPayment,
+    approvePayment,
+    declinePayment,
     updateCustomerDesign,
     updateStatus,
     refresh,
@@ -64,11 +67,11 @@ const CashierOrders = () => {
     setShowDetailsModal(true);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   const filteredOrders = orders.filter((o) => {
-    // Only show orders in Payment or Pickup status
-    if (!["Payment", "Pickup"].includes(o.status)) return false;
+    // Filter by status if not "All"
+    if (statusFilter !== "All" && o.status !== statusFilter) return false;
 
     const q = searchQuery.toLowerCase();
     return (
@@ -126,7 +129,19 @@ const CashierOrders = () => {
               placeholder="Search orders..."
             />
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-medium text-gray-700">
+              <option value="All">All Status</option>
+              <option value="In Queue">In Queue</option>
+              <option value="Designing">Designing</option>
+              <option value="Payment">Payment</option>
+              <option value="Production">Production</option>
+              <option value="Pickup">Pickup</option>
+              <option value="Completed">Completed</option>
+            </select>
             <ViewToggle mode={viewMode} onChange={setViewMode} />
             <Button
               variant="primary"
@@ -295,6 +310,16 @@ const CashierOrders = () => {
           userRole="cashier"
           onClose={() => setShowDetailsModal(false)}
           onRecordPayment={recordPayment}
+          onApprovePayment={async (paymentId, orderId) => {
+            const r = await approvePayment(paymentId, orderId);
+            if (!r.success) throw new Error(r.error || "Approval failed");
+            toast.success("Payment approved!");
+          }}
+          onDeclinePayment={async (paymentId, orderId, reason) => {
+            const r = await declinePayment(paymentId, orderId, reason);
+            if (!r.success) throw new Error(r.error || "Decline failed");
+            toast.success("Payment declined.");
+          }}
           onUpdateCustomerDesign={async (url) => {
             const r = await updateCustomerDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Update failed");

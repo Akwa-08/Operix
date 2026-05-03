@@ -40,7 +40,7 @@ export const AuthLayout = () => {
   const features = [
     {icon: Printer, label: "Custom Printing", desc: "High-quality prints"},
     {icon: Palette, label: "Design Studio", desc: "Professional designs"},
-    {icon: Zap, label: "Fast Delivery", desc: "Quick turnaround"},
+    {icon: Zap, label: "Fast Production", desc: "Quick turnaround"},
   ];
 
   return (
@@ -55,7 +55,7 @@ export const AuthLayout = () => {
         }`}
         style={{
           background:
-            "linear-gradient(160deg, #2c001c 0%, #61043c 40%, #d01c82 70%, #5b0b3f 100%)",
+           "linear-gradient(160deg, #131358 0%, #0D2B4E 35%, #911d7f 70%, #a50a7e 100%)",
         }}>
         {/* Decorative floating shapes */}
         <motion.div

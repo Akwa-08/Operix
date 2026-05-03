@@ -4,7 +4,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye, CreditCard, Trash2, Clock, Palette,
-  CheckCircle2, Hammer, Truck, Package, Edit2,
+  CheckCircle2, Hammer, Truck, Package, Edit2, AlertCircle,
 } from "lucide-react";
 import type { Order } from "../../../Types";
 import { getPaymentStatusColor } from "../../../util/formatters";
@@ -42,19 +42,21 @@ const getStatusColor = (status: CardStatus) => {
 const getPaymentColor = getPaymentStatusColor;
 
 // ── Single card ─────────────────────────────────────────────────────────────
-const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay }: {
+const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen, hidePayWhen }: {
   order: Order;
   onView: (o: Order) => void;
   onEdit?: (o: Order) => void;
   onDelete?: (o: Order) => void;
   onPay?: (o: Order) => void;
+  hideDeleteWhen?: (o: Order) => boolean;
+  hidePayWhen?: (o: Order) => boolean;
 }) => {
   const cardStatus = mapStatus(order.status);
   const stepIdx = statusSteps.findIndex(s => s.status === cardStatus);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow">
+      className={`bg-white p-5 rounded-2xl border ${order.hasUnreadDecline ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200'} shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow`}>
 
       {/* Header: customer + order number */}
       <div className="flex items-center gap-3">
@@ -99,6 +101,11 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay }: {
         <div>
           <span className="text-lg font-bold text-amber-500">₱{order.totalAmount.toLocaleString()}</span>
           <span className={`ml-2 px-2 py-0.5 rounded-full border text-xs font-semibold ${getPaymentColor(order.paymentStatus)}`}>{order.paymentStatus}</span>
+          {order.hasUnreadDecline && (
+            <span className="ml-2 inline-flex items-center text-red-500" title={`Decline Reason: ${order.lastDeclineReason}`}>
+              <AlertCircle size={14} />
+            </span>
+          )}
         </div>
       </div>
       <div className="flex justify-between text-xs text-gray-400">
@@ -112,7 +119,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay }: {
           className="flex-1 bg-sky-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-sky-600">
           <Eye size={14} /> View
         </button>
-        {onPay && order.paymentStatus !== "Paid" && (
+        {onPay && order.paymentStatus !== "Paid" && (!hidePayWhen || !hidePayWhen(order)) && (
           <button onClick={() => onPay(order)}
             className="flex-1 bg-emerald-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-emerald-600">
             <CreditCard size={14} /> Pay
@@ -124,7 +131,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay }: {
             <Edit2 size={14} className="text-gray-600" />
           </button>
         )}
-        {onDelete && (
+        {onDelete && (!hideDeleteWhen || !hideDeleteWhen(order)) && (
           <button onClick={() => onDelete(order)}
             className="px-3 py-2 bg-red-50 rounded-lg hover:bg-red-100">
             <Trash2 size={14} className="text-red-600" />
@@ -143,9 +150,11 @@ interface OrderCardsGridProps {
   onEdit?: (order: Order) => void;
   onDelete?: (order: Order) => void;
   onPay?: (order: Order) => void;
+  hideDeleteWhen?: (order: Order) => boolean;
+  hidePayWhen?: (order: Order) => boolean;
 }
 
-export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete, onPay }) => {
+export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete, onPay, hideDeleteWhen, hidePayWhen }) => {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
@@ -159,7 +168,16 @@ export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, 
     <AnimatePresence mode="popLayout">
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {orders.map(o => (
-          <StaffOrderCard key={o.id} order={o} onView={onView} onEdit={onEdit} onDelete={onDelete} onPay={onPay} />
+          <StaffOrderCard 
+            key={o.id} 
+            order={o} 
+            onView={onView} 
+            onEdit={onEdit} 
+            onDelete={onDelete} 
+            onPay={onPay} 
+            hideDeleteWhen={hideDeleteWhen}
+            hidePayWhen={hidePayWhen}
+          />
         ))}
       </motion.div>
     </AnimatePresence>

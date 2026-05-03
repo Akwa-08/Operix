@@ -16,7 +16,7 @@ import { ProductDetailsModal } from "../Shared/Inventory/ProductDetailsModal";
 import { DeleteProductModal } from "../Shared/Inventory/DeleteProductModal";
 import type { Material, AdminProduct, Delivery } from "../../Types";
 import { useInventoryData, useProductsData, useDeliveries } from "../../hooks/useSupabase";
-import toast from "react-hot-toast";
+import { useToast } from "../../context/ToastContext";
 import { db } from "../../lib/database";
 
 // ── Reusable Modal Shell ─────────────────────────────────────────────────────
@@ -34,6 +34,7 @@ const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: { show: 
 };
 
 const AdminInventory = () => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState("Materials");
   const [searchQuery, setSearchQuery] = useState("");
   // ── Filters & Search ──
@@ -168,7 +169,7 @@ const AdminInventory = () => {
 
 
 
-  if (loading) return <LoadingSpinner message="Loading..." />;
+  if (loading) return <LoadingSpinner type="table" message="Loading..." />;
 
   return (
     <div className="max-w-7xl mx-auto">

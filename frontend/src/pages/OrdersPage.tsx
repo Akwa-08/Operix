@@ -13,10 +13,11 @@ import type { Order } from "../Types";
 import { useOrdersData } from "../hooks/useSupabase";
 import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
 import { db } from "../lib/database";
-import toast from "react-hot-toast";
-import { Toast } from "../components/Customer/Toast";
+import { useToast } from "../context/ToastContext";
+import { ConfirmModal } from "../components/Shared/UI/ConfirmModal";
 
 export const OrdersPage: React.FC = () => {
+  const toast = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All Time");
@@ -29,11 +30,12 @@ export const OrdersPage: React.FC = () => {
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPayOrderId, setSelectedPayOrderId] = useState<string | null>(null);
   
-  const [customToast, setCustomToast] = useState({ isVisible: false, message: "", type: "success" as "success" | "error" });
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   
   const itemsPerPage = 6;
 
-  const { orders, loading, refresh, recordPayment, acceptFinalDesignAsCustomer } = useOrdersData();
+  const { orders, loading, refresh, recordPayment, markDeclineAsRead } = useOrdersData();
 
   // Derive the full order object from the current orders array.
   // This always reflects the latest data without needing a useEffect sync.
@@ -93,18 +95,11 @@ export const OrdersPage: React.FC = () => {
 
   const handleDeleteOrder = async (order: Order) => {
     if (order.status === "In Queue") {
-      if (!window.confirm(`Cancel order ${order.orderId}? This cannot be undone.`)) return;
-      try {
-        await db.deleteOrder(order.id);
-        toast.success("Order cancelled successfully.");
-        refresh();
-      } catch (err: any) {
-        toast.error(err.message || "Failed to cancel order.");
-      }
+      setOrderToCancel(order);
+      setShowCancelConfirm(true);
     } else if (order.status === "Designing") {
-      toast(
-        "Your order is currently being designed. Please message our designer to request a cancellation.",
-        { icon: "⚠️", duration: 5000 }
+      toast.error(
+        "Your order is currently being designed. Please message our designer to request a cancellation."
       );
     } else {
       toast.error(
@@ -124,22 +119,15 @@ export const OrdersPage: React.FC = () => {
     try {
       await recordPayment(selectedPayOrderId, payment);
       refresh();
-      setCustomToast({ isVisible: true, message: "Payment recorded successfully.", type: "success" });
+      toast.success("Payment recorded successfully.");
       return { success: true, error: null };
     } catch (err: any) {
       return { success: false, error: err.message || "Failed to record payment" };
     }
   };
 
-  const handleAcceptFinalDesign = async (order: Order) => {
-    const r = await acceptFinalDesignAsCustomer(order.id);
-    if (!r.success) {
-      throw new Error(r.error || "Failed to accept final design");
-    }
-    await refresh();
-  };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="w-full bg-gray-50 flex flex-col min-h-screen p-4 sm:p-6 md:p-10">
@@ -184,7 +172,16 @@ export const OrdersPage: React.FC = () => {
 
         {/* Orders Grid */}
         <div>
-          <OrderCardsGrid orders={pagedOrders} onView={handleViewDetails} onDelete={handleDeleteOrder} onPay={handlePayOrder} />
+          <OrderCardsGrid 
+            orders={pagedOrders} 
+            onView={handleViewDetails} 
+            onDelete={handleDeleteOrder} 
+            onPay={handlePayOrder} 
+            hideDeleteWhen={(o) => o.status !== "In Queue" && o.status !== "Designing"}
+            hidePayWhen={(o) => 
+              !["Payment", "Production", "Pickup"].includes(o.status)
+            }
+          />
         </div>
 
         {/* Pagination */}
@@ -219,11 +216,7 @@ export const OrdersPage: React.FC = () => {
           isOpen={showDetails} 
           order={selectedOrder} 
           onClose={() => setShowDetails(false)}
-          onAcceptFinalDesign={handleAcceptFinalDesign}
-          onPay={(order) => {
-            setShowDetails(false);
-            handlePayOrder(order);
-          }}
+          onMarkAsRead={markDeclineAsRead}
         />
       )}
 
@@ -239,14 +232,26 @@ export const OrdersPage: React.FC = () => {
           onSubmit={handleSubmitPayment}
         />
       )}
-
-      {/* Custom Toast */}
-      <Toast 
-        isVisible={customToast.isVisible} 
-        message={customToast.message} 
-        type={customToast.type}
-        onClose={() => setCustomToast(prev => ({ ...prev, isVisible: false }))} 
-      />
+ 
+      {orderToCancel && (
+        <ConfirmModal
+          isOpen={showCancelConfirm}
+          onClose={() => setShowCancelConfirm(false)}
+          onConfirm={async () => {
+            try {
+              await db.deleteOrder(orderToCancel.id);
+              toast.success("Order cancelled successfully.");
+              refresh();
+            } catch (err: any) {
+              toast.error(err.message || "Failed to cancel order.");
+            }
+          }}
+          title="Cancel Order"
+          message={`Are you sure you want to cancel order ${orderToCancel.orderId}? This action cannot be undone.`}
+          confirmLabel="Cancel Order"
+          variant="danger"
+        />
+      )}
     </div>
   );
 };

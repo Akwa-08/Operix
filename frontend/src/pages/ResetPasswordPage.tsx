@@ -130,9 +130,20 @@ export const ResetPasswordPage = () => {
 
           {/* ── Loading Session State ─────────────────────────────────── */}
           {!success && !sessionError && !sessionReady && (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E80088] mx-auto mb-4" />
-              <p className="text-gray-500">Verifying your reset link...</p>
+            <div className="space-y-8 py-8 animate-pulse">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-10 w-64 bg-gray-100 rounded-xl" />
+                <div className="h-4 w-48 bg-gray-50 rounded-lg" />
+              </div>
+              <div className="space-y-6">
+                {[1, 2].map(i => (
+                  <div key={i} className="space-y-3">
+                    <div className="h-4 w-32 bg-gray-100 rounded" />
+                    <div className="h-14 w-full bg-gray-50 rounded-2xl" />
+                  </div>
+                ))}
+                <div className="h-14 w-full bg-gray-100 rounded-xl" />
+              </div>
             </div>
           )}
 

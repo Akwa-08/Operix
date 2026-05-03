@@ -4,6 +4,7 @@ import {
   User, Briefcase, FileText, ShieldCheck, Package, BarChart2, Download
 } from "lucide-react";
 import { useLogsData } from "../../hooks/useSupabase";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type LogEntry = {
@@ -130,14 +131,7 @@ const AdminLogs = () => {
   }, [tabLogs, search, roleFilter, dateFrom, dateTo]);
 
   // ── Loading / Error states ─────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="flex h-[calc(100vh-120px)] items-center justify-center text-lg text-gray-500 font-semibold gap-3">
-        <RefreshCw className="animate-spin text-cyan-600" size={24} />
-        Loading activity logs…
-      </div>
-    );
-  }
+  if (loading) return <LoadingSpinner type="table" message="Loading activity logs..." />;
 
   if (error) {
     return (

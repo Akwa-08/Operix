@@ -11,9 +11,10 @@ import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
 import { Package, CheckCircle, AlertTriangle, Truck } from "lucide-react";
 import type { Material, Delivery, DeliveryStatus } from "../../Types";
 import { useInventoryData, useDeliveries } from "../../hooks/useSupabase";
-import toast from "react-hot-toast";
+import { useToast } from "../../context/ToastContext";
 
 const CashierInventory = () => {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState("Materials");
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -29,7 +30,7 @@ const CashierInventory = () => {
 
   const tabs = ["Materials", "Deliveries"];
 
-  const { materials, stats: materialStats, loading: matLoading } = useInventoryData();
+  const { materials, stats: materialStats, loading: matLoading, updateMaterial } = useInventoryData();
   const { deliveries, stats: delStats, loading: delLoading, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
   const loading = activeTab === "Materials" ? matLoading : delLoading;
@@ -37,7 +38,24 @@ const CashierInventory = () => {
   // Handlers for Materials
   const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
   const handleEditMaterial = (material: Material) => { setSelectedMaterial(material); setShowEditModal(true); };
-  const handleSaveEdit = (data: Partial<Material>) => { console.log("Cashier updating stock:", data); setShowEditModal(false); };
+  
+  const handleSaveEdit = async (data: Partial<Material>) => {
+    if (!selectedMaterial) return;
+    const r = await updateMaterial(selectedMaterial.id, {
+      name: data.itemType,
+      unit_of_measure: data.stockUnit,
+      current_quantity: data.usableStocks,
+      reorder_point: data.reorderPoint,
+      unit_cost: data.unitCost,
+      description: data.description,
+    });
+    if (r.success) {
+      toast.success("Stock updated successfully");
+      setShowEditModal(false);
+    } else {
+      toast.error("Failed to update: " + r.error);
+    }
+  };
 
   // Handlers for Deliveries
   const handleConfirmReceipt = async () => {
@@ -64,7 +82,7 @@ const CashierInventory = () => {
     else toast.error("Update failed: " + r.error);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -137,6 +155,12 @@ const CashierInventory = () => {
                       <td className="px-4 py-3 font-medium text-gray-900">{d.requestedQuantity}</td>
                       <td className="px-4 py-3"><span className={d.status === 'received' ? 'text-green-600 font-bold' : ''}>{d.receivedQuantity || '-'}</span></td>
                       <td className="px-4 py-3 text-center">
+                        {d.status === 'requested' && (
+                          <button onClick={() => handleUpdateStatus(d.id, "ordered")} className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold">Mark Ordered</button>
+                        )}
+                        {d.status === 'ordered' && (
+                          <button onClick={() => handleUpdateStatus(d.id, "en_route")} className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded text-xs font-semibold">Mark En Route</button>
+                        )}
                         {d.status === 'en_route' && (
                           <div className="flex gap-2 justify-center">
                             <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: d.requestedQuantity.toString(), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-semibold">Receive</button>
@@ -167,6 +191,12 @@ const CashierInventory = () => {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Req: <strong className="text-gray-900">{d.requestedQuantity} {d.materialUnit}</strong></span>
                     </div>
+                    {d.status === 'requested' && (
+                      <button onClick={() => handleUpdateStatus(d.id, "ordered")} className="w-full mt-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-semibold text-center">Mark Ordered</button>
+                    )}
+                    {d.status === 'ordered' && (
+                      <button onClick={() => handleUpdateStatus(d.id, "en_route")} className="w-full mt-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-semibold text-center">Mark En Route</button>
+                    )}
                     {d.status === 'en_route' && (
                       <div className="flex gap-2 pt-2">
                         <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: d.requestedQuantity.toString(), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold text-center">Receive Stock</button>

@@ -14,12 +14,16 @@ import {
   FileText,
   Upload,
   CheckCircle,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
   CreditCard,
   X,
   Palette,
   Image as ImageIcon,
 } from "lucide-react";
 import {FileUploadModal} from "../../Customer/FileUploadModal";
+import {ConfirmModal} from "../UI/ConfirmModal";
 
 const sanitizeStorageUrl = (url: string | null | undefined): string => {
   if (!url) return "";
@@ -33,7 +37,11 @@ interface OrderDetailsModalProps {
   userRole: UserRole;
   onUploadDesign?: () => void;
   onUpdateStatus?: (newStatus: string) => void;
-  onEdit?: (updates?: { totalAmount?: number; dueDate?: string }) => Promise<void> | void;
+  onApprovePayment?: (paymentId: string, orderId: string) => Promise<void>;
+  onEdit?: (updates?: {
+    totalAmount?: number;
+    dueDate?: string;
+  }) => Promise<void> | void;
   onRecordPayment?: (
     orderId: string,
     payment: {
@@ -44,8 +52,14 @@ interface OrderDetailsModalProps {
       notes?: string;
     },
   ) => Promise<{success: boolean; error: string | null}>;
+  onDeclinePayment?: (
+    paymentId: string,
+    orderId: string,
+    reason: string,
+  ) => Promise<void>;
   onUpdateCustomerDesign?: (fileUrl: string) => Promise<void>;
   onUpdateFinalDesign?: (fileUrl: string) => Promise<void>;
+  onApproveDesign?: () => Promise<void>;
   onRefresh?: () => void;
 }
 
@@ -56,15 +70,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   userRole,
   onUploadDesign,
   onUpdateStatus,
+  onApprovePayment,
   onEdit,
   onRecordPayment,
+  onDeclinePayment,
   onUpdateCustomerDesign,
   onUpdateFinalDesign,
+  onApproveDesign,
   onRefresh,
 }) => {
   const perms = permissions[userRole].orders;
   const [isCustomerUploadOpen, setIsCustomerUploadOpen] = useState(false);
   const [isFinalUploadOpen, setIsFinalUploadOpen] = useState(false);
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const toast = useToast();
 
   // ── Payment recording state ──────────────────────────────────────────────
@@ -77,6 +95,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const [editAmount, setEditAmount] = useState(String(order.totalAmount || ""));
   const [editDueDate, setEditDueDate] = useState("");
   const [editingOrder, setEditingOrder] = useState(false);
+  const [approvingDesign, setApprovingDesign] = useState(false);
+  const [showDeclineReasonModal, setShowDeclineReasonModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [selectedPaymentId, setSelectedPaymentId] = useState<string | null>(
+    null,
+  );
+  const [isDeclining, setIsDeclining] = useState(false);
 
   const outstanding = Math.max(
     0,
@@ -84,7 +109,8 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   );
   const isInitialPayment = !order.amountPaid || order.amountPaid === 0;
   const minPayment = isInitialPayment ? order.totalAmount * 0.5 : 1;
-  const isDesignerDesigning = userRole === "designer" && order.status === "Designing";
+  const isDesignerDesigning =
+    userRole === "designer" && order.status === "Designing";
 
   useEffect(() => {
     setEditAmount(String(order.totalAmount || ""));
@@ -226,11 +252,11 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                   className={`px-3 py-1 rounded-full text-sm font-semibold border ${
                     order.paymentStatus === "Paid"
                       ? "bg-green-100 text-green-700 border-green-200"
-                      : order.paymentStatus === "Partial"
+                      : order.paymentStatus === "Partially paid"
                         ? "bg-yellow-100 text-yellow-700 border-yellow-200"
                         : "bg-red-100 text-red-700 border-red-200"
                   }`}>
-                  {order.paymentStatus === "Partial"
+                  {order.paymentStatus === "Partially paid"
                     ? "Paid Partially"
                     : order.paymentStatus}
                 </span>
@@ -475,7 +501,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                 <InfoField
                   label="Payment Status"
                   value={
-                    order.paymentStatus === "Partial"
+                    order.paymentStatus === "Partially paid"
                       ? "Paid Partially"
                       : order.paymentStatus
                   }
@@ -515,6 +541,11 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                       <th className="px-4 py-3 text-right">Amount</th>
                       <th className="px-4 py-3">Method</th>
                       <th className="px-4 py-3">Reference</th>
+                      <th className="px-4 py-3 text-center">Status</th>
+                       <th className="px-4 py-3 text-center">Remarks</th>
+                      {(onDeclinePayment || onApprovePayment) && (
+                        <th className="px-4 py-3 text-right">Actions</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -528,19 +559,73 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                         <td className="px-4 py-3 text-right font-bold text-gray-900">
                           ₱{p.amount.toLocaleString()}
                         </td>
-                        <td className="px-4 py-3 capitalize text-gray-600">
-                          <span
-                            className={`px-2 py-0.5 rounded-full ${
-                              p.payment_method === "cash"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                                : "bg-blue-50 text-blue-700 border border-blue-100"
-                            }`}>
-                            {p.payment_method}
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-1 rounded bg-blue-50 text-blue-600 text-xs font-medium">
+                            {p.payment_method.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-mono text-gray-500">
                           {p.reference_number || "—"}
                         </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              (p.status || "pending") === "declined"
+                                ? "bg-red-50 text-red-700 border border-red-100"
+                                : (p.status === "pending")
+                                  ? "bg-yellow-50 text-yellow-700 border border-yellow-100"
+                                  : "bg-green-50 text-green-700 border border-green-100"
+                            }`}>
+                            {p.status || "pending"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <div
+                            className="flex justify-center cursor-help"
+                            title={
+                              (p.status || "pending") === "declined"
+                                ? p.decline_reason || "Declined by cashier"
+                                : p.status === "pending"
+                                  ? "Awaiting cashier verification"
+                                  : "Payment approved"
+                            }>
+                            {(p.status || "pending") === "declined" ? (
+                              <AlertCircle size={16} className="text-red-500" />
+                            ) : p.status === "pending" ? (
+                              <Clock size={16} className="text-yellow-500" />
+                            ) : (
+                              <CheckCircle2
+                                size={16}
+                                className="text-emerald-500"
+                              />
+                            )}
+                          </div>
+                        </td>
+                        {(onDeclinePayment || onApprovePayment) && (
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {p.status === "pending" && onApprovePayment && (
+                                <button
+                                  onClick={() => onApprovePayment(p.id, order.id)}
+                                  className="text-emerald-600 hover:text-emerald-700 text-xs font-semibold px-2 py-1 rounded bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                                  Approve
+                                </button>
+                              )}
+                              {(p.status || "pending") !== "declined" &&
+                                onDeclinePayment && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedPaymentId(p.id);
+                                      setDeclineReason("");
+                                      setShowDeclineReasonModal(true);
+                                    }}
+                                    className="text-red-500 hover:text-red-700 text-xs font-semibold px-2 py-1 rounded bg-red-50 hover:bg-red-100 transition-colors">
+                                    Decline
+                                  </button>
+                                )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -726,14 +811,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
         {/* Action Buttons */}
         {isDesignerDesigning && onEdit && (
           <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-3">
-            <h3 className="text-sm font-bold text-gray-900">Designing Phase Update</h3>
+            <h3 className="text-sm font-bold text-gray-900">
+              Designing Phase Update
+            </h3>
             <p className="text-xs text-gray-600">
-              Designer can increase total amount and adjust due date during Designing only.
+              Designer can increase total amount and adjust due date during
+              Designing only.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Total Amount (min current: ₱{order.totalAmount.toLocaleString()})
+                  Total Amount (min current: ₱
+                  {order.totalAmount.toLocaleString()})
                 </label>
                 <input
                   type="number"
@@ -786,18 +875,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                     onUpdateStatus(nextStatus);
                     toast.success(`Order confirmed and set to ${targetName}!`);
                   } else {
-                    const remaining =
-                      (order.totalAmount || 0) - (order.amountPaid || 0);
-                    if (
-                      window.confirm(
-                        `This order is not fully paid (₱${remaining.toLocaleString()} remaining). Proceed to ${targetName} anyway?`,
-                      )
-                    ) {
-                      onUpdateStatus(nextStatus);
-                      toast.success(
-                        `Order sent to ${targetName} despite pending payment.`,
-                      );
-                    }
+                    setShowPaymentConfirm(true);
                   }
                 }}>
                 {order.status === "Pickup" ? "Complete Order" : "Confirm"}
@@ -805,8 +883,31 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             )}
 
           {perms.canEditAll && onEdit && !isDesignerDesigning && (
-            <Button variant="primary" onClick={() => onEdit()} className="flex-1">
+            <Button
+              variant="primary"
+              onClick={() => onEdit()}
+              className="flex-1">
               Edit Order
+            </Button>
+          )}
+
+          {isDesignerDesigning && order.finalDesignUrl && onApproveDesign && (
+            <Button
+              variant="primary"
+              className="flex-1 bg-[#00BEF4] hover:bg-[#00a9d9] border-[#00BEF4]"
+              disabled={approvingDesign}
+              onClick={async () => {
+                setApprovingDesign(true);
+                try {
+                  await onApproveDesign();
+                  toast.success("Design approved and order moved to Payment!");
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to approve design");
+                } finally {
+                  setApprovingDesign(false);
+                }
+              }}>
+              {approvingDesign ? "Approving..." : "Approve Design"}
             </Button>
           )}
 
@@ -819,14 +920,101 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           onClose={() => setIsCustomerUploadOpen(false)}
           onUpload={handleCustomerUploadComplete}
           productName={order.productType || "Order Item"}
+          oldUrl={order.designFile}
         />
-        {/* Final Design Upload — designer-side only */}
         <FileUploadModal
           isOpen={isFinalUploadOpen}
           onClose={() => setIsFinalUploadOpen(false)}
           onUpload={handleFinalDesignUploadComplete}
           productName={`Final Preview — ${order.productType || "Order Item"}`}
+          oldUrl={order.finalDesignUrl}
         />
+
+        {/* Confirmation for unpaid orders */}
+        <ConfirmModal
+          isOpen={showPaymentConfirm}
+          onClose={() => setShowPaymentConfirm(false)}
+          onConfirm={() => {
+            if (!onUpdateStatus) return;
+            const nextStatus =
+              order.status === "Pickup" ? "Completed" : "Production";
+            const targetName =
+              nextStatus === "Completed" ? "Completed" : "Production";
+            onUpdateStatus(nextStatus);
+            toast.success(
+              `Order sent to ${targetName} despite pending payment.`,
+            );
+          }}
+          title="Payment Pending"
+          message={`This order is not fully paid (₱${outstanding.toLocaleString()} remaining). Proceed to ${order.status === "Pickup" ? "Completed" : "Production"} anyway?`}
+          confirmLabel="Proceed Anyway"
+          cancelLabel="Cancel"
+          variant="warning"
+        />
+
+        {/* Decline Reason Modal */}
+        <Modal
+          isOpen={showDeclineReasonModal}
+          onClose={() => !isDeclining && setShowDeclineReasonModal(false)}
+          title="Decline Payment"
+          size="sm">
+          <div className="space-y-4">
+            <div className="bg-red-50 p-4 rounded-xl flex items-start gap-3">
+              <div>
+                <p className="text-xs text-red-700">
+                  Please provide a reason for declining this payment. This will
+                  be sent to the customer.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">
+                Reason for Decline
+              </label>
+              <textarea
+                value={declineReason}
+                onChange={(e) => setDeclineReason(e.target.value)}
+                placeholder="e.g. Invalid reference number, amount mismatch..."
+                className="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-red-100 focus:border-red-400 outline-none transition-all resize-none h-24"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setShowDeclineReasonModal(false)}
+                disabled={isDeclining}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                className="flex-1 bg-red-500 hover:bg-red-600 border-red-600 shadow-lg shadow-red-100"
+                disabled={!declineReason.trim() || isDeclining}
+                onClick={async () => {
+                  if (!selectedPaymentId || !onDeclinePayment) return;
+                  setIsDeclining(true);
+                  try {
+                    await onDeclinePayment(
+                      selectedPaymentId,
+                      order.id,
+                      declineReason.trim(),
+                    );
+                    toast.success("Payment declined and customer notified");
+                    setShowDeclineReasonModal(false);
+                    if (onRefresh) onRefresh();
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to decline payment");
+                  } finally {
+                    setIsDeclining(false);
+                  }
+                }}>
+                {isDeclining ? "Declining..." : "Confirm Decline"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
       </div>
     </Modal>
   );

@@ -124,7 +124,7 @@ export const Cart: React.FC = () => {
     setIsUploadModalOpen(false);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="w-full pt-4 sm:pt-6 px-4 sm:px-6 md:px-8 pb-0 bg-gray-50 flex flex-col gap-2 min-h-[calc(100vh-4rem)]">
@@ -180,6 +180,7 @@ export const Cart: React.FC = () => {
         onClose={() => setIsUploadModalOpen(false)}
         onUpload={handleUploadComplete}
         productName={uploadTarget?.name || ""}
+        oldUrl={items.find(i => i.id === uploadTarget?.id)?.fileUrl}
       />
 
       {selectedViewItem && (

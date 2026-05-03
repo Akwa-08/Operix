@@ -12,12 +12,15 @@ import {Package, Clock, CheckCircle} from "lucide-react";
 import type {Order} from "../../Types";
 import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
 import {useToast} from "../../context/ToastContext";
+import {ExcessMaterialModal} from "./ExcessMaterialModal";
 
 const ProductionOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
+  const [showExcessModal, setShowExcessModal] = useState(false);
+  const [pendingPickupOrder, setPendingPickupOrder] = useState<Order | null>(null);
 
   const { profile } = useMyProfile();
   const {
@@ -62,13 +65,24 @@ const ProductionOrders = () => {
     setShowDetailsModal(true);
   };
 
-  const handleMarkPickup = async (order: Order) => {
-    const r = await updateStatus(order.id, "Pickup");
-    if (r.success) toast.success(`${order.orderId} → Ready for Pickup!`);
-    else toast.error("Error: " + r.error);
+  const handleMarkPickup = (order: Order) => {
+    setPendingPickupOrder(order);
+    setShowExcessModal(true);
   };
 
-  if (loading) return <LoadingSpinner />;
+  const handleConfirmPickup = async (excessUsage: Record<string, number>) => {
+    if (!pendingPickupOrder) return;
+    const r = await updateStatus(pendingPickupOrder.id, "Pickup", excessUsage);
+    if (r.success) {
+      toast.success(`${pendingPickupOrder.orderId} → Ready for Pickup!`);
+      setShowExcessModal(false);
+      setPendingPickupOrder(null);
+    } else {
+      toast.error("Error: " + r.error);
+    }
+  };
+
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -269,6 +283,18 @@ const ProductionOrders = () => {
             if (!r.success) throw new Error(r.error || "Update failed");
           }}
           onRefresh={refresh}
+        />
+      )}
+      {pendingPickupOrder && (
+        <ExcessMaterialModal
+          isOpen={showExcessModal}
+          onClose={() => {
+            setShowExcessModal(false);
+            setPendingPickupOrder(null);
+          }}
+          orderId={pendingPickupOrder.id}
+          orderNumber={pendingPickupOrder.orderId}
+          onConfirm={handleConfirmPickup}
         />
       )}
     </div>

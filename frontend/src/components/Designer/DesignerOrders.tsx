@@ -31,6 +31,7 @@ const DesignerOrders = () => {
     refresh,
     selfAssign,
     acceptAssignedDesignOrder,
+    approveOrderDesign,
   } = useOrdersData();
 
   const toast = useToast();
@@ -82,7 +83,7 @@ const DesignerOrders = () => {
     if (!r.success) toast.error("Error: " + r.error);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner type="table" />;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -301,6 +302,10 @@ const DesignerOrders = () => {
           onUpdateFinalDesign={async (url) => {
             const r = await updateFinalDesign(selectedOrder.id, url);
             if (!r.success) throw new Error(r.error || "Upload failed");
+          }}
+          onApproveDesign={async () => {
+            const r = await approveOrderDesign(selectedOrder.id);
+            if (!r.success) throw new Error(r.error || "Approval failed");
           }}
           onRefresh={refresh}
         />
