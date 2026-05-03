@@ -238,7 +238,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           <Eye className="w-4 h-4" />
           View Details
         </button>
-        {(["Payment", "Production", "Pickup"].includes(order.currentStatus)) && order.paymentStatus !== "Paid" && onPay && (
+        {order.currentStatus === "Payment" && order.paymentStatus !== "Paid" && onPay && (
           <button
             onClick={() => onPay(order.id)}
             className="flex-shrink-0 bg-green-500 text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-green-600 transition-colors shadow-sm">

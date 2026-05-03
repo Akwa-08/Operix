@@ -1,8 +1,11 @@
-import { Outlet, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef, useMemo } from "react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import SharedSideBar, { type SidebarItem } from "./SharedSideBar";
 import TopNavBar from "./TopNavBar";
 import { useAuth } from "../../../context/AuthContext";
 import { SidebarProvider, useSidebar } from "../../../context/SidebarContext";
+import { db } from "../../../lib/database";
+import { supabase } from "../../../config/supabaseClient";
 
 interface SharedDashboardLayoutProps {
   items: SidebarItem[];
@@ -13,7 +16,10 @@ interface SharedDashboardLayoutProps {
 const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutProps) => {
   const { collapsed, setCollapsed, mobileOpen, setMobileOpen } = useSidebar();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, signOut } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   
   const displayName = user?.firstName
     ? `${user.firstName} ${user.lastName || ""}`.trim()
@@ -24,6 +30,64 @@ const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutPr
     navigate("/");
   };
 
+  // Check if currently on messages page
+  const isOnMessagesPage = location.pathname.endsWith("/messages");
+
+  // Fetch unread count
+  useEffect(() => {
+    if (!user) return;
+
+    // Init user id for localStorage tracking
+    db.chat.initUserId();
+
+    const fetchUnread = async () => {
+      const count = await db.chat.getUnreadCount();
+      setUnreadCount(count);
+    };
+
+    fetchUnread();
+
+    // Subscribe to new messages for realtime badge updates
+    if (!channelRef.current) {
+      channelRef.current = supabase
+        .channel("unread_badge_listener")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "chat_messages" },
+          () => {
+            // Re-fetch unread count when a new message arrives
+            fetchUnread();
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
+    };
+  }, [user]);
+
+  // Mark messages as viewed when on messages page, and clear badge
+  useEffect(() => {
+    if (isOnMessagesPage && user) {
+      db.chat.markMessagesViewed();
+      setUnreadCount(0);
+    }
+  }, [isOnMessagesPage, user]);
+
+  // Inject badge into Messages sidebar item
+  const itemsWithBadge = useMemo(() => {
+    return items.map(item => {
+      if (item.label === "Messages") {
+        return { ...item, badge: isOnMessagesPage ? 0 : unreadCount };
+      }
+      return item;
+    });
+  }, [items, unreadCount, isOnMessagesPage]);
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <TopNavBar displayName={displayName} onMenuClick={() => setMobileOpen(!mobileOpen)} />
@@ -33,7 +97,7 @@ const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutPr
           name={displayName}
           role={roleName || user?.role}
           avatarUrl={user?.avatarUrl}
-          items={items}
+          items={itemsWithBadge}
           profilePath={profilePath}
           onLogout={handleLogout}
           collapsed={collapsed}
