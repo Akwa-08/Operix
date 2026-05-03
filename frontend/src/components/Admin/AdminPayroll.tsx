@@ -389,7 +389,7 @@ function CashAdvanceApprovalPanel() {
             <h3 className="text-base font-bold text-gray-900">Cash Advance Requests</h3>
             {pendingAdvances.length > 0 && <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">{pendingAdvances.length}</span>}
           </div>
-          <button onClick={refresh} className="p-1.5 hover:bg-amber-100 rounded-lg">
+          <button onClick={() => refresh()} className="p-1.5 hover:bg-amber-100 rounded-lg">
             <RefreshCw size={15} className={`text-amber-600 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -664,7 +664,7 @@ const AdminPayroll: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Payroll Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage employee payroll, attendance, and salary computations</p>
         </div>
-        <button onClick={refresh} className="p-2 hover:bg-gray-100 rounded-lg" title="Refresh">
+        <button onClick={() => refresh()} className="p-2 hover:bg-gray-100 rounded-lg" title="Refresh">
           <RefreshCw size={18} className={`text-gray-600 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
