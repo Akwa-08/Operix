@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  TrendingUp, DollarSign, CreditCard,
+  TrendingUp, DollarSign,
   Package, AlertTriangle, CheckCircle, Clock,
   Banknote, Search, X, ChevronDown, Loader,
 } from "lucide-react";
@@ -36,15 +36,7 @@ const KpiCard: React.FC<{
   );
 };
 
-const QuickActionCard: React.FC<{
-  title: string; description: string; icon: React.ReactNode; color: string; onClick: () => void;
-}> = ({ title, description, icon, color, onClick }) => (
-  <button onClick={onClick} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow text-left group w-full">
-    <div className={`w-10 h-10 rounded-lg ${color} flex items-center justify-center mb-3`}>{icon}</div>
-    <h3 className="font-bold text-sm text-gray-900 mb-1 group-hover:text-cyan-600 transition-colors">{title}</h3>
-    <p className="text-[10px] text-gray-500 leading-tight">{description}</p>
-  </button>
-);
+
 
 function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
   onClose: () => void;
