@@ -7,6 +7,7 @@ interface StatusCardProps {
   trendUp?: boolean;
   className?: string;
   isCurrency?: boolean;
+  onClick?: () => void;
 }
 
 export const StatusCard: React.FC<StatusCardProps> = ({
@@ -18,12 +19,15 @@ export const StatusCard: React.FC<StatusCardProps> = ({
   trendUp,
   className = '',
   isCurrency,
+  onClick,
 }) => {
   const showCurrency = isCurrency !== undefined 
     ? isCurrency 
     : (typeof value === 'number' && !title.toLowerCase().includes('total') && !title.toLowerCase().includes('count'));
   return (
-    <div className={`bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm ${className}`}>
+    <div 
+      onClick={onClick}
+      className={`bg-white rounded-xl border border-gray-200 p-4 md:p-6 shadow-sm transition-all ${onClick ? 'cursor-pointer hover:shadow-md active:scale-95' : ''} ${className}`}>
       <div className="flex items-center justify-between mb-2">
         <p className="text-sm text-gray-600 font-medium">{title}</p>
         <div className={iconColor}>{icon}</div>

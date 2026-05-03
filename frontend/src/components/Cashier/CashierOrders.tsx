@@ -1,5 +1,5 @@
 import {useState} from "react";
-import {Plus, DollarSign, Package, Clock, CheckCircle} from "lucide-react";
+import {Plus, DollarSign, Package, Clock, CheckCircle, AlertCircle} from "lucide-react";
 import {SearchBar} from "../Shared/UI/SearchBar";
 import {StatusCard} from "../Shared/UI/StatusCard";
 import {Button} from "../Shared/UI/Button";
@@ -71,7 +71,11 @@ const CashierOrders = () => {
 
   const filteredOrders = orders.filter((o) => {
     // Filter by status if not "All"
-    if (statusFilter !== "All" && o.status !== statusFilter) return false;
+    if (statusFilter === "Unpaid") {
+      if (o.status !== "Completed" || o.paymentStatus === "Paid") return false;
+    } else if (statusFilter !== "All" && o.status !== statusFilter) {
+      return false;
+    }
 
     const q = searchQuery.toLowerCase();
     return (
@@ -93,7 +97,7 @@ const CashierOrders = () => {
         subtitle="Create orders and process payments"
       />
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
         <StatusCard
           title="Total"
           value={stats.total}
@@ -107,10 +111,17 @@ const CashierOrders = () => {
           iconColor="text-orange-600"
         />
         <StatusCard
-          title="Pending Payment"
+          title="Pending Pay"
           value={stats.pendingPayment}
           icon={<DollarSign size={18} />}
+          iconColor="text-blue-600"
+        />
+        <StatusCard
+          title="Unpaid (Done)"
+          value={stats.completedUnpaid}
+          icon={<AlertCircle size={18} />}
           iconColor="text-red-600"
+          onClick={() => setStatusFilter("Unpaid")}
         />
         <StatusCard
           title="Completed"
@@ -141,6 +152,7 @@ const CashierOrders = () => {
               <option value="Production">Production</option>
               <option value="Pickup">Pickup</option>
               <option value="Completed">Completed</option>
+              <option value="Unpaid">Unpaid (Completed)</option>
             </select>
             <ViewToggle mode={viewMode} onChange={setViewMode} />
             <Button
