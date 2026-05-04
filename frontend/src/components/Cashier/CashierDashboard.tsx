@@ -14,7 +14,7 @@ const fmt = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigi
 function fmtMoney(v: number | undefined | null) {
   const n = Number(v) || 0;
   if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `₱${(n / 1_000).toFixed(0)}k`;
+  if (n >= 10_000)    return `₱${(n / 1_000).toFixed(1)}k`;
   return `₱${n.toLocaleString()}`;
 }
 
@@ -340,12 +340,13 @@ const CashierDashboard = () => {
       </div>
 
       {/* 7 KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
         <KpiCard title="Total Orders" value={`${orderStats?.total ?? 0}`} sub="All orders" icon={<Package size={16}/>} iconBg="bg-blue-100" iconColor="text-blue-600" accent="blue"/>
-        <KpiCard title="Pending Queue" value={`${(orderStats?.inQueue ?? 0)+(orderStats?.designing ?? 0)+(orderStats?.production ?? 0)}`} sub="Active orders" icon={<Clock size={16}/>} iconBg="bg-orange-100" iconColor="text-orange-600" accent="yellow"/>
+        <KpiCard title="Active Work" value={`${(orderStats?.inQueue ?? 0)+(orderStats?.designing ?? 0)+(orderStats?.payment ?? 0)+(orderStats?.production ?? 0)}`} sub="Work in progress" icon={<Clock size={16}/>} iconBg="bg-orange-100" iconColor="text-orange-600" accent="yellow"/>
+        <KpiCard title="Ready Pickup" value={`${orderStats?.pickup ?? 0}`} sub="Awaiting client" icon={<Package size={16}/>} iconBg="bg-cyan-100" iconColor="text-cyan-600" accent="blue"/>
         <KpiCard title="Completed" value={`${orderStats?.completed ?? 0}`} sub="Finished" icon={<CheckCircle size={16}/>} iconBg="bg-green-100" iconColor="text-green-600"/>
         <KpiCard title="Low Stock" value={`${invStats?.lowStock ?? 0}`} sub="Need attention" icon={<AlertTriangle size={16}/>} iconBg="bg-red-100" iconColor="text-red-600" accent={invStats?.lowStock > 0 ? "red" : "none"}/>
-        <KpiCard title="Total Revenue" value={fmtMoney(orderStats?.totalRevenue)} sub="All time" icon={<TrendingUp size={16}/>} iconBg="bg-cyan-100" iconColor="text-cyan-600"/>
+        <KpiCard title="Total Revenue" value={fmtMoney(orderStats?.totalRevenue)} sub="All time" icon={<TrendingUp size={16}/>} iconBg="bg-indigo-100" iconColor="text-indigo-600"/>
         <KpiCard title="Collected" value={fmtMoney(orderStats?.totalCollected)} sub="Cash received" icon={<DollarSign size={16}/>} iconBg="bg-emerald-100" iconColor="text-emerald-600" accent="green"/>
         <KpiCard title="Cash Advances" value={`${pendingCount}`} sub="Pending approval" icon={<Banknote size={16}/>} iconBg="bg-amber-100" iconColor="text-amber-600" accent={pendingCount > 0 ? "amber" : "none"}/>
       </div>
