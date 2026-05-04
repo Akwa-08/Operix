@@ -46,9 +46,9 @@ const ProductionInventory = () => {
       <PageHeader title="Inventory" subtitle="View materials and create resupply requests" />
 
       <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6">
-        <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" />
-        <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" />
-        <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" />
+        <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
+        <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
+        <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" isCurrency={false} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
