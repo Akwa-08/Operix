@@ -5,7 +5,7 @@ import { Button } from "../Shared/UI/Button";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 import { useToast } from "../../context/ToastContext";
 import { ViewToggle } from "../Shared/UI/ViewToggle";
-import { Package, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { Package, Clock, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
 import { OrdersTable } from "../Shared/Orders/OrdersTable";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
@@ -46,7 +46,7 @@ const AdminOrders = () => {
 
   const toast = useToast();
 
-  const statusOptions = ["All", "In Queue", "Active", "Completed", "Overdue"];
+  const statusOptions = ["All", "In Queue", "Active", "Completed", "Unpaid", "Overdue"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
 
   // Active orders = Designing + Payment + Production
@@ -57,6 +57,7 @@ const AdminOrders = () => {
     if (statusFilter === "In Queue")   pass = o.status === "In Queue";
     else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production"].includes(o.status);
     else if (statusFilter === "Completed") pass = o.status === "Completed";
+    else if (statusFilter === "Unpaid")    pass = o.status === "Completed" && (o.paymentStatus === "Unpaid" || o.paymentStatus === "Partially paid");
     else if (statusFilter === "Overdue")   pass = o.status === "Overdue";
 
     if (periodFilter !== "All Time" && pass) {
@@ -146,11 +147,13 @@ const AdminOrders = () => {
         </Button>
       </div>
 
-      {/* KPI Cards — 4 focused metrics */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {/* KPI Cards — 5 focused metrics */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <KpiCard title="Total Orders"   value={stats.total}          icon={<Package size={16}     />} iconColor="text-cyan-600" />
         <KpiCard title="Active"         value={activeCount}           icon={<Clock size={16}       />} iconColor="text-purple-600" />
         <KpiCard title="Ready Pickup"   value={stats.readyPickup}    icon={<CheckCircle size={16} />} iconColor="text-green-600" />
+        <KpiCard title="Unpaid"         value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
+          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setStatusFilter("Unpaid")} />
         <KpiCard title="Overdue"        value={stats.overdue}        icon={<AlertCircle size={16} />} iconColor="text-red-600"
           accent={stats.overdue > 0 ? "red" : "none"} />
       </div>
@@ -212,7 +215,7 @@ const AdminOrders = () => {
             <select value={assignForm.designer} onChange={e => setAssignForm({ ...assignForm, designer: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {designers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              {designers.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div>
@@ -220,7 +223,7 @@ const AdminOrders = () => {
             <select value={assignForm.production} onChange={e => setAssignForm({ ...assignForm, production: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white">
               <option value="">— Not Assigned —</option>
-              {productionStaff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              {productionStaff.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
         </div>

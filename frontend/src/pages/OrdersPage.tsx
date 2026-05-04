@@ -178,33 +178,44 @@ export const OrdersPage: React.FC = () => {
             onDelete={handleDeleteOrder} 
             onPay={handlePayOrder} 
             hideDeleteWhen={(o) => o.status !== "In Queue" && o.status !== "Designing"}
-            hidePayWhen={(o) => 
-              !["Payment", "Production", "Pickup"].includes(o.status)
-            }
+            hidePayWhen={(o) => o.status !== "Payment"}
           />
         </div>
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-3 sm:gap-6 mt-10 sm:mt-16">
+          <div className="flex justify-center items-center gap-2 sm:gap-3 mt-6 md:mt-10">
             <button
               onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
               disabled={currentPage === 1}
-              className="p-2 sm:p-4 bg-white border border-gray-200 rounded-xl sm:rounded-2xl hover:bg-gray-50 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group"
+              className="p-2 sm:p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group"
+              title="Previous Page"
             >
-              <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 group-hover:-translate-x-1 transition-transform" />
+              <ChevronLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             </button>
-            <div className="flex items-center px-2 sm:px-4">
-              <span className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-cyan-400 text-white flex items-center justify-center text-base sm:text-lg font-bold shadow-xl shadow-cyan-100 ring-4 ring-white">
-                {currentPage}
-              </span>
+
+            <div className="flex items-center gap-2">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => handlePageChange(page)}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl text-sm sm:text-base font-black transition-all shadow-sm flex items-center justify-center cursor-pointer ${
+                    currentPage === page
+                      ? "bg-cyan-400 text-white shadow-lg shadow-cyan-100 ring-2 ring-cyan-200"
+                      : "bg-white text-gray-500 hover:bg-gray-50 hover:text-cyan-500 border border-gray-200"
+                  }`}>
+                  {page}
+                </button>
+              ))}
             </div>
+
             <button
               onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
               disabled={currentPage === totalPages}
-              className="p-2 sm:p-4 bg-white border border-gray-200 rounded-xl sm:rounded-2xl hover:bg-gray-50 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group"
+              className="p-2 sm:p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-100 hover:text-cyan-500 transition-all shadow-sm disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer group"
+              title="Next Page"
             >
-              <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 group-hover:translate-x-1 transition-transform" />
+              <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
         )}

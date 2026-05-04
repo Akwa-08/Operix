@@ -119,7 +119,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
           className="flex-1 bg-sky-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-sky-600">
           <Eye size={14} /> View
         </button>
-        {onPay && order.paymentStatus !== "Paid" && (!hidePayWhen || !hidePayWhen(order)) && (
+        {onPay && order.status === "Payment" && order.paymentStatus !== "Paid" && (!hidePayWhen || !hidePayWhen(order)) && (
           <button onClick={() => onPay(order)}
             className="flex-1 bg-emerald-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-emerald-600">
             <CreditCard size={14} /> Pay
