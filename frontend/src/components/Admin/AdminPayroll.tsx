@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
@@ -35,134 +35,322 @@ function StatCard({ label, value, sub, color = "text-gray-900" }: {
 }
 
 // ─── Flagged Employees Panel ──────────────────────────────────────────────────
-function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, computePayroll, refresh, computing }: {
+interface ExceptionalLogRow {
+  employee_id: string;
+  punch_date: string;
+  is_incomplete: boolean;
+  hours_counted: number;
+}
+
+function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
   attendanceLogs: AttendanceLog[];
   activePeriodId: string | null;
-  computePayroll: (id: string) => Promise<any>;
   refresh: () => void;
-  computing: boolean;
 }) {
   const flaggedLogs = attendanceLogs.filter(l => l.hasIncompletePunch);
   const [processing, setProcessing] = useState<string | null>(null);
+  const [exceptionalData, setExceptionalData] = useState<Record<string, ExceptionalLogRow[]>>({});
+  const [selectedDates, setSelectedDates] = useState<Record<string, Set<string>>>({});
+  const [hourAssignments, setHourAssignments] = useState<Record<string, Record<string, number>>>({});
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
 
-  if (flaggedLogs.length === 0) return null;
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const formatDate = (iso: string) => {
+    const d = new Date(iso + "T00:00:00");
+    return `${monthNames[d.getMonth()]} ${String(d.getDate()).padStart(2,"0")}`;
+  };
+
+  // Only depends on activePeriodId — NOT flaggedLogs.length.
+  // This prevents the data from wiping every time one employee is removed.
+  const loadData = useCallback(async () => {
+    if (!activePeriodId) {
+      setExceptionalData({});
+      return;
+    }
+    setDataLoading(true);
+    setDataError(null);
+    try {
+      const { data, error } = await supabase
+        .from("attendance_exceptional_logs")
+        .select("employee_id, punch_date, is_incomplete, hours_counted")
+        .eq("payroll_period_id", activePeriodId)
+        .order("punch_date", { ascending: true });
+
+      if (error) {
+        // Likely means hours_counted column doesn't exist yet — SQL migration not run
+        setDataError(error.message.includes("hours_counted")
+          ? "Run the SQL migration first: ALTER TABLE attendance_exceptional_logs ADD COLUMN IF NOT EXISTS hours_counted integer DEFAULT 8;"
+          : error.message);
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        // Table is empty — period was imported before Edge Function fix
+        setDataError("no_data");
+        setExceptionalData({});
+        return;
+      }
+
+      const grouped: Record<string, ExceptionalLogRow[]> = {};
+      const assignments: Record<string, Record<string, number>> = {};
+      data.forEach((row: ExceptionalLogRow) => {
+        if (!grouped[row.employee_id]) grouped[row.employee_id] = [];
+        grouped[row.employee_id].push(row);
+        if (!assignments[row.employee_id]) assignments[row.employee_id] = {};
+        assignments[row.employee_id][row.punch_date] = row.hours_counted ?? 8;
+      });
+      setExceptionalData(grouped);
+      // Merge: keep user's in-progress selections, fill in DB data for new employees
+      setHourAssignments(prev => ({ ...assignments, ...prev }));
+      setDataError(null);
+    } finally {
+      setDataLoading(false);
+    }
+  }, [activePeriodId]);
+
+  // When the active period changes (including deletion), clear ALL local state immediately.
+  useEffect(() => {
+    setExceptionalData({});
+    setSelectedDates({});
+    setHourAssignments({});
+    setDataError(null);
+    setDataLoading(false);
+  }, [activePeriodId]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  if (!activePeriodId || flaggedLogs.length === 0) return null;
+
+  const toggleDate = (empId: string, iso: string) => {
+    setSelectedDates(prev => {
+      const next = { ...prev };
+      const s = new Set(next[empId] ?? []);
+      s.has(iso) ? s.delete(iso) : s.add(iso);
+      next[empId] = s;
+      return next;
+    });
+  };
+
+  const assignHours = (empId: string, hrs: 4 | 8) => {
+    const sel = selectedDates[empId];
+    if (!sel || sel.size === 0) return;
+    setHourAssignments(prev => {
+      const next = { ...prev, [empId]: { ...(prev[empId] ?? {}) } };
+      sel.forEach(d => { next[empId][d] = hrs; });
+      return next;
+    });
+    setSelectedDates(prev => ({ ...prev, [empId]: new Set() }));
+  };
 
   const handleConfirm = async (log: AttendanceLog) => {
     if (!activePeriodId) return;
     setProcessing(log.id);
-    // Mark all exceptional records as confirmed (not incomplete)
-    await supabase
-      .from("attendance_exceptional_logs")
-      .update({ is_incomplete: false })
-      .eq("payroll_period_id", activePeriodId)
-      .eq("employee_id", log.employeeId);
-    // Clear the flag in attendance_logs
-    await supabase
-      .from("attendance_logs")
-      .update({ has_incomplete_punch: false, incomplete_punch_dates: [] })
-      .eq("id", log.id);
-    // Recompute so payroll numbers update
-    await computePayroll(activePeriodId);
-    refresh();
-    setProcessing(null);
+    try {
+      const empDates = exceptionalData[log.employeeId] ?? [];
+      const assignments = hourAssignments[log.employeeId] ?? {};
+
+      for (const row of empDates) {
+        await supabase
+          .from("attendance_exceptional_logs")
+          .update({ is_incomplete: false, hours_counted: assignments[row.punch_date] ?? 8 })
+          .eq("payroll_period_id", activePeriodId)
+          .eq("employee_id", log.employeeId)
+          .eq("punch_date", row.punch_date);
+      }
+
+      await supabase
+        .from("attendance_logs")
+        .update({ has_incomplete_punch: false, incomplete_punch_dates: [] })
+        .eq("id", log.id);
+
+      // Clear this employee's local state so it doesn't interfere with reload
+      setSelectedDates(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
+      setHourAssignments(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
+
+      refresh();
+      await loadData();
+    } finally {
+      setProcessing(null);
+    }
   };
 
   const handleRemove = async (log: AttendanceLog) => {
     if (!activePeriodId) return;
     setProcessing(log.id);
-    // Delete incomplete punch records from exceptional_logs
-    await supabase
-      .from("attendance_exceptional_logs")
-      .delete()
-      .eq("payroll_period_id", activePeriodId)
-      .eq("employee_id", log.employeeId)
-      .eq("is_incomplete", true);
-    // Count remaining complete records to get corrected days_present
-    const { data: remaining } = await supabase
-      .from("attendance_exceptional_logs")
-      .select("punch_date")
-      .eq("payroll_period_id", activePeriodId)
-      .eq("employee_id", log.employeeId);
-    const newDaysPresent = remaining?.length ?? 0;
-    // Update attendance_logs with corrected count
-    await supabase
-      .from("attendance_logs")
-      .update({ days_present: newDaysPresent, has_incomplete_punch: false, incomplete_punch_dates: [] })
-      .eq("id", log.id);
-    // Recompute payroll
-    await computePayroll(activePeriodId);
-    refresh();
-    setProcessing(null);
+    try {
+      await supabase
+        .from("attendance_exceptional_logs")
+        .delete()
+        .eq("payroll_period_id", activePeriodId)
+        .eq("employee_id", log.employeeId)
+        .eq("is_incomplete", true);
+
+      const { data: remaining } = await supabase
+        .from("attendance_exceptional_logs")
+        .select("hours_counted")
+        .eq("payroll_period_id", activePeriodId)
+        .eq("employee_id", log.employeeId);
+
+      const totalHours = (remaining ?? []).reduce((s: number, r: any) => s + (r.hours_counted ?? 8), 0);
+      await supabase
+        .from("attendance_logs")
+        .update({ days_present: totalHours / 8, has_incomplete_punch: false, incomplete_punch_dates: [] })
+        .eq("id", log.id);
+
+      // Clear this employee's local state
+      setSelectedDates(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
+      setHourAssignments(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
+
+      refresh();
+      await loadData();
+    } finally {
+      setProcessing(null);
+    }
   };
 
   return (
     <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+      {/* Header */}
       <div className="flex items-center gap-2 px-6 py-4 border-b border-amber-100 bg-amber-50">
         <AlertTriangle size={18} className="text-amber-600" />
-        <h3 className="text-base font-bold text-gray-900">Incomplete Punch-Out</h3>
-        <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
-          {flaggedLogs.length}
-        </span>
-        <p className="ml-2 text-xs text-amber-700">
-          These employees timed in but have no time-out recorded.
+        <h3 className="text-base font-bold text-gray-900">Incomplete Punch</h3>
+        <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">{flaggedLogs.length}</span>
+        <p className="ml-2 text-xs text-amber-700">Missing time-in or time-out. Select dates and assign hours before confirming.</p>
+      </div>
+
+      {/* Employee rows */}
+      <div className="divide-y divide-amber-100">
+        {flaggedLogs.map(log => {
+          const empDates = exceptionalData[log.employeeId] ?? [];
+          const assignments = hourAssignments[log.employeeId] ?? {};
+          const selected = selectedDates[log.employeeId] ?? new Set();
+          const isProcessing = processing === log.id;
+          const totalHours = empDates.reduce((s, d) => s + (assignments[d.punch_date] ?? 8), 0);
+          const totalDays = totalHours / 8;
+
+          return (
+            <div key={log.id} className="p-5 bg-amber-50 hover:bg-amber-100 transition-colors">
+              <div className="flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  {/* Employee info */}
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="font-bold text-gray-900">{log.fullName}</span>
+                    <span className="text-xs text-gray-500">{log.position}</span>
+                    <span className="text-xs font-semibold text-gray-600 bg-white px-2 py-0.5 rounded-full border border-gray-200">
+                      {log.workedHours}h recorded · {totalDays} day{totalDays !== 1 ? "s" : ""} counted
+                    </span>
+                  </div>
+
+                  {/* Date chips */}
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {dataLoading && (
+                      <span className="text-xs text-gray-400 italic">Loading…</span>
+                    )}
+                    {!dataLoading && dataError === "no_data" && (
+                      <div className="text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2">
+                        ⚠ No punch records found in DB for this period.
+                        <strong> Delete this period and re-import the XLS</strong> — the current Edge Function stores punch data automatically.
+                      </div>
+                    )}
+                    {!dataLoading && dataError && dataError !== "no_data" && (
+                      <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        DB error: {dataError}
+                      </div>
+                    )}
+                    {!dataLoading && !dataError && empDates.length === 0 && (
+                      <span className="text-xs text-gray-400 italic">No dates found.</span>
+                    )}
+                    {empDates.map(row => {
+                      const hrs = assignments[row.punch_date] ?? 8;
+                      const isSel = selected.has(row.punch_date);
+                      let chipClass = "";
+                      if (isSel)
+                        chipClass = "bg-gray-800 text-white ring-2 ring-gray-600";
+                      else if (hrs === 4)
+                        chipClass = "bg-blue-100 text-blue-800 ring-1 ring-blue-300";
+                      else if (!row.is_incomplete)
+                        chipClass = "bg-green-100 text-green-800 ring-1 ring-green-300";
+                      else
+                        chipClass = "bg-amber-200 text-amber-900";
+
+                      return (
+                        <button
+                          key={row.punch_date}
+                          onClick={() => toggleDate(log.employeeId, row.punch_date)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all select-none ${chipClass}`}
+                          title={`${row.is_incomplete ? "⚠ Incomplete punch" : "✓ Complete"} — ${hrs}hrs assigned. Click to select.`}
+                        >
+                          {formatDate(row.punch_date)}
+                          {hrs === 4 && <span className="ml-1 opacity-60">½</span>}
+                          {row.is_incomplete && hrs === 8 && <span className="ml-1 opacity-60">!</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Hour grouping controls */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-gray-500">
+                      {selected.size > 0
+                        ? `${selected.size} date${selected.size > 1 ? "s" : ""} selected — assign:`
+                        : "Click dates to select, then assign hours:"}
+                    </span>
+                    <button
+                      onClick={() => assignHours(log.employeeId, 4)}
+                      disabled={selected.size === 0}
+                      className="px-3 py-1 bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-blue-800 text-xs font-bold rounded-lg border border-blue-300 transition-colors"
+                    >
+                      4 hrs
+                    </button>
+                    <button
+                      onClick={() => assignHours(log.employeeId, 8)}
+                      disabled={selected.size === 0}
+                      className="px-3 py-1 bg-green-100 hover:bg-green-200 disabled:opacity-30 text-green-800 text-xs font-bold rounded-lg border border-green-300 transition-colors"
+                    >
+                      8 hrs
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm / Remove */}
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleConfirm(log)}
+                    disabled={isProcessing}
+                    title="Accept all dates with assigned hours — then hit Recompute"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg whitespace-nowrap"
+                  >
+                    <CheckCircle2 size={13} />
+                    {isProcessing ? "…" : "Confirm"}
+                  </button>
+                  <button
+                    onClick={() => handleRemove(log)}
+                    disabled={isProcessing}
+                    title="Remove incomplete days — then hit Recompute"
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-lg whitespace-nowrap"
+                  >
+                    <X size={13} />
+                    {isProcessing ? "…" : "Remove"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="px-6 py-3 border-t border-amber-100 bg-amber-50 space-y-1">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-600">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-300 inline-block" />Incomplete punch (8 hrs default)</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-200 inline-block" />Marked 4 hrs (half day)</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-200 inline-block" />Complete / 8 hrs</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-800 inline-block" />Selected for grouping</span>
+        </div>
+        <p className="text-xs text-amber-800">
+          <strong>How to use:</strong> Click dates to select → press <strong>4 hrs</strong> or <strong>8 hrs</strong> → press <strong>Confirm</strong> or <strong>Remove</strong> per employee → hit <strong>Recompute</strong> in Salary Computation tab when done.
         </p>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-100">
-            <tr>
-              {["Employee", "Position", "Affected Dates", "Hours Worked", "Days Counted", "Actions"].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {flaggedLogs.map(log => {
-              const isProcessing = processing === log.id;
-              return (
-                <tr key={log.id} className="bg-amber-50 hover:bg-amber-100 transition-colors">
-                  <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{log.fullName}</td>
-                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{log.position}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {log.incompletePunchDates.map((d, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full font-semibold whitespace-nowrap">{d}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap">{log.workedHours}h</td>
-                  <td className="px-4 py-3 text-center font-bold text-gray-900">{log.daysPresent}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleConfirm(log)}
-                        disabled={isProcessing || computing}
-                        title="Accept — count these as full days and dismiss warning"
-                        className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg"
-                      >
-                        <CheckCircle2 size={13} />
-                        {isProcessing ? "…" : "Confirm"}
-                      </button>
-                      <button
-                        onClick={() => handleRemove(log)}
-                        disabled={isProcessing || computing}
-                        title="Remove — don't count these days in payroll"
-                        className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-lg"
-                      >
-                        <X size={13} />
-                        {isProcessing ? "…" : "Remove"}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="px-6 py-2.5 border-t border-amber-100 bg-amber-50 text-xs text-amber-800">
-        <strong>Confirm</strong> — employee was present, treat as full day. &nbsp;
-        <strong>Remove</strong> — don't count these days in payroll.
       </div>
     </div>
   );
@@ -330,6 +518,25 @@ function AttendanceEditModal({ log, periodId, onClose, onSave }: {
 
 // ─── Payslip Modal ────────────────────────────────────────────────────────────
 function PayslipModal({ record, period, onClose }: { record: PayrollRecord; period: PayrollPeriod | null; onClose: () => void }) {
+  const [halfDayDates, setHalfDayDates] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!period?.id || !record.employeeId) return;
+    supabase
+      .from("attendance_exceptional_logs")
+      .select("punch_date, hours_counted")
+      .eq("payroll_period_id", period.id)
+      .eq("employee_id", record.employeeId)
+      .eq("hours_counted", 4)
+      .then(({ data }) => {
+        if (!data || data.length === 0) return;
+        const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        setHalfDayDates(data.map((r: any) => {
+          const d = new Date(r.punch_date + "T00:00:00");
+          return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, "0")}`;
+        }));
+      });
+  }, [period?.id, record.employeeId]);
   const pLabel = period
     ? `${new Date(period.periodStart).toLocaleDateString("en-PH", { month: "long", day: "numeric" })} – ${new Date(period.periodEnd).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}`
     : "";
@@ -370,6 +577,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div class="row"><span>Position:</span><span>${record.position}</span></div>
         <div class="row"><span>Daily Rate:</span><span>${fmt(record.dailyRate)}</span></div>
         <div class="row"><span>Days Present:</span><span>${record.daysPresent}</span></div>
+        ${halfDayDates.length > 0 ? `<div style="margin-top:4px;padding:4px 6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:3px;font-size:10px;color:#1d4ed8"><strong>½ Half-days (${halfDayDates.length}):</strong> ${halfDayDates.join(", ")} — counted as 0.5 day each</div>` : ""}
       </div>
       <div>
         <h3>EARNINGS BREAKDOWN</h3>
@@ -391,8 +599,8 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div class="row"><span>PhilHealth:</span><span class="blue">${fmt(record.philhealth)}</span></div>
         <div class="row"><span>HDMF (Pag-IBIG):</span><span class="blue">${fmt(record.hdmf)}</span></div>
         <div class="row"><span>Withholding Tax:</span><span>${fmt(record.withholdingTax)}</span></div>
-        ${record.cashAdvance > 0 ? `<div class="row"><span>CA Deduction (Prev Period):</span><span class="red">${fmt(record.cashAdvance)}</span></div>` : ""}
-        ${record.carryOverFromPrevious > 0 ? `<div class="row"><span>Carry-Over Deduction:</span><span class="red">${fmt(record.carryOverFromPrevious)}</span></div>` : ""}
+        <div class="row"><span>CA Deduction (Prev Period):</span><span class="${record.cashAdvance > 0 ? 'red' : 'gray'}">${fmt(record.cashAdvance)}</span></div>
+        <div class="row"><span>Carry-Over Deduction:</span><span class="${record.carryOverFromPrevious > 0 ? 'red' : 'gray'}">${fmt(record.carryOverFromPrevious)}</span></div>
         <div class="total-row"><span>TOTAL DEDUCTIONS:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
       </div>
       <div>
@@ -454,6 +662,12 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   <div className="flex justify-between"><span>Position:</span><span className="font-semibold">{record.position}</span></div>
                   <div className="flex justify-between"><span>Daily Rate:</span><span className="font-semibold">{fmt(record.dailyRate)}</span></div>
                   <div className="flex justify-between"><span>Days Present:</span><span className="font-semibold">{record.daysPresent}</span></div>
+                  {halfDayDates.length > 0 && (
+                    <div className="mt-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded text-[10px] text-blue-700">
+                      <span className="font-semibold">½ Half-days ({halfDayDates.length}):</span> {halfDayDates.join(", ")}
+                      <span className="text-blue-500 ml-1">— counted as 0.5 day each</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
@@ -486,8 +700,8 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   {rows("PhilHealth", record.philhealth, "text-blue-600")}
                   {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
-                  {record.cashAdvance > 0 && rows("CA Deduction (Prev Period)", record.cashAdvance, "text-red-600")}
-                  {record.carryOverFromPrevious > 0 && rows("Carry-Over Deduction", record.carryOverFromPrevious, "text-red-600")}
+                  {rows("CA Deduction (Prev Period)", record.cashAdvance, record.cashAdvance > 0 ? "text-red-600" : "text-gray-400")}
+                  {rows("Carry-Over Deduction", record.carryOverFromPrevious, record.carryOverFromPrevious > 0 ? "text-red-600" : "text-gray-400")}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
                     <span>TOTAL DEDUCTIONS:</span><span className="text-red-600">-{fmt(record.totalDeductions)}</span>
                   </div>
@@ -980,9 +1194,7 @@ const AdminPayroll: React.FC = () => {
           <FlaggedEmployeesPanel
             attendanceLogs={attendanceLogs}
             activePeriodId={activePeriodId}
-            computePayroll={computePayroll}
             refresh={refresh}
-            computing={computing}
           />
 
           {/* ── Cash Advance Pending Requests ── */}
