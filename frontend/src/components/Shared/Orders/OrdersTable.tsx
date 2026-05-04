@@ -15,28 +15,17 @@ interface OrdersTableProps {
   onDelete?: (order: Order) => void;
   onUploadDesign?: (order: Order) => void;
   onUpdateStatus?: (order: Order) => void;
-  searchQuery?: string;
 }
 
 const paymentColor = getPaymentStatusColor;
 
 export const OrdersTable: React.FC<OrdersTableProps> = ({
   orders, userRole, onViewDetails, onEdit, onDelete,
-  onUploadDesign, onUpdateStatus, searchQuery = "",
+  onUploadDesign, onUpdateStatus,
 }) => {
   const perms = permissions[userRole].orders;
 
-  const filteredOrders = orders.filter((order) => {
-    const customerName = order.customerName || order.customer || "";
-    const productName  = order.productType  || order.product  || "";
-    const matchesSearch =
-      customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.orderId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      productName.toLowerCase().includes(searchQuery.toLowerCase());
-    if (userRole === "designer"   && perms.canViewAssigned) return matchesSearch && order.assignedDesigner  === "Current User";
-    if (userRole === "production" && perms.canViewAssigned) return matchesSearch && order.assignedProduction === "Current User";
-    return matchesSearch;
-  });
+  const filteredOrders = orders;
 
   const ActionButtons = ({ order }: { order: Order }) => (
     <div className="flex items-center gap-1 flex-wrap">

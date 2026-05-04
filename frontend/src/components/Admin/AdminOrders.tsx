@@ -46,27 +46,48 @@ const AdminOrders = () => {
 
   const toast = useToast();
 
-  const statusOptions = ["All", "In Queue", "Active", "Completed", "Unpaid", "Overdue"];
+  const statusOptions = ["All", "In Queue", "Active", "Completed", "Unpaid", "Overdue", "Ready Pickup"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
 
   // Active orders = Designing + Payment + Production
   const activeCount = orders.filter(o => ["Designing", "Payment", "Production"].includes(o.status)).length;
 
   const filteredOrders = orders.filter((o: any) => {
+    // 1. Status Filter
     let pass = true;
     if (statusFilter === "In Queue")   pass = o.status === "In Queue";
     else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production"].includes(o.status);
     else if (statusFilter === "Completed") pass = o.status === "Completed";
-    else if (statusFilter === "Unpaid")    pass = o.status === "Completed" && (o.paymentStatus === "Unpaid" || o.paymentStatus === "Partially paid");
-    else if (statusFilter === "Overdue")   pass = o.status === "Overdue";
+    else if (statusFilter === "Unpaid")    pass = o.paymentStatus !== "Paid" && o.status !== "Cancelled";
+    else if (statusFilter === "Overdue") {
+      const now = new Date();
+      const dueDate = new Date(o.dueDate);
+      pass = dueDate < now && !["Completed", "Cancelled", "Pickup"].includes(o.status);
+    }
+    else if (statusFilter === "Ready Pickup") pass = o.status === "Pickup";
 
-    if (periodFilter !== "All Time" && pass) {
+    if (!pass) return false;
+
+    // 2. Period Filter
+    if (periodFilter !== "All Time") {
       const d = new Date(o.dateOrdered);
       const now = new Date();
       if (periodFilter === "Today")     pass = d.toDateString() === now.toDateString();
       else if (periodFilter === "This Week")  pass = d >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       else if (periodFilter === "This Month") pass = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }
+    
+    if (!pass) return false;
+
+    // 3. Search Query
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const customer = (o.customerName || "").toLowerCase();
+      const id = (o.orderId || "").toLowerCase();
+      const prod = (o.productType || "").toLowerCase();
+      pass = customer.includes(q) || id.includes(q) || prod.includes(q);
+    }
+
     return pass;
   });
 
@@ -151,11 +172,12 @@ const AdminOrders = () => {
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <KpiCard title="Total Orders"   value={stats.total}          icon={<Package size={16}     />} iconColor="text-cyan-600" />
         <KpiCard title="Active"         value={activeCount}           icon={<Clock size={16}       />} iconColor="text-purple-600" />
-        <KpiCard title="Ready Pickup"   value={stats.readyPickup}    icon={<CheckCircle size={16} />} iconColor="text-green-600" />
+        <KpiCard title="Ready Pickup"   value={stats.readyPickup}    icon={<CheckCircle size={16} />} iconColor="text-green-600" 
+          accent={stats.readyPickup > 0 ? "blue" : "none"} onClick={() => setStatusFilter("Ready Pickup")} />
         <KpiCard title="Unpaid"         value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
           accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setStatusFilter("Unpaid")} />
         <KpiCard title="Overdue"        value={stats.overdue}        icon={<AlertCircle size={16} />} iconColor="text-red-600"
-          accent={stats.overdue > 0 ? "red" : "none"} />
+          accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setStatusFilter("Overdue")} />
       </div>
 
       {/* Unified filter bar */}
@@ -172,7 +194,7 @@ const AdminOrders = () => {
 
       {/* Order list / cards */}
       {viewMode === "list" ? (
-        <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder} searchQuery={searchQuery}
+        <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder}
           onEdit={(order) => openAssign(order)}
           onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
       ) : (
