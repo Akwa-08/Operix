@@ -230,6 +230,7 @@ export function useOrders(filters?: { status?: string; assigned_designer?: strin
     total: orders.length,
     inQueue: orders.filter((o: any) => o.status === 'in_queue').length,
     designing: orders.filter((o: any) => o.status === 'designing').length,
+    payment: orders.filter((o: any) => o.status === 'payment').length,
     production: orders.filter((o: any) => o.status === 'production').length,
     pickup: orders.filter((o: any) => o.status === 'pickup').length,
     completed: orders.filter((o: any) => o.status === 'completed').length,
