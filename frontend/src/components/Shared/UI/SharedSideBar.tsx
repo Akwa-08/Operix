@@ -8,6 +8,7 @@ export type SidebarItem = {
   icon: LucideIcon;
   path: string;
   end?: boolean;
+  badge?: number;
 };
 
 export type SharedSideBarProps = {
@@ -74,16 +75,34 @@ const SharedSideBar = ({
         >
           {({ isActive }) => (
             <>
-              <item.icon
-                size={drawer ? 20 : 22}
-                strokeWidth={isActive ? 2.5 : 1.8}
-                className={drawer ? "" : isActive ? "text-white" : "text-gray-600"}
-              />
+              <div className="relative">
+                <item.icon
+                  size={drawer ? 20 : 22}
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                  className={drawer ? "" : isActive ? "text-white" : "text-gray-600"}
+                />
+                {!!item.badge && item.badge > 0 && collapsed && !drawer && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 rounded-full flex items-center justify-center">
+                    <span className="text-[9px] font-bold text-white leading-none px-0.5">
+                      {item.badge > 99 ? "99+" : item.badge}
+                    </span>
+                  </span>
+                )}
+              </div>
               {drawer ? (
-                <span className={`text-sm font-semibold ${isActive ? "text-white" : "text-gray-700"}`}>{item.label}</span>
+                <span className={`text-sm font-semibold ${isActive ? "text-white" : "text-gray-700"} flex-1`}>{item.label}</span>
               ) : !collapsed ? (
                 <span className={`text-sm font-bold text-center leading-tight ${isActive ? "text-white" : "text-gray-700"}`}>{item.label}</span>
               ) : null}
+              {!!item.badge && item.badge > 0 && (!collapsed || drawer) && (
+                <span className={`min-w-[20px] h-5 rounded-full flex items-center justify-center text-[10px] font-bold leading-none px-1 ${
+                  drawer
+                    ? "bg-red-500 text-white ml-auto"
+                    : "bg-red-500 text-white"
+                }`}>
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
             </>
           )}
         </NavLink>

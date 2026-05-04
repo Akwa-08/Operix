@@ -1690,6 +1690,46 @@ export const db = {
       return Array.from(conversationsMap.values());
     },
 
+    /** Total unread message count for the current user (messages received after last viewed). */
+    async getUnreadCount(): Promise<number> {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return 0;
+
+      const lastViewed = localStorage.getItem(`chat_last_viewed_${user.id}`) || "1970-01-01T00:00:00Z";
+
+      const { count, error } = await supabase
+        .from("chat_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("receiver_id", user.id)
+        .gt("sent_at", lastViewed);
+
+      if (error) {
+        console.warn("Failed to fetch unread count:", error.message);
+        return 0;
+      }
+      return count ?? 0;
+    },
+
+    /** Mark messages as viewed by updating the last-viewed timestamp. */
+    markMessagesViewed(): void {
+      const userId = localStorage.getItem("chat_user_id");
+      if (userId) {
+        localStorage.setItem(`chat_last_viewed_${userId}`, new Date().toISOString());
+      }
+    },
+
+    /** Store current user id for use in markMessagesViewed. */
+    async initUserId(): Promise<void> {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        localStorage.setItem("chat_user_id", user.id);
+      }
+    },
+
     async getMessages(otherUserId: string) {
       const {
         data: {user},
