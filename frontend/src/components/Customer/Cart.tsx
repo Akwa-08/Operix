@@ -89,7 +89,7 @@ export const Cart: React.FC = () => {
 
   const handleProceedToCheckout = async () => {
     setIsCheckingOut(true);
-    const result = await checkout();
+    const result = await checkout(undefined, undefined, selectedIds);
     setIsCheckingOut(false);
     if (result.success) {
       showLocalToast("Order placed successfully! Check your Orders tab.", "success");
@@ -160,8 +160,8 @@ export const Cart: React.FC = () => {
             setSelectedIds([]);
           }}
           onCheckout={async () => {
-            if (items.length === 0) {
-              showLocalToast("Your cart is empty", "error");
+            if (selectedIds.length === 0) {
+              showLocalToast("Please select at least one item to checkout", "error");
               return;
             }
             // Universal safety scan: are any items missing a fileUrl?

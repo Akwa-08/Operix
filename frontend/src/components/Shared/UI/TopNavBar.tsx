@@ -164,10 +164,13 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
   const handleNotifClick = async (n: Notification) => {
     // Open preview instead of navigating
     setPreviewNotif(n);
-    
+
     // Mark as read immediately when previewed
     if (!n.is_read) {
-      await supabase.from("notifications").update({is_read: true}).eq("id", n.id);
+      await supabase
+        .from("notifications")
+        .update({is_read: true})
+        .eq("id", n.id);
       setNotifications((prev) =>
         prev.map((x) => (x.id === n.id ? {...x, is_read: true} : x)),
       );
@@ -339,20 +342,22 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
               <div className="w-12 h-12 rounded-2xl bg-cyan-50 flex items-center justify-center text-2xl mb-4">
                 {moduleIcon[previewNotif.related_module || "system"] || "📋"}
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">{previewNotif.title}</h3>
-              <p className="text-gray-600 leading-relaxed mb-6">{previewNotif.message}</p>
-              
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                {previewNotif.title}
+              </h3>
+              <p className="text-gray-600 leading-relaxed mb-6">
+                {previewNotif.message}
+              </p>
+
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={() => setPreviewNotif(null)}
-                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
-                >
+                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors">
                   Close
                 </button>
-                <button 
+                <button
                   onClick={handleProceed}
-                  className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-cyan-200"
-                >
+                  className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl transition-colors shadow-lg shadow-cyan-200">
                   View Details
                 </button>
               </div>

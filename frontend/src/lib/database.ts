@@ -1374,14 +1374,18 @@ export const db = {
     if (error) throw error;
   },
 
-  async checkout(specialInstructions?: string, dueDate?: string) {
+  async checkout(specialInstructions?: string, dueDate?: string, itemIds?: string[]) {
     const {
       data: {user},
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const cartItems = await db.getCart();
-    if (!cartItems.length) throw new Error("Cart is empty");
+    let cartItems = await db.getCart();
+    if (itemIds && itemIds.length > 0) {
+      cartItems = cartItems.filter((ci) => itemIds.includes(ci.id));
+    }
+
+    if (!cartItems.length) throw new Error("Cart is empty or no items selected");
 
     const order = await db.createOrder({
       customer_id: user.id,
@@ -1399,7 +1403,16 @@ export const db = {
       })),
     });
 
-    await db.clearCart();
+    if (itemIds && itemIds.length > 0) {
+      const {error} = await supabase
+        .from("cart_items")
+        .delete()
+        .in("id", itemIds);
+      if (error) throw error;
+    } else {
+      await db.clearCart();
+    }
+
     return order;
   },
 

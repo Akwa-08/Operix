@@ -197,27 +197,27 @@ export function useMyProfile() {
 export const clearProfileCache = () => { /* Handled by RQ query keys */ };
 
 export function useUsers(filters?: { role?: string; status?: string }) {
-  const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status]);
+  const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status], ['users']);
   return { users: q.data || [], ...q };
 }
 
 export function useEmployees() {
-  const q = useQuery(() => db.getEmployees(), []);
+  const q = useQuery(() => db.getEmployees(), [], ['employees']);
   return { employees: q.data || [], ...q };
 }
 
 export function useSuppliers() {
-  const q = useQuery(() => db.getSuppliers(), []);
+  const q = useQuery(() => db.getSuppliers(), [], ['suppliers']);
   return { suppliers: q.data || [], ...q };
 }
 
 export function useProducts(filters?: { search?: string; category?: string }) {
-  const q = useQuery(() => db.getProducts(filters), [filters?.search, filters?.category]);
+  const q = useQuery(() => db.getProducts(filters), [filters?.search, filters?.category], ['products']);
   return { products: q.data || [], ...q };
 }
 
 export function useOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status, filters?.assigned_designer, filters?.assigned_production], ['orders', 'order_items']);
+  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status, filters?.assigned_designer, filters?.assigned_production], ['orders', 'order_items', 'payments']);
   const { data: staffList } = useQuery(() => db.getStaffList(), [], ['employees', 'users']);
 
   const orders = rawOrders || [];
@@ -273,7 +273,7 @@ export function useProductCatalog(filters?: { search?: string; category?: string
 }
 
 export function useCartData() {
-  const { data: rawItems, loading, error, refresh } = useQuery(() => db.getCart(), []);
+  const { data: rawItems, loading, error, refresh } = useQuery(() => db.getCart(), [], ['cart_items', 'products']);
   const raw = rawItems || [];
   const items: CartItem[] = raw.map((r: any) => ({
     id: r.id, productId: r.product_id,
@@ -291,7 +291,7 @@ export function useCartData() {
     updateCartItem: async (id: string, updates: { quantity?: number; specifications?: string; fileUrl?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem: async (id: string) => { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart: async () => { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
-    checkout: async (notes?: string, due?: string) => { try { const o = await db.checkout(notes, due); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
+    checkout: async (notes?: string, due?: string, ids?: string[]) => { try { const o = await db.checkout(notes, due, ids); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
     directOrder: async (data: { productId: string; productName: string; quantity: number; unitPrice: number; specifications?: string; fileUrl?: string }) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -395,7 +395,7 @@ export function useManagementData() {
 
 export function useDashboard() {
   const { orders, stats: orderStats, loading: oL, refresh: refreshOrders } = useOrders();
-  const { data: inventory, loading: iL, refresh: refreshInv } = useQuery(() => db.getInventoryItems(), []);
+  const { data: inventory, loading: iL, refresh: refreshInv } = useQuery(() => db.getInventoryItems(), [], ['inventory_items', 'item_suppliers', 'suppliers']);
   const items = inventory || [];
   const invStats = {
     total: items.length,
@@ -424,8 +424,8 @@ function mapAdminProduct(raw: any): AdminProduct {
 }
 
 export function useProductsData() {
-  const q = useQuery(() => db.getProductsWithBOM(), []);
-  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), []);
+  const q = useQuery(() => db.getProductsWithBOM(), [], ['products', 'product_supply_mapping', 'inventory_items']);
+  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
   const raw = q.data || [];
   const products: AdminProduct[] = raw.map(mapAdminProduct);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
@@ -444,9 +444,9 @@ function mapDelivery(raw: any): Delivery {
 }
 
 export function useDeliveries() {
-  const q = useQuery(() => db.getDeliveries(), []);
-  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), []);
-  const { data: rawSuppliers } = useQuery(() => db.getSuppliers(), []);
+  const q = useQuery(() => db.getDeliveries(), [], ['deliveries', 'inventory_items', 'suppliers']);
+  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
+  const { data: rawSuppliers } = useQuery(() => db.getSuppliers(), [], ['suppliers']);
   const raw = q.data || [];
   const deliveries: Delivery[] = raw.map(mapDelivery);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
@@ -499,7 +499,7 @@ function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance 
 }
 
 export function useCashAdvances(filters?: { employee_id?: string; status?: string }) {
-  const q = useQuery(() => db.cashAdvances.getAll(filters), [filters?.employee_id, filters?.status]);
+  const q = useQuery(() => db.cashAdvances.getAll(filters), [filters?.employee_id, filters?.status], ['cash_advances', 'employees']);
   const advances: CashAdvance[] = (q.data || []).map(mapCashAdvance);
   const stats = { total: advances.length, pending: advances.filter(a => a.status === 'pending').length, approved: advances.filter(a => a.status === 'approved').length, deducted: advances.filter(a => a.status === 'deducted').length, cancelled: advances.filter(a => a.status === 'cancelled').length, totalPending: advances.filter(a => a.status === 'pending').reduce((s, a) => s + a.amount, 0) };
   return {
@@ -510,7 +510,7 @@ export function useCashAdvances(filters?: { employee_id?: string; status?: strin
 }
 
 export function usePendingCashAdvances() {
-  const q = useQuery(() => db.cashAdvances.getPendingRequests(), []);
+  const q = useQuery(() => db.cashAdvances.getPendingRequests(), [], ['cash_advances', 'employees']);
   const rawAll = (q.data || []) as any[];
   const pendingAdvances: PendingCashAdvance[] = rawAll.map(raw => mapPendingCashAdvance(raw, rawAll));
   return {
@@ -620,18 +620,20 @@ export function usePayrollData() {
   const [computing, setComputing] = useState(false);
   const [resetting, setResetting] = useState(false);
 
-  const periodsQ = useQuery(() => db.payroll.getPeriods(), []);
+  const periodsQ = useQuery(() => db.payroll.getPeriods(), [], ['payroll_periods']);
   const periods: PayrollPeriod[] = (periodsQ.data || []).map(mapPeriod);
   const activePeriodId = selectedPeriodId || periods[0]?.id || null;
   const currentPeriod = periods.find(p => p.id === activePeriodId) || null;
 
   const attendanceQ = useQuery(
     () => activePeriodId ? db.payroll.getAttendanceLogs(activePeriodId) : Promise.resolve([]),
-    [activePeriodId]
+    [activePeriodId],
+    ['attendance_logs', 'employees']
   );
   const payrollQ = useQuery(
     () => activePeriodId ? db.payroll.getPayrollRecords(activePeriodId) : Promise.resolve([]),
-    [activePeriodId]
+    [activePeriodId],
+    ['payroll_records', 'employees']
   );
 
   const attendanceLogs: AttendanceLog[] = (attendanceQ.data || []).map(mapAttendanceLog);
@@ -749,7 +751,7 @@ export function useLogsData() {
     if (invRes.error) console.error("Inventory logs error:", invRes.error);
     if (auditRes.error) console.error("Audit logs error:", auditRes.error);
     return { orders: ordersRes.data || [], inventory: invRes.data || [], audit: auditRes.data || [] };
-  }, []);
+  }, [], ['order_logs', 'inventory_changes', 'audit_logs']);
 
   const logs = useMemo(() => {
     if (!q.data) return [];
