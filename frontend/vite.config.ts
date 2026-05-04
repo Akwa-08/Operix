@@ -18,6 +18,8 @@ export default defineConfig({
         theme_color: '#0f172a',
         background_color: '#ffffff',
         display: 'standalone',
+        start_url: '/',
+        orientation: 'any',
         icons: [
           {
             src: 'ICON.png',
@@ -40,6 +42,23 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
+          }
+        ],
+        shortcuts: [
+          {
+            name: 'Orders',
+            url: '/admin/orders',
+            icons: [{ src: 'ICON.png', sizes: '192x192' }]
+          },
+          {
+            name: 'Inventory',
+            url: '/admin/inventory',
+            icons: [{ src: 'ICON.png', sizes: '192x192' }]
+          },
+          {
+            name: 'Messages',
+            url: '/admin/messages',
+            icons: [{ src: 'ICON.png', sizes: '192x192' }]
           }
         ]
       },

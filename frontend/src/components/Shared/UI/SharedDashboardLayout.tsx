@@ -77,6 +77,17 @@ const LayoutContent = ({ items, profilePath, roleName }: SharedDashboardLayoutPr
       setUnreadCount(0);
     }
   }, [isOnMessagesPage, user]);
+  
+  // App Badging API (Native icon notification count)
+  useEffect(() => {
+    if ('setAppBadge' in navigator) {
+      if (unreadCount > 0) {
+        (navigator as any).setAppBadge(unreadCount).catch(console.error);
+      } else {
+        (navigator as any).clearAppBadge().catch(console.error);
+      }
+    }
+  }, [unreadCount]);
 
   // Inject badge into Messages sidebar item
   const itemsWithBadge = useMemo(() => {
