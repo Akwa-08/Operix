@@ -8,11 +8,11 @@ import { supabase } from "../../config/supabaseClient";
 import {
   usePayrollData,
   usePendingCashAdvances,
-  type AttendanceLog, type PayrollRecord, type PayrollPeriod, type PendingCashAdvance,
+  useCashAdvances,
+  type AttendanceLog, type PayrollRecord, type PayrollPeriod, type PendingCashAdvance, type CashAdvance,
 } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
-// ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
   `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -22,7 +22,6 @@ const periodLabel = (p: PayrollPeriod) => {
   return `${s} – ${e}`;
 };
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
 function StatCard({ label, value, sub, color = "text-gray-900" }: {
   label: string; value: string; sub?: string; color?: string;
 }) {
@@ -35,25 +34,245 @@ function StatCard({ label, value, sub, color = "text-gray-900" }: {
   );
 }
 
+// ─── Flagged Employees Panel ──────────────────────────────────────────────────
+function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, computePayroll, refresh, computing }: {
+  attendanceLogs: AttendanceLog[];
+  activePeriodId: string | null;
+  computePayroll: (id: string) => Promise<any>;
+  refresh: () => void;
+  computing: boolean;
+}) {
+  const flaggedLogs = attendanceLogs.filter(l => l.hasIncompletePunch);
+  const [processing, setProcessing] = useState<string | null>(null);
+
+  if (flaggedLogs.length === 0) return null;
+
+  const handleConfirm = async (log: AttendanceLog) => {
+    if (!activePeriodId) return;
+    setProcessing(log.id);
+    // Mark all exceptional records as confirmed (not incomplete)
+    await supabase
+      .from("attendance_exceptional_logs")
+      .update({ is_incomplete: false })
+      .eq("payroll_period_id", activePeriodId)
+      .eq("employee_id", log.employeeId);
+    // Clear the flag in attendance_logs
+    await supabase
+      .from("attendance_logs")
+      .update({ has_incomplete_punch: false, incomplete_punch_dates: [] })
+      .eq("id", log.id);
+    // Recompute so payroll numbers update
+    await computePayroll(activePeriodId);
+    refresh();
+    setProcessing(null);
+  };
+
+  const handleRemove = async (log: AttendanceLog) => {
+    if (!activePeriodId) return;
+    setProcessing(log.id);
+    // Delete incomplete punch records from exceptional_logs
+    await supabase
+      .from("attendance_exceptional_logs")
+      .delete()
+      .eq("payroll_period_id", activePeriodId)
+      .eq("employee_id", log.employeeId)
+      .eq("is_incomplete", true);
+    // Count remaining complete records to get corrected days_present
+    const { data: remaining } = await supabase
+      .from("attendance_exceptional_logs")
+      .select("punch_date")
+      .eq("payroll_period_id", activePeriodId)
+      .eq("employee_id", log.employeeId);
+    const newDaysPresent = remaining?.length ?? 0;
+    // Update attendance_logs with corrected count
+    await supabase
+      .from("attendance_logs")
+      .update({ days_present: newDaysPresent, has_incomplete_punch: false, incomplete_punch_dates: [] })
+      .eq("id", log.id);
+    // Recompute payroll
+    await computePayroll(activePeriodId);
+    refresh();
+    setProcessing(null);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+      <div className="flex items-center gap-2 px-6 py-4 border-b border-amber-100 bg-amber-50">
+        <AlertTriangle size={18} className="text-amber-600" />
+        <h3 className="text-base font-bold text-gray-900">Incomplete Punch-Out</h3>
+        <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">
+          {flaggedLogs.length}
+        </span>
+        <p className="ml-2 text-xs text-amber-700">
+          These employees timed in but have no time-out recorded.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              {["Employee", "Position", "Affected Dates", "Hours Worked", "Days Counted", "Actions"].map(h => (
+                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {flaggedLogs.map(log => {
+              const isProcessing = processing === log.id;
+              return (
+                <tr key={log.id} className="bg-amber-50 hover:bg-amber-100 transition-colors">
+                  <td className="px-4 py-3 font-semibold text-gray-900 whitespace-nowrap">{log.fullName}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{log.position}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {log.incompletePunchDates.map((d, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full font-semibold whitespace-nowrap">{d}</span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap">{log.workedHours}h</td>
+                  <td className="px-4 py-3 text-center font-bold text-gray-900">{log.daysPresent}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleConfirm(log)}
+                        disabled={isProcessing || computing}
+                        title="Accept — count these as full days and dismiss warning"
+                        className="flex items-center gap-1 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg"
+                      >
+                        <CheckCircle2 size={13} />
+                        {isProcessing ? "…" : "Confirm"}
+                      </button>
+                      <button
+                        onClick={() => handleRemove(log)}
+                        disabled={isProcessing || computing}
+                        title="Remove — don't count these days in payroll"
+                        className="flex items-center gap-1 px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-lg"
+                      >
+                        <X size={13} />
+                        {isProcessing ? "…" : "Remove"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="px-6 py-2.5 border-t border-amber-100 bg-amber-50 text-xs text-amber-800">
+        <strong>Confirm</strong> — employee was present, treat as full day. &nbsp;
+        <strong>Remove</strong> — don't count these days in payroll.
+      </div>
+    </div>
+  );
+}
+
+// ─── Cash Advance History Panel ───────────────────────────────────────────────
+function CashAdvanceHistoryPanel() {
+  const { advances, loading, refresh } = useCashAdvances();
+
+  const statusStyle = (s: string) => {
+    const map: Record<string, string> = {
+      pending:                  "bg-yellow-100 text-yellow-700",
+      approved:                 "bg-blue-100 text-blue-700",
+      added_to_current_payroll: "bg-cyan-100 text-cyan-700",
+      scheduled_for_deduction:  "bg-purple-100 text-purple-700",
+      deducted:                 "bg-green-100 text-green-700",
+      declined:                 "bg-red-100 text-red-700",
+      cancelled:                "bg-gray-100 text-gray-500",
+    };
+    return map[s] || "bg-gray-100 text-gray-500";
+  };
+
+  const statusLabel = (s: string) => {
+    const map: Record<string, string> = {
+      pending:                  "Pending",
+      approved:                 "Approved",
+      added_to_current_payroll: "In Payroll",
+      scheduled_for_deduction:  "For Deduction",
+      deducted:                 "Deducted",
+      declined:                 "Declined",
+      cancelled:                "Cancelled",
+    };
+    return map[s] || s;
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <Banknote size={18} className="text-gray-600" />
+          <h3 className="text-base font-bold text-gray-900">Cash Advance History</h3>
+          {advances.length > 0 && (
+            <span className="ml-1 px-2 py-0.5 bg-gray-200 text-gray-600 text-xs font-bold rounded-full">
+              {advances.length}
+            </span>
+          )}
+        </div>
+        <button onClick={refresh} className="p-1.5 hover:bg-gray-100 rounded-lg">
+          <RefreshCw size={15} className={`text-gray-500 ${loading ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+      {loading ? (
+        <div className="text-center py-8 text-gray-400 text-sm">Loading…</div>
+      ) : advances.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-10 text-gray-400">
+          <Banknote size={28} className="mb-2 text-gray-300" />
+          <p className="text-sm">No cash advance records found.</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr>
+                {["Employee", "Position", "Amount", "Date Issued", "Issued By", "Reason", "Status"].map(h => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {advances.map((adv: CashAdvance) => (
+                <tr key={adv.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <p className="font-semibold text-gray-900">{adv.employeeName}</p>
+                    <p className="text-xs text-gray-400 font-mono">{adv.employeeCode}</p>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{adv.employeePosition}</td>
+                  <td className="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{fmt(adv.amount)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{adv.dateIssued}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{adv.issuedByName}</td>
+                  <td className="px-4 py-3 max-w-[180px]">
+                    <p className="text-xs text-gray-600 truncate">{adv.reason || <span className="italic text-gray-300">No reason</span>}</p>
+                    {adv.declineReason && (
+                      <p className="text-xs text-red-500 mt-0.5 truncate">↳ {adv.declineReason}</p>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${statusStyle(adv.status)}`}>
+                      {statusLabel(adv.status)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Attendance Edit Modal ────────────────────────────────────────────────────
 function AttendanceEditModal({ log, periodId, onClose, onSave }: {
-  log: AttendanceLog;
-  periodId: string;
-  onClose: () => void;
-  onSave: (d: any) => Promise<any>;
+  log: AttendanceLog; periodId: string; onClose: () => void; onSave: (d: any) => Promise<any>;
 }) {
   const [form, setForm] = useState({
-    worked_hours:           log.workedHours,
-    late_timeslots:         log.lateTimeslots,
-    early_leave_timeslots:  log.earlyLeaveTimeslots,
-    regular_overtime_hours: log.regularOvertimeHours,
-    holiday_overtime_hours: log.holidayOvertimeHours,
-    special_overtime_hours: log.specialOvertimeHours,
-    business_trip_days:     log.businessTripDays,
-    absences:               log.absences,
-    on_leave_days:          log.onLeaveDays,
-    additional_pay:         log.additionalPay,
-    deduction_amount:       log.deductionAmount,
+    worked_hours: log.workedHours, late_timeslots: log.lateTimeslots,
+    early_leave_timeslots: log.earlyLeaveTimeslots, regular_overtime_hours: log.regularOvertimeHours,
+    holiday_overtime_hours: log.holidayOvertimeHours, special_overtime_hours: log.specialOvertimeHours,
+    business_trip_days: log.businessTripDays, absences: log.absences,
+    on_leave_days: log.onLeaveDays, additional_pay: log.additionalPay, deduction_amount: log.deductionAmount,
   });
   const [saving, setSaving] = useState(false);
 
@@ -82,7 +301,7 @@ function AttendanceEditModal({ log, periodId, onClose, onSave }: {
         {log.hasIncompletePunch && (
           <div className="mb-4 flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
             <AlertTriangle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
-            <p>Missing time-out on: <strong>{log.incompletePunchDates.join(', ')}</strong>. These days were counted as full days. Adjust manually if needed.</p>
+            <p>Missing time-out on: <strong>{log.incompletePunchDates.join(", ")}</strong>. These days were counted as full days. Adjust manually if needed.</p>
           </div>
         )}
         <div className="space-y-3">
@@ -100,8 +319,7 @@ function AttendanceEditModal({ log, periodId, onClose, onSave }: {
         </div>
         <div className="flex gap-3 mt-6">
           <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
+          <button onClick={handleSave} disabled={saving} className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50">
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
@@ -117,7 +335,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
     : "";
 
   const handlePrint = () => {
-    const w = window.open('', '_blank', 'width=900,height=700');
+    const w = window.open("", "_blank", "width=900,height=700");
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><title>Payslip — ${record.employeeName}</title>
     <style>
@@ -140,11 +358,11 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <p style="margin:2px 0">Code: ${record.employeeCode}</p>
       </div>
       <div style="text-align:right">
-        <p style="font-size:13px;font-weight:bold">${new Date().toLocaleDateString('en-PH',{day:'numeric',month:'long',year:'numeric'})}</p>
+        <p style="font-size:13px;font-weight:bold">${new Date().toLocaleDateString("en-PH",{day:"numeric",month:"long",year:"numeric"})}</p>
         <p><b>Position:</b> ${record.position}</p>
       </div>
     </div>
-    ${pLabel ? `<div class="period-bar">📅 Payroll Period: ${pLabel}</div>` : ''}
+    ${pLabel ? `<div class="period-bar">📅 Payroll Period: ${pLabel}</div>` : ""}
     <div class="grid2">
       <div>
         <h3>EMPLOYEE INFORMATION</h3>
@@ -161,7 +379,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div class="row"><span>Regular OT:</span><span>${fmt(record.regularOvertime)}</span></div>
         <div class="row"><span>Holiday OT:</span><span>${fmt(record.holidayOvertime)}</span></div>
         <div class="row"><span>Special OT:</span><span>${fmt(record.specialOvertime)}</span></div>
-        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue" style="font-weight:600">Cash Advance Issued:</span><span class="blue" style="font-weight:700">+${fmt(record.cashAdvanceIssued)}</span></div>` : ''}
+        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue" style="font-weight:600">Cash Advance Issued:</span><span class="blue" style="font-weight:700">+${fmt(record.cashAdvanceIssued)}</span></div>` : ""}
         <div class="total-row"><span>GROSS INCOME:</span><span>${fmt(record.grossIncome)}</span></div>
       </div>
     </div>
@@ -173,20 +391,20 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div class="row"><span>PhilHealth:</span><span class="blue">${fmt(record.philhealth)}</span></div>
         <div class="row"><span>HDMF (Pag-IBIG):</span><span class="blue">${fmt(record.hdmf)}</span></div>
         <div class="row"><span>Withholding Tax:</span><span>${fmt(record.withholdingTax)}</span></div>
-        ${record.cashAdvance > 0 ? `<div class="row"><span>CA Deduction (Prev Period):</span><span class="red">${fmt(record.cashAdvance)}</span></div>` : ''}
-        ${record.carryOverFromPrevious > 0 ? `<div class="row"><span>Carry-Over Deduction (Prev Period):</span><span class="red">${fmt(record.carryOverFromPrevious)}</span></div>` : ''}
+        ${record.cashAdvance > 0 ? `<div class="row"><span>CA Deduction (Prev Period):</span><span class="red">${fmt(record.cashAdvance)}</span></div>` : ""}
+        ${record.carryOverFromPrevious > 0 ? `<div class="row"><span>Carry-Over Deduction:</span><span class="red">${fmt(record.carryOverFromPrevious)}</span></div>` : ""}
         <div class="total-row"><span>TOTAL DEDUCTIONS:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
       </div>
       <div>
         <h3>PAY SUMMARY</h3>
         <div class="row"><span>Gross Income:</span><span class="green">${fmt(record.grossIncome)}</span></div>
-        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue">Cash Advance Issued:</span><span class="blue">+${fmt(record.cashAdvanceIssued)}</span></div>` : ''}
+        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue">Cash Advance Issued:</span><span class="blue">+${fmt(record.cashAdvanceIssued)}</span></div>` : ""}
         <div class="row"><span>Total Deductions:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
         <div class="net-box"><span>NET PAY</span><span class="green">${fmt(record.netPay)}</span></div>
         <div style="margin-top:8px;font-size:10px;color:#666">
           <div class="row"><span>Taxable Income:</span><span>${fmt(record.taxableIncome)}</span></div>
           <div class="row"><span>Tax Rate:</span><span>0%</span></div>
-          ${record.cashAdvanceIssued > 0 ? `<div class="row"><span style="color:#d97706;font-weight:600">⚠ CA of ${fmt(record.cashAdvanceIssued)} will be deducted in the NEXT payroll period.</span></div>` : ''}
+          ${record.cashAdvanceIssued > 0 ? `<div class="row"><span style="color:#d97706;font-weight:600">⚠ CA of ${fmt(record.cashAdvanceIssued)} will be deducted in the NEXT payroll period.</span></div>` : ""}
         </div>
       </div>
     </div>
@@ -269,7 +487,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
                   {record.cashAdvance > 0 && rows("CA Deduction (Prev Period)", record.cashAdvance, "text-red-600")}
-                  {record.carryOverFromPrevious > 0 && rows("Carry-Over Deduction (Prev Period)", record.carryOverFromPrevious, "text-red-600")}
+                  {record.carryOverFromPrevious > 0 && rows("Carry-Over Deduction", record.carryOverFromPrevious, "text-red-600")}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
                     <span>TOTAL DEDUCTIONS:</span><span className="text-red-600">-{fmt(record.totalDeductions)}</span>
                   </div>
@@ -321,14 +539,14 @@ function DeclineReasonModal({ advance, onClose, onDecline }: {
   advance: PendingCashAdvance; onClose: () => void;
   onDecline: (id: string, reason: string) => Promise<any>;
 }) {
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState("");
   const handleDecline = async () => {
-    if (!reason.trim()) { setErr('Please provide a reason for declining.'); return; }
+    if (!reason.trim()) { setErr("Please provide a reason for declining."); return; }
     setSaving(true);
     const r = await onDecline(advance.id, reason.trim());
-    if (!r.success) setErr(r.error || 'Failed to decline');
+    if (!r.success) setErr(r.error || "Failed to decline");
     else onClose();
     setSaving(false);
   };
@@ -343,7 +561,7 @@ function DeclineReasonModal({ advance, onClose, onDecline }: {
         <p className="text-sm text-gray-500 mb-5">Declining <strong>{fmt(advance.amount)}</strong> request from <strong>{advance.employeeName}</strong>.</p>
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-1">Reason *</label>
-          <textarea value={reason} onChange={e => { setReason(e.target.value); setErr(''); }} rows={4}
+          <textarea value={reason} onChange={e => { setReason(e.target.value); setErr(""); }} rows={4}
             placeholder="e.g. Already has a pending advance, exceeds allowable limit…"
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none" autoFocus />
           {err && <p className="text-xs text-red-600 mt-1">{err}</p>}
@@ -351,7 +569,7 @@ function DeclineReasonModal({ advance, onClose, onDecline }: {
         <div className="flex gap-3 mt-5">
           <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
           <button onClick={handleDecline} disabled={saving} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl text-sm disabled:opacity-50">
-            {saving ? 'Declining…' : 'Confirm Decline'}
+            {saving ? "Declining…" : "Confirm Decline"}
           </button>
         </div>
       </div>
@@ -364,17 +582,17 @@ function CashAdvanceApprovalPanel() {
   const { pendingAdvances, loading, refresh, approveAdvance, declineAdvance } = usePendingCashAdvances();
   const [decliningAdvance, setDecliningAdvance] = useState<PendingCashAdvance | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [flashResult, setFlashResult] = useState<{ id: string; type: 'approved' | 'declined' } | null>(null);
+  const [flashResult, setFlashResult] = useState<{ id: string; type: "approved" | "declined" } | null>(null);
 
   const handleApprove = async (adv: PendingCashAdvance) => {
     setApprovingId(adv.id);
     const r = await approveAdvance(adv.id);
-    if (r.success) { setFlashResult({ id: adv.id, type: 'approved' }); setTimeout(() => setFlashResult(null), 2000); }
+    if (r.success) { setFlashResult({ id: adv.id, type: "approved" }); setTimeout(() => setFlashResult(null), 2000); }
     setApprovingId(null);
   };
   const handleDeclineSubmit = async (id: string, reason: string) => {
     const r = await declineAdvance(id, reason);
-    if (r.success) { setFlashResult({ id, type: 'declined' }); setTimeout(() => setFlashResult(null), 2000); }
+    if (r.success) { setFlashResult({ id, type: "declined" }); setTimeout(() => setFlashResult(null), 2000); }
     return r;
   };
   const exceedsLimit = (adv: PendingCashAdvance) => adv.amount > adv.remainingAllowed;
@@ -409,23 +627,23 @@ function CashAdvanceApprovalPanel() {
                 {pendingAdvances.map(adv => {
                   const over = exceedsLimit(adv); const isApproving = approvingId === adv.id; const justActed = flashResult?.id === adv.id;
                   return (
-                    <tr key={adv.id} className={`transition-colors ${justActed ? (flashResult?.type === 'approved' ? 'bg-green-50' : 'bg-red-50') : over ? 'bg-orange-50' : 'hover:bg-gray-50'}`}>
+                    <tr key={adv.id} className={`transition-colors ${justActed ? (flashResult?.type === "approved" ? "bg-green-50" : "bg-red-50") : over ? "bg-orange-50" : "hover:bg-gray-50"}`}>
                       <td className="px-4 py-3 whitespace-nowrap"><p className="font-semibold text-gray-900">{adv.employeeName}</p><p className="text-xs text-gray-400 font-mono">{adv.employeeCode}</p></td>
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{adv.employeePosition}</td>
                       <td className="px-4 py-3 max-w-[160px]"><p className="text-xs text-gray-600 truncate">{adv.reason || <span className="italic text-gray-300">No reason</span>}</p></td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        <span className={`font-bold text-sm ${over ? 'text-orange-600' : 'text-gray-900'}`}>{fmt(adv.amount)}</span>
+                        <span className={`font-bold text-sm ${over ? "text-orange-600" : "text-gray-900"}`}>{fmt(adv.amount)}</span>
                         {over && <div className="flex items-center gap-1 mt-0.5"><AlertTriangle size={11} className="text-orange-500" /><span className="text-[10px] text-orange-500 font-semibold">Exceeds limit</span></div>}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap"><span className="text-xs font-semibold text-gray-700">{fmt(adv.allowedLimit)}</span><p className="text-[10px] text-gray-400">Fixed per 15-day period</p></td>
-                      <td className="px-4 py-3 whitespace-nowrap"><span className={`text-sm font-bold ${adv.remainingAllowed <= 0 ? 'text-red-600' : 'text-green-700'}`}>{fmt(adv.remainingAllowed)}</span>{adv.pendingTotal > 0 && <p className="text-[10px] text-gray-400">{fmt(adv.pendingTotal)} already pending</p>}</td>
+                      <td className="px-4 py-3 whitespace-nowrap"><span className={`text-sm font-bold ${adv.remainingAllowed <= 0 ? "text-red-600" : "text-green-700"}`}>{fmt(adv.remainingAllowed)}</span>{adv.pendingTotal > 0 && <p className="text-[10px] text-gray-400">{fmt(adv.pendingTotal)} already pending</p>}</td>
                       <td className="px-4 py-3 whitespace-nowrap"><p className="text-xs text-gray-600">{adv.issuedByName}</p><p className="text-[10px] text-gray-400">{adv.dateIssued}</p></td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         {justActed ? (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${flashResult?.type === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}><CheckCircle2 size={12} />{flashResult?.type === 'approved' ? 'Approved' : 'Declined'}</span>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold ${flashResult?.type === "approved" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}><CheckCircle2 size={12} />{flashResult?.type === "approved" ? "Approved" : "Declined"}</span>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <button onClick={() => handleApprove(adv)} disabled={isApproving} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg"><ThumbsUp size={13} />{isApproving ? '…' : 'Approve'}</button>
+                            <button onClick={() => handleApprove(adv)} disabled={isApproving} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg"><ThumbsUp size={13} />{isApproving ? "…" : "Approve"}</button>
                             <button onClick={() => setDecliningAdvance(adv)} disabled={isApproving} className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-red-300 hover:bg-red-50 disabled:opacity-50 text-red-600 text-xs font-semibold rounded-lg"><ThumbsDown size={13} />Decline</button>
                           </div>
                         )}
@@ -439,14 +657,9 @@ function CashAdvanceApprovalPanel() {
         )}
         {pendingAdvances.length > 0 && (
           <div className="px-6 py-3 border-t border-gray-100 bg-amber-50 space-y-1.5">
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px] text-gray-600">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-200 inline-block" />Exceeds allowed limit</span>
-              <span className="font-semibold text-amber-700">💡 Deferred Deduction Policy:</span>
-            </div>
             <p className="text-[11px] text-amber-800 leading-snug">
               Approving a CA <strong>issues the money to the employee in the current period payroll</strong> (they receive it).
               The full CA amount is then <strong>automatically deducted from their NEXT period payroll</strong>.
-              Employees with CA in the current period are <strong>blocked from requesting CA in the immediately next period</strong>.
             </p>
           </div>
         )}
@@ -459,23 +672,18 @@ function CashAdvanceApprovalPanel() {
 function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [result, setResult]       = useState<any>(null);
-  const [err, setErr]             = useState("");
+  const [result, setResult] = useState<any>(null);
+  const [err, setErr] = useState("");
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.name.match(/\.(xls|xlsx)$/i)) { setErr("Only .xls or .xlsx files accepted."); return; }
-
     setUploading(true); setErr(""); setResult(null);
     try {
       const formData = new FormData();
       formData.append("attendance_file", file);
-
-      const { data, error } = await supabase.functions.invoke("upload-attendance", {
-        body: formData,
-      });
-
+      const { data, error } = await supabase.functions.invoke("upload-attendance", { body: formData });
       if (error) throw new Error(error.message);
       if (!data?.success) throw new Error(data?.error || "Upload failed");
       setResult(data);
@@ -520,7 +728,7 @@ const AdminPayroll: React.FC = () => {
   const [searchQuery, setSearchQuery]       = useState("");
   const [showPeriodDrop, setShowPeriodDrop] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [markPaidConfirm, setMarkPaidConfirm]       = useState<PayrollRecord | null>(null);
+  const [markPaidConfirm, setMarkPaidConfirm]   = useState<PayrollRecord | null>(null);
   const [deletePeriodConfirm, setDeletePeriodConfirm] = useState(false);
   const [editingLog, setEditingLog]         = useState<AttendanceLog | null>(null);
   const [viewingRecord, setViewingRecord]   = useState<PayrollRecord | null>(null);
@@ -536,15 +744,14 @@ const AdminPayroll: React.FC = () => {
     updatePayrollRecord, markPeriodComplete, markAllPaid, deletePeriod,
   } = usePayrollData();
 
-  // ── BUG 1 FIX: Period is locked when status is 'complete' ──
-  const periodIsComplete = currentPeriod?.status === 'complete';
+  const periodIsComplete = currentPeriod?.status === "complete";
 
   const filteredLogs    = attendanceLogs.filter(l => l.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || l.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredRecords = payrollRecords.filter(r => r.employeeName.toLowerCase().includes(searchQuery.toLowerCase()) || r.employeeCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const printWithIframe = (html: string) => {
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;';
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:none;visibility:hidden;";
     document.body.appendChild(iframe);
     iframe.contentDocument!.open(); iframe.contentDocument!.write(html); iframe.contentDocument!.close();
     setTimeout(() => { iframe.contentWindow!.focus(); iframe.contentWindow!.print(); setTimeout(() => document.body.removeChild(iframe), 1500); }, 300);
@@ -552,21 +759,19 @@ const AdminPayroll: React.FC = () => {
 
   const printPayrollTable = () => {
     if (!currentPeriod) return;
-    const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">-${fmt(rec.totalDeductions)}</td><td class="num grn">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === 'paid' ? 'Paid' : 'Pending'}</td></tr>`).join('');
-    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${new Date().toLocaleDateString('en-PH',{day:'numeric',month:'long',year:'numeric'})}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s,r)=>s+r.basicPay,0))}</td><td class="num">${fmt(payrollRecords.reduce((s,r)=>s+r.regularOvertime+r.holidayOvertime+r.specialOvertime,0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s,r)=>s+r.grossIncome,0))}</td><td class="num red">-${fmt(payrollRecords.reduce((s,r)=>s+r.totalDeductions,0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s,r)=>s+r.netPay,0))}</td><td></td></tr></tfoot></table></body></html>`);
+    const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">-${fmt(rec.totalDeductions)}</td><td class="num grn">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === "paid" ? "Paid" : "Pending"}</td></tr>`).join("");
+    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${new Date().toLocaleDateString("en-PH",{day:"numeric",month:"long",year:"numeric"})}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s,r)=>s+r.basicPay,0))}</td><td class="num">${fmt(payrollRecords.reduce((s,r)=>s+r.regularOvertime+r.holidayOvertime+r.specialOvertime,0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s,r)=>s+r.grossIncome,0))}</td><td class="num red">-${fmt(payrollRecords.reduce((s,r)=>s+r.totalDeductions,0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s,r)=>s+r.netPay,0))}</td><td></td></tr></tfoot></table></body></html>`);
   };
 
   const printAttendanceLogs = () => {
     if (!currentPeriod) return;
-    const rows = attendanceLogs.map(log => `<tr><td>${log.fullName}</td><td>${log.position}</td><td class="num">${log.workedHours}h</td><td class="num">${fmt(log.dailyRate)}</td><td class="ctr">${log.lateTimeslots}</td><td class="ctr">${log.earlyLeaveTimeslots}</td><td class="ctr">${log.regularOvertimeHours}/${log.holidayOvertimeHours}/${log.specialOvertimeHours}</td><td class="ctr">${log.businessTripDays}</td><td class="ctr">${log.absences}</td><td class="ctr">${log.onLeaveDays}</td><td class="num grn">${fmt(log.additionalPay)}</td><td class="num red">${fmt(log.deductionAmount)}</td></tr>`).join('');
-    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0}h2{font-size:13px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:8.5px;text-transform:uppercase}.num{text-align:right}.ctr{text-align:center}.grn{color:#16a34a}.red{color:#dc2626}</style></head><body><h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2><p>Period: ${periodLabel(currentPeriod)} | Employees: ${attendanceLogs.length} | Printed: ${new Date().toLocaleDateString('en-PH',{day:'numeric',month:'long',year:'numeric'})}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th><th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th><th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    const rows = attendanceLogs.map(log => `<tr><td>${log.fullName}</td><td>${log.position}</td><td class="num">${log.workedHours}h</td><td class="num">${fmt(log.dailyRate)}</td><td class="ctr">${log.lateTimeslots}</td><td class="ctr">${log.earlyLeaveTimeslots}</td><td class="ctr">${log.regularOvertimeHours}/${log.holidayOvertimeHours}/${log.specialOvertimeHours}</td><td class="ctr">${log.businessTripDays}</td><td class="ctr">${log.absences}</td><td class="ctr">${log.onLeaveDays}</td><td class="num grn">${fmt(log.additionalPay)}</td><td class="num red">${fmt(log.deductionAmount)}</td></tr>`).join("");
+    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0}h2{font-size:13px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:8.5px;text-transform:uppercase}.num{text-align:right}.ctr{text-align:center}.grn{color:#16a34a}.red{color:#dc2626}</style></head><body><h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2><p>Period: ${periodLabel(currentPeriod)} | Employees: ${attendanceLogs.length} | Printed: ${new Date().toLocaleDateString("en-PH",{day:"numeric",month:"long",year:"numeric"})}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th><th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th><th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
   };
 
   const toggleExpand = (id: string) => { const s = new Set(expandedPeriods); s.has(id) ? s.delete(id) : s.add(id); setExpandedPeriods(s); };
 
-  if (loading && periods.length === 0) {
-    return <LoadingSpinner type="table" message="Loading payroll data..." />;
-  }
+  if (loading && periods.length === 0) return <LoadingSpinner type="table" message="Loading payroll data..." />;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -577,7 +782,6 @@ const AdminPayroll: React.FC = () => {
       )}
       {viewingRecord && <PayslipModal record={viewingRecord} period={currentPeriod} onClose={() => setViewingRecord(null)} />}
 
-      {/* ── Delete Period Confirm Modal ── */}
       {deletePeriodConfirm && currentPeriod && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeletePeriodConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
@@ -588,11 +792,10 @@ const AdminPayroll: React.FC = () => {
             </div>
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
               <p className="font-semibold text-red-800">{periodLabel(currentPeriod)}</p>
-              <p className="text-red-700 text-xs">This will permanently delete:</p>
               <ul className="text-red-700 text-xs space-y-1 ml-4 list-disc">
                 <li>All attendance logs for this period</li>
                 <li>All payroll records for this period</li>
-                <li>The payroll period itself</li>
+                <li>All exceptional punch records for this period</li>
                 <li>Any issued Cash Advances will be reset to Approved</li>
               </ul>
             </div>
@@ -604,7 +807,6 @@ const AdminPayroll: React.FC = () => {
         </div>
       )}
 
-      {/* ── Mark as Paid Confirm Modal ── */}
       {markPaidConfirm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setMarkPaidConfirm(null)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
@@ -629,7 +831,6 @@ const AdminPayroll: React.FC = () => {
         </div>
       )}
 
-      {/* ── Reset Confirm Modal ── */}
       {showResetConfirm && currentPeriod && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowResetConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
@@ -640,18 +841,16 @@ const AdminPayroll: React.FC = () => {
             </div>
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-5 space-y-2 text-sm">
               <p className="font-semibold text-orange-800">Period: {periodLabel(currentPeriod)}</p>
-              <p className="text-orange-700">This will:</p>
               <ul className="text-orange-700 space-y-1 ml-4 list-disc text-xs">
                 <li>Delete all payroll records for this period</li>
                 <li>Reset any Cash Advances issued this period → back to <strong>Approved</strong></li>
                 <li>Restore any CA deductions applied this period → back to pending</li>
               </ul>
-              <p className="text-xs text-orange-600 font-semibold mt-2">After resetting, select the correct period and click Compute Payroll.</p>
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowResetConfirm(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
               <button onClick={async () => { if (!activePeriodId) return; setShowResetConfirm(false); await resetPayroll(activePeriodId); }} disabled={resetting} className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
-                <RefreshCw size={16} className={resetting ? 'animate-spin' : ''}/>{resetting ? 'Resetting…' : 'Reset This Period'}
+                <RefreshCw size={16} className={resetting ? "animate-spin" : ""}/>{resetting ? "Resetting…" : "Reset This Period"}
               </button>
             </div>
           </div>
@@ -701,7 +900,6 @@ const AdminPayroll: React.FC = () => {
         </div>
       )}
 
-      {/* ── Empty state ── */}
       {periods.length === 0 && (
         <div className="bg-white rounded-xl border border-dashed border-gray-300 p-12 text-center">
           <Upload size={40} className="mx-auto text-gray-300 mb-3" />
@@ -723,12 +921,15 @@ const AdminPayroll: React.FC = () => {
       {/* ════ TAB: PAYROLL DASHBOARD ════ */}
       {activeTab === "Payroll Dashboard" && (
         <div className="space-y-6">
+          {/* Stat Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <StatCard label="Total Employees" value={String(dashboardStats.totalEmployees)} sub="In this period" />
             <StatCard label="Gross Payroll" value={fmt(dashboardStats.grossPayroll)} sub="Current period" color="text-blue-600" />
             <StatCard label="Net Payroll" value={fmt(dashboardStats.netPayroll)} sub="After deductions" color="text-green-600" />
             <StatCard label="Total Deductions" value={fmt(dashboardStats.totalDeductions)} sub="Taxes & benefits" color="text-red-500" />
           </div>
+
+          {/* Payroll Breakdown + Quick Actions */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-lg font-bold text-gray-900 mb-5">Payroll Breakdown</h3>
@@ -757,15 +958,14 @@ const AdminPayroll: React.FC = () => {
               )}
             </div>
 
-            {/* Quick Actions */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
               <h3 className="text-lg font-bold text-gray-900 mb-5">Quick Actions</h3>
               <div className="space-y-3">
                 {[
-                  { icon: RefreshCw, color: "text-blue-600",   bg: "hover:bg-blue-50 hover:border-blue-300",   label: "Compute Payroll",   sub: "Auto-calculate salaries from attendance logs",        action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 || periodIsComplete },
-                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid",  sub: "Mark all payroll records as disbursed",               action: () => activePeriodId && markAllPaid(activePeriodId),   disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
-                  { icon: Calendar,  color: "text-purple-600",  bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period",     sub: "Mark this payroll period as complete",                action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || periodIsComplete },
-                  { icon: RefreshCw, color: "text-orange-600",  bg: "hover:bg-orange-50 hover:border-orange-300", label: "Reset & Recompute", sub: "Undo this period's computation — select correct period first", action: () => setShowResetConfirm(true), disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
+                  { icon: RefreshCw, color: "text-blue-600", bg: "hover:bg-blue-50 hover:border-blue-300", label: "Compute Payroll", sub: "Auto-calculate salaries from attendance logs", action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 || periodIsComplete },
+                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid", sub: "Mark all payroll records as disbursed", action: () => activePeriodId && markAllPaid(activePeriodId), disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
+                  { icon: Calendar, color: "text-purple-600", bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period", sub: "Mark this payroll period as complete", action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || periodIsComplete },
+                  { icon: RefreshCw, color: "text-orange-600", bg: "hover:bg-orange-50 hover:border-orange-300", label: "Reset & Recompute", sub: "Undo this period's computation", action: () => setShowResetConfirm(true), disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
                 ].map(({ icon: Icon, color, bg, label, sub, action, disabled }) => (
                   <button key={label} onClick={action} disabled={disabled} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-50 border border-gray-200 ${bg} transition-colors text-left disabled:opacity-40 disabled:cursor-not-allowed`}>
                     <Icon size={18} className={color} />
@@ -775,7 +975,21 @@ const AdminPayroll: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* ── Flagged Incomplete Punches Panel ── */}
+          <FlaggedEmployeesPanel
+            attendanceLogs={attendanceLogs}
+            activePeriodId={activePeriodId}
+            computePayroll={computePayroll}
+            refresh={refresh}
+            computing={computing}
+          />
+
+          {/* ── Cash Advance Pending Requests ── */}
           <CashAdvanceApprovalPanel />
+
+          {/* ── Cash Advance History ── */}
+          <CashAdvanceHistoryPanel />
         </div>
       )}
 
@@ -793,18 +1007,13 @@ const AdminPayroll: React.FC = () => {
             </div>
           </div>
 
-          {/* ── BUG 2 FIX: Warning banner for incomplete punches ── */}
           {attendanceLogs.some(l => l.hasIncompletePunch) && (
             <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
               <AlertTriangle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold">Missing time-out detected for some employees</p>
-                <p className="text-amber-700 text-xs mt-0.5">
-                  These employees had a time-in recorded but no time-out. Their attendance has been counted as a <strong>full day</strong>. You can correct this manually using the Edit button if needed.
-                </p>
-                <p className="text-amber-600 text-xs mt-1 font-semibold">
-                  Affected: {attendanceLogs.filter(l => l.hasIncompletePunch).map(l => l.fullName).join(', ')}
-                </p>
+                <p className="text-amber-700 text-xs mt-0.5">Their attendance has been counted as a <strong>full day</strong>. Review in the Payroll Dashboard or edit manually here.</p>
+                <p className="text-amber-600 text-xs mt-1 font-semibold">Affected: {attendanceLogs.filter(l => l.hasIncompletePunch).map(l => l.fullName).join(", ")}</p>
               </div>
             </div>
           )}
@@ -817,22 +1026,20 @@ const AdminPayroll: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredLogs.length === 0 ? (
-                    <tr><td colSpan={13} className="text-center py-12 text-gray-400 text-sm">{attendanceLogs.length === 0 ? 'No data yet. Import a biometrics .xls file to populate attendance.' : "No results match your search."}</td></tr>
+                    <tr><td colSpan={13} className="text-center py-12 text-gray-400 text-sm">{attendanceLogs.length === 0 ? "No data yet. Import a biometrics .xls file to populate attendance." : "No results match your search."}</td></tr>
                   ) : filteredLogs.map(log => (
-                    // ── BUG 2 FIX: Highlight rows with incomplete punches ──
-                    <tr key={log.id} className={`${log.hasIncompletePunch ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'}`}>
+                    <tr key={log.id} className={`${log.hasIncompletePunch ? "bg-amber-50 hover:bg-amber-100" : "hover:bg-gray-50"}`}>
                       <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span>{log.fullName}</span>
                           {log.hasIncompletePunch && (
                             <div className="relative group">
                               <AlertTriangle size={14} className="text-amber-500 cursor-help flex-shrink-0" />
-                              {/* Tooltip */}
                               <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-10 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 w-60 shadow-lg pointer-events-none">
                                 <p className="font-bold mb-1">⚠ Missing time-out</p>
-                                <p className="text-gray-300">Counted as full day. Dates affected:</p>
-                                <p className="text-amber-300 mt-1 font-semibold">{log.incompletePunchDates.join(', ')}</p>
-                                <p className="text-gray-400 mt-1 text-[10px]">Edit manually if incorrect.</p>
+                                <p className="text-gray-300">Counted as full day. Dates:</p>
+                                <p className="text-amber-300 mt-1 font-semibold">{log.incompletePunchDates.join(", ")}</p>
+                                <p className="text-gray-400 mt-1 text-[10px]">Review in Payroll Dashboard or edit manually.</p>
                               </div>
                             </div>
                           )}
@@ -874,38 +1081,20 @@ const AdminPayroll: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type="text" placeholder="Search employee…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
-              {/* ── BUG 1 FIX: Recompute disabled when period is complete ── */}
-              <button
-                onClick={() => activePeriodId && computePayroll(activePeriodId)}
-                disabled={computing || attendanceLogs.length === 0 || !activePeriodId || periodIsComplete}
-                title={periodIsComplete ? "Period is closed — cannot recompute" : "Recompute payroll"}
-                className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
-              >
-                <RefreshCw size={16} className={computing ? "animate-spin" : ""} />
-                {computing ? "Computing…" : "Recompute"}
+              <button onClick={() => activePeriodId && computePayroll(activePeriodId)} disabled={computing || attendanceLogs.length === 0 || !activePeriodId || periodIsComplete} title={periodIsComplete ? "Period is closed" : "Recompute payroll"} className="flex items-center gap-2 px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                <RefreshCw size={16} className={computing ? "animate-spin" : ""} />{computing ? "Computing…" : "Recompute"}
               </button>
-              {/* ── BUG 1 FIX: Reset disabled when period is complete ── */}
-              <button
-                onClick={() => setShowResetConfirm(true)}
-                disabled={resetting || payrollRecords.length === 0 || periodIsComplete}
-                title={periodIsComplete ? "Period is closed — cannot reset" : "Reset payroll computation"}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
-              >
-                <RefreshCw size={16} className={resetting ? "animate-spin" : ""} />
-                {resetting ? "Resetting…" : "Reset"}
+              <button onClick={() => setShowResetConfirm(true)} disabled={resetting || payrollRecords.length === 0 || periodIsComplete} title={periodIsComplete ? "Period is closed" : "Reset payroll"} className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
+                <RefreshCw size={16} className={resetting ? "animate-spin" : ""} />{resetting ? "Resetting…" : "Reset"}
               </button>
               <button onClick={printPayrollTable} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"><Printer size={16} /> Print</button>
             </div>
           </div>
 
-          {/* ── BUG 1 FIX: Locked period banner ── */}
           {periodIsComplete && (
             <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-800">
               <Lock size={16} className="text-green-600 flex-shrink-0" />
-              <p>
-                <span className="font-bold">This period is closed.</span> Payroll records are locked and cannot be modified or recomputed.
-                To make changes, reset the period status first or select a different period.
-              </p>
+              <p><span className="font-bold">This period is closed.</span> Payroll records are locked and cannot be modified or recomputed.</p>
             </div>
           )}
 
@@ -940,17 +1129,11 @@ const AdminPayroll: React.FC = () => {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
                               <button onClick={() => setViewingRecord(rec)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View payslip"><Eye size={15} className="text-cyan-600" /></button>
-                              {/* ── BUG 1 FIX: Mark paid hidden when period is complete ── */}
                               {!periodIsComplete && rec.status !== "paid" && (
-                                <button onClick={() => setMarkPaidConfirm(rec)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid">
-                                  <CheckCircle2 size={15} className="text-green-600" />
-                                </button>
+                                <button onClick={() => setMarkPaidConfirm(rec)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid"><CheckCircle2 size={15} className="text-green-600" /></button>
                               )}
-                              {/* ── BUG 1 FIX: Show lock icon when period is complete ── */}
                               {periodIsComplete && (
-                                <span className="p-1.5 text-gray-300 cursor-not-allowed" title="Period is closed — cannot modify">
-                                  <Lock size={14} />
-                                </span>
+                                <span className="p-1.5 text-gray-300 cursor-not-allowed" title="Period is closed"><Lock size={14} /></span>
                               )}
                             </div>
                           </td>
@@ -961,7 +1144,6 @@ const AdminPayroll: React.FC = () => {
                 </div>
               </div>
 
-              {/* Formula reference */}
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b bg-gray-50">
                   <h3 className="text-base font-bold text-gray-900">Computation Formulas</h3>
@@ -973,7 +1155,7 @@ const AdminPayroll: React.FC = () => {
                     <div className="space-y-3">
                       {[
                         {step:1,label:"Daily Rate",formula:"from Employee profile (stored directly)",note:"Set in Management → Employee List → Hourly Rate field",color:"bg-gray-50 border-gray-200"},
-                        {step:2,label:"Days Present",formula:"Resolved from biometric punch logs",note:"Time-in with no time-out is counted as full day and flagged",color:"bg-gray-50 border-gray-200"},
+                        {step:2,label:"Days Present",formula:"Resolved from Exceptional tab in biometric XLS",note:"Time-in with no time-out is counted as full day and flagged for review",color:"bg-gray-50 border-gray-200"},
                         {step:3,label:"Basic Pay",formula:"Daily Rate × Days Present",note:"Core salary for the period",color:"bg-blue-50 border-blue-200"},
                         {step:4,label:"Regular Holiday Pay",formula:"Daily Rate × 2.00",note:"+100% extra on holiday worked",color:"bg-indigo-50 border-indigo-200"},
                         {step:5,label:"Special Holiday Pay",formula:"Daily Rate × 1.30",note:"+30% extra on special holiday",color:"bg-indigo-50 border-indigo-200"},
@@ -996,8 +1178,8 @@ const AdminPayroll: React.FC = () => {
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">📉 Deductions</p>
                     <div className="space-y-3">
                       {[
-                        {step:9, label:"Tardy / Undertime",formula:"(Daily Rate ÷ 8) × 0.5 × Timeslots",note:"1 timeslot = 30 min late/early. Source: XLS Late Times column",color:"bg-red-50 border-red-200"},
-                        {step:10,label:"PhilHealth",formula:"(Daily Rate × 26) × 3% ÷ 2",note:"Employee share only, rounded to ₱5. e.g. ₱635/day → ₱250",color:"bg-orange-50 border-orange-200"},
+                        {step:9, label:"Tardy / Undertime",formula:"(Daily Rate ÷ 8) × 0.5 × Timeslots",note:"1 timeslot = 30 min late/early",color:"bg-red-50 border-red-200"},
+                        {step:10,label:"PhilHealth",formula:"(Daily Rate × 26) × 3% ÷ 2",note:"Employee share only, rounded to ₱5",color:"bg-orange-50 border-orange-200"},
                         {step:11,label:"HDMF (Pag-IBIG)",formula:"₱200.00 fixed per period",note:"Constant deduction every 15 days",color:"bg-orange-50 border-orange-200"},
                         {step:12,label:"Withholding Tax",formula:"₱0.00 (below threshold)",note:"BIR applies when monthly income > ₱20,833",color:"bg-yellow-50 border-yellow-200"},
                         {step:13,label:"Cash Advance (Deduction)",formula:"Sum of PREVIOUS period's issued CAs",note:"Period N: CA issued → Period N+1: deducted. Limit: ₱2,000/period.",color:"bg-amber-50 border-amber-200"},
@@ -1009,7 +1191,7 @@ const AdminPayroll: React.FC = () => {
                       ))}
                       <div className="flex gap-3 p-3 rounded-lg border-2 border-gray-400 bg-gray-100">
                         <div className="w-6 h-6 rounded-full bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
-                        <div><p className="text-xs font-bold text-gray-900">NET PAY</p><p className="text-xs font-mono text-gray-700 mt-0.5">= Gross Income − Total Deductions</p><p className="text-[10px] text-gray-400 mt-0.5">SSS excluded — not in VTA Link payroll format</p></div>
+                        <div><p className="text-xs font-bold text-gray-900">NET PAY</p><p className="text-xs font-mono text-gray-700 mt-0.5">= Gross Income − Total Deductions</p></div>
                       </div>
                     </div>
                   </div>
