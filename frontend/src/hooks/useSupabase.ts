@@ -38,9 +38,11 @@ function useQuery<T>(
 ) {
   const queryClient = useQueryClient();
   
-  // Create a unique key based on the dependencies and the fetcher logic.
-  // We include a string representation of the fetcher to help distinguish different queries with same deps.
-  const queryKey: QueryKey = ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
+  // IMPROVED: If the first element of deps is a string (e.g., 'orders'), we use deps directly.
+  // This allows for explicit invalidation via queryClient.invalidateQueries({ queryKey: ['orders'] }).
+  const queryKey: QueryKey = (deps.length > 0 && typeof deps[0] === 'string')
+    ? deps 
+    : ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
 
   const { data, isLoading, error, refetch } = useTanStackQuery({
     queryKey,
@@ -52,7 +54,9 @@ function useQuery<T>(
   useEffect(() => {
     if (!realtimeTables || realtimeTables.length === 0) return;
     
-    const channelName = `realtime_${realtimeTables.join('_')}_${JSON.stringify(deps).slice(0, 20)}`;
+    // Use the first part of the key for the channel name if it's a string, otherwise fallback
+    const baseKey = typeof queryKey[0] === 'string' ? queryKey[0] : 'query';
+    const channelName = `realtime_${baseKey}_${realtimeTables.join('_')}_${JSON.stringify(deps).slice(0, 20)}`;
     let channel = supabase.channel(channelName);
     
     realtimeTables.forEach(table => {
@@ -217,7 +221,11 @@ export function useProducts(filters?: { search?: string; category?: string }) {
 }
 
 export function useOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status, filters?.assigned_designer, filters?.assigned_production], ['orders', 'order_items', 'payments']);
+  const { data: rawOrders, loading, error, refresh } = useQuery(
+    () => db.getOrders(filters), 
+    ['orders', filters?.status, filters?.assigned_designer, filters?.assigned_production], 
+    ['orders', 'order_items', 'payments']
+  );
   const { data: staffList } = useQuery(() => db.getStaffList(), [], ['employees', 'users']);
 
   const orders = rawOrders || [];
@@ -274,7 +282,8 @@ export function useProductCatalog(filters?: { search?: string; category?: string
 }
 
 export function useCartData() {
-  const { data: rawItems, loading, error, refresh } = useQuery(() => db.getCart(), [], ['cart_items', 'products']);
+  const queryClient = useQueryClient();
+  const { data: rawItems, loading, error, refresh } = useQuery(() => db.getCart(), ['cart'], ['cart_items', 'products']);
   const raw = rawItems || [];
   const items: CartItem[] = raw.map((r: any) => ({
     id: r.id, productId: r.product_id,
@@ -292,12 +301,24 @@ export function useCartData() {
     updateCartItem: async (id: string, updates: { quantity?: number; specifications?: string; fileUrl?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem: async (id: string) => { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart: async () => { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
-    checkout: async (notes?: string, due?: string, ids?: string[]) => { try { const o = await db.checkout(notes, due, ids); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
+    checkout: async (notes?: string, due?: string, ids?: string[]) => { 
+      try { 
+        const o = await db.checkout(notes, due, ids); 
+        // Explicitly invalidate orders so they reflect "live" on navigation
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        await refresh(); 
+        return { success: true, error: null, order: o }; 
+      } catch (e: any) { 
+        return { success: false, error: e.message, order: null }; 
+      } 
+    },
     directOrder: async (data: { productId: string; productName: string; quantity: number; unitPrice: number; specifications?: string; fileUrl?: string }) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
         await db.createOrder({ customer_id: user.id, order_type: 'online', special_instructions: data.specifications, items: [{ product_id: data.productId, product_name: data.productName, quantity: data.quantity, unit_price: data.unitPrice, specifications: data.specifications, file_url: data.fileUrl }] });
+        // Explicitly invalidate orders
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
         return { success: true, error: null };
       } catch (e: any) { return { success: false, error: e.message || 'Failed to place order' }; }
     },
@@ -305,6 +326,7 @@ export function useCartData() {
 }
 
 export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
+  const queryClient = useQueryClient();
   const { orders: rawOrders, stats, staff, loading, error, refresh } = useOrders(filters);
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
@@ -313,7 +335,10 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
   return {
     orders, stats, staffList, designers, productionStaff, loading, error, refresh,
     createOrder: async (data: { customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; items: { product_name: string; quantity: number; unit_price: number; specifications?: string; file_url?: string }[]; special_instructions?: string; due_date?: string; assigned_designer?: string | null; assigned_production?: string | null; comments?: string | null }) => {
-      const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => refresh()));
+      const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
       return r;
     },
     updateStatus: async (orderId: string, status: string, excessUsage?: Record<string, number>) => {
@@ -323,6 +348,7 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
         if (dbStatus === 'pickup') {
           try { await db.deductInventoryForOrder(orderId, excessUsage); } catch (invErr) { console.error("Inventory deduction failed:", invErr); }
         }
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
         await refresh();
       });
       return r;
@@ -339,25 +365,90 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
         } else {
           await db.updateOrder(orderId, assignment);
         }
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
         await refresh();
       });
       return r;
     },
-    deleteOrder: async (orderId: string) => { const r = await safe(() => db.deleteOrder(orderId).then(() => refresh())); return r; },
-    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => { const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh())); return r; },
-    approvePayment: async (paymentId: string, orderId: string) => { const r = await safe(() => db.approvePayment(paymentId, orderId).then(() => refresh())); return r; },
-    declinePayment: async (paymentId: string, orderId: string, reason: string) => { const r = await safe(() => db.declinePayment(paymentId, orderId, reason).then(() => refresh())); return r; },
-    markDeclineAsRead: async (orderId: string) => { const r = await safe(() => db.markDeclineAsRead(orderId).then(() => refresh())); return r; },
-    selfAssign: async (orderId: string) => { const r = await safe(async () => { await db.designerSelfPickOrder(orderId); await refresh(); }); return r; },
-    updateCustomerDesign: async (orderId: string, url: string) => { const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => refresh())); return r; },
-    updateFinalDesign: async (orderId: string, url: string) => { const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => refresh())); return r; },
-    acceptAssignedDesignOrder: async (orderId: string) => { const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => refresh())); return r; },
-    approveOrderDesign: async (orderId: string) => { const r = await safe(() => db.approveOrderDesign(orderId).then(() => refresh())); return r; },
+    deleteOrder: async (orderId: string) => { 
+      const r = await safe(() => db.deleteOrder(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => { 
+      const r = await safe(() => db.recordPayment(orderId, payment).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    approvePayment: async (paymentId: string, orderId: string) => { 
+      const r = await safe(() => db.approvePayment(paymentId, orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    declinePayment: async (paymentId: string, orderId: string, reason: string) => { 
+      const r = await safe(() => db.declinePayment(paymentId, orderId, reason).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    markDeclineAsRead: async (orderId: string) => { 
+      const r = await safe(() => db.markDeclineAsRead(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    selfAssign: async (orderId: string) => { 
+      const r = await safe(async () => { 
+        await db.designerSelfPickOrder(orderId); 
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        await refresh(); 
+      }); 
+      return r; 
+    },
+    updateCustomerDesign: async (orderId: string, url: string) => { 
+      const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    updateFinalDesign: async (orderId: string, url: string) => { 
+      const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    acceptAssignedDesignOrder: async (orderId: string) => { 
+      const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
+    approveOrderDesign: async (orderId: string) => { 
+      const r = await safe(() => db.approveOrderDesign(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
     updateDesignerOrderDetails: async (orderId: string, updates: { totalAmount?: number; dueDate?: string }) => {
       const payload: { total_amount?: number; due_date?: string } = {};
       if (updates.totalAmount !== undefined) payload.total_amount = updates.totalAmount;
       if (updates.dueDate !== undefined) payload.due_date = updates.dueDate;
-      const r = await safe(() => db.updateDesignerOrderDetails(orderId, payload).then(() => refresh()));
+      const r = await safe(() => db.updateDesignerOrderDetails(orderId, payload).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
       return r;
     },
   };
