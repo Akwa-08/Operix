@@ -238,8 +238,8 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
             aria-label="Notifications">
             <Bell className="w-5 h-5 text-slate-800" />
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 rounded-full border-2 border-white flex items-center justify-center">
-                <span className="text-[9px] font-bold text-white leading-none px-0.5">
+              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-red-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm">
+                <span className="text-[11px] font-bold text-white leading-none px-1">
                   {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               </span>

@@ -354,21 +354,19 @@ const CashierDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Primary Action Section */}
         <div className="lg:col-span-1 space-y-5">
-          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 shadow-lg shadow-amber-200 relative overflow-hidden group transition-all hover:shadow-xl hover:-translate-y-1">
-            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all"/>
-            
+          <div className="bg-white border border-amber-200 rounded-2xl p-6 shadow-sm relative overflow-hidden group transition-all hover:shadow-md hover:-translate-y-1">
             <div className="relative z-10">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center mb-5 border border-white/30">
-                <Banknote size={24} className="text-white"/>
+              <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center mb-5 border border-amber-100">
+                <Banknote size={24} className="text-amber-600"/>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Request Cash Advance</h3>
-              <p className="text-amber-100 text-sm mb-6 leading-relaxed">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Request Cash Advance</h3>
+              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
                 Quickly submit financial assistance requests for employees. Maximum ₱2,000 per period.
               </p>
               
               <button 
                 onClick={() => setShowCA(true)}
-                className="w-full py-3 bg-white text-orange-600 font-bold rounded-xl text-sm shadow-sm hover:bg-orange-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-amber-100 text-amber-700 font-bold rounded-xl text-sm shadow-sm hover:bg-amber-200 active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 Start New Request
                 <CheckCircle size={16}/>

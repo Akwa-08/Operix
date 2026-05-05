@@ -14,6 +14,7 @@ import { ProductsTable } from "../Shared/Inventory/ProductsTable";
 import { EditProductModal } from "../Shared/Inventory/EditProductModal";
 import { ProductDetailsModal } from "../Shared/Inventory/ProductDetailsModal";
 import { DeleteProductModal } from "../Shared/Inventory/DeleteProductModal";
+import { DeliveryDetailsModal } from "../Shared/Inventory/DeliveryDetailsModal";
 import type { Material, AdminProduct, Delivery } from "../../Types";
 import { useInventoryData, useProductsData, useDeliveries } from "../../hooks/useSupabase";
 import { useToast } from "../../context/ToastContext";
@@ -60,6 +61,7 @@ const AdminInventory = () => {
   // ── Deliveries state ──
   const [showCreateDelivery, setShowCreateDelivery] = useState(false);
   const [showConfirmReceipt, setShowConfirmReceipt] = useState(false);
+  const [showViewDelivery, setShowViewDelivery] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [newDelivery, setNewDelivery] = useState({ inventory_item_id: "", supplier_id: "", requested_quantity: "", expected_arrival_date: "", notes: "" });
   const [receipt, setReceipt] = useState({ received_quantity: "", receipt_reference_number: "" });
@@ -80,7 +82,7 @@ const AdminInventory = () => {
     try {
       await db.createInventoryItem({
         name: newMaterial.name, unit_of_measure: newMaterial.unit_of_measure,
-        current_quantity: Number(newMaterial.current_quantity) || 0,
+        current_quantity: 0,
         reorder_point: Number(newMaterial.reorder_point) || 0,
         unit_cost: Number(newMaterial.unit_cost) || 0,
         description: newMaterial.description || undefined,
@@ -239,7 +241,7 @@ const AdminInventory = () => {
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Stock Unit *</label><input type="text" value={newMaterial.unit_of_measure} onChange={e => setNewMaterial({ ...newMaterial, unit_of_measure: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., feet, ml, pieces" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Purchase Unit</label><input type="text" value={newMaterial.purchase_unit} onChange={e => setNewMaterial({ ...newMaterial, purchase_unit: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., rolls, bottles" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Conversion Rate</label><input type="number" value={newMaterial.conversion_rate} onChange={e => setNewMaterial({ ...newMaterial, conversion_rate: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Stock units per purchase unit" /></div>
-              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Current Stocks </label><input type="number" value={newMaterial.current_quantity} onChange={e => setNewMaterial({ ...newMaterial, current_quantity: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
+
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Reorder Point</label><input type="number" value={newMaterial.reorder_point} onChange={e => setNewMaterial({ ...newMaterial, reorder_point: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Unit Cost (₱)</label><input type="number" value={newMaterial.unit_cost} onChange={e => setNewMaterial({ ...newMaterial, unit_cost: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0.00" step="0.01" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Description</label><input type="text" value={newMaterial.description} onChange={e => setNewMaterial({ ...newMaterial, description: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Optional" /></div>
@@ -369,6 +371,10 @@ const AdminInventory = () => {
                         <td className="px-4 py-3 text-gray-600 text-xs">{d.requestedByName}<br /><span className="text-gray-400">{d.createdAt}</span></td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => { setSelectedDelivery(d); setShowViewDelivery(true); }}
+                              className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 font-semibold"
+                              title="View Details">View</button>
                             {d.status === "requested" && (
                               <button onClick={() => handleUpdateDeliveryStatus(d.id, "ordered")} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">Mark Ordered</button>
                             )}
@@ -376,8 +382,12 @@ const AdminInventory = () => {
                               <button onClick={() => handleUpdateDeliveryStatus(d.id, "en_route")} className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">Mark En Route</button>
                             )}
                             {d.status === "en_route" && (
-                              <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }}
-                                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 font-semibold">Confirm Receipt</button>
+                              <div className="flex gap-1 justify-center">
+                                <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }}
+                                  className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 font-semibold">Confirm Receipt</button>
+                                <button onClick={() => handleUpdateDeliveryStatus(d.id, "returned")}
+                                  className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 font-semibold">Return (Faulty)</button>
+                              </div>
                             )}
                             {d.status === "received" && (
                               <button onClick={() => handleUpdateDeliveryStatus(d.id, "completed")} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Complete</button>
@@ -451,6 +461,15 @@ const AdminInventory = () => {
               </>
             )}
           </Modal>
+
+          {/* Delivery Details View Modal */}
+          {selectedDelivery && (
+            <DeliveryDetailsModal
+              isOpen={showViewDelivery}
+              onClose={() => setShowViewDelivery(false)}
+              delivery={selectedDelivery}
+            />
+          )}
         </div>
       )}
     </div>

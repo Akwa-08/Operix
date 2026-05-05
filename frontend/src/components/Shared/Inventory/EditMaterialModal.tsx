@@ -1,10 +1,10 @@
 //src\components\Shared\Inventory\EditMaterialModal.tsx
 
-import {useState, useEffect} from "react";
-import {Modal} from "../UI/Modal";
-import {Button} from "../UI/Button";
-import type {Material, UserRole} from "../../../Types";
-import {permissions} from "../../../util/permissions";
+import { useState, useEffect } from "react";
+import { Modal } from "../UI/Modal";
+import { Button } from "../UI/Button";
+import type { Material, UserRole } from "../../../Types";
+import { permissions } from "../../../util/permissions";
 
 interface EditMaterialModalProps {
   isOpen: boolean;
@@ -55,7 +55,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
   }, [material.id]);
 
   const handleChange = (field: keyof Material, value: any) => {
-    setFormData((prev) => ({...prev, [field]: value}));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = () => {

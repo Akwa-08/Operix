@@ -7,8 +7,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  useQuery as useTanStackQuery, 
+import {
+  useQuery as useTanStackQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
@@ -37,7 +37,7 @@ function useQuery<T>(
   initialData: T | null = null,
 ) {
   const queryClient = useQueryClient();
-  
+
   // Create a unique key based on the dependencies and the fetcher logic.
   // We include a string representation of the fetcher to help distinguish different queries with same deps.
   const queryKey: QueryKey = ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
@@ -51,26 +51,26 @@ function useQuery<T>(
   // Realtime subscription logic
   useEffect(() => {
     if (!realtimeTables || realtimeTables.length === 0) return;
-    
+
     const channelName = `realtime_${realtimeTables.join('_')}_${JSON.stringify(deps).slice(0, 20)}`;
     let channel = supabase.channel(channelName);
-    
+
     realtimeTables.forEach(table => {
       channel = channel.on('postgres_changes' as any, { event: '*', schema: 'public', table }, () => {
         // Invalidate and refetch to keep UI in sync with DB
         queryClient.invalidateQueries({ queryKey });
       });
     });
-    
+
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [realtimeTables?.join('_'), JSON.stringify(deps)]);
 
-  return { 
-    data: data as T | null, 
-    loading: isLoading, 
-    error: error ? (error as Error).message : null, 
-    refresh: () => refetch() 
+  return {
+    data: data as T | null,
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+    refresh: () => refetch()
   };
 }
 
@@ -549,7 +549,7 @@ export interface PayrollRecord {
   holidayOvertime: number; specialOvertime: number; grossIncome: number;
   tardyDeductions: number; undertimeDeductions: number; sss: number; philhealth: number;
   hdmf: number; withholdingTax: number; cashAdvance: number; cashAdvanceIssued: number;
-  carryOverFromPrevious: number;  
+  carryOverFromPrevious: number;
   totalDeductions: number; netPay: number; taxableIncome: number; status: 'pending' | 'paid';
 }
 
@@ -606,7 +606,7 @@ function mapPayrollRecord(raw: any): PayrollRecord {
     grossIncome: Number(raw.gross_income) || 0, tardyDeductions: Number(raw.tardy_deductions) || 0,
     undertimeDeductions: Number(raw.undertime_deductions) || 0, sss: Number(raw.sss) || 0,
     philhealth: Number(raw.philhealth) || 0, hdmf: Number(raw.hdmf) || 0,
-    withholdingTax: Number(raw.withholding_tax) || 0,  cashAdvance: Number(raw.cash_advance) || 0,
+    withholdingTax: Number(raw.withholding_tax) || 0, cashAdvance: Number(raw.cash_advance) || 0,
     cashAdvanceIssued: Number(raw.cash_advance_issued) || 0, carryOverFromPrevious: Number(raw.carry_over_from_previous) || 0, totalDeductions: Number(raw.total_deductions) || 0,
     netPay: Number(raw.net_pay) || 0, taxableIncome: Number(raw.taxable_income) || 0,
     status: raw.status || 'pending',
@@ -766,7 +766,7 @@ export function useLogsData() {
     q.data.audit.forEach((raw: any) => {
       let details = '';
       const m = raw.metadata || {};
-      switch(raw.action) {
+      switch (raw.action) {
         case 'Update Inventory':
           details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`;
           break;
@@ -774,7 +774,7 @@ export function useLogsData() {
           details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`;
           break;
         case 'Record Payment':
-          details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_',' ')} (Ref: ${m.ref || 'N/A'}).`;
+          details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_', ' ')} (Ref: ${m.ref || 'N/A'}).`;
           break;
         case 'Approve Payment':
           details = `Payment approved for order.`;
@@ -809,15 +809,15 @@ export function useLogsData() {
         default:
           details = typeof raw.metadata === 'object' ? JSON.stringify(raw.metadata) : String(raw.metadata || '');
       }
-      combined.push({ 
-        id: raw.id, 
-        module: raw.target_table || 'system', 
-        action: raw.action || 'System Action', 
-        details, 
-        user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System', 
-        role: raw.actor_role || raw.actor_user?.role || 'system', 
-        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', 
-        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 
+      combined.push({
+        id: raw.id,
+        module: raw.target_table || 'system',
+        action: raw.action || 'System Action',
+        details,
+        user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System',
+        role: raw.actor_role || raw.actor_user?.role || 'system',
+        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
       });
     });
     return combined.sort((a, b) => b.timestamp - a.timestamp);
