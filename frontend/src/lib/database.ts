@@ -337,6 +337,8 @@ export const db = {
     reorder_point?: number;
     unit_cost?: number;
     description?: string;
+    purchase_unit?: string;
+    conversion_rate?: number;
   }) {
     const { data, error } = await supabase
       .from("inventory_items")

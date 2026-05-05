@@ -7,8 +7,8 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  useQuery as useTanStackQuery, 
+import {
+  useQuery as useTanStackQuery,
   useQueryClient,
 } from '@tanstack/react-query';
 import type { QueryKey } from '@tanstack/react-query';
@@ -50,11 +50,11 @@ function useQuery<T>(
     return () => { supabase.removeChannel(channel); };
   }, [realtimeTables?.join('_'), JSON.stringify(deps)]);
 
-  return { 
-    data: data as T | null, 
-    loading: isLoading, 
-    error: error ? (error as Error).message : null, 
-    refresh: () => refetch() 
+  return {
+    data: data as T | null,
+    loading: isLoading,
+    error: error ? (error as Error).message : null,
+    refresh: () => refetch()
   };
 }
 
