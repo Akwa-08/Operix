@@ -305,11 +305,20 @@ export function useCartData() {
 }
 
 export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-  const { orders: rawOrders, stats, staff, loading, error, refresh } = useOrders(filters);
+  const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
+  const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
+  
+  const loading = ordersLoading || empLoading;
+  const refresh = async () => { await Promise.all([ordersRefresh(), empRefresh()]); };
+  
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
   const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
-  const productionStaff = staff.filter((s: any) => s.role === 'production').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
+  
+  const productionStaff = employees
+    .filter((e: any) => e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
+    .map((e: any) => ({ id: e.id, name: e.full_name }));
+
   return {
     orders, stats, staffList, designers, productionStaff, loading, error, refresh,
     createOrder: async (data: { customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; items: { product_name: string; quantity: number; unit_price: number; specifications?: string; file_url?: string }[]; special_instructions?: string; due_date?: string; assigned_designer?: string | null; assigned_production?: string | null; comments?: string | null }) => {

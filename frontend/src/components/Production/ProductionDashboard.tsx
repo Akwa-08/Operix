@@ -1,4 +1,4 @@
-import {useMemo} from "react";
+import { useMemo } from "react";
 import {
   Package,
   Clock,
@@ -6,21 +6,21 @@ import {
   AlertTriangle,
   RefreshCw,
 } from "lucide-react";
-import {KpiCard} from "../Shared/UI/KpiCard";
-import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {PageHeader} from "../Shared/UI/PageHeader";
-import {InfoBanner} from "../Shared/UI/InfoBanner";
-import {useOrdersData, useInventoryData, useMyProfile} from "../../hooks/useSupabase";
+import { KpiCard } from "../Shared/UI/KpiCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { useOrdersData, useInventoryData, useMyProfile } from "../../hooks/useSupabase";
 
 const ProductionDashboard = () => {
   const { profile } = useMyProfile();
-  const {orders: allOrders, loading: ordersLoading, refresh} = useOrdersData();
+  const { orders: allOrders, loading: ordersLoading, refresh } = useOrdersData();
 
-  const orders = useMemo(() => 
+  const orders = useMemo(() =>
     allOrders.filter(o => o.assignedProduction === profile?.id),
     [allOrders, profile?.id]
   );
-  const {stats: materialStats, loading: matLoading} = useInventoryData();
+  const { stats: materialStats, loading: matLoading } = useInventoryData();
   const loading = ordersLoading || matLoading;
 
   const stats = useMemo(
@@ -104,7 +104,7 @@ const ProductionDashboard = () => {
       </div>
 
       <InfoBanner color="orange">
-        🏭 <strong>Production Role:</strong> View assigned orders, update
+        <strong>Production Role:</strong> View assigned orders, update
         production status, and create resupply requests when materials run low.
       </InfoBanner>
 
