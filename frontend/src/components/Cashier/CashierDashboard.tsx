@@ -109,16 +109,6 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
         </div>
       );
     }
-    if (eligibility.reason === 'restricted_next_period') return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700">
-        <AlertTriangle size={12}/>Restricted — CA Pending Deduction
-      </span>
-    );
-    if (eligibility.reason === 'approved_awaiting_deduction') return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-        <CheckCircle size={12}/>Issued — Deduction Scheduled
-      </span>
-    );
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
         <AlertTriangle size={12}/>₱2,000 Period Limit Reached
@@ -243,37 +233,9 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
 
               {/* Status messages when ineligible */}
               {selEmp && eligibility && !eligibility.eligible && (
-                <div className={`px-4 py-3 rounded-lg border flex items-start gap-2 ${
-                  eligibility.reason === 'restricted_next_period' ? 'bg-orange-50 border-orange-200' :
-                  eligibility.reason === 'approved_awaiting_deduction' ? 'bg-blue-50 border-blue-200' :
-                  'bg-red-50 border-red-200'
-                }`}>
-                  {eligibility.reason === 'approved_awaiting_deduction'
-                    ? <CheckCircle size={14} className="text-blue-600 flex-shrink-0 mt-0.5"/>
-                    : eligibility.reason === 'restricted_next_period'
-                    ? <AlertTriangle size={14} className="text-orange-600 flex-shrink-0 mt-0.5"/>
-                    : <AlertTriangle size={14} className="text-red-600 flex-shrink-0 mt-0.5"/>}
+                <div className={`px-4 py-3 rounded-lg border flex items-start gap-2 bg-red-50 border-red-200`}>
+                  <AlertTriangle size={14} className="text-red-600 flex-shrink-0 mt-0.5"/>
                   <div>
-                    {eligibility.reason === 'restricted_next_period' && (
-                      <>
-                        <p className="text-xs font-bold text-orange-800 mb-0.5">Restricted — Previous Period Had CA</p>
-                        <p className="text-xs text-orange-700">
-                          This employee received a {eligibility.detail ? fmt(eligibility.detail.amount) : ''} Cash Advance
-                          in the previous payroll period ({eligibility.detail?.periodLabel || 'prior period'}).
-                          Per policy, they cannot request a new CA in the immediately following period.
-                          Their previous CA will be deducted from this period's payroll.
-                        </p>
-                      </>
-                    )}
-                    {eligibility.reason === 'approved_awaiting_deduction' && (
-                      <>
-                        <p className="text-xs font-bold text-blue-800 mb-0.5">CA Issued — Awaiting Deduction Next Period</p>
-                        <p className="text-xs text-blue-700">
-                          This employee's Cash Advance was issued in the current payroll period.
-                          The full amount will be automatically deducted in the next payroll period.
-                        </p>
-                      </>
-                    )}
                     {eligibility.reason === 'limit_reached' && (
                       <>
                         <p className="text-xs font-bold text-red-800 mb-0.5">Period Limit Reached</p>
@@ -445,7 +407,7 @@ const CashierDashboard = () => {
           <p className="text-sm font-bold text-amber-800 mb-0.5">Cash Advance Policy</p>
           <p className="text-xs text-amber-700">
             Maximum <strong>{fmt(CA_LIMIT)}</strong> per 15-day period per employee. All requests require admin approval.
-            If deductions exceed net salary, the deficit carries over to the next payroll period.
+            Cash advances are deducted from the same payroll period. If deductions exceed net salary, the deficit carries over to the next payroll period.
           </p>
         </div>
       </div>

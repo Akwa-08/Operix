@@ -22,14 +22,6 @@ import type {
 } from '../Types';
 import { parseDbDate } from '../util/formatters';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Generic fetch-and-cache pattern (Refactored to use TanStack Query)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/** 
- * Adapter for existing components to use TanStack Query.
- * Keeps the same API: { data, loading, error, refresh }
- */
 function useQuery<T>(
   fetcher: () => Promise<T>,
   deps: any[] = [],
@@ -37,9 +29,6 @@ function useQuery<T>(
   initialData: T | null = null,
 ) {
   const queryClient = useQueryClient();
-
-  // Create a unique key based on the dependencies and the fetcher logic.
-  // We include a string representation of the fetcher to help distinguish different queries with same deps.
   const queryKey: QueryKey = ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
 
   const { data, isLoading, error, refetch } = useTanStackQuery({
@@ -48,20 +37,15 @@ function useQuery<T>(
     initialData: initialData ?? undefined,
   });
 
-  // Realtime subscription logic
   useEffect(() => {
     if (!realtimeTables || realtimeTables.length === 0) return;
-
     const channelName = `realtime_${realtimeTables.join('_')}_${JSON.stringify(deps).slice(0, 20)}`;
     let channel = supabase.channel(channelName);
-
     realtimeTables.forEach(table => {
       channel = channel.on('postgres_changes' as any, { event: '*', schema: 'public', table }, () => {
-        // Invalidate and refetch to keep UI in sync with DB
         queryClient.invalidateQueries({ queryKey });
       });
     });
-
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [realtimeTables?.join('_'), JSON.stringify(deps)]);
@@ -74,15 +58,10 @@ function useQuery<T>(
   };
 }
 
-/** Wrap an async mutation in { success, error } */
 async function safe(fn: () => Promise<any>): Promise<{ success: boolean; error: string | null }> {
   try { await fn(); return { success: true, error: null }; }
   catch (err: any) { return { success: false, error: err.message || 'Operation failed' }; }
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAPPERS (snake_case → camelCase) — all private, used by hooks below
-// ═══════════════════════════════════════════════════════════════════════════════
 
 function mapStatus(s: string): OrderStatus {
   const m: Record<string, OrderStatus> = { in_queue: 'In Queue', designing: 'Designing', payment: 'Payment', production: 'Production', pickup: 'Pickup', completed: 'Completed', overdue: 'Overdue' };
@@ -115,11 +94,8 @@ function mapOrder(raw: any): Order {
     lastDeclineReason: raw.last_decline_reason || '',
     hasUnreadDecline: !!raw.has_unread_decline,
     payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
-      id: p.id,
-      amount: Number(p.amount) || 0,
-      payment_method: p.payment_method,
-      reference_number: p.reference_number,
-      created_at: p.created_at,
+      id: p.id, amount: Number(p.amount) || 0, payment_method: p.payment_method,
+      reference_number: p.reference_number, created_at: p.created_at,
       status: (p.status || "pending") as "approved" | "declined" | "pending",
       decline_reason: p.decline_reason
     })) : [],
@@ -181,20 +157,12 @@ function mapMaterial(item: any): Material {
   };
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// HOOKS — named exactly as components expect
-// ═══════════════════════════════════════════════════════════════════════════════
-
 export function useMyProfile() {
-  const q = useQuery(async () => {
-    return await db.getMyProfile();
-  }, ['my-profile'], ['users']); // Listen to users table for profile updates
-
+  const q = useQuery(async () => { return await db.getMyProfile(); }, ['my-profile'], ['users']);
   return { profile: q.data, ...q };
 }
 
-/** Clear profile cache (No longer needed with RQ, but keeping signature for compatibility) */
-export const clearProfileCache = () => { /* Handled by RQ query keys */ };
+export const clearProfileCache = () => {};
 
 export function useUsers(filters?: { role?: string; status?: string }) {
   const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status], ['users']);
@@ -312,33 +280,23 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
   const productionStaff = staff.filter((s: any) => s.role === 'production').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
   return {
     orders, stats, staffList, designers, productionStaff, loading, error, refresh,
-    createOrder: async (data: { customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; items: { product_name: string; quantity: number; unit_price: number; specifications?: string; file_url?: string }[]; special_instructions?: string; due_date?: string; assigned_designer?: string | null; assigned_production?: string | null; comments?: string | null }) => {
-      const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => refresh()));
-      return r;
-    },
+    createOrder: async (data: any) => { const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => refresh())); return r; },
     updateStatus: async (orderId: string, status: string, excessUsage?: Record<string, number>) => {
       const dbStatus = status.toLowerCase().replace(/ /g, '_');
       const r = await safe(async () => {
         await db.updateOrder(orderId, { status: dbStatus });
-        if (dbStatus === 'pickup') {
-          try { await db.deductInventoryForOrder(orderId, excessUsage); } catch (invErr) { console.error("Inventory deduction failed:", invErr); }
-        }
+        if (dbStatus === 'pickup') { try { await db.deductInventoryForOrder(orderId, excessUsage); } catch (invErr) { console.error("Inventory deduction failed:", invErr); } }
         await refresh();
       });
       return r;
     },
-    getOrderBOM: async (orderId: string) => {
-      return await db.getOrderBOM(orderId);
-    },
+    getOrderBOM: async (orderId: string) => { return await db.getOrderBOM(orderId); },
     assignStaff: async (orderId: string, assignment: { assigned_designer?: string; assigned_production?: string }) => {
       const r = await safe(async () => {
         const hasDesigner = !!assignment.assigned_designer;
         const hasProduction = !!assignment.assigned_production;
-        if (hasDesigner && !hasProduction) {
-          await db.assignDesignerForAcceptance(orderId, assignment.assigned_designer!);
-        } else {
-          await db.updateOrder(orderId, assignment);
-        }
+        if (hasDesigner && !hasProduction) { await db.assignDesignerForAcceptance(orderId, assignment.assigned_designer!); }
+        else { await db.updateOrder(orderId, assignment); }
         await refresh();
       });
       return r;
@@ -466,13 +424,7 @@ export function useDeliveries() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type CashAdvanceStatus =
-  | 'pending'
-  | 'approved'
-  | 'added_to_current_payroll'
-  | 'scheduled_for_deduction'
-  | 'deducted'
-  | 'declined'
-  | 'cancelled';
+  | 'pending' | 'approved' | 'deducted' | 'declined' | 'cancelled';
 
 export interface CashAdvance {
   id: string; employeeId: string; employeeCode: string; employeeName: string; employeePosition: string;
@@ -530,16 +482,15 @@ export interface PayrollPeriod {
   status: 'draft' | 'processing' | 'complete'; createdAt: string;
 }
 
-// ── BUG 2 FIX: Added daysPresent, hasIncompletePunch, incompletePunchDates ──
 export interface AttendanceLog {
   id: string; employeeId: string; employeeCode: string; fullName: string;
   position: string; dailyRate: number; workedHours: number; requiredHours: number;
   lateTimeslots: number; earlyLeaveTimeslots: number; regularOvertimeHours: number;
   holidayOvertimeHours: number; specialOvertimeHours: number; businessTripDays: number;
   absences: number; onLeaveDays: number; additionalPay: number; deductionAmount: number;
-  daysPresent: number;            // days resolved from punch logs
-  hasIncompletePunch: boolean;    // true if any time_in has no matching time_out
-  incompletePunchDates: string[]; // e.g. ['Jan 03', 'Jan 07']
+  daysPresent: number;
+  hasIncompletePunch: boolean;
+  incompletePunchDates: string[];
 }
 
 export interface PayrollRecord {
@@ -565,30 +516,20 @@ function mapPeriod(raw: any): PayrollPeriod {
   };
 }
 
-// ── BUG 2 FIX: Maps the 3 new columns from attendance_logs ──
 function mapAttendanceLog(raw: any): AttendanceLog {
   const emp = raw.employee;
   const dailyRate = Number(emp?.base_hourly_rate) || 0;
   return {
-    id: raw.id,
-    employeeId: raw.employee_id,
-    employeeCode: emp?.employee_code || '',
-    fullName: emp?.full_name || '',
-    position: emp?.position || '',
-    dailyRate,
-    workedHours: Number(raw.worked_hours) || 0,
-    requiredHours: Number(raw.required_hours) || 160,
-    lateTimeslots: Number(raw.late_timeslots) || 0,
-    earlyLeaveTimeslots: Number(raw.early_leave_timeslots) || 0,
+    id: raw.id, employeeId: raw.employee_id, employeeCode: emp?.employee_code || '',
+    fullName: emp?.full_name || '', position: emp?.position || '', dailyRate,
+    workedHours: Number(raw.worked_hours) || 0, requiredHours: Number(raw.required_hours) || 160,
+    lateTimeslots: Number(raw.late_timeslots) || 0, earlyLeaveTimeslots: Number(raw.early_leave_timeslots) || 0,
     regularOvertimeHours: Number(raw.regular_overtime_hours) || 0,
     holidayOvertimeHours: Number(raw.holiday_overtime_hours) || 0,
     specialOvertimeHours: Number(raw.special_overtime_hours) || 0,
-    businessTripDays: Number(raw.business_trip_days) || 0,
-    absences: Number(raw.absences) || 0,
-    onLeaveDays: Number(raw.on_leave_days) || 0,
-    additionalPay: Number(raw.additional_pay) || 0,
-    deductionAmount: Number(raw.deduction_amount) || 0,
-    daysPresent: Number(raw.days_present) || 0,
+    businessTripDays: Number(raw.business_trip_days) || 0, absences: Number(raw.absences) || 0,
+    onLeaveDays: Number(raw.on_leave_days) || 0, additionalPay: Number(raw.additional_pay) || 0,
+    deductionAmount: Number(raw.deduction_amount) || 0, daysPresent: Number(raw.days_present) || 0,
     hasIncompletePunch: raw.has_incomplete_punch ?? false,
     incompletePunchDates: raw.incomplete_punch_dates ?? [],
   };
@@ -607,24 +548,39 @@ function mapPayrollRecord(raw: any): PayrollRecord {
     undertimeDeductions: Number(raw.undertime_deductions) || 0, sss: Number(raw.sss) || 0,
     philhealth: Number(raw.philhealth) || 0, hdmf: Number(raw.hdmf) || 0,
     withholdingTax: Number(raw.withholding_tax) || 0, cashAdvance: Number(raw.cash_advance) || 0,
-    cashAdvanceIssued: Number(raw.cash_advance_issued) || 0, carryOverFromPrevious: Number(raw.carry_over_from_previous) || 0, totalDeductions: Number(raw.total_deductions) || 0,
+    cashAdvanceIssued: Number(raw.cash_advance_issued) || 0,
+    carryOverFromPrevious: Number(raw.carry_over_from_previous) || 0,
+    totalDeductions: Number(raw.total_deductions) || 0,
     netPay: Number(raw.net_pay) || 0, taxableIncome: Number(raw.taxable_income) || 0,
     status: raw.status || 'pending',
   };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PAYROLL HOOK
+// PAYROLL HOOK — with localStorage period persistence
 // ═══════════════════════════════════════════════════════════════════════════════
 export function usePayrollData() {
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+  // ✅ FIX: lazy init reads localStorage — zero new hooks added, same order as before
+  const [selectedPeriodId, setSelectedPeriodIdRaw] = useState<string | null>(
+    () => localStorage.getItem('operix_last_period')
+  );
   const [computing, setComputing] = useState(false);
   const [resetting, setResetting] = useState(false);
 
   const periodsQ = useQuery(() => db.payroll.getPeriods(), [], ['payroll_periods']);
   const periods: PayrollPeriod[] = (periodsQ.data || []).map(mapPeriod);
-  const activePeriodId = selectedPeriodId || periods[0]?.id || null;
+
+  // If saved period was deleted, fall back to most recent — no useEffect needed
+  const savedIsValid = selectedPeriodId ? !!periods.find(p => p.id === selectedPeriodId) : false;
+  const activePeriodId = (savedIsValid ? selectedPeriodId : null) || periods[0]?.id || null;
   const currentPeriod = periods.find(p => p.id === activePeriodId) || null;
+
+  // Plain function (not useCallback) — adds zero new hooks
+  const setSelectedPeriodId = (id: string | null) => {
+    if (id) localStorage.setItem('operix_last_period', id);
+    else localStorage.removeItem('operix_last_period');
+    setSelectedPeriodIdRaw(id);
+  };
 
   const attendanceQ = useQuery(
     () => activePeriodId ? db.payroll.getAttendanceLogs(activePeriodId) : Promise.resolve([]),
@@ -678,17 +634,21 @@ export function usePayrollData() {
       return r;
     },
 
-    // ── BUG 2 FIX: Calls fix_incomplete_punches_for_period before computing ──
     computePayroll: async (periodId: string) => {
       setComputing(true);
       const r = await safe(async () => {
-        // Step 1: Fix incomplete punches — treat time_in with no time_out as full day and flag it
-        await supabase.rpc('fix_incomplete_punches_for_period', { p_period_id: periodId });
-        // Step 2: Refresh attendance logs so UI reflects the fix
-        await attendanceQ.refresh();
-        // Step 3: Run payroll computation
+        // Only re-flag incomplete punches on the FIRST compute (no payroll records yet).
+        // On recomputes, the admin has already confirmed/resolved incomplete punches,
+        // so we must NOT re-flag them.
+        const { count } = await supabase
+          .from('payroll_records')
+          .select('id', { count: 'exact', head: true })
+          .eq('payroll_period_id', periodId);
+        if (!count || count === 0) {
+          await supabase.rpc('fix_incomplete_punches_for_period', { p_period_id: periodId });
+          await attendanceQ.refresh();
+        }
         await db.payroll.computePayroll(periodId);
-        // Step 4: Refresh payroll records
         await payrollQ.refresh();
       });
       setComputing(false);
@@ -709,7 +669,10 @@ export function usePayrollData() {
     deletePeriod: async (periodId: string) => {
       const r = await safe(async () => {
         await db.payroll.deletePeriod(periodId);
-        if (selectedPeriodId === periodId) setSelectedPeriodId(null);
+        // ✅ FIX: Clear localStorage when deleting the active period
+        if (selectedPeriodId === periodId) {
+          setSelectedPeriodId(null);
+        }
         periodsQ.refresh();
         attendanceQ.refresh();
         payrollQ.refresh();
@@ -748,9 +711,6 @@ export function useLogsData() {
       supabase.from('inventory_changes').select(`*, changed_by_user:changed_by(id, first_name, last_name, role), item:inventory_item_id(name)`).order('created_at', { ascending: false }).limit(200),
       supabase.from('audit_logs').select(`*, actor_user:actor_id(id, first_name, last_name, role)`).order('created_at', { ascending: false }).limit(200)
     ]);
-    if (ordersRes.error) console.error("Order logs error:", ordersRes.error);
-    if (invRes.error) console.error("Inventory logs error:", invRes.error);
-    if (auditRes.error) console.error("Audit logs error:", auditRes.error);
     return { orders: ordersRes.data || [], inventory: invRes.data || [], audit: auditRes.data || [] };
   }, [], ['order_logs', 'inventory_changes', 'audit_logs']);
 
@@ -766,59 +726,23 @@ export function useLogsData() {
     q.data.audit.forEach((raw: any) => {
       let details = '';
       const m = raw.metadata || {};
-      switch (raw.action) {
-        case 'Update Inventory':
-          details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`;
-          break;
-        case 'Create Order':
-          details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`;
-          break;
-        case 'Record Payment':
-          details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_', ' ')} (Ref: ${m.ref || 'N/A'}).`;
-          break;
-        case 'Approve Payment':
-          details = `Payment approved for order.`;
-          break;
-        case 'Decline Payment':
-          details = `Payment declined. Reason: ${m.reason}`;
-          break;
-        case 'Request Cash Advance':
-          details = `Requested ₱${m.amount?.toLocaleString()} for ${m.employee_name}.`;
-          break;
-        case 'Create Employee':
-          details = `New employee: ${m.name} (${m.position})`;
-          break;
-        case 'Update Employee':
-          details = `Updated employee info. Fields: ${Object.keys(m.updates || {}).join(', ')}`;
-          break;
-        case 'Create Supplier':
-          details = `New supplier: ${m.name}`;
-          break;
-        case 'Update Supplier':
-          details = `Updated supplier info. Fields: ${Object.keys(m.updates || {}).join(', ')}`;
-          break;
-        case 'Create Inventory Item':
-          details = `New inventory item: ${m.name}`;
-          break;
-        case 'Create Product':
-          details = `New product: ${m.name} (${m.category})`;
-          break;
-        case 'Update Product':
-          details = `Updated product info. Fields: ${Object.keys(m.updates || {}).join(', ')}`;
-          break;
-        default:
-          details = typeof raw.metadata === 'object' ? JSON.stringify(raw.metadata) : String(raw.metadata || '');
+      switch(raw.action) {
+        case 'Update Inventory': details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`; break;
+        case 'Create Order': details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`; break;
+        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_',' ')} (Ref: ${m.ref || 'N/A'}).`; break;
+        case 'Approve Payment': details = `Payment approved for order.`; break;
+        case 'Decline Payment': details = `Payment declined. Reason: ${m.reason}`; break;
+        case 'Request Cash Advance': details = `Requested ₱${m.amount?.toLocaleString()} for ${m.employee_name}.`; break;
+        case 'Create Employee': details = `New employee: ${m.name} (${m.position})`; break;
+        case 'Update Employee': details = `Updated employee info. Fields: ${Object.keys(m.updates || {}).join(', ')}`; break;
+        case 'Create Supplier': details = `New supplier: ${m.name}`; break;
+        case 'Update Supplier': details = `Updated supplier info. Fields: ${Object.keys(m.updates || {}).join(', ')}`; break;
+        case 'Create Inventory Item': details = `New inventory item: ${m.name}`; break;
+        case 'Create Product': details = `New product: ${m.name} (${m.category})`; break;
+        case 'Update Product': details = `Updated product info. Fields: ${Object.keys(m.updates || {}).join(', ')}`; break;
+        default: details = typeof raw.metadata === 'object' ? JSON.stringify(raw.metadata) : String(raw.metadata || '');
       }
-      combined.push({
-        id: raw.id,
-        module: raw.target_table || 'system',
-        action: raw.action || 'System Action',
-        details,
-        user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System',
-        role: raw.actor_role || raw.actor_user?.role || 'system',
-        createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '',
-        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0
-      });
+      combined.push({ id: raw.id, module: raw.target_table || 'system', action: raw.action || 'System Action', details, user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System', role: raw.actor_role || raw.actor_user?.role || 'system', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
     });
     return combined.sort((a, b) => b.timestamp - a.timestamp);
   }, [q.data]);
@@ -831,9 +755,8 @@ export function useLogsData() {
 // ═══════════════════════════════════════════════════════════════════════════════
 export interface CashAdvanceEligibility {
   eligible: boolean;
-  reason: 'eligible' | 'limit_reached' | 'restricted_next_period' | 'approved_awaiting_deduction';
+  reason: 'eligible' | 'limit_reached';
   remaining: number; totalUsed: number;
-  detail?: { amount: number; date_issued: string; periodLabel?: string };
 }
 
 export function useCashierCashAdvances() {

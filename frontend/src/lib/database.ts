@@ -2,8 +2,8 @@
 // Direct Supabase queries — NO Express middleman
 // RLS handles all security. This file is the ONLY data access layer.
 
-import {supabase} from "../config/supabaseClient";
-import {sanitizeInput, isValidUUID} from "../util/security";
+import { supabase } from "../config/supabaseClient";
+import { sanitizeInput, isValidUUID } from "../util/security";
 
 /**
  * Uploads a file to the 'order-files' storage bucket.
@@ -15,7 +15,7 @@ export async function uploadOrderFile(
   oldUrl?: string,
 ): Promise<string> {
   const {
-    data: {user},
+    data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
@@ -27,7 +27,7 @@ export async function uploadOrderFile(
   const fileName = `${user.id}/${Date.now()}.${fileExt}`;
   const filePath = `customer-uploads/${fileName}`;
 
-  const {error: uploadError} = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from("order-files")
     .upload(filePath, file, {
       cacheControl: "3600",
@@ -56,7 +56,7 @@ export async function uploadOrderFile(
   }
 
   const {
-    data: {publicUrl},
+    data: { publicUrl },
   } = supabase.storage.from("order-files").getPublicUrl(filePath);
 
   return publicUrl;
@@ -71,7 +71,7 @@ export async function uploadProfilePicture(
   oldUrl?: string,
 ): Promise<string> {
   const {
-    data: {user},
+    data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
 
@@ -84,7 +84,7 @@ export async function uploadProfilePicture(
   const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
   // 2. Upload new file
-  const {error: uploadError} = await supabase.storage
+  const { error: uploadError } = await supabase.storage
     .from("user-profile")
     .upload(fileName, file, {
       cacheControl: "3600",
@@ -113,7 +113,7 @@ export async function uploadProfilePicture(
   }
 
   const {
-    data: {publicUrl},
+    data: { publicUrl },
   } = supabase.storage.from("user-profile").getPublicUrl(fileName);
 
   return publicUrl;
@@ -127,10 +127,10 @@ export const db = {
   // ── Profile ────────────────────────────────────────────────────────────
   async getMyProfile() {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) return null;
-    const {data} = await supabase
+    const { data } = await supabase
       .from("users")
       .select("*")
       .eq("id", user.id)
@@ -147,17 +147,17 @@ export const db = {
     avatar_url?: string;
   }) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
     if (updates.first_name !== undefined || updates.last_name !== undefined) {
       await supabase.auth.updateUser({
-        data: {first_name: updates.first_name, last_name: updates.last_name},
+        data: { first_name: updates.first_name, last_name: updates.last_name },
       });
     }
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("users")
       .update(updates)
       .eq("id", user.id)
@@ -168,20 +168,20 @@ export const db = {
   },
 
   async updateMyPassword(newPassword: string) {
-    const {error} = await supabase.auth.updateUser({password: newPassword});
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) throw error;
   },
 
   // ── Users list (staff can read all via RLS) ────────────────────────────
-  async getUsers(filters?: {role?: string; status?: string}) {
+  async getUsers(filters?: { role?: string; status?: string }) {
     let query = supabase
       .from("users")
       .select("*")
-      .order("created_at", {ascending: false});
+      .order("created_at", { ascending: false });
     if (filters?.role) query = query.eq("role", filters.role);
     if (filters?.status === "active") query = query.eq("is_active", true);
     if (filters?.status === "inactive") query = query.eq("is_active", false);
-    const {data, error} = await query;
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
@@ -230,7 +230,7 @@ export const db = {
   // EMPLOYEES
   // ═══════════════════════════════════════════════════════════════════════════
   async getEmployees() {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("employees")
       .select("*")
       .order("employee_code");
@@ -246,7 +246,7 @@ export const db = {
     base_hourly_rate?: number;
     hire_date?: string;
   }) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("employees")
       .insert([
         {
@@ -264,7 +264,7 @@ export const db = {
   },
 
   async updateEmployee(id: string, updates: Record<string, any>) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("employees")
       .update(updates)
       .eq("id", id)
@@ -279,7 +279,7 @@ export const db = {
   // SUPPLIERS
   // ═══════════════════════════════════════════════════════════════════════════
   async getSuppliers() {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("suppliers")
       .select("*")
       .order("name");
@@ -294,9 +294,9 @@ export const db = {
     email?: string;
     address?: string;
   }) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("suppliers")
-      .insert([{...s, is_active: true, is_flagged: false}])
+      .insert([{ ...s, is_active: true, is_flagged: false }])
       .select()
       .single();
     if (error) throw error;
@@ -305,7 +305,7 @@ export const db = {
   },
 
   async updateSupplier(id: string, updates: Record<string, any>) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("suppliers")
       .update(updates)
       .eq("id", id)
@@ -320,7 +320,7 @@ export const db = {
   // INVENTORY
   // ═══════════════════════════════════════════════════════════════════════════
   async getInventoryItems() {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("inventory_items")
       .select(
         "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
@@ -340,9 +340,9 @@ export const db = {
     purchase_unit?: string;
     conversion_rate?: number;
   }) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("inventory_items")
-      .insert([{...item, is_active: true}])
+      .insert([{ ...item, is_active: true }])
       .select()
       .single();
     if (error) throw error;
@@ -352,16 +352,16 @@ export const db = {
 
   async updateInventoryItem(id: string, updates: Record<string, any>) {
     const { data: oldItem } = await supabase.from('inventory_items').select('*').eq('id', id).single();
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("inventory_items")
       .update(updates)
       .eq("id", id)
       .select()
       .single();
     if (error) throw error;
-    
-    await this.logAudit("Update Inventory", "inventory_items", id, { 
-      before: oldItem, 
+
+    await this.logAudit("Update Inventory", "inventory_items", id, {
+      before: oldItem,
       after: data,
       changed_fields: Object.keys(updates)
     });
@@ -376,7 +376,7 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   // PRODUCTS
   // ═══════════════════════════════════════════════════════════════════════════
-  async getProducts(filters?: {category?: string; search?: string}) {
+  async getProducts(filters?: { category?: string; search?: string }) {
     let query = supabase
       .from("products")
       .select("*")
@@ -391,15 +391,15 @@ export const db = {
         );
       }
     }
-    const {data, error} = await query;
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
 
   async createProduct(p: Record<string, any>) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("products")
-      .insert([{...p, is_active: true}])
+      .insert([{ ...p, is_active: true }])
       .select()
       .single();
     if (error) throw error;
@@ -408,7 +408,7 @@ export const db = {
   },
 
   async updateProduct(id: string, updates: Record<string, any>) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("products")
       .update(updates)
       .eq("id", id)
@@ -439,7 +439,7 @@ export const db = {
       payments(id, amount, payment_method, reference_number, created_at, status, decline_reason)
     `,
       )
-      .order("created_at", {ascending: false});
+      .order("created_at", { ascending: false });
 
     if (filters?.status && filters.status !== "all")
       query = query.eq("status", filters.status);
@@ -448,13 +448,13 @@ export const db = {
     if (filters?.assigned_production)
       query = query.eq("assigned_production", filters.assigned_production);
 
-    const {data, error} = await query;
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
 
   async getOrderById(id: string) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .select(
         `
@@ -494,13 +494,13 @@ export const db = {
     }[];
   }) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
     let orderNumber: string;
     try {
-      const {data: seq} = await supabase.rpc("get_next_order_seq");
+      const { data: seq } = await supabase.rpc("get_next_order_seq");
       orderNumber = `ORD-${new Date().getFullYear()}-${String(seq ?? Date.now()).padStart(5, "0")}`;
     } catch {
       orderNumber = `ORD-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
@@ -511,7 +511,7 @@ export const db = {
       0,
     );
 
-    const {data: newOrder, error: orderErr} = await supabase
+    const { data: newOrder, error: orderErr } = await supabase
       .from("orders")
       .insert([
         {
@@ -551,15 +551,15 @@ export const db = {
     }));
 
     await supabase.from("order_items").insert(items);
-    
-    await this.logAudit("Create Order", "orders", newOrder.id, { 
-      order_number: orderNumber, 
+
+    await this.logAudit("Create Order", "orders", newOrder.id, {
+      order_number: orderNumber,
       total_amount: totalAmount,
-      items_count: items.length 
+      items_count: items.length
     });
-    
+
     await this.notifyRoles(['admin', 'cashier'], "New Order Received", `Order ${orderNumber} has been placed for ${order.guest_name || 'a customer'}.`, 'orders', newOrder.id);
-    
+
     if (order.assigned_designer) {
       await this.notifyUser(order.assigned_designer, "New Design Assignment", `You have been assigned to design Order ${orderNumber}.`, 'orders', newOrder.id);
     }
@@ -569,7 +569,7 @@ export const db = {
 
   async updateOrder(id: string, updates: Record<string, any>) {
     const { data: old } = await supabase.from('orders').select('*').eq('id', id).single();
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .update(updates)
       .eq("id", id)
@@ -577,16 +577,16 @@ export const db = {
       .single();
     if (error) throw error;
 
-    await this.logAudit("Update Order", "orders", id, { 
-      before: old, 
-      after: data, 
-      changed: Object.keys(updates) 
+    await this.logAudit("Update Order", "orders", id, {
+      before: old,
+      after: data,
+      changed: Object.keys(updates)
     });
 
     if (updates.status && updates.status !== old.status) {
       await this.notifyRoles(['admin', 'cashier'], "Order Status Updated", `Order ${data.order_number} changed from ${old.status} to ${data.status}.`, 'orders', id);
       if (data.customer_id) {
-        await this.notifyUser(data.customer_id, "Order Update", `Your order ${data.order_number} is now ${data.status.replace('_',' ')}.`, 'orders', id);
+        await this.notifyUser(data.customer_id, "Order Update", `Your order ${data.order_number} is now ${data.status.replace('_', ' ')}.`, 'orders', id);
       }
     }
 
@@ -595,14 +595,14 @@ export const db = {
 
   async updateDesignerOrderDetails(
     orderId: string,
-    updates: {total_amount?: number; due_date?: string},
+    updates: { total_amount?: number; due_date?: string },
   ) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const {data: actor, error: actorErr} = await supabase
+    const { data: actor, error: actorErr } = await supabase
       .from("users")
       .select("role")
       .eq("id", user.id)
@@ -612,7 +612,7 @@ export const db = {
       throw new Error("Only designers can edit order pricing in this flow");
     }
 
-    const {data: order, error: orderErr} = await supabase
+    const { data: order, error: orderErr } = await supabase
       .from("orders")
       .select("id, assigned_designer, status, total_amount")
       .eq("id", orderId)
@@ -641,7 +641,7 @@ export const db = {
     if (updates.due_date !== undefined) payload.due_date = updates.due_date;
     if (Object.keys(payload).length === 0) return order;
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .update(payload)
       .eq("id", orderId)
@@ -656,7 +656,7 @@ export const db = {
    * Designing starts only when the assigned designer explicitly accepts.
    */
   async assignDesignerForAcceptance(orderId: string, designerId: string) {
-    const {data: order, error: fetchError} = await supabase
+    const { data: order, error: fetchError } = await supabase
       .from("orders")
       .select("id, status")
       .eq("id", orderId)
@@ -670,7 +670,7 @@ export const db = {
       );
     }
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .update({
         assigned_designer: designerId,
@@ -694,11 +694,11 @@ export const db = {
    */
   async designerAcceptAssignedOrder(orderId: string) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const {data: order, error: fetchError} = await supabase
+    const { data: order, error: fetchError } = await supabase
       .from("orders")
       .select("id, order_number, customer_id, assigned_designer, status")
       .eq("id", orderId)
@@ -713,9 +713,9 @@ export const db = {
       throw new Error("Only in-queue orders can be accepted for designing");
     }
 
-    const {data: updated, error: updateErr} = await supabase
+    const { data: updated, error: updateErr } = await supabase
       .from("orders")
-      .update({status: "designing"})
+      .update({ status: "designing" })
       .eq("id", orderId)
       .select()
       .single();
@@ -723,7 +723,7 @@ export const db = {
 
     if (order.customer_id) {
       try {
-        const {data: profile} = await supabase
+        const { data: profile } = await supabase
           .from("users")
           .select("first_name, last_name")
           .eq("id", user.id)
@@ -753,11 +753,11 @@ export const db = {
    */
   async designerSelfPickOrder(orderId: string) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const {data: order, error: fetchError} = await supabase
+    const { data: order, error: fetchError } = await supabase
       .from("orders")
       .select("id, order_number, customer_id, assigned_designer, status")
       .eq("id", orderId)
@@ -772,9 +772,9 @@ export const db = {
       throw new Error("Order is already assigned to another designer");
     }
 
-    const {data: updated, error: updateErr} = await supabase
+    const { data: updated, error: updateErr } = await supabase
       .from("orders")
-      .update({assigned_designer: user.id, status: "designing"})
+      .update({ assigned_designer: user.id, status: "designing" })
       .eq("id", orderId)
       .select()
       .single();
@@ -782,7 +782,7 @@ export const db = {
 
     if (order.customer_id) {
       try {
-        const {data: profile} = await supabase
+        const { data: profile } = await supabase
           .from("users")
           .select("first_name, last_name")
           .eq("id", user.id)
@@ -806,11 +806,11 @@ export const db = {
 
   async updateCustomerDesign(orderId: string, url: string) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const {data: actor, error: actorErr} = await supabase
+    const { data: actor, error: actorErr } = await supabase
       .from("users")
       .select("role")
       .eq("id", user.id)
@@ -823,7 +823,7 @@ export const db = {
       );
     }
 
-    const {data: order, error: orderErr} = await supabase
+    const { data: order, error: orderErr } = await supabase
       .from("orders")
       .select("status")
       .eq("id", orderId)
@@ -840,11 +840,11 @@ export const db = {
     // 3: Customer uploads initial design. Keep both order-level and item-level refs.
     await supabase
       .from("orders")
-      .update({design_file_url: url})
+      .update({ design_file_url: url })
       .eq("id", orderId);
 
     // We also update the first item in order_items for this order
-    const {data: items, error: fetchError} = await supabase
+    const { data: items, error: fetchError } = await supabase
       .from("order_items")
       .select("id")
       .eq("order_id", orderId)
@@ -854,9 +854,9 @@ export const db = {
     if (!items || items.length === 0)
       throw new Error("No items found for this order");
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("order_items")
-      .update({file_url: url})
+      .update({ file_url: url })
       .eq("id", items[0].id)
       .select()
       .single();
@@ -870,11 +870,11 @@ export const db = {
    */
   async submitFinalDesign(orderId: string, url: string) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const {data: order, error: fetchError} = await supabase
+    const { data: order, error: fetchError } = await supabase
       .from("orders")
       .select("id, customer_id, assigned_designer, status")
       .eq("id", orderId)
@@ -891,9 +891,9 @@ export const db = {
       );
     }
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("orders")
-      .update({final_design_url: url})
+      .update({ final_design_url: url })
       .eq("id", orderId)
       .select()
       .single();
@@ -920,11 +920,11 @@ export const db = {
    */
   async approveOrderDesign(orderId: string) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const {data: actor} = await supabase
+    const { data: actor } = await supabase
       .from("users")
       .select("role")
       .eq("id", user.id)
@@ -937,7 +937,7 @@ export const db = {
       throw new Error("Only designers or admins can approve the final design");
     }
 
-    const {data: order, error: fetchError} = await supabase
+    const { data: order, error: fetchError } = await supabase
       .from("orders")
       .select("id, customer_id, assigned_designer, status, final_design_url")
       .eq("id", orderId)
@@ -955,9 +955,9 @@ export const db = {
       throw new Error("No final design found to approve");
     }
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("orders")
-      .update({status: "payment"})
+      .update({ status: "payment" })
       .eq("id", orderId)
       .eq("status", "designing")
       .select()
@@ -982,12 +982,12 @@ export const db = {
   async deleteOrder(id: string) {
     await supabase.from("payments").delete().eq("order_id", id);
     await supabase.from("order_items").delete().eq("order_id", id);
-    const {error} = await supabase.from("orders").delete().eq("id", id);
+    const { error } = await supabase.from("orders").delete().eq("id", id);
     if (error) throw error;
   },
 
   async getOrderBOM(orderId: string) {
-    const {data: items, error: itemsErr} = await supabase
+    const { data: items, error: itemsErr } = await supabase
       .from("order_items")
       .select("product_id, quantity, product_name")
       .eq("order_id", orderId);
@@ -1003,7 +1003,7 @@ export const db = {
 
     for (const item of items || []) {
       if (!item.product_id) continue;
-      const {data: bom, error: bomErr} = await supabase
+      const { data: bom, error: bomErr } = await supabase
         .from("product_supply_mapping")
         .select(
           "inventory_item_id, quantity_required, inventory_items:inventory_item_id(name, unit_of_measure)",
@@ -1031,21 +1031,21 @@ export const db = {
     excessUsage?: Record<string, number>,
   ) {
     // 1. Get order items
-    const {data: items, error: itemsErr} = await supabase
+    const { data: items, error: itemsErr } = await supabase
       .from("order_items")
       .select("product_id, quantity")
       .eq("order_id", orderId);
     if (itemsErr) throw itemsErr;
 
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
 
     for (const item of items || []) {
       if (!item.product_id) continue;
 
       // 2. Get BOM for this product
-      const {data: bom, error: bomErr} = await supabase
+      const { data: bom, error: bomErr } = await supabase
         .from("product_supply_mapping")
         .select("inventory_item_id, quantity_required")
         .eq("product_id", item.product_id);
@@ -1053,7 +1053,7 @@ export const db = {
 
       for (const mapping of bom || []) {
         // 3. Deduct from inventory
-        const {data: inv, error: invErr} = await supabase
+        const { data: inv, error: invErr } = await supabase
           .from("inventory_items")
           .select("current_quantity")
           .eq("id", mapping.inventory_item_id)
@@ -1066,7 +1066,7 @@ export const db = {
 
         const newQty = Number(inv.current_quantity) - totalDeduction;
 
-        const {error: updateErr} = await supabase
+        const { error: updateErr } = await supabase
           .from("inventory_items")
           .update({
             current_quantity: newQty,
@@ -1105,14 +1105,14 @@ export const db = {
     },
   ) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
     // We insert as 'pending' by default. 
     // We DO NOT update the order's amount_paid yet. 
     // That only happens when the cashier approves.
-    const {error: payErr} = await supabase.from("payments").insert([
+    const { error: payErr } = await supabase.from("payments").insert([
       {
         order_id: orderId,
         amount: payment.amount,
@@ -1124,19 +1124,19 @@ export const db = {
     if (payErr) throw payErr;
 
     const { data: order } = await supabase.from('orders').select('order_number').eq('id', orderId).single();
-    await this.logAudit("Record Payment", "payments", orderId, { 
-      amount: payment.amount, 
-      method: payment.payment_method, 
-      ref: payment.reference_number 
+    await this.logAudit("Record Payment", "payments", orderId, {
+      amount: payment.amount,
+      method: payment.payment_method,
+      ref: payment.reference_number
     });
     await this.notifyRoles(['admin', 'cashier'], "New Payment Recorded", `A payment of ₱${payment.amount.toLocaleString()} has been recorded for Order ${order?.order_number || 'N/A'}.`, 'orders', orderId);
   },
 
   async approvePayment(paymentId: string, orderId: string) {
     // 1. Update the payment record to 'approved'
-    const {error: updateError} = await supabase
+    const { error: updateError } = await supabase
       .from("payments")
-      .update({status: "approved"})
+      .update({ status: "approved" })
       .eq("id", paymentId);
 
     if (updateError) throw updateError;
@@ -1148,7 +1148,7 @@ export const db = {
 
   async declinePayment(paymentId: string, orderId: string, reason: string) {
     // 1. Update the payment record to 'declined'
-    const {error: updateError} = await supabase
+    const { error: updateError } = await supabase
       .from("payments")
       .update({
         status: "declined",
@@ -1159,7 +1159,7 @@ export const db = {
     if (updateError) throw updateError;
 
     // 2. Get order details for notification
-    const {data: order} = await supabase
+    const { data: order } = await supabase
       .from("orders")
       .select("customer_id, order_number")
       .eq("id", orderId)
@@ -1200,7 +1200,7 @@ export const db = {
    */
   async syncOrderPaymentStatus(orderId: string) {
     // 1. Get all approved payments
-    const {data: approvedPayments, error: sumError} = await supabase
+    const { data: approvedPayments, error: sumError } = await supabase
       .from("payments")
       .select("amount")
       .eq("order_id", orderId)
@@ -1215,7 +1215,7 @@ export const db = {
     );
 
     // 3. Get order total
-    const {data: order, error: orderFetchError} = await supabase
+    const { data: order, error: orderFetchError } = await supabase
       .from("orders")
       .select("total_amount")
       .eq("id", orderId)
@@ -1230,7 +1230,7 @@ export const db = {
     else if (totalApproved > 0) newStatus = "partial";
 
     // 5. Update order
-    const {error: finalError} = await supabase
+    const { error: finalError } = await supabase
       .from("orders")
       .update({
         amount_paid: totalApproved,
@@ -1240,24 +1240,24 @@ export const db = {
 
     if (finalError) throw finalError;
 
-    return {success: true};
+    return { success: true };
   },
 
 
   async markDeclineAsRead(orderId: string) {
-    const {error} = await supabase
+    const { error } = await supabase
       .from("orders")
-      .update({has_unread_decline: false})
+      .update({ has_unread_decline: false })
       .eq("id", orderId);
     if (error) throw error;
   },
 
   async getPayments(orderId: string) {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("payments")
       .select("*")
       .eq("order_id", orderId)
-      .order("created_at", {ascending: false});
+      .order("created_at", { ascending: false });
     if (error) throw error;
     return data || [];
   },
@@ -1266,12 +1266,12 @@ export const db = {
   // CART (customer only — RLS enforces ownership)
   // ═══════════════════════════════════════════════════════════════════════════
   async getCart() {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("cart_items")
       .select(
         "*, product:product_id(id, name, description, category, size_spec, variant, final_price)",
       )
-      .order("created_at", {ascending: false});
+      .order("created_at", { ascending: false });
     if (error) throw error;
     return data || [];
   },
@@ -1284,22 +1284,22 @@ export const db = {
     fileUrl?: string,
   ) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
     if (!forceNewRow) {
-      const {data: existingList, error: queryErr} = await supabase
+      const { data: existingList, error: queryErr } = await supabase
         .from("cart_items")
         .select("id, quantity")
         .eq("customer_id", user.id)
         .eq("product_id", productId)
-        .order("created_at", {ascending: false})
+        .order("created_at", { ascending: false })
         .limit(1);
 
       if (!queryErr && existingList && existingList.length > 0) {
         const existing = existingList[0];
-        const {data, error} = await supabase
+        const { data, error } = await supabase
           .from("cart_items")
           .update({
             quantity: existing.quantity + quantity,
@@ -1314,7 +1314,7 @@ export const db = {
       }
     }
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("cart_items")
       .insert([
         {
@@ -1340,13 +1340,13 @@ export const db = {
       file_url?: string;
     },
   ) {
-    const dbUpdates: any = {...updates};
+    const dbUpdates: any = { ...updates };
     if ("fileUrl" in dbUpdates) {
       dbUpdates.file_url = dbUpdates.fileUrl;
       delete dbUpdates.fileUrl;
     }
 
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("cart_items")
       .update(dbUpdates)
       .eq("id", cartItemId)
@@ -1357,7 +1357,7 @@ export const db = {
   },
 
   async removeCartItem(cartItemId: string) {
-    const {error} = await supabase
+    const { error } = await supabase
       .from("cart_items")
       .delete()
       .eq("id", cartItemId);
@@ -1366,10 +1366,10 @@ export const db = {
 
   async clearCart() {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
-    const {error} = await supabase
+    const { error } = await supabase
       .from("cart_items")
       .delete()
       .eq("customer_id", user.id);
@@ -1378,7 +1378,7 @@ export const db = {
 
   async checkout(specialInstructions?: string, dueDate?: string, itemIds?: string[]) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
@@ -1406,7 +1406,7 @@ export const db = {
     });
 
     if (itemIds && itemIds.length > 0) {
-      const {error} = await supabase
+      const { error } = await supabase
         .from("cart_items")
         .delete()
         .in("id", itemIds);
@@ -1422,7 +1422,7 @@ export const db = {
   // STAFF LIST (for assignment dropdowns)
   // ═══════════════════════════════════════════════════════════════════════════
   async getStaffList() {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("users")
       .select("id, first_name, last_name, role")
       .in("role", ["designer", "production", "admin"])
@@ -1437,9 +1437,9 @@ export const db = {
   // INVENTORY — extended
   // ═══════════════════════════════════════════════════════════════════════════
   async deleteInventoryItem(id: string) {
-    const {error} = await supabase
+    const { error } = await supabase
       .from("inventory_items")
-      .update({is_active: false})
+      .update({ is_active: false })
       .eq("id", id);
     if (error) throw error;
   },
@@ -1448,7 +1448,7 @@ export const db = {
   // PRODUCTS WITH BOM
   // ═══════════════════════════════════════════════════════════════════════════
   async getProductsWithBOM() {
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("products")
       .select(
         "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost))",
@@ -1470,18 +1470,18 @@ export const db = {
       final_price: number;
       description?: string;
     },
-    bom: {inventory_item_id: string; quantity_required: number}[],
+    bom: { inventory_item_id: string; quantity_required: number }[],
   ) {
-    const {data: p, error: pErr} = await supabase
+    const { data: p, error: pErr } = await supabase
       .from("products")
-      .insert([{...product, is_active: true}])
+      .insert([{ ...product, is_active: true }])
       .select()
       .single();
     if (pErr) throw pErr;
 
     if (bom.length > 0) {
-      const rows = bom.map((b) => ({product_id: p.id, ...b}));
-      const {error: bErr} = await supabase
+      const rows = bom.map((b) => ({ product_id: p.id, ...b }));
+      const { error: bErr } = await supabase
         .from("product_supply_mapping")
         .insert(rows);
       if (bErr) throw bErr;
@@ -1492,10 +1492,10 @@ export const db = {
   async updateProductWithBOM(
     id: string,
     product: Record<string, any>,
-    bom?: {inventory_item_id: string; quantity_required: number}[],
+    bom?: { inventory_item_id: string; quantity_required: number }[],
   ) {
     product.updated_at = new Date().toISOString();
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("products")
       .update(product)
       .eq("id", id)
@@ -1509,7 +1509,7 @@ export const db = {
         .delete()
         .eq("product_id", id);
       if (bom.length > 0) {
-        const rows = bom.map((b) => ({product_id: id, ...b}));
+        const rows = bom.map((b) => ({ product_id: id, ...b }));
         await supabase.from("product_supply_mapping").insert(rows);
       }
     }
@@ -1517,9 +1517,9 @@ export const db = {
   },
 
   async deleteProduct(id: string) {
-    const {error} = await supabase
+    const { error } = await supabase
       .from("products")
-      .update({is_active: false, updated_at: new Date().toISOString()})
+      .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq("id", id);
     if (error) throw error;
   },
@@ -1527,7 +1527,7 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   // DELIVERIES
   // ═══════════════════════════════════════════════════════════════════════════
-  async getDeliveries(filters?: {status?: string}) {
+  async getDeliveries(filters?: { status?: string }) {
     let query = supabase
       .from("deliveries")
       .select(
@@ -1538,10 +1538,10 @@ export const db = {
       requester:requested_by(id, first_name, last_name)
     `,
       )
-      .order("created_at", {ascending: false});
+      .order("created_at", { ascending: false });
     if (filters?.status && filters.status !== "all")
       query = query.eq("status", filters.status);
-    const {data, error} = await query;
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
@@ -1554,10 +1554,10 @@ export const db = {
     notes?: string;
   }) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("deliveries")
       .insert([
         {
@@ -1574,7 +1574,7 @@ export const db = {
 
   async updateDelivery(id: string, updates: Record<string, any>) {
     updates.updated_at = new Date().toISOString();
-    const {data, error} = await supabase
+    const { data, error } = await supabase
       .from("deliveries")
       .update(updates)
       .eq("id", id)
@@ -1592,11 +1592,11 @@ export const db = {
     },
   ) {
     const {
-      data: {user},
+      data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    const {data: delivery, error: dErr} = await supabase
+    const { data: delivery, error: dErr } = await supabase
       .from("deliveries")
       .update({
         status: "received",
@@ -1617,9 +1617,9 @@ export const db = {
     const addQty = receipt.received_quantity * conversionRate;
     const newQty = Number(item.current_quantity) + addQty;
 
-    const {error: iErr} = await supabase
+    const { error: iErr } = await supabase
       .from("inventory_items")
-      .update({current_quantity: newQty, updated_at: new Date().toISOString()})
+      .update({ current_quantity: newQty, updated_at: new Date().toISOString() })
       .eq("id", item.id);
     if (iErr) throw iErr;
 
@@ -1653,16 +1653,16 @@ export const db = {
           minute: "2-digit",
         });
       }
-      return date.toLocaleDateString([], {month: "short", day: "numeric"});
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
     },
 
     async getConversations() {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) return [];
 
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("chat_messages")
         .select(
           `
@@ -1672,7 +1672,7 @@ export const db = {
         `,
         )
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-        .order("sent_at", {ascending: false});
+        .order("sent_at", { ascending: false });
 
       if (error) throw error;
       if (!data) return [];
@@ -1747,7 +1747,7 @@ export const db = {
 
     async getMessages(otherUserId: string) {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) return [];
 
@@ -1756,7 +1756,7 @@ export const db = {
         return [];
       }
 
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("chat_messages")
         .select(
           `id, sender_id, message, attachment_url, sent_at, sender:sender_id(first_name, last_name, role)`,
@@ -1764,7 +1764,7 @@ export const db = {
         .or(
           `and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id})`,
         )
-        .order("sent_at", {ascending: true});
+        .order("sent_at", { ascending: true });
 
       if (error) throw error;
       if (!data) return [];
@@ -1793,14 +1793,14 @@ export const db = {
       attachmentUrl?: string,
     ) {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
       if (!isValidUUID(receiverId)) throw new Error("Invalid receiverId");
       if (orderId && !isValidUUID(orderId)) throw new Error("Invalid orderId");
 
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("chat_messages")
         .insert([
           {
@@ -1820,7 +1820,7 @@ export const db = {
 
     async uploadChatImage(file: File, oldUrl?: string): Promise<string> {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
       if (file.size > 2 * 1024 * 1024)
@@ -1829,9 +1829,9 @@ export const db = {
       const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
       const path = `${user.id}/${Date.now()}.${ext}`;
 
-      const {error: upErr} = await supabase.storage
+      const { error: upErr } = await supabase.storage
         .from("chat-attachments")
-        .upload(path, file, {upsert: false});
+        .upload(path, file, { upsert: false });
       if (upErr) throw upErr;
 
       // Delete old file if it exists and belongs to the 'chat-attachments' bucket
@@ -1850,7 +1850,7 @@ export const db = {
         }
       }
 
-      const {data: urlData} = supabase.storage
+      const { data: urlData } = supabase.storage
         .from("chat-attachments")
         .getPublicUrl(path);
       return urlData.publicUrl;
@@ -1861,7 +1861,7 @@ export const db = {
         .channel("chat_messages_realtime")
         .on(
           "postgres_changes",
-          {event: "INSERT", schema: "public", table: "chat_messages"},
+          { event: "INSERT", schema: "public", table: "chat_messages" },
           callback,
         )
         .subscribe();
@@ -1869,7 +1869,7 @@ export const db = {
 
     async getPotentialRecipients(currentUserRole: string) {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) return [];
 
@@ -1897,7 +1897,7 @@ export const db = {
         ]);
       }
 
-      const {data, error} = await query.order("first_name");
+      const { data, error } = await query.order("first_name");
       if (error) throw error;
       if (!data) return [];
 
@@ -1914,10 +1914,10 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   payroll: {
     async getPeriods() {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("payroll_periods")
         .select("*")
-        .order("period_start", {ascending: false});
+        .order("period_start", { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -1928,12 +1928,12 @@ export const db = {
       pay_date?: string;
     }) {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("payroll_periods")
-        .insert([{...period, status: "draft", created_by: user.id}])
+        .insert([{ ...period, status: "draft", created_by: user.id }])
         .select()
         .single();
       if (error) throw error;
@@ -1941,9 +1941,9 @@ export const db = {
     },
 
     async updatePeriod(id: string, updates: Record<string, any>) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("payroll_periods")
-        .update({...updates, updated_at: new Date().toISOString()})
+        .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
         .select()
         .single();
@@ -1952,7 +1952,7 @@ export const db = {
     },
 
     async getAttendanceLogs(periodId: string) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("attendance_logs")
         .select(
           `
@@ -1986,9 +1986,9 @@ export const db = {
       additional_pay?: number;
       deduction_amount?: number;
     }) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("attendance_logs")
-        .upsert([{...log, updated_at: new Date().toISOString()}], {
+        .upsert([{ ...log, updated_at: new Date().toISOString() }], {
           onConflict: "employee_id,payroll_period_id",
         })
         .select()
@@ -1998,7 +1998,7 @@ export const db = {
     },
 
     async getPayrollRecords(periodId: string) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("payroll_records")
         .select(
           `
@@ -2013,9 +2013,9 @@ export const db = {
     },
 
     async updatePayrollRecord(id: string, updates: Record<string, any>) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("payroll_records")
-        .update({...updates, updated_at: new Date().toISOString()})
+        .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
         .select()
         .single();
@@ -2024,7 +2024,7 @@ export const db = {
     },
 
     async computePayroll(periodId: string) {
-      const {data: logs, error} = await supabase
+      const { data: logs, error } = await supabase
         .from("attendance_logs")
         .select(
           `
@@ -2065,8 +2065,18 @@ export const db = {
         //             but some days she left early — hours don't equal full days)
         //   Correct:  attend_actual = 16 ✓
         // ────────────────────────────────────────────────────────────────────
-        const daysPresent =
-          Number(log.days_present) > 0
+        // ── Calculate days_present from exceptional logs (most accurate source)
+        // Sums hours_counted per date (8=full day, 4=half day) and divides by 8
+        // Falls back to attendance_logs.days_present if no exceptional data exists
+        const { data: exceptionalHours } = await supabase
+          .from("attendance_exceptional_logs")
+          .select("hours_counted")
+          .eq("payroll_period_id", periodId)
+          .eq("employee_id", emp.id);
+
+        const daysPresent = exceptionalHours && exceptionalHours.length > 0
+          ? exceptionalHours.reduce((s: number, r: any) => s + (Number(r.hours_counted) || 8), 0) / 8
+          : Number(log.days_present) > 0
             ? Number(log.days_present)
             : Number(log.worked_hours) > 0
               ? Math.round(Number(log.worked_hours) / 8)
@@ -2077,6 +2087,17 @@ export const db = {
         // Formula: Daily Rate × Days Present
         // ────────────────────────────────────────────────────────────────────
         const basicPay = dailyRate * daysPresent;
+
+        // ────────────────────────────────────────────────────────────────────
+        // BUSINESS TRIP PAY
+        // Formula: Daily Rate × Business Trip Days
+        // Business trips are paid at the same daily rate as normal working days.
+        // This is a SEPARATE earning from Basic Pay — it does NOT inflate
+        // daysPresent, so the payslip clearly shows attendance vs. trip days.
+        // Source: attendance_logs.business_trip_days (manual entry)
+        // ────────────────────────────────────────────────────────────────────
+        const businessTripDays = Number(log.business_trip_days) || 0;
+        const businessTripPay = dailyRate * businessTripDays;
 
         // ────────────────────────────────────────────────────────────────────
         // HOLIDAY PAY
@@ -2113,6 +2134,7 @@ export const db = {
         // ────────────────────────────────────────────────────────────────────
         const grossIncome =
           basicPay +
+          businessTripPay +
           regularHolidayPay +
           specialHolidayPay +
           regularOT +
@@ -2167,117 +2189,87 @@ export const db = {
 
         // ────────────────────────────────────────────────────────────────────
         // ────────────────────────────────────────────────────────────────────
-        // CASH ADVANCE — DEFERRED DEDUCTION SYSTEM (Correct Implementation)
+        // CASH ADVANCE — SAME-PERIOD DEDUCTION SYSTEM
         //
-        // Core rule: A CA requested in Period N is NEVER deducted in Period N.
-        //            It is deducted in Period N+1.
-        //
-        // How we prevent same-period deduction:
-        //   Step 1 marks CAs with payroll_period_id = CURRENT period
-        //   Step 2 deducts CAs with payroll_period_id = PREVIOUS period ID
-        //   Since current ≠ previous, deduction NEVER happens in the same run.
+        // Core rule: A CA requested in Period N is deducted in the SAME
+        //            Period N. No deferral to the next period.
         //
         // Lifecycle:
-        //   pending → approved → added_to_current_payroll [Period N]
-        //                      → deducted                 [Period N+1]
+        //   pending → approved → deducted [all in the same Period N]
         // ────────────────────────────────────────────────────────────────────
         const MAX_ADVANCE = 2000;
 
-        // Fetch THIS period's dates
-        const {data: thisPeriod} = await supabase
-          .from("payroll_periods")
-          .select("id, period_start, period_end")
-          .eq("id", periodId)
-          .single();
-
-        const periodStart = thisPeriod?.period_start as string;
-
-        // Find the PREVIOUS payroll period by database — no date math needed
-        // "Previous" = the period whose period_end is the latest date before this period's start
-        const {data: prevPeriod} = await supabase
-          .from("payroll_periods")
-          .select("id, period_start, period_end")
-          .lt("period_end", periodStart) // ended before this period began
-          .order("period_end", {ascending: false})
-          .limit(1)
-          .maybeSingle();
-
-        // ── STEP 1: Issue all currently APPROVED CAs ─────────────────────────
-        // Any approved CA at compute time = issued to employee THIS period.
-        // Mark with payroll_period_id = current period so Step 2 never touches them.
-        const {data: approvedCAs} = await supabase
+        // ── Collect ALL approved CAs for this employee ───────────────────────
+        // These are CAs that the admin has approved but payroll hasn't processed yet.
+        // They get issued AND deducted in this same period.
+        const { data: approvedCAs } = await supabase
           .from("cash_advances")
           .select("id, amount")
           .eq("employee_id", emp.id)
           .eq("status", "approved");
 
+        // Also pick up any CAs that were previously marked added_to_current_payroll
+        // but not yet deducted (e.g. from a reset/recompute scenario)
+        const { data: issuedNotDeducted } = await supabase
+          .from("cash_advances")
+          .select("id, amount")
+          .eq("employee_id", emp.id)
+          .eq("status", "added_to_current_payroll");
+
+        // ── IDEMPOTENCY: Also count CAs already deducted for THIS period ────
+        // If payroll is recomputed, CAs from the first run are already 'deducted'
+        // with payroll_period_id = this period. We must still count them so the
+        // deduction values don't get zeroed out on recompute.
+        const { data: alreadyDeductedThisPeriod } = await supabase
+          .from("cash_advances")
+          .select("id, amount")
+          .eq("employee_id", emp.id)
+          .eq("status", "deducted")
+          .eq("payroll_period_id", periodId);
+
+        const newCAsToProcess = [
+          ...(approvedCAs || []),
+          ...(issuedNotDeducted || []),
+        ];
+
+        const alreadyDeductedAmount = (alreadyDeductedThisPeriod || []).reduce(
+          (s: number, a: any) => s + Number(a.amount), 0,
+        );
+
+        const newCAsAmount = newCAsToProcess.reduce(
+          (s: number, a: any) => s + Number(a.amount), 0,
+        );
+
         const cashAdvanceIssued = Math.min(
-          (approvedCAs || []).reduce(
-            (s: number, a: any) => s + Number(a.amount),
-            0,
-          ),
+          newCAsAmount + alreadyDeductedAmount,
           MAX_ADVANCE,
         );
 
-        if (approvedCAs && approvedCAs.length > 0) {
+        // The deduction equals the issued amount — same period
+        const cashAdvanceDeduction = cashAdvanceIssued;
+
+        // Mark new CAs as deducted, linked to this period
+        if (newCAsToProcess.length > 0) {
           await supabase
             .from("cash_advances")
             .update({
-              status: "added_to_current_payroll",
-              payroll_period_id: periodId, // ← linked to CURRENT period
+              status: "deducted",
+              payroll_period_id: periodId,
               updated_at: new Date().toISOString(),
             })
             .in(
               "id",
-              (approvedCAs as any[]).map((a: any) => a.id),
+              newCAsToProcess.map((a: any) => a.id),
             );
         }
 
-        // ── STEP 2: Deduct CAs issued in the PREVIOUS period ─────────────────
-        // Find CAs whose payroll_period_id = previous period ID.
-        // This CANNOT overlap with Step 1 (current periodId ≠ prevPeriod.id).
-        // Edge case: if prevPeriod is null (this is the very first period),
-        // or if prevPeriod payroll was never computed — deduction = 0 (CA stays
-        // as added_to_current_payroll until a subsequent period processes it).
-        let cashAdvanceDeduction = 0;
-
-        if (prevPeriod) {
-          const {data: prevIssuedCAs} = await supabase
-            .from("cash_advances")
-            .select("id, amount")
-            .eq("employee_id", emp.id)
-            .eq("status", "added_to_current_payroll")
-            .eq("payroll_period_id", prevPeriod.id); // ← linked to PREVIOUS period ONLY
-
-          cashAdvanceDeduction = Math.min(
-            (prevIssuedCAs || []).reduce(
-              (s: number, a: any) => s + Number(a.amount),
-              0,
-            ),
-            MAX_ADVANCE,
-          );
-
-          if (prevIssuedCAs && prevIssuedCAs.length > 0) {
-            await supabase
-              .from("cash_advances")
-              .update({
-                status: "deducted",
-                updated_at: new Date().toISOString(),
-              })
-              .in(
-                "id",
-                (prevIssuedCAs as any[]).map((a: any) => a.id),
-              );
-          }
-        }
-
         // ── Carry-over from previous payroll record ──────────────────────────
-        const {data: prevRecord} = await supabase
+        const { data: prevRecord } = await supabase
           .from("payroll_records")
           .select("carry_over_deduction")
           .eq("employee_id", emp.id)
           .neq("payroll_period_id", periodId)
-          .order("created_at", {ascending: false})
+          .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
@@ -2286,25 +2278,25 @@ export const db = {
 
         // ────────────────────────────────────────────────────────────────────
         // TOTAL DEDUCTIONS
-        // cashAdvanceDeduction = CA from PREVIOUS period now being collected
-        // cashAdvanceIssued    = CA given THIS period (shown on payslip, not deducted)
+        // cashAdvanceDeduction = CA deducted THIS period (same period as issued)
+        // cashAdvanceIssued    = CA given THIS period (employee received ₱)
         // ────────────────────────────────────────────────────────────────────
         const totalDeductions =
           tardyDeductions +
           undertimeDeductions +
           withholdingTax +
-          cashAdvanceDeduction + // ← deduction from prev period
+          cashAdvanceDeduction + // ← deduction in same period
           carryOverFromPrevious +
           philhealth +
           hdmf;
 
         // NET PAY — may go negative (carry-over to next period)
-        const netPayRaw = grossIncome - totalDeductions;
-        const netPay = Math.max(0, netPayRaw); // paid out is never negative
+        const netPayRaw = grossIncome + cashAdvanceIssued - totalDeductions;
+        const netPay = Math.max(0, netPayRaw);
         const carryOver = netPayRaw < 0 ? Math.abs(netPayRaw) : 0; // deficit → next period
         const taxableIncome = grossIncome - philhealth - hdmf;
 
-        const {data: saved, error: saveErr} = await supabase
+        const { data: saved, error: saveErr } = await supabase
           .from("payroll_records")
           .upsert(
             [
@@ -2326,7 +2318,7 @@ export const db = {
                 philhealth,
                 hdmf,
                 withholding_tax: withholdingTax,
-                cash_advance: cashAdvanceDeduction, // deduction from PREVIOUS period CAs
+                cash_advance: cashAdvanceDeduction, // deduction THIS period (same period as issued)
                 cash_advance_issued: cashAdvanceIssued, // issued THIS period (employee received ₱)
                 total_deductions: totalDeductions,
                 net_pay: netPay,
@@ -2337,7 +2329,7 @@ export const db = {
                 updated_at: new Date().toISOString(),
               },
             ],
-            {onConflict: "employee_id,payroll_period_id"},
+            { onConflict: "employee_id,payroll_period_id" },
           )
           .select()
           .single();
@@ -2350,13 +2342,35 @@ export const db = {
     },
 
     async resetPayroll(periodId: string) {
-      const {error: delErr} = await supabase
+      const { error: delErr } = await supabase
         .from("payroll_records")
         .delete()
         .eq("payroll_period_id", periodId);
       if (delErr) throw delErr;
 
-      const {data: issuedCAs} = await supabase
+      // Revert CAs that were deducted in this period back to approved
+      // so they can be re-processed when payroll is recomputed
+      const { data: deductedCAs } = await supabase
+        .from("cash_advances")
+        .select("id")
+        .eq("status", "deducted")
+        .eq("payroll_period_id", periodId);
+      if (deductedCAs && deductedCAs.length > 0) {
+        await supabase
+          .from("cash_advances")
+          .update({
+            status: "approved",
+            payroll_period_id: null,
+            updated_at: new Date().toISOString(),
+          })
+          .in(
+            "id",
+            (deductedCAs as any[]).map((a: any) => a.id),
+          );
+      }
+
+      // Also revert any that are still in added_to_current_payroll state
+      const { data: issuedCAs } = await supabase
         .from("cash_advances")
         .select("id")
         .eq("status", "added_to_current_payroll")
@@ -2375,35 +2389,11 @@ export const db = {
           );
       }
 
-      const {data: thisPeriodData} = await supabase
-        .from("payroll_periods")
-        .select("period_start")
-        .eq("id", periodId)
-        .single();
-      if (thisPeriodData) {
-        const {data: prevPeriodData} = await supabase
-          .from("payroll_periods")
-          .select("id")
-          .lt("period_end", thisPeriodData.period_start)
-          .order("period_end", {ascending: false})
-          .limit(1)
-          .maybeSingle();
-        if (prevPeriodData) {
-          await supabase
-            .from("cash_advances")
-            .update({
-              status: "added_to_current_payroll",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("status", "deducted")
-            .eq("payroll_period_id", prevPeriodData.id);
-        }
-      }
-      return {success: true};
+      return { success: true };
     },
 
     async deletePeriod(id: string) {
-      const {data: period} = await supabase
+      const { data: period } = await supabase
         .from("payroll_periods")
         .select("status")
         .eq("id", id)
@@ -2411,6 +2401,7 @@ export const db = {
       if (period?.status !== "draft")
         throw new Error("Only draft periods can be deleted.");
 
+      // Revert any CAs linked to this period (both deducted and added_to_current_payroll)
       await supabase
         .from("cash_advances")
         .update({
@@ -2418,7 +2409,7 @@ export const db = {
           payroll_period_id: null,
           updated_at: new Date().toISOString(),
         })
-        .eq("status", "added_to_current_payroll")
+        .in("status", ["added_to_current_payroll", "deducted"])
         .eq("payroll_period_id", id);
       await supabase
         .from("payroll_records")
@@ -2433,7 +2424,7 @@ export const db = {
         .delete()
         .eq("payroll_period_id", id);
 
-      const {error} = await supabase
+      const { error } = await supabase
         .from("payroll_periods")
         .delete()
         .eq("id", id);
@@ -2445,7 +2436,7 @@ export const db = {
   // CASH ADVANCES
   // ═══════════════════════════════════════════════════════════════════════════
   cashAdvances: {
-    async getAll(filters?: {employee_id?: string; status?: string}) {
+    async getAll(filters?: { employee_id?: string; status?: string }) {
       let query = supabase
         .from("cash_advances")
         .select(
@@ -2455,13 +2446,13 @@ export const db = {
           issuer:issued_by(id, first_name, last_name)
         `,
         )
-        .order("created_at", {ascending: false});
+        .order("created_at", { ascending: false });
 
       if (filters?.employee_id)
         query = query.eq("employee_id", filters.employee_id);
       if (filters?.status) query = query.eq("status", filters.status);
 
-      const {data, error} = await query;
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -2473,11 +2464,11 @@ export const db = {
       reason?: string;
     }) {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("cash_advances")
         .insert([
           {
@@ -2502,9 +2493,9 @@ export const db = {
     },
 
     async cancel(id: string) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("cash_advances")
-        .update({status: "cancelled", updated_at: new Date().toISOString()})
+        .update({ status: "cancelled", updated_at: new Date().toISOString() })
         .eq("id", id)
         .eq("status", "pending") // can only cancel pending advances
         .select()
@@ -2514,9 +2505,9 @@ export const db = {
     },
 
     async approve(id: string) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("cash_advances")
-        .update({status: "approved", updated_at: new Date().toISOString()})
+        .update({ status: "approved", updated_at: new Date().toISOString() })
         .eq("id", id)
         .eq("status", "pending")
         .select()
@@ -2526,7 +2517,7 @@ export const db = {
     },
 
     async decline(id: string, declineReason: string) {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("cash_advances")
         .update({
           status: "declined",
@@ -2542,7 +2533,7 @@ export const db = {
     },
 
     async getPendingRequests() {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("cash_advances")
         .select(
           `
@@ -2554,7 +2545,7 @@ export const db = {
         `,
         )
         .eq("status", "pending")
-        .order("created_at", {ascending: true});
+        .order("created_at", { ascending: true });
       if (error) throw error;
       return data || [];
     },
@@ -2563,25 +2554,21 @@ export const db = {
     async checkEligibility(employeeId: string): Promise<{
       eligible: boolean;
       reason:
-        | "eligible"
-        | "limit_reached"
-        | "restricted_next_period"
-        | "approved_awaiting_deduction";
+      | "eligible"
+      | "limit_reached";
       remaining: number;
       totalUsed: number;
-      detail?: {amount: number; date_issued: string; periodLabel?: string};
     }> {
       const MAX = 2000;
       const today = new Date().toISOString().split("T")[0];
 
       // ── Determine the current payroll period from the DB ─────────────────
-      // Try to find the active period containing today's date
-      const {data: currentPeriodRow} = await supabase
+      const { data: currentPeriodRow } = await supabase
         .from("payroll_periods")
         .select("id, period_start, period_end")
         .lte("period_start", today)
         .gte("period_end", today)
-        .order("period_start", {ascending: false})
+        .order("period_start", { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -2605,67 +2592,37 @@ export const db = {
       };
 
       const currentPeriodId = currentPeriodRow?.id ?? null;
-      const {currentStart, currentEnd} = currentPeriodRow
+      const { currentStart, currentEnd } = currentPeriodRow
         ? {
-            currentStart: currentPeriodRow.period_start,
-            currentEnd: currentPeriodRow.period_end,
-          }
+          currentStart: currentPeriodRow.period_start,
+          currentEnd: currentPeriodRow.period_end,
+        }
         : getCalendarBounds();
 
-      // ── Rule 1: RESTRICTED PERIOD ─────────────────────────────────────────
-      // Employee has a CA that was ISSUED in a previous period (payroll_period_id
-      // is set but points to an older period). Deduction for that CA hasn't run yet.
-      // → Employee must wait for the deduction period to pass.
-      const restrictedQuery = supabase
-        .from("cash_advances")
-        .select("id, amount, date_issued, payroll_period_id")
-        .eq("employee_id", employeeId)
-        .eq("status", "added_to_current_payroll");
-
-      // If we know the current period ID, exclude CAs from it (those are fine, still in same period)
-      const {data: restrictedCAs} = currentPeriodId
-        ? await restrictedQuery.neq("payroll_period_id", currentPeriodId)
-        : await restrictedQuery.lt("date_issued", currentStart); // fallback: date-based
-
-      if (restrictedCAs && restrictedCAs.length > 0) {
-        const prevTotal = (restrictedCAs as any[]).reduce(
-          (s: number, a: any) => s + Number(a.amount),
-          0,
-        );
-        const rec = (restrictedCAs as any[])[0];
-        return {
-          eligible: false,
-          reason: "restricted_next_period",
-          remaining: 0,
-          totalUsed: 0,
-          detail: {amount: prevTotal, date_issued: rec.date_issued},
-        };
-      }
-
-      // ── Rule 2: CURRENT PERIOD LIMIT ──────────────────────────────────────
+      // ── CURRENT PERIOD LIMIT ──────────────────────────────────────────────
       // Sum: pending + approved (not yet in payroll) within current period
-      const {data: pendingApproved} = await supabase
+      const { data: pendingApproved } = await supabase
         .from("cash_advances")
         .select("amount")
         .eq("employee_id", employeeId)
         .in("status", ["pending", "approved"]);
 
-      // Plus: CAs already issued in the current period (still count toward limit)
-      const issuedCurrentQuery = supabase
+      // Plus: CAs already deducted/issued in the current period (still count toward limit)
+      const deductedCurrentQuery = supabase
         .from("cash_advances")
         .select("amount")
         .eq("employee_id", employeeId)
-        .eq("status", "added_to_current_payroll");
+        .in("status", ["added_to_current_payroll", "deducted"]);
 
-      const {data: issuedCurrent} = currentPeriodId
-        ? await issuedCurrentQuery.eq("payroll_period_id", currentPeriodId)
-        : await issuedCurrentQuery
-            .gte("date_issued", currentStart)
-            .lte("date_issued", currentEnd);
+      const { data: processedCurrent } = currentPeriodId
+        ? await deductedCurrentQuery.eq("payroll_period_id", currentPeriodId)
+        : await deductedCurrentQuery
+          .gte("date_issued", currentStart)
+          .lte("date_issued", currentEnd);
 
       const totalUsed = [
         ...(pendingApproved || []),
-        ...(issuedCurrent || []),
+        ...(processedCurrent || []),
       ].reduce((s: number, a: any) => s + Number(a.amount), 0);
 
       const remaining = Math.max(0, MAX - totalUsed);
@@ -2679,7 +2636,7 @@ export const db = {
         };
       }
 
-      return {eligible: true, reason: "eligible", remaining, totalUsed};
+      return { eligible: true, reason: "eligible", remaining, totalUsed };
     },
 
     // ── Cashier: submit a request (up to ₱2,000 max per period) ─────────
@@ -2689,7 +2646,7 @@ export const db = {
       reason?: string;
     }) {
       const {
-        data: {user},
+        data: { user },
       } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
@@ -2704,12 +2661,12 @@ export const db = {
 
       // ── Determine current period ─────────────────────────────────────────
       const today = new Date().toISOString().split("T")[0];
-      const {data: currentPeriodRow} = await supabase
+      const { data: currentPeriodRow } = await supabase
         .from("payroll_periods")
         .select("id, period_start, period_end")
         .lte("period_start", today)
         .gte("period_end", today)
-        .order("period_start", {ascending: false})
+        .order("period_start", { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -2726,55 +2683,36 @@ export const db = {
           ? new Date(y, m, 1).toISOString().split("T")[0]
           : new Date(y, m, 16).toISOString().split("T")[0]);
 
-      // ── Guard 1: Restricted period ────────────────────────────────────────
-      // Employee has a CA issued in a previous period that hasn't been deducted yet
-      const restrictedQuery = supabase
-        .from("cash_advances")
-        .select("id")
-        .eq("employee_id", data.employee_id)
-        .eq("status", "added_to_current_payroll");
-
-      const {data: restrictedCAs} = currentPeriodId
-        ? await restrictedQuery.neq("payroll_period_id", currentPeriodId)
-        : await restrictedQuery.lt("date_issued", currentStart);
-
-      if ((restrictedCAs?.length ?? 0) > 0) {
-        throw new Error(
-          "Employee had a Cash Advance issued in the previous payroll period. " +
-            "They must wait until that deduction is processed before requesting again.",
-        );
-      }
-
-      // ── Guard 2: Current period total ─────────────────────────────────────
-      const {data: pendingApproved} = await supabase
+      // ── Guard: Current period total ──────────────────────────────────────
+      const { data: pendingApproved } = await supabase
         .from("cash_advances")
         .select("amount")
         .eq("employee_id", data.employee_id)
         .in("status", ["pending", "approved"]);
 
-      const issuedCurrentQuery = supabase
+      const processedCurrentQuery = supabase
         .from("cash_advances")
         .select("amount")
         .eq("employee_id", data.employee_id)
-        .eq("status", "added_to_current_payroll");
+        .in("status", ["added_to_current_payroll", "deducted"]);
 
-      const {data: issuedCurrent} = currentPeriodId
-        ? await issuedCurrentQuery.eq("payroll_period_id", currentPeriodId)
-        : await issuedCurrentQuery.gte("date_issued", currentStart);
+      const { data: processedCurrent } = currentPeriodId
+        ? await processedCurrentQuery.eq("payroll_period_id", currentPeriodId)
+        : await processedCurrentQuery.gte("date_issued", currentStart);
 
       const periodTotal = [
         ...(pendingApproved || []),
-        ...(issuedCurrent || []),
+        ...(processedCurrent || []),
       ].reduce((s: number, a: any) => s + Number(a.amount), 0);
 
       if (periodTotal + amount > MAX_AMOUNT) {
         throw new Error(
           `This request would exceed the ₱${MAX_AMOUNT.toLocaleString()} period limit. ` +
-            `Remaining: ₱${(MAX_AMOUNT - periodTotal).toLocaleString()}`,
+          `Remaining: ₱${(MAX_AMOUNT - periodTotal).toLocaleString()}`,
         );
       }
 
-      const {data: result, error} = await supabase
+      const { data: result, error } = await supabase
         .from("cash_advances")
         .insert([
           {
@@ -2798,7 +2736,7 @@ export const db = {
 
       if (error) throw error;
 
-      await db.logAudit("Request Cash Advance", "cash_advances", result.id, { 
+      await db.logAudit("Request Cash Advance", "cash_advances", result.id, {
         employee_name: result.employee?.full_name,
         amount: result.amount,
         requested_by: user.id
@@ -2809,16 +2747,16 @@ export const db = {
     },
 
     async getPendingCount(): Promise<number> {
-      const {count, error} = await supabase
+      const { count, error } = await supabase
         .from("cash_advances")
-        .select("id", {count: "exact", head: true})
+        .select("id", { count: "exact", head: true })
         .eq("status", "pending");
       if (error) return 0;
       return count ?? 0;
     },
 
     async getPendingTotal(employeeId: string): Promise<number> {
-      const {data, error} = await supabase
+      const { data, error } = await supabase
         .from("cash_advances")
         .select("amount")
         .eq("employee_id", employeeId)

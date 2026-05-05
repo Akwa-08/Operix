@@ -150,21 +150,25 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
       const empDates = exceptionalData[log.employeeId] ?? [];
       const assignments = hourAssignments[log.employeeId] ?? {};
 
-      for (const row of empDates) {
-        await supabase
-          .from("attendance_exceptional_logs")
-          .update({ is_incomplete: false, hours_counted: assignments[row.punch_date] ?? 8 })
-          .eq("payroll_period_id", activePeriodId)
-          .eq("employee_id", log.employeeId)
-          .eq("punch_date", row.punch_date);
-      }
+      // Build hours map and call SECURITY DEFINER RPC — bypasses RLS
+      const hoursMap: Record<string, number> = {};
+      empDates.forEach(row => {
+        hoursMap[row.punch_date] = assignments[row.punch_date] ?? 8;
+      });
+
+      const { error } = await supabase.rpc('update_punch_hours', {
+        p_period_id: activePeriodId,
+        p_employee_id: log.employeeId,
+        p_hours: hoursMap,
+      });
+
+      if (error) throw error;
 
       await supabase
         .from("attendance_logs")
         .update({ has_incomplete_punch: false, incomplete_punch_dates: [] })
         .eq("id", log.id);
 
-      // Clear this employee's local state so it doesn't interfere with reload
       setSelectedDates(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
       setHourAssignments(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
 
@@ -188,17 +192,35 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
 
       const { data: remaining } = await supabase
         .from("attendance_exceptional_logs")
-        .select("hours_counted")
+        .select("punch_date, hours_counted")
         .eq("payroll_period_id", activePeriodId)
         .eq("employee_id", log.employeeId);
 
-      const totalHours = (remaining ?? []).reduce((s: number, r: any) => s + (r.hours_counted ?? 8), 0);
+      const hoursMap: Record<string, number> = {};
+      (remaining ?? []).forEach((r: any) => {
+        hoursMap[r.punch_date] = r.hours_counted ?? 8;
+      });
+
+      if (Object.keys(hoursMap).length > 0) {
+        await supabase.rpc('update_punch_hours', {
+          p_period_id: activePeriodId,
+          p_employee_id: log.employeeId,
+          p_hours: hoursMap,
+        });
+      } else {
+        // No remaining records — set days_present to 0
+        await supabase
+          .from("attendance_logs")
+          .update({ days_present: 0 })
+          .eq("payroll_period_id", activePeriodId)
+          .eq("employee_id", log.employeeId);
+      }
+
       await supabase
         .from("attendance_logs")
-        .update({ days_present: totalHours / 8, has_incomplete_punch: false, incomplete_punch_dates: [] })
+        .update({ has_incomplete_punch: false, incomplete_punch_dates: [] })
         .eq("id", log.id);
 
-      // Clear this employee's local state
       setSelectedDates(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
       setHourAssignments(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
 
@@ -516,12 +538,156 @@ function AttendanceEditModal({ log, periodId, onClose, onSave }: {
   );
 }
 
-// ─── Payslip Modal ────────────────────────────────────────────────────────────
+// ─── Punch Details Modal ──────────────────────────────────────────────────────
+// Lets admin view and edit hours_counted for every punch date of any employee.
+// Works for ALL employees regardless of flagged/confirmed status.
+function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
+  log: AttendanceLog; periodId: string; onClose: () => void; onSaved: () => void;
+}) {
+  const [rows, setRows] = useState<{ punch_date: string; hours_counted: number; is_incomplete: boolean }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const label = (iso: string) => {
+    const d = new Date(iso + "T00:00:00");
+    return `${monthNames[d.getMonth()]} ${String(d.getDate()).padStart(2,"0")}`;
+  };
+
+  useEffect(() => {
+    supabase
+      .from("attendance_exceptional_logs")
+      .select("punch_date, hours_counted, is_incomplete")
+      .eq("payroll_period_id", periodId)
+      .eq("employee_id", log.employeeId)
+      .order("punch_date")
+      .then(({ data }) => {
+        setRows(data ?? []);
+        setLoading(false);
+      });
+  }, [periodId, log.employeeId]);
+
+  const toggle = (date: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(date) ? next.delete(date) : next.add(date);
+      return next;
+    });
+  };
+
+  const assignHours = async (hrs: 4 | 8) => {
+    if (selected.size === 0) return;
+    setRows(prev => prev.map(r => selected.has(r.punch_date) ? { ...r, hours_counted: hrs } : r));
+    setSelected(new Set());
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    for (const row of rows) {
+      await supabase
+        .from("attendance_exceptional_logs")
+        .update({ hours_counted: row.hours_counted })
+        .eq("payroll_period_id", periodId)
+        .eq("employee_id", log.employeeId)
+        .eq("punch_date", row.punch_date);
+    }
+    // Recalculate days_present in attendance_logs from updated hours
+    const totalDays = rows.reduce((s, r) => s + r.hours_counted, 0) / 8;
+    await supabase
+      .from("attendance_logs")
+      .update({ days_present: totalDays })
+      .eq("id", log.id);
+    setSaving(false);
+    onSaved();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        <h3 className="text-xl font-bold text-gray-900 mb-1">Punch Details</h3>
+        <p className="text-sm text-gray-500 mb-1">{log.fullName} · {log.position}</p>
+        <p className="text-xs text-gray-400 mb-5">Click dates to select, then assign 4 hrs or 8 hrs. Hit Save when done.</p>
+
+        {loading ? (
+          <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
+        ) : rows.length === 0 ? (
+          <div className="text-xs text-orange-600 bg-orange-50 border border-orange-200 rounded-lg px-3 py-3 mb-5">
+            ⚠ No punch records found. Delete this period and re-import the XLS to populate punch data.
+          </div>
+        ) : (
+          <>
+            {/* Date chips */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {rows.map(row => {
+                const isSel = selected.has(row.punch_date);
+                let cls = "";
+                if (isSel) cls = "bg-gray-800 text-white ring-2 ring-gray-600";
+                else if (row.hours_counted === 4) cls = "bg-blue-100 text-blue-800 ring-1 ring-blue-300";
+                else cls = "bg-green-100 text-green-800 ring-1 ring-green-300";
+                return (
+                  <button key={row.punch_date} onClick={() => toggle(row.punch_date)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${cls}`}>
+                    {label(row.punch_date)}
+                    {row.hours_counted === 4 && <span className="ml-1 opacity-60">½</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Hour controls */}
+            <div className="flex items-center gap-2 mb-6">
+              <span className="text-xs text-gray-500">
+                {selected.size > 0 ? `${selected.size} selected — assign:` : "Click dates to select:"}
+              </span>
+              <button onClick={() => assignHours(4)} disabled={selected.size === 0}
+                className="px-3 py-1 bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-blue-800 text-xs font-bold rounded-lg border border-blue-300">
+                4 hrs (½ day)
+              </button>
+              <button onClick={() => assignHours(8)} disabled={selected.size === 0}
+                className="px-3 py-1 bg-green-100 hover:bg-green-200 disabled:opacity-30 text-green-800 text-xs font-bold rounded-lg border border-green-300">
+                8 hrs (full)
+              </button>
+            </div>
+
+            {/* Summary */}
+            <div className="flex justify-between text-xs text-gray-500 mb-5 px-1">
+              <span>Total hours: <strong>{rows.reduce((s,r) => s + r.hours_counted, 0)}h</strong></span>
+              <span>Days: <strong>{rows.reduce((s,r) => s + r.hours_counted, 0) / 8}</strong></span>
+            </div>
+          </>
+        )}
+
+        {/* Legend */}
+        <div className="flex gap-4 text-[10px] text-gray-500 mb-5">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-300 inline-block"/>8 hrs / full day</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-300 inline-block"/>4 hrs / half day</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-800 inline-block"/>Selected</span>
+        </div>
+
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
+          <button onClick={handleSave} disabled={saving || rows.length === 0}
+            className="flex-1 py-3 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm">
+            {saving ? "Saving…" : "Save & Update Days"}
+          </button>
+        </div>
+        <p className="text-[10px] text-gray-400 text-center mt-3">After saving, hit <strong>Recompute</strong> in Salary Computation to update payroll.</p>
+      </div>
+    </div>
+  );
+}
 function PayslipModal({ record, period, onClose }: { record: PayrollRecord; period: PayrollPeriod | null; onClose: () => void }) {
   const [halfDayDates, setHalfDayDates] = useState<string[]>([]);
+  const [businessTripPay, setBusinessTripPay] = useState(0);
+  const [businessTripDays, setBusinessTripDays] = useState(0);
 
   useEffect(() => {
     if (!period?.id || !record.employeeId) return;
+
+    // Fetch half-day dates
     supabase
       .from("attendance_exceptional_logs")
       .select("punch_date, hours_counted")
@@ -536,7 +702,20 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
           return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2, "0")}`;
         }));
       });
-  }, [period?.id, record.employeeId]);
+
+    // Fetch business trip days from attendance log to derive business trip pay
+    supabase
+      .from("attendance_logs")
+      .select("business_trip_days")
+      .eq("payroll_period_id", period.id)
+      .eq("employee_id", record.employeeId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const days = Number(data?.business_trip_days) || 0;
+        setBusinessTripDays(days);
+        setBusinessTripPay(record.dailyRate * days);
+      });
+  }, [period?.id, record.employeeId, record.dailyRate]);
   const pLabel = period
     ? `${new Date(period.periodStart).toLocaleDateString("en-PH", { month: "long", day: "numeric" })} – ${new Date(period.periodEnd).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}`
     : "";
@@ -582,6 +761,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
       <div>
         <h3>EARNINGS BREAKDOWN</h3>
         <div class="row"><span>Basic Pay:</span><span>${fmt(record.basicPay)}</span></div>
+          ${businessTripPay > 0 ? `<div class="row"><span>Business Trip Pay (${businessTripDays}d):</span><span>${fmt(businessTripPay)}</span></div>` : ""}
         <div class="row"><span>Regular Holiday Pay:</span><span>${fmt(record.regularHolidayPay)}</span></div>
         <div class="row"><span>Special Holiday Pay:</span><span>${fmt(record.specialHolidayPay)}</span></div>
         <div class="row"><span>Regular OT:</span><span>${fmt(record.regularOvertime)}</span></div>
@@ -599,7 +779,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div class="row"><span>PhilHealth:</span><span class="blue">${fmt(record.philhealth)}</span></div>
         <div class="row"><span>HDMF (Pag-IBIG):</span><span class="blue">${fmt(record.hdmf)}</span></div>
         <div class="row"><span>Withholding Tax:</span><span>${fmt(record.withholdingTax)}</span></div>
-        <div class="row"><span>CA Deduction (Prev Period):</span><span class="${record.cashAdvance > 0 ? 'red' : 'gray'}">${fmt(record.cashAdvance)}</span></div>
+        <div class="row"><span>CA Deduction:</span><span class="${record.cashAdvance > 0 ? 'red' : 'gray'}">${fmt(record.cashAdvance)}</span></div>
         <div class="row"><span>Carry-Over Deduction:</span><span class="${record.carryOverFromPrevious > 0 ? 'red' : 'gray'}">${fmt(record.carryOverFromPrevious)}</span></div>
         <div class="total-row"><span>TOTAL DEDUCTIONS:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
       </div>
@@ -612,7 +792,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div style="margin-top:8px;font-size:10px;color:#666">
           <div class="row"><span>Taxable Income:</span><span>${fmt(record.taxableIncome)}</span></div>
           <div class="row"><span>Tax Rate:</span><span>0%</span></div>
-          ${record.cashAdvanceIssued > 0 ? `<div class="row"><span style="color:#d97706;font-weight:600">⚠ CA of ${fmt(record.cashAdvanceIssued)} will be deducted in the NEXT payroll period.</span></div>` : ""}
+          ${record.cashAdvanceIssued > 0 ? `<div class="row"><span style="color:#0369a1;font-weight:600">ℹ CA of ${fmt(record.cashAdvanceIssued)} issued and deducted this period.</span></div>` : ""}
         </div>
       </div>
     </div>
@@ -674,6 +854,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">EARNINGS BREAKDOWN</h3>
                 <div className="space-y-0.5 text-xs">
                   {rows("Basic Pay", record.basicPay)}
+                  {businessTripPay > 0 && rows(`Business Trip Pay (${businessTripDays}d)`, businessTripPay)}
                   {rows("Regular Holiday Pay", record.regularHolidayPay)}
                   {rows("Special Holiday Pay", record.specialHolidayPay)}
                   {rows("Regular OT", record.regularOvertime)}
@@ -700,7 +881,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   {rows("PhilHealth", record.philhealth, "text-blue-600")}
                   {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
-                  {rows("CA Deduction (Prev Period)", record.cashAdvance, record.cashAdvance > 0 ? "text-red-600" : "text-gray-400")}
+                  {rows("CA Deduction", record.cashAdvance, record.cashAdvance > 0 ? "text-red-600" : "text-gray-400")}
                   {rows("Carry-Over Deduction", record.carryOverFromPrevious, record.carryOverFromPrevious > 0 ? "text-red-600" : "text-gray-400")}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
                     <span>TOTAL DEDUCTIONS:</span><span className="text-red-600">-{fmt(record.totalDeductions)}</span>
@@ -727,7 +908,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   </div>
                   {record.cashAdvanceIssued > 0 && (
                     <div className="mt-2 px-2 py-1.5 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-700">
-                      ⚠ CA of {fmt(record.cashAdvanceIssued)} issued this period will be deducted from the next payroll.
+                      ℹ CA of {fmt(record.cashAdvanceIssued)} issued and deducted this period.
                     </div>
                   )}
                 </div>
@@ -821,8 +1002,8 @@ function CashAdvanceApprovalPanel() {
             <h3 className="text-base font-bold text-gray-900">Cash Advance Requests</h3>
             {pendingAdvances.length > 0 && <span className="ml-1 px-2 py-0.5 bg-amber-500 text-white text-xs font-bold rounded-full">{pendingAdvances.length}</span>}
           </div>
-          <button onClick={() => refresh()} className="p-1.5 hover:bg-amber-100 rounded-lg">
-            <RefreshCw size={15} className={`text-amber-600 ${loading ? 'animate-spin' : ''}`} />
+          <button onClick={refresh} className="p-1.5 hover:bg-amber-100 rounded-lg">
+            <RefreshCw size={15} className={`text-amber-600 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
         {!loading && pendingAdvances.length === 0 && (
@@ -872,8 +1053,8 @@ function CashAdvanceApprovalPanel() {
         {pendingAdvances.length > 0 && (
           <div className="px-6 py-3 border-t border-gray-100 bg-amber-50 space-y-1.5">
             <p className="text-[11px] text-amber-800 leading-snug">
-              Approving a CA <strong>issues the money to the employee in the current period payroll</strong> (they receive it).
-              The full CA amount is then <strong>automatically deducted from their NEXT period payroll</strong>.
+              Approving a CA <strong>issues the money to the employee</strong> (they receive it).
+              The full CA amount is then <strong>automatically deducted from the same period's payroll</strong> when computed.
             </p>
           </div>
         )}
@@ -945,6 +1126,7 @@ const AdminPayroll: React.FC = () => {
   const [markPaidConfirm, setMarkPaidConfirm]   = useState<PayrollRecord | null>(null);
   const [deletePeriodConfirm, setDeletePeriodConfirm] = useState(false);
   const [editingLog, setEditingLog]         = useState<AttendanceLog | null>(null);
+  const [punchDetailsLog, setPunchDetailsLog] = useState<AttendanceLog | null>(null);
   const [viewingRecord, setViewingRecord]   = useState<PayrollRecord | null>(null);
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
 
@@ -991,6 +1173,14 @@ const AdminPayroll: React.FC = () => {
     <div className="max-w-7xl mx-auto space-y-6">
 
       {/* ── Modals ── */}
+      {punchDetailsLog && activePeriodId && (
+        <PunchDetailsModal
+          log={punchDetailsLog}
+          periodId={activePeriodId}
+          onClose={() => setPunchDetailsLog(null)}
+          onSaved={refresh}
+        />
+      )}
       {editingLog && activePeriodId && (
         <AttendanceEditModal log={editingLog} periodId={activePeriodId} onClose={() => setEditingLog(null)} onSave={async d => { const r = await updateAttendanceLog(d); return r; }} />
       )}
@@ -1077,7 +1267,7 @@ const AdminPayroll: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900">Payroll Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage employee payroll, attendance, and salary computations</p>
         </div>
-        <button onClick={() => refresh()} className="p-2 hover:bg-gray-100 rounded-lg" title="Refresh">
+        <button onClick={refresh} className="p-2 hover:bg-gray-100 rounded-lg" title="Refresh">
           <RefreshCw size={18} className={`text-gray-600 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
@@ -1268,7 +1458,12 @@ const AdminPayroll: React.FC = () => {
                       <td className="px-4 py-3 text-center">{log.onLeaveDays}</td>
                       <td className="px-4 py-3 text-center text-green-700 text-xs">{fmt(log.additionalPay)}</td>
                       <td className="px-4 py-3 text-center text-red-600 text-xs">{fmt(log.deductionAmount)}</td>
-                      <td className="px-4 py-3 text-center"><button onClick={() => setEditingLog(log)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="Edit"><Edit2 size={16} className="text-cyan-600" /></button></td>
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => setEditingLog(log)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="Edit attendance"><Edit2 size={16} className="text-cyan-600" /></button>
+                          <button onClick={() => setPunchDetailsLog(log)} className="p-1.5 hover:bg-blue-100 rounded-lg" title="Edit punch hours (half/full day)"><Clock size={16} className="text-blue-500" /></button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
