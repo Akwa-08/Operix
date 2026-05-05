@@ -4,7 +4,6 @@ import { Modal } from "../UI/Modal";
 import type { Delivery } from "../../../Types";
 import { getDeliveryStatusColor } from "../../../util/formatters";
 import {
-  Package,
   Truck,
   User,
   Calendar,
