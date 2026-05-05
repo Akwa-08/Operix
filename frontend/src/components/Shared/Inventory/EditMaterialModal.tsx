@@ -1,6 +1,6 @@
 //src\components\Shared\Inventory\EditMaterialModal.tsx
 
-import {useState} from "react";
+import {useState, useEffect} from "react";
 import {Modal} from "../UI/Modal";
 import {Button} from "../UI/Button";
 import type {Material, UserRole} from "../../../Types";
@@ -23,17 +23,36 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
 }) => {
   const perms = permissions[userRole].inventory;
 
-  // Form state
-  const [formData, setFormData] = useState<Partial<Material>>({
+  // Re-sync form whenever the selected material changes (fixes stale data bug)
+  const [formData, setFormData] = useState<Partial<Material>>(() => ({
     itemType: material.itemType,
     itemVariant: material.itemVariant,
     usableStocks: material.usableStocks,
     stockUnit: material.stockUnit,
+    reorderPoint: material.reorderPoint,
+    unitCost: material.unitCost,
     purchaseQty: material.purchaseQty,
     purchaseUnit: material.purchaseUnit,
     supplier: material.supplier,
     status: material.status,
-  });
+    description: material.description,
+  }));
+
+  useEffect(() => {
+    setFormData({
+      itemType: material.itemType,
+      itemVariant: material.itemVariant,
+      usableStocks: material.usableStocks,
+      stockUnit: material.stockUnit,
+      reorderPoint: material.reorderPoint,
+      unitCost: material.unitCost,
+      purchaseQty: material.purchaseQty,
+      purchaseUnit: material.purchaseUnit,
+      supplier: material.supplier,
+      status: material.status,
+      description: material.description,
+    });
+  }, [material.id]);
 
   const handleChange = (field: keyof Material, value: any) => {
     setFormData((prev) => ({...prev, [field]: value}));
@@ -96,16 +115,13 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Stock Unit *
                 </label>
-                <select
+                <input
+                  type="text"
                   value={formData.stockUnit}
                   onChange={(e) => handleChange("stockUnit", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
-                  <option>Feet</option>
-                  <option>Pieces</option>
-                  <option>Liters</option>
-                  <option>Kilograms</option>
-                  <option>Meters</option>
-                </select>
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="e.g., feet, ml, pieces"
+                />
               </div>
             </div>
 
@@ -128,15 +144,44 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Purchase Unit *
                 </label>
-                <select
+                <input
+                  type="text"
                   value={formData.purchaseUnit}
                   onChange={(e) => handleChange("purchaseUnit", e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500">
-                  <option>Roll</option>
-                  <option>Box</option>
-                  <option>Bottle</option>
-                  <option>Pack</option>
-                </select>
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  placeholder="e.g., rolls, bottles, packs"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Reorder Point
+                </label>
+                <input
+                  type="number"
+                  value={formData.reorderPoint}
+                  onChange={(e) =>
+                    handleChange("reorderPoint", Number(e.target.value))
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Unit Cost (₱)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.unitCost}
+                  onChange={(e) =>
+                    handleChange("unitCost", Number(e.target.value))
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
               </div>
             </div>
 

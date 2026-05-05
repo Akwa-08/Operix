@@ -40,8 +40,11 @@ const ProductionOrders = () => {
   );
 
   const stats = {
-    assigned: allOrders.filter(o => o.assignedProduction === profile?.id).length,
-    inProgress: allOrders.filter((o) => o.status === "Production" && o.assignedProduction === profile?.id).length,
+    // Orders in Production status visible to this user (assigned to them OR unassigned)
+    inProgress: orders.length,
+    // Orders explicitly assigned to this production staff member (any status)
+    assigned: allOrders.filter(o => o.assignedProduction === profile?.id && o.status === "Production").length,
+    // Orders this user completed (moved past Production)
     completed: allOrders.filter(
       (o) => o.assignedProduction === profile?.id && (o.status === "Pickup" || o.status === "Completed"),
     ).length,
@@ -93,16 +96,16 @@ const ProductionOrders = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatusCard
-          title="Assigned"
-          value={stats.assigned}
-          icon={<Package size={18} />}
-          iconColor="text-orange-600"
-        />
-        <StatusCard
           title="In Production"
           value={stats.inProgress}
           icon={<Clock size={18} />}
           iconColor="text-blue-600"
+        />
+        <StatusCard
+          title="Assigned to Me"
+          value={stats.assigned}
+          icon={<Package size={18} />}
+          iconColor="text-orange-600"
         />
         <StatusCard
           title="Done"

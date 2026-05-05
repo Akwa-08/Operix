@@ -84,6 +84,8 @@ const AdminInventory = () => {
         reorder_point: Number(newMaterial.reorder_point) || 0,
         unit_cost: Number(newMaterial.unit_cost) || 0,
         description: newMaterial.description || undefined,
+        purchase_unit: newMaterial.purchase_unit || undefined,
+        conversion_rate: Number(newMaterial.conversion_rate) || undefined,
       });
       toast.success("Material created!"); setShowCreateMaterialModal(false);
       setNewMaterial({ name: "", unit_of_measure: "", current_quantity: "", reorder_point: "", unit_cost: "", description: "", purchase_unit: "", conversion_rate: "" });
@@ -99,6 +101,7 @@ const AdminInventory = () => {
         name: data.itemType, unit_of_measure: data.stockUnit,
         current_quantity: data.usableStocks, reorder_point: data.reorderPoint,
         unit_cost: data.unitCost, description: data.description,
+        purchase_unit: data.purchaseUnit, conversion_rate: data.purchaseQty,
       });
       toast.success("Material updated!"); setShowEditModal(false); refreshMat();
     } catch (err: any) { toast.error(err.message || "Failed to update"); }
@@ -200,8 +203,8 @@ const AdminInventory = () => {
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
               <div className="relative">
-                <select 
-                  value={materialStatusFilter} 
+                <select
+                  value={materialStatusFilter}
                   onChange={(e) => setMaterialStatusFilter(e.target.value)}
                   className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none pr-10"
                 >
@@ -236,7 +239,7 @@ const AdminInventory = () => {
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Stock Unit *</label><input type="text" value={newMaterial.unit_of_measure} onChange={e => setNewMaterial({ ...newMaterial, unit_of_measure: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., feet, ml, pieces" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Purchase Unit</label><input type="text" value={newMaterial.purchase_unit} onChange={e => setNewMaterial({ ...newMaterial, purchase_unit: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., rolls, bottles" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Conversion Rate</label><input type="number" value={newMaterial.conversion_rate} onChange={e => setNewMaterial({ ...newMaterial, conversion_rate: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Stock units per purchase unit" /></div>
-              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Current Quantity</label><input type="number" value={newMaterial.current_quantity} onChange={e => setNewMaterial({ ...newMaterial, current_quantity: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
+              <div><label className="block text-sm font-semibold text-gray-700 mb-1">Current Stocks </label><input type="number" value={newMaterial.current_quantity} onChange={e => setNewMaterial({ ...newMaterial, current_quantity: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Reorder Point</label><input type="number" value={newMaterial.reorder_point} onChange={e => setNewMaterial({ ...newMaterial, reorder_point: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Unit Cost (₱)</label><input type="number" value={newMaterial.unit_cost} onChange={e => setNewMaterial({ ...newMaterial, unit_cost: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="0.00" step="0.01" /></div>
               <div><label className="block text-sm font-semibold text-gray-700 mb-1">Description</label><input type="text" value={newMaterial.description} onChange={e => setNewMaterial({ ...newMaterial, description: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Optional" /></div>
@@ -263,8 +266,8 @@ const AdminInventory = () => {
             <div className="flex flex-col md:flex-row gap-3">
               <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search products..." />
               <div className="relative">
-                <select 
-                  value={productStatusFilter} 
+                <select
+                  value={productStatusFilter}
                   onChange={(e) => setProductStatusFilter(e.target.value)}
                   className="w-full md:w-auto px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 appearance-none pr-10"
                 >
@@ -330,9 +333,9 @@ const AdminInventory = () => {
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {d.status === "requested" && <button onClick={() => handleUpdateDeliveryStatus(d.id, "ordered")} className="text-xs px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 font-semibold">Mark Ordered</button>}
-                    {d.status === "ordered"   && <button onClick={() => handleUpdateDeliveryStatus(d.id, "en_route")} className="text-xs px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-semibold">Mark En Route</button>}
-                    {d.status === "en_route"  && <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-semibold">Confirm Receipt</button>}
-                    {d.status === "received"  && <button onClick={() => handleUpdateDeliveryStatus(d.id, "completed")} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold">Complete</button>}
+                    {d.status === "ordered" && <button onClick={() => handleUpdateDeliveryStatus(d.id, "en_route")} className="text-xs px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 font-semibold">Mark En Route</button>}
+                    {d.status === "en_route" && <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 font-semibold">Confirm Receipt</button>}
+                    {d.status === "received" && <button onClick={() => handleUpdateDeliveryStatus(d.id, "completed")} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-semibold">Complete</button>}
                     {d.status === "completed" && <span className="text-xs text-gray-400">Done</span>}
                   </div>
                 </div>
@@ -341,54 +344,54 @@ const AdminInventory = () => {
             {/* DESKTOP TABLE */}
             <div className="hidden md:block overflow-x-auto">
               <div className="overflow-x-auto w-full">
-<table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Material</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Supplier</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Qty Requested</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Expected</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Requested By</th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
-                    <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No deliveries found</td></tr>
-                  ) : deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).map(d => (
-                    <tr key={d.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3"><p className="font-semibold text-gray-900">{d.materialName}</p><p className="text-xs text-gray-500">{d.materialUnit}</p></td>
-                      <td className="px-4 py-3 text-gray-600">{d.supplierName}</td>
-                      <td className="px-4 py-3 text-center font-semibold">{d.requestedQuantity}</td>
-                      <td className="px-4 py-3 text-center text-gray-600">{d.expectedArrivalDate || "—"}</td>
-                      <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span></td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">{d.requestedByName}<br /><span className="text-gray-400">{d.createdAt}</span></td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          {d.status === "requested" && (
-                            <button onClick={() => handleUpdateDeliveryStatus(d.id, "ordered")} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">Mark Ordered</button>
-                          )}
-                          {d.status === "ordered" && (
-                            <button onClick={() => handleUpdateDeliveryStatus(d.id, "en_route")} className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">Mark En Route</button>
-                          )}
-                          {d.status === "en_route" && (
-                            <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }}
-                              className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 font-semibold">Confirm Receipt</button>
-                          )}
-                          {d.status === "received" && (
-                            <button onClick={() => handleUpdateDeliveryStatus(d.id, "completed")} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Complete</button>
-                          )}
-                          {d.status === "completed" && <span className="text-xs text-gray-400">Done</span>}
-                        </div>
-                      </td>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Material</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Supplier</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">Qty Requested</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">Expected</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Requested By</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-</div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No deliveries found</td></tr>
+                    ) : deliveries.filter(d => d.materialName.toLowerCase().includes(searchQuery.toLowerCase()) || d.supplierName.toLowerCase().includes(searchQuery.toLowerCase())).map(d => (
+                      <tr key={d.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3"><p className="font-semibold text-gray-900">{d.materialName}</p><p className="text-xs text-gray-500">{d.materialUnit}</p></td>
+                        <td className="px-4 py-3 text-gray-600">{d.supplierName}</td>
+                        <td className="px-4 py-3 text-center font-semibold">{d.requestedQuantity}</td>
+                        <td className="px-4 py-3 text-center text-gray-600">{d.expectedArrivalDate || "—"}</td>
+                        <td className="px-4 py-3 text-center"><span className={`text-xs font-semibold px-2 py-1 rounded-full ${getDeliveryStatusColor(d.status)}`}>{d.status.replace("_", " ")}</span></td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{d.requestedByName}<br /><span className="text-gray-400">{d.createdAt}</span></td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            {d.status === "requested" && (
+                              <button onClick={() => handleUpdateDeliveryStatus(d.id, "ordered")} className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 font-semibold">Mark Ordered</button>
+                            )}
+                            {d.status === "ordered" && (
+                              <button onClick={() => handleUpdateDeliveryStatus(d.id, "en_route")} className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 font-semibold">Mark En Route</button>
+                            )}
+                            {d.status === "en_route" && (
+                              <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: String(d.requestedQuantity), receipt_reference_number: "" }); setShowConfirmReceipt(true); }}
+                                className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 font-semibold">Confirm Receipt</button>
+                            )}
+                            {d.status === "received" && (
+                              <button onClick={() => handleUpdateDeliveryStatus(d.id, "completed")} className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 font-semibold">Complete</button>
+                            )}
+                            {d.status === "completed" && <span className="text-xs text-gray-400">Done</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-            </div>
+          </div>
 
 
           {/* Create Delivery Modal */}
