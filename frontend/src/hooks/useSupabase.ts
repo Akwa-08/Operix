@@ -273,11 +273,20 @@ export function useCartData() {
 }
 
 export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-  const { orders: rawOrders, stats, staff, loading, error, refresh } = useOrders(filters);
+  const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
+  const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
+  
+  const loading = ordersLoading || empLoading;
+  const refresh = async () => { await Promise.all([ordersRefresh(), empRefresh()]); };
+  
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
   const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
-  const productionStaff = staff.filter((s: any) => s.role === 'production').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
+  
+  const productionStaff = employees
+    .filter((e: any) => e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
+    .map((e: any) => ({ id: e.id, name: e.full_name }));
+
   return {
     orders, stats, staffList, designers, productionStaff, loading, error, refresh,
     createOrder: async (data: any) => { const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => refresh())); return r; },

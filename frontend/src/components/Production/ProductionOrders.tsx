@@ -1,18 +1,19 @@
-import {useState} from "react";
-import {SearchBar} from "../Shared/UI/SearchBar";
-import {StatusCard} from "../Shared/UI/StatusCard";
-import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {PageHeader} from "../Shared/UI/PageHeader";
-import {InfoBanner} from "../Shared/UI/InfoBanner";
-import {ViewToggle} from "../Shared/UI/ViewToggle";
-import {getOrderStatusColor} from "../../util/formatters";
-import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
-import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
-import {Package, Clock, CheckCircle} from "lucide-react";
-import type {Order} from "../../Types";
-import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
-import {useToast} from "../../context/ToastContext";
-import {ExcessMaterialModal} from "./ExcessMaterialModal";
+import { useState } from "react";
+import { SearchBar } from "../Shared/UI/SearchBar";
+import { StatusCard } from "../Shared/UI/StatusCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { ViewToggle } from "../Shared/UI/ViewToggle";
+import { getOrderStatusColor } from "../../util/formatters";
+import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
+import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
+import { Package, Clock, CheckCircle } from "lucide-react";
+import type { Order } from "../../Types";
+import { useOrdersData, useMyProfile } from "../../hooks/useSupabase";
+import { useToast } from "../../context/ToastContext";
+import { ExcessMaterialModal } from "./ExcessMaterialModal";
+import { Modal } from "../Shared/UI/Modal";
 
 const ProductionOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -21,10 +22,16 @@ const ProductionOrders = () => {
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [showExcessModal, setShowExcessModal] = useState(false);
   const [pendingPickupOrder, setPendingPickupOrder] = useState<Order | null>(null);
+  
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignOrderId, setAssignOrderId] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState("");
 
   const { profile } = useMyProfile();
   const {
     orders: allOrders,
+    productionStaff,
+    assignStaff,
     loading,
     updateStatus,
     updateCustomerDesign,
@@ -33,11 +40,8 @@ const ProductionOrders = () => {
 
   const toast = useToast();
 
-  // Filter for orders assigned to THIS production staff OR unassigned orders in Production status
-  const orders = allOrders.filter(o => 
-    o.status === "Production" &&
-    (o.assignedProduction === profile?.id || !o.assignedProduction)
-  );
+  // Show all orders in Production status
+  const orders = allOrders.filter(o => o.status === "Production");
 
   const stats = {
     // Orders in Production status visible to this user (assigned to them OR unassigned)
@@ -80,6 +84,22 @@ const ProductionOrders = () => {
       toast.success(`${pendingPickupOrder.orderId} → Ready for Pickup!`);
       setShowExcessModal(false);
       setPendingPickupOrder(null);
+    } else {
+      toast.error("Error: " + r.error);
+    }
+  };
+
+  const handleAssign = async () => {
+    if (!assignOrderId || !selectedStaffId) {
+      toast.error("Please select a staff member");
+      return;
+    }
+    const r = await assignStaff(assignOrderId, { assigned_production: selectedStaffId });
+    if (r.success) {
+      toast.success("Order assigned successfully");
+      setShowAssignModal(false);
+      setAssignOrderId(null);
+      setSelectedStaffId("");
     } else {
       toast.error("Error: " + r.error);
     }
@@ -129,7 +149,7 @@ const ProductionOrders = () => {
       </div>
 
       <InfoBanner color="orange">
-        🏭 <strong>Production:</strong> Only you can mark orders as "Ready for
+        <strong>Production:</strong> Only you can mark orders as "Ready for
         Pickup" when production is complete.
       </InfoBanner>
 
@@ -168,11 +188,18 @@ const ProductionOrders = () => {
                       className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold">
                       <Package size={14} /> View
                     </button>
-                    {o.status === "Production" && (
+                    {o.status === "Production" && o.assignedProduction && (
                       <button
                         onClick={() => handleMarkPickup(o)}
                         className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-semibold rounded-lg">
                         ✓ Ready
+                      </button>
+                    )}
+                    {o.status === "Production" && !o.assignedProduction && (
+                      <button
+                        onClick={() => { setAssignOrderId(o.id); setSelectedStaffId(""); setShowAssignModal(true); }}
+                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-lg whitespace-nowrap">
+                        Pick Order
                       </button>
                     )}
                   </div>
@@ -238,11 +265,18 @@ const ProductionOrders = () => {
                             className="p-1.5 hover:bg-cyan-100 rounded-lg">
                             <Package size={16} className="text-cyan-600" />
                           </button>
-                          {o.status === "Production" && (
+                          {o.status === "Production" && o.assignedProduction && (
                             <button
                               onClick={() => handleMarkPickup(o)}
                               className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold rounded-lg">
                               ✓ Ready
+                            </button>
+                          )}
+                          {o.status === "Production" && !o.assignedProduction && (
+                            <button
+                              onClick={() => { setAssignOrderId(o.id); setSelectedStaffId(""); setShowAssignModal(true); }}
+                              className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold rounded-lg whitespace-nowrap">
+                              Pick Order
                             </button>
                           )}
                         </div>
@@ -288,18 +322,42 @@ const ProductionOrders = () => {
           onRefresh={refresh}
         />
       )}
-      {pendingPickupOrder && (
+      {selectedOrder && (
         <ExcessMaterialModal
           isOpen={showExcessModal}
-          onClose={() => {
-            setShowExcessModal(false);
-            setPendingPickupOrder(null);
-          }}
-          orderId={pendingPickupOrder.id}
-          orderNumber={pendingPickupOrder.orderId}
+          onClose={() => setShowExcessModal(false)}
+          orderId={selectedOrder.id}
+          orderNumber={selectedOrder.orderId}
           onConfirm={handleConfirmPickup}
         />
       )}
+
+      <Modal isOpen={showAssignModal} onClose={() => setShowAssignModal(false)} title="Assign Production Staff" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Select a production staff member to assign to this order.
+          </p>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Production Staff</label>
+            <select
+              value={selectedStaffId}
+              onChange={(e) => setSelectedStaffId(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white"
+            >
+              <option value="" disabled>-- Select Staff --</option>
+              {productionStaff?.map((staff: any) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-3 pt-4 border-t border-gray-100">
+            <button onClick={() => setShowAssignModal(false)} className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg">Cancel</button>
+            <button onClick={handleAssign} className="flex-1 py-2 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg">Assign</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
