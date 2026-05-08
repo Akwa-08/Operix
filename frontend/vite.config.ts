@@ -5,6 +5,14 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://operix-tau.vercel.app',
+        changeOrigin: true,
+      }
+    }
+  },
   plugins: [
     react(),
     tailwindcss(),

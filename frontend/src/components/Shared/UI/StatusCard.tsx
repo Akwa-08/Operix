@@ -21,9 +21,7 @@ export const StatusCard: React.FC<StatusCardProps> = ({
   isCurrency,
   onClick,
 }) => {
-  const showCurrency = isCurrency !== undefined 
-    ? isCurrency 
-    : (typeof value === 'number' && !title.toLowerCase().includes('total') && !title.toLowerCase().includes('count'));
+  const showCurrency = isCurrency === true;
   return (
     <div 
       onClick={onClick}

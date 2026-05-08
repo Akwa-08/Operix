@@ -82,12 +82,12 @@ export const permissions: Record<UserRole, RolePermissions> = {
       canManageSuppliers: true,
     },
   },
-  
+
   cashier: {
     inventory: {
       canViewAll: true,
       canEditAllFields: false,
-      canEditStock: true, // Can only update stock numbers
+      canEditStock: false,
       canDelete: false,
       canAdd: false,
       canViewCost: true,
@@ -118,7 +118,7 @@ export const permissions: Record<UserRole, RolePermissions> = {
       canManageSuppliers: false,
     },
   },
-  
+
   designer: {
     inventory: {
       canViewAll: false,
@@ -154,7 +154,7 @@ export const permissions: Record<UserRole, RolePermissions> = {
       canManageSuppliers: false,
     },
   },
-  
+
   production: {
     inventory: {
       canViewAll: true,
@@ -190,7 +190,7 @@ export const permissions: Record<UserRole, RolePermissions> = {
       canManageSuppliers: false,
     },
   },
-  
+
   customer: {
     inventory: {
       canViewAll: false,

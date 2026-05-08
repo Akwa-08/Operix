@@ -1,22 +1,22 @@
-import {useState} from "react";
-import {Plus, DollarSign, Package, Clock, CheckCircle, AlertCircle} from "lucide-react";
-import {SearchBar} from "../Shared/UI/SearchBar";
-import {StatusCard} from "../Shared/UI/StatusCard";
-import {Button} from "../Shared/UI/Button";
-import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {PageHeader} from "../Shared/UI/PageHeader";
-import {InfoBanner} from "../Shared/UI/InfoBanner";
-import {ViewToggle} from "../Shared/UI/ViewToggle";
+import { useState } from "react";
+import { Plus, DollarSign, Package, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { SearchBar } from "../Shared/UI/SearchBar";
+import { StatusCard } from "../Shared/UI/StatusCard";
+import { Button } from "../Shared/UI/Button";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { ViewToggle } from "../Shared/UI/ViewToggle";
 import {
   getOrderStatusColor,
   getPaymentStatusColor,
 } from "../../util/formatters";
-import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
-import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
-import {CreateOrderModal} from "../Shared/Orders/CreateOrderModal";
-import type {Order} from "../../Types";
-import {useOrdersData} from "../../hooks/useSupabase";
-import {useToast} from "../../context/ToastContext";
+import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
+import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
+import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
+import type { Order } from "../../Types";
+import { useOrdersData } from "../../hooks/useSupabase";
+import { useToast } from "../../context/ToastContext";
 
 const CashierOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,7 +34,6 @@ const CashierOrders = () => {
     recordPayment,
     approvePayment,
     declinePayment,
-    updateCustomerDesign,
     updateStatus,
     refresh,
   } = useOrdersData();
@@ -331,10 +330,6 @@ const CashierOrders = () => {
             const r = await declinePayment(paymentId, orderId, reason);
             if (!r.success) throw new Error(r.error || "Decline failed");
             toast.success("Payment declined.");
-          }}
-          onUpdateCustomerDesign={async (url) => {
-            const r = await updateCustomerDesign(selectedOrder.id, url);
-            if (!r.success) throw new Error(r.error || "Update failed");
           }}
           onUpdateStatus={async (status) => {
             const r = await updateStatus(selectedOrder.id, status);

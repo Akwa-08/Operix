@@ -71,7 +71,7 @@ export async function logout(): Promise<GenericResult> {
 export async function forgotPassword(email: string): Promise<GenericResult> {
   try {
     await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${import.meta.env.VITE_APP_URL ?? window.location.origin}/reset-password`,
     });
     return { success: true, error: null };
   } catch (err: any) { return { success: false, error: err.message }; }

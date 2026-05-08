@@ -8,6 +8,7 @@ import { getDeliveryStatusColor } from "../../util/formatters";
 import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
 import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
+import { DeliveryDetailsModal } from "../Shared/Inventory/DeliveryDetailsModal";
 import { Package, CheckCircle, AlertTriangle, Truck } from "lucide-react";
 import type { Material, Delivery, DeliveryStatus } from "../../Types";
 import { useInventoryData, useDeliveries } from "../../hooks/useSupabase";
@@ -25,6 +26,7 @@ const CashierInventory = () => {
 
   // Deliveries Modals
   const [showConfirmReceipt, setShowConfirmReceipt] = useState(false);
+  const [showViewDelivery, setShowViewDelivery] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [receipt, setReceipt] = useState({ received_quantity: "", receipt_reference_number: "" });
 
@@ -155,21 +157,23 @@ const CashierInventory = () => {
                       <td className="px-4 py-3 font-medium text-gray-900">{d.requestedQuantity}</td>
                       <td className="px-4 py-3"><span className={d.status === 'received' ? 'text-green-600 font-bold' : ''}>{d.receivedQuantity || '-'}</span></td>
                       <td className="px-4 py-3 text-center">
-                        {d.status === 'requested' && (
-                          <button onClick={() => handleUpdateStatus(d.id, "ordered")} className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-semibold">Mark Ordered</button>
-                        )}
-                        {d.status === 'ordered' && (
-                          <button onClick={() => handleUpdateStatus(d.id, "en_route")} className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded text-xs font-semibold">Mark En Route</button>
-                        )}
-                        {d.status === 'en_route' && (
-                          <div className="flex gap-2 justify-center">
-                            <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: d.requestedQuantity.toString(), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-semibold">Receive</button>
-                            <button onClick={() => handleUpdateStatus(d.id, "returned")} className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-semibold">Return (Faulty)</button>
-                          </div>
-                        )}
-                        {d.status === 'received' && (
-                          <button onClick={() => handleUpdateStatus(d.id, "completed")} className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded text-xs font-semibold">Complete</button>
-                        )}
+                        <div className="flex items-center justify-center gap-1 flex-wrap">
+                          <button
+                            onClick={() => { setSelectedDelivery(d); setShowViewDelivery(true); }}
+                            className="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs font-semibold"
+                            title="View Details">View</button>
+
+
+                          {d.status === 'en_route' && (
+                            <div className="flex gap-2 justify-center">
+                              <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: d.requestedQuantity.toString(), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-semibold">Receive</button>
+                              <button onClick={() => handleUpdateStatus(d.id, "returned")} className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-semibold">Return (Faulty)</button>
+                            </div>
+                          )}
+                          {d.status === 'received' && (
+                            <button onClick={() => handleUpdateStatus(d.id, "completed")} className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded text-xs font-semibold">Complete</button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -191,17 +195,17 @@ const CashierInventory = () => {
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Req: <strong className="text-gray-900">{d.requestedQuantity} {d.materialUnit}</strong></span>
                     </div>
-                    {d.status === 'requested' && (
-                      <button onClick={() => handleUpdateStatus(d.id, "ordered")} className="w-full mt-2 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-semibold text-center">Mark Ordered</button>
-                    )}
-                    {d.status === 'ordered' && (
-                      <button onClick={() => handleUpdateStatus(d.id, "en_route")} className="w-full mt-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-semibold text-center">Mark En Route</button>
-                    )}
+                    <button
+                      onClick={() => { setSelectedDelivery(d); setShowViewDelivery(true); }}
+                      className="w-full mt-2 px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-semibold text-center">View Details</button>
                     {d.status === 'en_route' && (
                       <div className="flex gap-2 pt-2">
                         <button onClick={() => { setSelectedDelivery(d); setReceipt({ received_quantity: d.requestedQuantity.toString(), receipt_reference_number: "" }); setShowConfirmReceipt(true); }} className="flex-1 px-3 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold text-center">Receive Stock</button>
-                        <button onClick={() => handleUpdateStatus(d.id, "returned")} className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-semibold text-center">Return</button>
+                        <button onClick={() => handleUpdateStatus(d.id, "returned")} className="flex-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-semibold text-center">Return (Faulty)</button>
                       </div>
+                    )}
+                    {d.status === 'received' && (
+                      <button onClick={() => handleUpdateStatus(d.id, "completed")} className="w-full mt-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-semibold text-center">Complete</button>
                     )}
                   </div>
               ))}
@@ -240,6 +244,15 @@ const CashierInventory = () => {
           <MaterialDetailsModal isOpen={showViewModal} material={selectedMaterial} userRole="cashier" onClose={() => setShowViewModal(false)} />
           <EditMaterialModal isOpen={showEditModal} material={selectedMaterial} userRole="cashier" onClose={() => setShowEditModal(false)} onSave={handleSaveEdit} />
         </>
+      )}
+
+      {/* Delivery Details View Modal */}
+      {selectedDelivery && (
+        <DeliveryDetailsModal
+          isOpen={showViewDelivery}
+          onClose={() => setShowViewDelivery(false)}
+          delivery={selectedDelivery}
+        />
       )}
     </div>
   );

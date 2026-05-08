@@ -109,16 +109,6 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
         </div>
       );
     }
-    if (eligibility.reason === 'restricted_next_period') return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700">
-        <AlertTriangle size={12}/>Restricted — CA Pending Deduction
-      </span>
-    );
-    if (eligibility.reason === 'approved_awaiting_deduction') return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700">
-        <CheckCircle size={12}/>Issued — Deduction Scheduled
-      </span>
-    );
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">
         <AlertTriangle size={12}/>₱2,000 Period Limit Reached
@@ -243,37 +233,9 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
 
               {/* Status messages when ineligible */}
               {selEmp && eligibility && !eligibility.eligible && (
-                <div className={`px-4 py-3 rounded-lg border flex items-start gap-2 ${
-                  eligibility.reason === 'restricted_next_period' ? 'bg-orange-50 border-orange-200' :
-                  eligibility.reason === 'approved_awaiting_deduction' ? 'bg-blue-50 border-blue-200' :
-                  'bg-red-50 border-red-200'
-                }`}>
-                  {eligibility.reason === 'approved_awaiting_deduction'
-                    ? <CheckCircle size={14} className="text-blue-600 flex-shrink-0 mt-0.5"/>
-                    : eligibility.reason === 'restricted_next_period'
-                    ? <AlertTriangle size={14} className="text-orange-600 flex-shrink-0 mt-0.5"/>
-                    : <AlertTriangle size={14} className="text-red-600 flex-shrink-0 mt-0.5"/>}
+                <div className={`px-4 py-3 rounded-lg border flex items-start gap-2 bg-red-50 border-red-200`}>
+                  <AlertTriangle size={14} className="text-red-600 flex-shrink-0 mt-0.5"/>
                   <div>
-                    {eligibility.reason === 'restricted_next_period' && (
-                      <>
-                        <p className="text-xs font-bold text-orange-800 mb-0.5">Restricted — Previous Period Had CA</p>
-                        <p className="text-xs text-orange-700">
-                          This employee received a {eligibility.detail ? fmt(eligibility.detail.amount) : ''} Cash Advance
-                          in the previous payroll period ({eligibility.detail?.periodLabel || 'prior period'}).
-                          Per policy, they cannot request a new CA in the immediately following period.
-                          Their previous CA will be deducted from this period's payroll.
-                        </p>
-                      </>
-                    )}
-                    {eligibility.reason === 'approved_awaiting_deduction' && (
-                      <>
-                        <p className="text-xs font-bold text-blue-800 mb-0.5">CA Issued — Awaiting Deduction Next Period</p>
-                        <p className="text-xs text-blue-700">
-                          This employee's Cash Advance was issued in the current payroll period.
-                          The full amount will be automatically deducted in the next payroll period.
-                        </p>
-                      </>
-                    )}
                     {eligibility.reason === 'limit_reached' && (
                       <>
                         <p className="text-xs font-bold text-red-800 mb-0.5">Period Limit Reached</p>
@@ -354,21 +316,19 @@ const CashierDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Primary Action Section */}
         <div className="lg:col-span-1 space-y-5">
-          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 shadow-lg shadow-amber-200 relative overflow-hidden group transition-all hover:shadow-xl hover:-translate-y-1">
-            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-all"/>
-            
+          <div className="bg-white border border-amber-200 rounded-2xl p-6 shadow-sm relative overflow-hidden group transition-all hover:shadow-md hover:-translate-y-1">
             <div className="relative z-10">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center mb-5 border border-white/30">
-                <Banknote size={24} className="text-white"/>
+              <div className="w-12 h-12 bg-amber-50 rounded-xl flex items-center justify-center mb-5 border border-amber-100">
+                <Banknote size={24} className="text-amber-600"/>
               </div>
-              <h3 className="text-xl font-bold text-white mb-2">Request Cash Advance</h3>
-              <p className="text-amber-100 text-sm mb-6 leading-relaxed">
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Request Cash Advance</h3>
+              <p className="text-gray-500 text-sm mb-6 leading-relaxed">
                 Quickly submit financial assistance requests for employees. Maximum ₱2,000 per period.
               </p>
               
               <button 
                 onClick={() => setShowCA(true)}
-                className="w-full py-3 bg-white text-orange-600 font-bold rounded-xl text-sm shadow-sm hover:bg-orange-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-amber-100 text-amber-700 font-bold rounded-xl text-sm shadow-sm hover:bg-amber-200 active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 Start New Request
                 <CheckCircle size={16}/>
@@ -447,7 +407,7 @@ const CashierDashboard = () => {
           <p className="text-sm font-bold text-amber-800 mb-0.5">Cash Advance Policy</p>
           <p className="text-xs text-amber-700">
             Maximum <strong>{fmt(CA_LIMIT)}</strong> per 15-day period per employee. All requests require admin approval.
-            If deductions exceed net salary, the deficit carries over to the next payroll period.
+            Cash advances are deducted from the same payroll period. If deductions exceed net salary, the deficit carries over to the next payroll period.
           </p>
         </div>
       </div>

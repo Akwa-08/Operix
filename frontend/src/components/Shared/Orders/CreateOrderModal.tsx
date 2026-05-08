@@ -76,10 +76,10 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
   const handleSubmit = () => {
     if (!formData.customerName.trim()) { toast.error("Customer name is required"); return; }
-    if (!formData.productType)         { toast.error("Product type is required"); return; }
+    if (!formData.productType) { toast.error("Product type is required"); return; }
     if (!formData.quantity || Number(formData.quantity) < 1) { toast.error("Quantity must be at least 1"); return; }
-    if (!formData.dueDate)             { toast.error("Due date is required"); return; }
-    if (formData.totalAmount <= 0)     { toast.error("Total amount must be greater than 0"); return; }
+    if (!formData.dueDate) { toast.error("Due date is required"); return; }
+    if (formData.totalAmount <= 0) { toast.error("Total amount must be greater than 0"); return; }
 
     onSave({
       ...formData,
@@ -95,22 +95,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create New Order" size="xl">
+    <Modal isOpen={isOpen} onClose={onClose} title="Create New Order - Walk-in" size="xl">
       <div className="space-y-5">
         {/* Customer Information */}
         <div className="space-y-4">
 
-          {/* Order Type Toggle */}
-          <div className="flex flex-wrap gap-3 mb-4">
-            <button type="button" onClick={() => handleChange("orderType", "walk-in")}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${formData.orderType === 'walk-in' ? 'bg-cyan-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-              Walk-in Customer
-            </button>
-            <button type="button" onClick={() => handleChange("orderType", "online")}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${formData.orderType === 'online' ? 'bg-cyan-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-              Online Order
-            </button>
-          </div>
+
 
           <h3 className="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2">
             Customer Information
@@ -245,9 +235,8 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
               value={formData.dueDate}
               min={new Date().toISOString().split("T")[0]}
               onChange={(e) => handleChange("dueDate", e.target.value)}
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
-                !formData.dueDate ? "border-red-300 bg-red-50" : "border-gray-300"
-              }`}
+              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 ${!formData.dueDate ? "border-red-300 bg-red-50" : "border-gray-300"
+                }`}
             />
           </div>
 
@@ -267,27 +256,27 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           </div>
 
           <div className="col-span-2">
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Internal Notes
-              </label>
-              <textarea
-                value={formData.comments}
-                onChange={(e) => handleChange("comments", e.target.value)}
-                placeholder="e.g., Customer requested delivery, walk-in: Juan/09171234567"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm min-h-[60px]"
-              />
-            </div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Internal Notes
+            </label>
+            <textarea
+              value={formData.comments}
+              onChange={(e) => handleChange("comments", e.target.value)}
+              placeholder="e.g., Customer requested delivery, walk-in: Juan/09171234567"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 text-sm min-h-[60px]"
+            />
+          </div>
         </div>
 
         {/* Info Note */}
-       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-xs text-blue-900 font-medium flex items-start gap-1">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-xs text-blue-900 font-medium flex items-start gap-1">
             <Info className="w-4 h-4 mt-[2px]" />
             <span>
-            <strong>Note:</strong> The order will be created with status "In Queue".
-            Designers and production staff will be assigned by admin.
+              <strong>Note:</strong> The order will be created with status "In Queue".
+              Designers and production staff will be assigned by admin.
             </span>
-        </p>
+          </p>
         </div>
 
         {/* Action Buttons */}
