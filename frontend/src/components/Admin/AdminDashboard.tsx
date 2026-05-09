@@ -18,6 +18,8 @@ import {useDashboardData} from "../../hooks/useSupabase";
 import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
 import {fmtMoney} from "../../util/formatters";
+import {StatBreakdownModal} from "../Shared/UI/StatBreakdownModal";
+import {AdminSummaryReport} from "./AdminSummaryReport";
 
 // ─── Quick Action Card ────────────────────────────────────────────────────────
 const QuickActionCard: React.FC<{
@@ -399,6 +401,9 @@ const AdminDashboard = () => {
   const [period, setPeriod] = useState<Period>("month");
   const [chartType, setChartType] = useState<ChartType>("revenue");
   const {data: liveData, loading, refresh} = useDashboardData();
+  
+  const [showReport, setShowReport] = useState(false);
+  const [breakdown, setBreakdown] = useState<{ title: string; description: string; data: any[]; columns: any[]; icon: any } | null>(null);
 
   // Raw orders for client-side period filtering
   const rawOrders = useMemo<any[]>(
@@ -467,8 +472,29 @@ const AdminDashboard = () => {
 
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
+  const orderColumns = [
+    { header: "Order ID", accessor: (o: any) => o.order_number || o.id },
+    { header: "Customer", accessor: (o: any) => o.customer ? `${o.customer.first_name || ""} ${o.customer.last_name || ""}`.trim() : "Walk-in" },
+    { header: "Total Amount", accessor: (o: any) => fmtMoney(Number(o.total_amount) || 0) },
+    { header: "Amount Paid", accessor: (o: any) => fmtMoney(Number(o.amount_paid) || 0) },
+    { header: "Status", accessor: (o: any) => <span className="capitalize px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100">{o.status}</span> }
+  ];
+
   return (
     <div className="max-w-7xl mx-auto space-y-5">
+      <AdminSummaryReport isOpen={showReport} onClose={() => setShowReport(false)} />
+      {breakdown && (
+        <StatBreakdownModal
+          isOpen={true}
+          onClose={() => setBreakdown(null)}
+          title={breakdown.title}
+          description={breakdown.description}
+          data={breakdown.data}
+          columns={breakdown.columns}
+          icon={breakdown.icon}
+        />
+      )}
+
       {/* ── 1. HEADER ──────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -477,11 +503,19 @@ const AdminDashboard = () => {
           </h1>
           <p className="text-sm text-gray-400 mt-1 font-medium">{dateStr}</p>
         </div>
-        <button
-          onClick={() => refresh?.()}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm active:scale-95 transition-all w-full sm:w-auto">
-          <RefreshCw size={15} className="text-cyan-500" /> Refresh Data
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setShowReport(true)}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm font-bold text-blue-700 hover:bg-blue-100 shadow-sm active:scale-95 transition-all"
+          >
+            <ClipboardList size={15} /> Summary Report
+          </button>
+          <button
+            onClick={() => refresh?.()}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm active:scale-95 transition-all w-full sm:w-auto">
+            <RefreshCw size={15} className="text-cyan-500" /> Refresh Data
+          </button>
+        </div>
       </div>
 
       {/* ── 2. PERIOD SELECTOR ─────────────────────────────────────────────── */}
@@ -512,6 +546,7 @@ const AdminDashboard = () => {
           iconBg="bg-cyan-100"
           iconColor="text-cyan-600"
           accent="blue"
+          onClick={() => setBreakdown({ title: "Revenue Breakdown", description: "All orders generating revenue in the selected period.", data: periodOrders, columns: orderColumns, icon: <TrendingUp size={24} /> })}
         />
         <KpiCard
           title="Collected"
@@ -521,6 +556,7 @@ const AdminDashboard = () => {
           iconBg="bg-green-100"
           iconColor="text-green-600"
           accent="green"
+          onClick={() => setBreakdown({ title: "Collected Payments", description: "Orders with payments collected.", data: periodOrders.filter((o) => Number(o.amount_paid) > 0), columns: orderColumns, icon: <DollarSign size={24} /> })}
         />
         <KpiCard
           title="Outstanding"
@@ -530,6 +566,7 @@ const AdminDashboard = () => {
           iconBg="bg-amber-100"
           iconColor="text-amber-600"
           accent={stats.outstanding > 0 ? "yellow" : "green"}
+          onClick={() => setBreakdown({ title: "Outstanding Payments", description: "Orders with pending or partial payments.", data: periodOrders.filter((o) => Number(o.amount_paid) < Number(o.total_amount)), columns: orderColumns, icon: <CreditCard size={24} /> })}
         />
         <KpiCard
           title="Orders"
@@ -538,6 +575,7 @@ const AdminDashboard = () => {
           icon={<Package size={16} />}
           iconBg="bg-purple-100"
           iconColor="text-purple-600"
+          onClick={() => setBreakdown({ title: "Orders Breakdown", description: "All orders placed in the selected period.", data: periodOrders, columns: orderColumns, icon: <Package size={24} /> })}
         />
         <KpiCard
           title="Completed"
@@ -551,6 +589,7 @@ const AdminDashboard = () => {
           iconBg="bg-green-100"
           iconColor="text-green-600"
           accent="green"
+          onClick={() => setBreakdown({ title: "Completed Orders", description: "Orders successfully completed.", data: periodOrders.filter((o) => o.status === "completed"), columns: orderColumns, icon: <CheckCircle size={24} /> })}
         />
         <KpiCard
           title="Overdue"
@@ -560,6 +599,7 @@ const AdminDashboard = () => {
           iconBg="bg-red-100"
           iconColor="text-red-600"
           accent={stats.overdue > 0 ? "red" : "none"}
+          onClick={() => setBreakdown({ title: "Overdue Orders", description: "Orders past their due date.", data: periodOrders.filter((o) => o.due_date && new Date(o.due_date) < new Date() && !["completed", "pickup", "cancelled"].includes(o.status)), columns: orderColumns, icon: <AlertTriangle size={24} /> })}
         />
       </div>
 

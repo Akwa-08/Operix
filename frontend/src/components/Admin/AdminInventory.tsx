@@ -15,6 +15,8 @@ import { EditProductModal } from "../Shared/Inventory/EditProductModal";
 import { ProductDetailsModal } from "../Shared/Inventory/ProductDetailsModal";
 import { DeleteProductModal } from "../Shared/Inventory/DeleteProductModal";
 import { DeliveryDetailsModal } from "../Shared/Inventory/DeliveryDetailsModal";
+import { StatBreakdownModal } from "../Shared/UI/StatBreakdownModal";
+import { fmtMoney } from "../../util/formatters";
 import type { Material, AdminProduct, Delivery } from "../../Types";
 import { useInventoryData, useProductsData, useDeliveries } from "../../hooks/useSupabase";
 import { useToast } from "../../context/ToastContext";
@@ -65,6 +67,8 @@ const AdminInventory = () => {
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [newDelivery, setNewDelivery] = useState({ inventory_item_id: "", supplier_id: "", requested_quantity: "", expected_arrival_date: "", notes: "" });
   const [receipt, setReceipt] = useState({ received_quantity: "", receipt_reference_number: "" });
+
+  const [breakdown, setBreakdown] = useState<{ title: string; description: string; data: any[]; columns: any[]; icon: any } | null>(null);
 
   const tabs = ["Materials", "Products", "Deliveries"];
   const { materials, stats: materialStats, loading: matLoading, refresh: refreshMat } = useInventoryData();
@@ -176,8 +180,42 @@ const AdminInventory = () => {
 
   if (loading) return <LoadingSpinner type="table" message="Loading..." />;
 
+  const materialColumns = [
+    { header: "Material", accessor: (m: any) => m.name },
+    { header: "Current Stock", accessor: (m: any) => `${m.currentQuantity} ${m.unitOfMeasure}` },
+    { header: "Reorder At", accessor: (m: any) => `${m.reorderPoint} ${m.unitOfMeasure}` },
+    { header: "Status", accessor: (m: any) => m.status }
+  ];
+
+  const productColumns = [
+    { header: "Product", accessor: (p: any) => p.name },
+    { header: "Category", accessor: (p: any) => p.category || "—" },
+    { header: "Price", accessor: (p: any) => fmtMoney(p.finalPrice || 0) },
+    { header: "Status", accessor: (p: any) => <span className="capitalize">{p.status}</span> }
+  ];
+
+  const deliveryColumns = [
+    { header: "Material", accessor: (d: any) => d.materialName },
+    { header: "Supplier", accessor: (d: any) => d.supplierName },
+    { header: "Qty Requested", accessor: (d: any) => `${d.requestedQuantity} ${d.materialUnit}` },
+    { header: "Expected", accessor: (d: any) => d.expectedArrivalDate || "—" },
+    { header: "Status", accessor: (d: any) => <span className="capitalize">{d.status.replace("_", " ")}</span> }
+  ];
+
   return (
     <div className="max-w-7xl mx-auto">
+      {breakdown && (
+        <StatBreakdownModal
+          isOpen={true}
+          onClose={() => setBreakdown(null)}
+          title={breakdown.title}
+          description={breakdown.description}
+          data={breakdown.data}
+          columns={breakdown.columns}
+          icon={breakdown.icon}
+        />
+      )}
+
       <PageHeader title="Inventory" subtitle="Manage materials, products, and incoming deliveries" />
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -195,11 +233,16 @@ const AdminInventory = () => {
       {activeTab === "Materials" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
-            <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
-            <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" isCurrency={false} />
-            <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} />
-            <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
+            <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Total Materials", description: "All materials tracked.", data: materials, columns: materialColumns, icon: <Package size={24} /> })} />
+            <StatusCard title="Available" value={materialStats.available} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Available Materials", description: "Materials with sufficient stock.", data: materials.filter(m => m.status === "Available"), columns: materialColumns, icon: <CheckCircle size={24} /> })} />
+            <StatusCard title="Low Stock" value={materialStats.lowStock} icon={<AlertTriangle size={18} />} iconColor="text-yellow-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Low Stock Materials", description: "Materials currently at or below reorder point.", data: materials.filter(m => m.status === "Low Stock"), columns: materialColumns, icon: <AlertTriangle size={24} /> })} />
+            <StatusCard title="Restocking" value={materialStats.restocking} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Restocking", description: "Materials awaiting delivery.", data: materials.filter(m => m.status === "Restocking"), columns: materialColumns, icon: <Package size={24} /> })} />
+            <StatusCard title="Phased Out" value={materialStats.phasedOut} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Phased Out", description: "Materials with 0 stock and 0 reorder point.", data: materials.filter(m => m.status === "Phased Out"), columns: materialColumns, icon: <AlertTriangle size={24} /> })} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
@@ -260,9 +303,12 @@ const AdminInventory = () => {
       {activeTab === "Products" && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
-            <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
-            <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} />
+            <StatusCard title="Total Products" value={prodStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Total Products", description: "All products in the catalog.", data: products, columns: productColumns, icon: <Package size={24} /> })} />
+            <StatusCard title="Active" value={prodStats.active} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Active Products", description: "Products currently available for order.", data: products.filter(p => p.status === "active"), columns: productColumns, icon: <CheckCircle size={24} /> })} />
+            <StatusCard title="Inactive" value={prodStats.inactive} icon={<AlertTriangle size={18} />} iconColor="text-red-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Inactive Products", description: "Archived or disabled products.", data: products.filter(p => p.status === "inactive"), columns: productColumns, icon: <AlertTriangle size={24} /> })} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">
@@ -299,12 +345,18 @@ const AdminInventory = () => {
       {activeTab === "Deliveries" && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" isCurrency={false} />
-            <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" isCurrency={false} />
-            <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} />
-            <StatusCard title="En Route" value={delStats.enRoute} icon={<Truck size={18} />} iconColor="text-purple-600" isCurrency={false} />
-            <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} />
-            <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" isCurrency={false} />
+            <StatusCard title="Total" value={delStats.total} icon={<Truck size={18} />} iconColor="text-cyan-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Total Deliveries", description: "All delivery records.", data: deliveries, columns: deliveryColumns, icon: <Truck size={24} /> })} />
+            <StatusCard title="Requested" value={delStats.requested} icon={<Clock size={18} />} iconColor="text-yellow-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Requested", description: "Restock requests awaiting processing.", data: deliveries.filter(d => d.status === "requested"), columns: deliveryColumns, icon: <Clock size={24} /> })} />
+            <StatusCard title="Ordered" value={delStats.ordered} icon={<Package size={18} />} iconColor="text-blue-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Ordered", description: "Purchase orders sent to suppliers.", data: deliveries.filter(d => d.status === "ordered"), columns: deliveryColumns, icon: <Package size={24} /> })} />
+            <StatusCard title="En Route" value={delStats.enRoute} icon={<Truck size={18} />} iconColor="text-purple-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "En Route", description: "Deliveries currently in transit.", data: deliveries.filter(d => d.status === "en_route"), columns: deliveryColumns, icon: <Truck size={24} /> })} />
+            <StatusCard title="Received" value={delStats.received} icon={<CheckCircle size={18} />} iconColor="text-green-600" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Received", description: "Deliveries received but not fully completed.", data: deliveries.filter(d => d.status === "received"), columns: deliveryColumns, icon: <CheckCircle size={24} /> })} />
+            <StatusCard title="Completed" value={delStats.completed} icon={<CheckCircle size={18} />} iconColor="text-gray-500" isCurrency={false} 
+              onClick={() => setBreakdown({ title: "Completed", description: "Fully processed and completed deliveries.", data: deliveries.filter(d => d.status === "completed"), columns: deliveryColumns, icon: <CheckCircle size={24} /> })} />
           </div>
           <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
             <div className="flex flex-col md:flex-row gap-3">

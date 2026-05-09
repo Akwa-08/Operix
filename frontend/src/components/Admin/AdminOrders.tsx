@@ -12,8 +12,10 @@ import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import { KpiCard } from "../Shared/UI/KpiCard";
 import { FilterDropdown } from "../Shared/UI/FilterDropdown";
+import { StatBreakdownModal } from "../Shared/UI/StatBreakdownModal";
 import type { Order } from "../../Types";
 import { useOrdersData } from "../../hooks/useSupabase";
+import { fmtMoney } from "../../util/formatters";
 
 // ── Local modal shell ────────────────────────────────────────────────────────
 const Modal = ({ show, onClose, title, children }: any) => {
@@ -41,6 +43,7 @@ const AdminOrders = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedOrderId, setSelectedOrderId]   = useState<string | null>(null);
   const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
+  const [breakdown, setBreakdown]               = useState<{ title: string; description: string; data: any[]; columns: any[]; icon: any } | null>(null);
 
   const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, approvePayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
 
@@ -154,8 +157,27 @@ const AdminOrders = () => {
 
   if (loading) return <LoadingSpinner type="table" />;
 
+  const orderColumns = [
+    { header: "Order ID", accessor: (o: any) => o.order_number || o.id },
+    { header: "Customer", accessor: (o: any) => o.customer ? `${o.customer.first_name || ""} ${o.customer.last_name || ""}`.trim() : "Walk-in" },
+    { header: "Total Amount", accessor: (o: any) => fmtMoney(Number(o.total_amount) || 0) },
+    { header: "Amount Paid", accessor: (o: any) => fmtMoney(Number(o.amount_paid) || 0) },
+    { header: "Status", accessor: (o: any) => <span className="capitalize px-2 py-0.5 rounded-full text-xs font-bold bg-gray-100">{o.status}</span> }
+  ];
+
   return (
     <div className="max-w-7xl mx-auto space-y-4">
+      {breakdown && (
+        <StatBreakdownModal
+          isOpen={true}
+          onClose={() => setBreakdown(null)}
+          title={breakdown.title}
+          description={breakdown.description}
+          data={breakdown.data}
+          columns={breakdown.columns}
+          icon={breakdown.icon}
+        />
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -170,14 +192,16 @@ const AdminOrders = () => {
 
       {/* KPI Cards — 5 focused metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <KpiCard title="Total Orders"   value={stats.total}          icon={<Package size={16}     />} iconColor="text-cyan-600" />
-        <KpiCard title="Active"         value={activeCount}           icon={<Clock size={16}       />} iconColor="text-purple-600" />
+        <KpiCard title="Total Orders"   value={stats.total}          icon={<Package size={16}     />} iconColor="text-cyan-600" 
+          onClick={() => setBreakdown({ title: "Total Orders", description: "All orders in the system.", data: orders, columns: orderColumns, icon: <Package size={24} /> })} />
+        <KpiCard title="Active"         value={activeCount}           icon={<Clock size={16}       />} iconColor="text-purple-600" 
+          onClick={() => setBreakdown({ title: "Active Orders", description: "Orders currently in Designing, Payment, or Production.", data: orders.filter((o) => ["Designing", "Payment", "Production"].includes(o.status)), columns: orderColumns, icon: <Clock size={24} /> })} />
         <KpiCard title="Ready Pickup"   value={stats.readyPickup}    icon={<CheckCircle size={16} />} iconColor="text-green-600" 
-          accent={stats.readyPickup > 0 ? "blue" : "none"} onClick={() => setStatusFilter("Ready Pickup")} />
+          accent={stats.readyPickup > 0 ? "blue" : "none"} onClick={() => setBreakdown({ title: "Ready for Pickup", description: "Orders awaiting customer pickup.", data: orders.filter(o => o.status === "Pickup"), columns: orderColumns, icon: <CheckCircle size={24} /> })} />
         <KpiCard title="Unpaid"         value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
-          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setStatusFilter("Unpaid")} />
+          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setBreakdown({ title: "Unpaid Orders", description: "Orders with pending or partial payments.", data: orders.filter(o => o.paymentStatus !== "Paid" && o.status !== "Cancelled"), columns: orderColumns, icon: <DollarSign size={24} /> })} />
         <KpiCard title="Overdue"        value={stats.overdue}        icon={<AlertCircle size={16} />} iconColor="text-red-600"
-          accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setStatusFilter("Overdue")} />
+          accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setBreakdown({ title: "Overdue Orders", description: "Orders past their due date.", data: orders.filter((o) => o.dueDate && new Date(o.dueDate) < new Date() && !["Completed", "Cancelled", "Pickup"].includes(o.status)), columns: orderColumns, icon: <AlertCircle size={24} /> })} />
       </div>
 
       {/* Unified filter bar */}

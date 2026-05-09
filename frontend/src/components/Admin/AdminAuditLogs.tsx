@@ -81,6 +81,7 @@ const AdminLogs = () => {
   const [activeTab, setActiveTab]   = useState<TabId>("all");
   const [search, setSearch]         = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [actionFilter, setActionFilter] = useState("all");
   const [dateFrom, setDateFrom]     = useState("");
   const [dateTo, setDateTo]         = useState("");
 
@@ -106,6 +107,12 @@ const AdminLogs = () => {
     [tabLogs]
   );
 
+  // ── Unique actions for filter dropdown ────────────────────────────────────
+  const actions = useMemo(() =>
+    ["all", ...Array.from(new Set(tabLogs.map(l => l.action))).sort()],
+    [tabLogs]
+  );
+
   // ── Count per tab for badge ───────────────────────────────────────────────
   const counts = {
     all:       allLogs.length,
@@ -124,11 +131,12 @@ const AdminLogs = () => {
         log.details.toLowerCase().includes(term) ||
         log.module.toLowerCase().includes(term);
       const matchRole = roleFilter === "all" || log.role === roleFilter;
+      const matchAction = actionFilter === "all" || log.action === actionFilter;
       const matchFrom = !dateFrom || log.timestamp >= new Date(dateFrom).getTime();
       const matchTo   = !dateTo   || log.timestamp <= new Date(dateTo).setHours(23, 59, 59);
-      return matchSearch && matchRole && matchFrom && matchTo;
+      return matchSearch && matchRole && matchAction && matchFrom && matchTo;
     });
-  }, [tabLogs, search, roleFilter, dateFrom, dateTo]);
+  }, [tabLogs, search, roleFilter, actionFilter, dateFrom, dateTo]);
 
   // ── Loading / Error states ─────────────────────────────────────────────────
   if (loading) return <LoadingSpinner type="table" message="Loading activity logs..." />;
@@ -230,6 +238,20 @@ const AdminLogs = () => {
               className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-medium appearance-none focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 capitalize"
             >
               {roles.map(r => <option key={r} value={r}>{r === "all" ? "All Roles" : r}</option>)}
+            </select>
+            <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+
+          {/* Action filter */}
+          <div className="relative flex-1 md:min-w-[140px]">
+            <Activity size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <select
+              id="audit-action-filter"
+              value={actionFilter}
+              onChange={e => setActionFilter(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-medium appearance-none focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 capitalize"
+            >
+              {actions.map(a => <option key={a} value={a}>{a === "all" ? "All Actions" : a}</option>)}
             </select>
             <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
