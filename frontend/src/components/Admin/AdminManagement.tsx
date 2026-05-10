@@ -11,8 +11,9 @@ import {
 
   AlertTriangle,
   Power,
+  Package,
 } from "lucide-react";
-import {useManagementData} from "../../hooks/useSupabase";
+import {useManagementData, useInventoryData} from "../../hooks/useSupabase";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
 import {useToast} from "../../context/ToastContext";
 import type {FrontendUser, FrontendSupplier, EmployeeRecord} from "../../Types";
@@ -100,6 +101,10 @@ const AdminManagement: React.FC = () => {
   const [showCreateSupplierModal, setShowCreateSupplierModal] = useState(false);
   const [showSupplierInfoModal, setShowSupplierInfoModal] = useState(false);
   const [showFlagNotesModal, setShowFlagNotesModal] = useState(false);
+  const [showManageMaterialsModal, setShowManageMaterialsModal] = useState(false);
+  const [mappedMaterialIds, setMappedMaterialIds] = useState<string[]>([]);
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [savingMapping, setSavingMapping] = useState(false);
   const [empToDeactivate, setEmpToDeactivate] = useState<EmployeeRecord | null>(
     null,
   );
@@ -155,6 +160,7 @@ const AdminManagement: React.FC = () => {
     name: "",
     phone: "",
     email: "",
+    address: "",
   });
   const [editSupplierForm, setEditSupplierForm] = useState({
     name: "",
@@ -194,7 +200,10 @@ const AdminManagement: React.FC = () => {
     updateSupplier,
     flagSupplier,
     toggleSupplierActive,
+    getSupplierMaterials,
+    updateSupplierMaterials,
   } = useManagementData();
+  const {materials} = useInventoryData();
 
   // ── Context-aware Create New ─────────────────────────────────────────
   const handleCreateNew = () => {
@@ -220,7 +229,7 @@ const AdminManagement: React.FC = () => {
       });
       setShowCreateEmpModal(true);
     } else {
-      setSupplierForm({name: "", phone: "", email: ""});
+      setSupplierForm({name: "", phone: "", email: "", address: ""});
       setShowCreateSupplierModal(true);
     }
   };
@@ -386,14 +395,15 @@ const AdminManagement: React.FC = () => {
   };
 
   const handleSubmitCreateSupplier = async () => {
-    if (!supplierForm.name.trim()) {
-      toast.error("Supplier name required");
+    if (!supplierForm.name.trim() || !supplierForm.phone.trim() || !supplierForm.email.trim() || !supplierForm.address.trim()) {
+      toast.error("Name, Phone, Email, and Address are required.");
       return;
     }
     const r = await createSupplier({
       name: supplierForm.name,
       phone: supplierForm.phone,
       email: supplierForm.email,
+      address: supplierForm.address,
     });
     if (r.success) {
       toast.success("Supplier created!");
@@ -428,6 +438,33 @@ const AdminManagement: React.FC = () => {
     if (r.success) toast.success("Notes saved!");
     else toast.error(r.error || "Failed to save notes");
     setShowFlagNotesModal(false);
+  };
+
+  const handleManageMaterials = async (s: Supplier) => {
+    setSelectedSupplier(s);
+    try {
+      const currentMapping = await getSupplierMaterials(s.id);
+      setMappedMaterialIds(currentMapping.map((m: any) => m.inventory_item_id));
+      setShowManageMaterialsModal(true);
+    } catch (err: any) {
+      toast.error("Failed to fetch supplier materials");
+    }
+  };
+
+  const handleSaveMaterialsMapping = async () => {
+    if (!selectedSupplier) return;
+    setSavingMapping(true);
+    const r = await updateSupplierMaterials(
+      selectedSupplier.id,
+      mappedMaterialIds,
+    );
+    if (r.success) {
+      toast.success("Supplier materials updated");
+      setShowManageMaterialsModal(false);
+    } else {
+      toast.error(r.error || "Failed to update mapping");
+    }
+    setSavingMapping(false);
   };
 
   // ── Filtering + Sorting ──────────────────────────────────────────────
@@ -939,7 +976,7 @@ const AdminManagement: React.FC = () => {
             placeholder="e.g., ABC Printing Supplies"
           />
           <F
-            label="Phone"
+            label="Phone *"
             value={supplierForm.phone}
             onChange={(v: string) =>
               setSupplierForm({...supplierForm, phone: v})
@@ -947,12 +984,21 @@ const AdminManagement: React.FC = () => {
             placeholder="09XX XXX XXXX"
           />
           <F
-            label="Email"
+            label="Email *"
             type="email"
             value={supplierForm.email}
             onChange={(v: string) =>
               setSupplierForm({...supplierForm, email: v})
             }
+            placeholder="supplier@example.com"
+          />
+          <F
+            label="Address *"
+            value={supplierForm.address}
+            onChange={(v: string) =>
+              setSupplierForm({...supplierForm, address: v})
+            }
+            placeholder="Full business address"
           />
         </div>
         <div className="flex gap-3">
@@ -1060,6 +1106,86 @@ const AdminManagement: React.FC = () => {
             onClick={handleSaveFlagNotes}
             className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl">
             Save Notes
+          </button>
+        </div>
+      </Modal>
+
+      {/* ═══ MANAGE MATERIALS MODAL ═══ */}
+      <Modal
+        show={showManageMaterialsModal && !!selectedSupplier}
+        onClose={() => setShowManageMaterialsModal(false)}
+        title={`Manage Materials — ${selectedSupplier?.supplierName || ""}`}
+        width="max-w-3xl">
+        <div className="space-y-4 mb-6">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-gray-500">
+              Select materials that this supplier provides.
+            </p>
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input 
+                type="text" 
+                placeholder="Filter materials..."
+                value={materialSearch}
+                onChange={(e) => setMaterialSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto p-2 border rounded-xl bg-gray-50">
+            {materials
+              .filter(m => !materialSearch || 
+                m.itemType.toLowerCase().includes(materialSearch.toLowerCase()) || 
+                (m.itemVariant || "").toLowerCase().includes(materialSearch.toLowerCase())
+              )
+              .map((m) => (
+              <label
+                key={m.id}
+                className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${mappedMaterialIds.includes(m.id) ? "bg-cyan-50 border-cyan-200" : "bg-white border-gray-200 hover:border-cyan-300"}`}>
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500"
+                  checked={mappedMaterialIds.includes(m.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setMappedMaterialIds([...mappedMaterialIds, m.id]);
+                    } else {
+                      setMappedMaterialIds(
+                        mappedMaterialIds.filter((id) => id !== m.id),
+                      );
+                    }
+                  }}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">
+                    {m.itemType}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {m.itemVariant || "No variant"}
+                  </p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowManageMaterialsModal(false)}
+            className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">
+            Cancel
+          </button>
+          <button
+            onClick={handleSaveMaterialsMapping}
+            disabled={savingMapping}
+            className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
+            {savingMapping ? (
+              "Saving..."
+            ) : (
+              <>
+                <Check size={18} />
+                Save Mapping
+              </>
+            )}
           </button>
         </div>
       </Modal>
@@ -1255,7 +1381,7 @@ const AdminManagement: React.FC = () => {
                         <button
                           onClick={() => handleViewUser(u)}
                           className="p-1.5 hover:bg-cyan-100 rounded-lg"
-                          title="View/Edit">
+                          title="View or Edit">
                           <Eye size={18} className="text-cyan-600" />
                         </button>
                         {u.isActive && (
@@ -1363,7 +1489,7 @@ const AdminManagement: React.FC = () => {
                         <button
                           onClick={() => handleViewEmp(e)}
                           className="p-1.5 hover:bg-cyan-100 rounded-lg"
-                          title="View/Edit">
+                          title="View or Edit">
                           <Eye size={18} className="text-cyan-600" />
                         </button>
                         {e.isActive && (
@@ -1449,7 +1575,7 @@ const AdminManagement: React.FC = () => {
                         <button
                           onClick={() => handleViewSupplier(s)}
                           className="p-1.5 hover:bg-cyan-100 rounded-lg"
-                          title="View">
+                          title="View or Edit">
                           <Eye size={16} className="text-cyan-600" />
                         </button>
                         <button
@@ -1491,6 +1617,12 @@ const AdminManagement: React.FC = () => {
                           className="p-1.5 hover:bg-gray-200 rounded-lg"
                           title="Notes">
                           <FileText size={16} className="text-gray-500" />
+                        </button>
+                        <button
+                          onClick={() => handleManageMaterials(s)}
+                          className="p-1.5 hover:bg-cyan-100 rounded-lg"
+                          title="Manage Materials">
+                          <Package size={16} className="text-cyan-600" />
                         </button>
                       </div>
                     </td>

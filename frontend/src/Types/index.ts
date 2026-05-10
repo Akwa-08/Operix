@@ -70,6 +70,7 @@ export interface Material {
   isActive: boolean;
   description?: string;
   lastSupplierCost?: number;
+  mappedSuppliers?: { id: string; name: string }[];
 }
 
 export interface Product {
@@ -208,7 +209,7 @@ export interface AdminProduct {
 }
 
 // ── Deliveries ───────────────────────────────────────────────────────────────
-export type DeliveryStatus = "requested" | "ordered" | "en_route" | "received" | "returned" | "completed";
+export type DeliveryStatus = "requested" | "ordered" | "en_route" | "received" | "returned" | "completed" | "cancelled";
 
 export interface Delivery {
   id: string;

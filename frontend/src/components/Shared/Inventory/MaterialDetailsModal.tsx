@@ -71,13 +71,13 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp size={16} className="text-green-600" />
                   <span className="text-xs text-gray-500 font-semibold uppercase">
-                    Purchase Unit
+                    Conversion
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {material.purchaseQty}
+                <p className="text-xl font-bold text-gray-900">
+                  1 {material.purchaseUnit}
                 </p>
-                <p className="text-xs text-gray-600">{material.purchaseUnit}</p>
+                <p className="text-xs text-gray-600">= {material.purchaseQty} {material.stockUnit}</p>
               </div>
             )}
           </div>
@@ -92,14 +92,14 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoField label="Item Type" value={material.itemType} />
-              <InfoField label="Item Variant" value={material.itemVariant} />
+              <InfoField label="Description" value={material.itemVariant} />
               <InfoField
                 label="Usable Stocks"
                 value={`${material.usableStocks} ${material.stockUnit}`}
               />
               <InfoField
-                label="Purchase Quantity"
-                value={`${material.purchaseQty} ${material.purchaseUnit}`}
+                label="Conversion"
+                value={`1 ${material.purchaseUnit} = ${material.purchaseQty} ${material.stockUnit}`}
               />
               <InfoField label="Supplier" value={material.supplier} />
               <InfoField label="Status" value={material.status} />
@@ -116,7 +116,7 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoField label="Item Type" value={material.itemType} />
-              <InfoField label="Item Variant" value={material.itemVariant} />
+              <InfoField label="Description" value={material.itemVariant} />
               <InfoField
                 label="Current Stock"
                 value={`${material.usableStocks} ${material.stockUnit}`}

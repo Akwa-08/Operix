@@ -11,7 +11,8 @@ interface EditMaterialModalProps {
   onClose: () => void;
   material: Material;
   userRole: UserRole;
-  onSave: (data: Partial<Material>) => void;
+  suppliers: { id: string; name: string }[];
+  onSave: (data: Partial<Material>, supplierIds?: string[]) => void;
 }
 
 export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
@@ -19,6 +20,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
   onClose,
   material,
   userRole,
+  suppliers,
   onSave,
 }) => {
   const perms = permissions[userRole].inventory;
@@ -38,6 +40,10 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
     description: material.description,
   }));
 
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState<string[]>(
+    material.mappedSuppliers?.map((s) => s.id) || [],
+  );
+
   useEffect(() => {
     setFormData({
       itemType: material.itemType,
@@ -52,14 +58,15 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
       status: material.status,
       description: material.description,
     });
-  }, [material.id]);
+    setSelectedSupplierIds(material.mappedSuppliers?.map((s) => s.id) || []);
+  }, [material.id, material.mappedSuppliers]);
 
   const handleChange = (field: keyof Material, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = () => {
-    onSave(formData);
+    onSave(formData, selectedSupplierIds);
   };
 
   return (
@@ -84,7 +91,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Item Variant *
+                  Description
                 </label>
                 <input
                   type="text"
@@ -128,7 +135,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Purchase Quantity *
+                  Conversion Rate *
                 </label>
                 <input
                   type="number"
@@ -138,6 +145,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
+                <p className="text-[10px] text-gray-400 mt-1">Number of {formData.stockUnit || 'units'} per {formData.purchaseUnit || 'purchase unit'}</p>
               </div>
 
               <div>
@@ -167,6 +175,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
+                <p className="text-[10px] text-gray-400 mt-1">Units based on Stock Unit</p>
               </div>
 
               <div>
@@ -182,20 +191,42 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
+                <p className="text-[10px] text-gray-400 mt-1">Cost per Stock Unit (for BOM calculations)</p>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Supplier *
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Mapped Suppliers (At least one required) *
               </label>
-              <input
-                type="text"
-                value={formData.supplier}
-                onChange={(e) => handleChange("supplier", e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                placeholder="e.g., ABC co."
-              />
+              <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto p-3 border rounded-xl bg-gray-50">
+                {suppliers.map((s) => (
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={selectedSupplierIds.includes(s.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSupplierIds([
+                            ...selectedSupplierIds,
+                            s.id,
+                          ]);
+                        } else {
+                          setSelectedSupplierIds(
+                            selectedSupplierIds.filter((id) => id !== s.id),
+                          );
+                        }
+                      }}
+                      className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500"
+                    />
+                    <span className="text-sm text-gray-700 truncate">
+                      {s.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             <div>

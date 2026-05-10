@@ -144,16 +144,33 @@ function deriveMatStatus(item: any): MaterialStatus {
 }
 
 function mapMaterial(item: any): Material {
-  const pref = item.item_suppliers?.find((s: any) => s.is_preferred) ?? item.item_suppliers?.[0];
+  const pref =
+    item.item_suppliers?.find((s: any) => s.is_preferred) ??
+    item.item_suppliers?.[0];
+  const mappedSuppliers =
+    item.item_suppliers
+      ?.map((s: any) => ({
+        id: s.suppliers?.id,
+        name: s.suppliers?.name,
+      }))
+      .filter((s: any) => s.id) || [];
+
   return {
-    id: item.id, itemType: item.name, itemVariant: item.description || '',
-    usableStocks: Number(item.current_quantity), stockUnit: item.unit_of_measure,
-    reorderPoint: Number(item.reorder_point), unitCost: Number(item.unit_cost),
+    id: item.id,
+    itemType: item.name,
+    itemVariant: item.description || "",
+    usableStocks: Number(item.current_quantity),
+    stockUnit: item.unit_of_measure,
+    reorderPoint: Number(item.reorder_point),
+    unitCost: Number(item.unit_cost),
     purchaseQty: Number(item.conversion_rate ?? 1),
     purchaseUnit: item.purchase_unit || item.unit_of_measure,
-    supplier: pref?.suppliers?.name || '—', status: deriveMatStatus(item),
-    isActive: item.is_active, description: item.description,
+    supplier: pref?.suppliers?.name || "—",
+    status: deriveMatStatus(item),
+    isActive: item.is_active,
+    description: item.description,
     lastSupplierCost: pref ? Number(pref.supplier_unit_price) : undefined,
+    mappedSuppliers,
   };
 }
 
@@ -227,7 +244,13 @@ export function useInventoryData() {
     updateMaterial: async (id: string, updates: any) => {
       const r = await safe(() => db.updateInventoryItem(id, updates).then(() => q.refresh()));
       return r;
-    }
+    },
+    updateMaterialSuppliers: async (materialId: string, supplierIds: string[]) => {
+      const r = await safe(() =>
+        db.updateMaterialSuppliers(materialId, supplierIds).then(() => q.refresh()),
+      );
+      return r;
+    },
   };
 }
 
@@ -360,10 +383,22 @@ export function useManagementData() {
       return r;
     },
     deactivateEmployee: async (id: string) => { const r = await safe(() => db.updateEmployee(id, { is_active: false }).then(() => refreshEmps())); return r; },
-    createSupplier: async (data: { name: string; phone?: string; email?: string }) => { const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email }).then(() => refreshSups())); return r; },
+    createSupplier: async (data: { name: string; phone?: string; email?: string; address?: string }) => { 
+      const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups())); 
+      return r; 
+    },
     updateSupplier: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateSupplier(id, updates).then(() => refreshSups())); return r; },
     flagSupplier: async (id: string, flagged: boolean, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
     toggleSupplierActive: async (id: string, active: boolean) => { const r = await safe(() => db.updateSupplier(id, { is_active: active }).then(() => refreshSups())); return r; },
+    getSupplierMaterials: async (supplierId: string) => {
+      return await db.getSupplierMaterials(supplierId);
+    },
+    updateSupplierMaterials: async (supplierId: string, inventoryItemIds: string[]) => {
+      const r = await safe(() =>
+        db.updateSupplierMaterials(supplierId, inventoryItemIds).then(() => refreshSups()),
+      );
+      return r;
+    },
   };
 }
 
@@ -421,14 +456,39 @@ export function useDeliveries() {
   const q = useQuery(() => db.getDeliveries(), [], ['deliveries', 'inventory_items', 'suppliers']);
   const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
   const { data: rawSuppliers } = useQuery(() => db.getSuppliers(), [], ['suppliers']);
+  const { data: staffList } = useQuery(() => db.getStaffList(), [], ['users']);
+  const { data: rawEmployees } = useQuery(() => db.getEmployees(), [], ['employees']);
+  
   const raw = q.data || [];
   const deliveries: Delivery[] = raw.map(mapDelivery);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
   const suppliers = (rawSuppliers || []).filter((s: any) => s.is_active);
-  const stats = { total: deliveries.length, requested: deliveries.filter(d => d.status === 'requested').length, ordered: deliveries.filter(d => d.status === 'ordered').length, enRoute: deliveries.filter(d => d.status === 'en_route').length, received: deliveries.filter(d => d.status === 'received').length, completed: deliveries.filter(d => d.status === 'completed').length };
+  
+  const staff = (staffList || []).map((s: any) => ({
+    id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', role: s.role,
+  }));
+  
+  const employees = (rawEmployees || []).map((e: any) => ({
+    id: e.id, 
+    fullName: e.full_name, 
+    role: e.role, 
+    position: e.position 
+  }));
+
+  const stats = { 
+    total: deliveries.length, 
+    requested: deliveries.filter(d => d.status === 'requested').length, 
+    ordered: deliveries.filter(d => d.status === 'ordered').length, 
+    enRoute: deliveries.filter(d => d.status === 'en_route').length, 
+    received: deliveries.filter(d => d.status === 'received').length, 
+    completed: deliveries.filter(d => d.status === 'completed').length,
+    returned: deliveries.filter(d => d.status === 'returned').length,
+    cancelled: deliveries.filter(d => d.status === 'cancelled').length 
+  };
+  
   return {
-    deliveries, stats, materials, suppliers, loading: q.loading, error: q.error, refresh: q.refresh,
-    createDelivery: async (data: { inventory_item_id: string; supplier_id?: string; requested_quantity: number; expected_arrival_date?: string; notes?: string }) => { const r = await safe(() => db.createDelivery(data).then(() => q.refresh())); return r; },
+    deliveries, stats, materials, suppliers, staff, employees, loading: q.loading, error: q.error, refresh: q.refresh,
+    createDelivery: async (data: { inventory_item_id: string; supplier_id?: string; requested_quantity: number; expected_arrival_date?: string; notes?: string; requested_by?: string }) => { const r = await safe(() => db.createDelivery(data).then(() => q.refresh())); return r; },
     updateDelivery: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateDelivery(id, updates).then(() => q.refresh())); return r; },
     confirmReceipt: async (id: string, receipt: { received_quantity: number; receipt_reference_number: string }) => { const r = await safe(() => db.confirmDeliveryReceipt(id, receipt).then(() => q.refresh())); return r; },
   };
