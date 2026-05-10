@@ -1447,14 +1447,26 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   // PRODUCTS WITH BOM
   // ═══════════════════════════════════════════════════════════════════════════
-  async getProductsWithBOM() {
-    const { data, error } = await supabase
+  async getProductsWithBOM(filters?: { category?: string; search?: string }) {
+    let query = supabase
       .from("products")
       .select(
-        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost))",
+        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost, conversion_rate))",
       )
       .order("category")
       .order("name");
+
+    if (filters?.category) query = query.eq("category", filters.category);
+    if (filters?.search) {
+      const cleanSearch = filters.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (cleanSearch) {
+        query = query.or(
+          `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
+        );
+      }
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },

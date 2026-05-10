@@ -232,11 +232,16 @@ export function useInventoryData() {
 }
 
 export function useProductCatalog(filters?: { search?: string; category?: string }) {
-  const { products: raw, loading, error, refresh } = useProducts(filters);
+  const { products: raw, loading, error, refresh } = useProductsData(filters);
   const products: CatalogProduct[] = raw.map((p: any) => ({
-    id: p.id, title: p.name, category: p.category || '', variant: p.variant || '',
-    size: p.size_spec || '', price: Number(p.final_price), description: p.description || '',
-    isActive: p.is_active,
+    id: p.id,
+    title: p.name,
+    category: p.category || "",
+    variant: p.variant || "",
+    size: p.sizeSpec || "",
+    price: Number(p.finalPrice),
+    description: p.description || "",
+    isActive: p.isActive,
   }));
   return { products, loading, error, refresh };
 }
@@ -356,6 +361,7 @@ export function useManagementData() {
     },
     deactivateEmployee: async (id: string) => { const r = await safe(() => db.updateEmployee(id, { is_active: false }).then(() => refreshEmps())); return r; },
     createSupplier: async (data: { name: string; phone?: string; email?: string }) => { const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email }).then(() => refreshSups())); return r; },
+    updateSupplier: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateSupplier(id, updates).then(() => refreshSups())); return r; },
     flagSupplier: async (id: string, flagged: boolean, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
     toggleSupplierActive: async (id: string, active: boolean) => { const r = await safe(() => db.updateSupplier(id, { is_active: active }).then(() => refreshSups())); return r; },
   };
@@ -387,16 +393,16 @@ export function useDashboardData() {
 }
 
 function mapAdminProduct(raw: any): AdminProduct {
-  const bom: BOMItem[] = (raw.product_supply_mapping || []).map((m: any) => ({ id: m.id, inventoryItemId: m.inventory_item_id, materialName: m.inventory_items?.name || '—', quantityRequired: Number(m.quantity_required), unitOfMeasure: m.inventory_items?.unit_of_measure || '', unitCost: Number(m.inventory_items?.unit_cost) || 0 }));
+  const bom: BOMItem[] = (raw.product_supply_mapping || []).map((m: any) => ({ id: m.id, inventoryItemId: m.inventory_item_id, materialName: m.inventory_items?.name || '—', quantityRequired: Number(m.quantity_required), unitOfMeasure: m.inventory_items?.unit_of_measure || '', unitCost: Number(m.inventory_items?.unit_cost) || 0, conversionRate: Number(m.inventory_items?.conversion_rate) || 1 }));
   return { id: raw.id, name: raw.name, category: raw.category || '', variant: raw.variant || '', sizeSpec: raw.size_spec || '', materialCost: Number(raw.material_cost) || 0, profitFee: Number(raw.profit_fee) || 0, finalPrice: Number(raw.final_price) || 0, isActive: raw.is_active ?? true, description: raw.description || '', bom };
 }
 
-export function useProductsData() {
-  const q = useQuery(() => db.getProductsWithBOM(), [], ['products', 'product_supply_mapping', 'inventory_items']);
+export function useProductsData(filters?: { search?: string; category?: string }) {
+  const q = useQuery(() => db.getProductsWithBOM(filters), [filters?.search, filters?.category], ['products', 'product_supply_mapping', 'inventory_items']);
   const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
   const raw = q.data || [];
   const products: AdminProduct[] = raw.map(mapAdminProduct);
-  const materials = (rawMaterials || []).filter((m: any) => m.is_active);
+  const materials: Material[] = (rawMaterials || []).filter((m: any) => m.is_active).map(mapMaterial);
   const stats = { total: products.length, active: products.filter(p => p.isActive).length, inactive: products.filter(p => !p.isActive).length };
   return {
     products, stats, materials, loading: q.loading, error: q.error, refresh: q.refresh,

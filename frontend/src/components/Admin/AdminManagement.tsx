@@ -156,6 +156,12 @@ const AdminManagement: React.FC = () => {
     phone: "",
     email: "",
   });
+  const [editSupplierForm, setEditSupplierForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
   const [flagNotes, setFlagNotes] = useState("");
 
   const tabs = [
@@ -185,6 +191,7 @@ const AdminManagement: React.FC = () => {
     updateEmployee,
     deactivateEmployee,
     createSupplier,
+    updateSupplier,
     flagSupplier,
     toggleSupplierActive,
   } = useManagementData();
@@ -349,7 +356,33 @@ const AdminManagement: React.FC = () => {
   // ── Supplier handlers ────────────────────────────────────────────────
   const handleViewSupplier = (s: Supplier) => {
     setSelectedSupplier(s);
+    setEditSupplierForm({
+      name: s.supplierName || "",
+      phone: s.contactNumber || "",
+      email: s.email || "",
+      address: s.address || "",
+    });
     setShowSupplierInfoModal(true);
+  };
+
+  const handleUpdateSupplier = async () => {
+    if (!selectedSupplier) return;
+    if (!editSupplierForm.name.trim()) {
+      toast.error("Supplier name required");
+      return;
+    }
+    const r = await updateSupplier(selectedSupplier.id, {
+      name: editSupplierForm.name,
+      phone: editSupplierForm.phone,
+      email: editSupplierForm.email,
+      address: editSupplierForm.address,
+    });
+    if (r.success) {
+      toast.success("Supplier updated!");
+      setShowSupplierInfoModal(false);
+    } else {
+      toast.error(r.error || "Failed to update supplier");
+    }
   };
 
   const handleSubmitCreateSupplier = async () => {
@@ -936,7 +969,6 @@ const AdminManagement: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ═══ SUPPLIER INFO MODAL ═══ */}
       <Modal
         show={showSupplierInfoModal && !!selectedSupplier}
         onClose={() => setShowSupplierInfoModal(false)}
@@ -944,14 +976,11 @@ const AdminManagement: React.FC = () => {
         {selectedSupplier && (
           <>
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Name
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.supplierName}
-                </div>
-              </div>
+              <F
+                label="Name *"
+                value={editSupplierForm.name}
+                onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, name: v })}
+              />
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Status
@@ -961,29 +990,23 @@ const AdminManagement: React.FC = () => {
                   {selectedSupplier.supplierStatus}
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Phone
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.contactNumber || "—"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Email
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.email || "—"}
-                </div>
-              </div>
+              <F
+                label="Phone"
+                value={editSupplierForm.phone}
+                onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, phone: v })}
+              />
+              <F
+                label="Email"
+                type="email"
+                value={editSupplierForm.email}
+                onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, email: v })}
+              />
               <div className="col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Address
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.address || "—"}
-                </div>
+                <F
+                  label="Address"
+                  value={editSupplierForm.address}
+                  onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, address: v })}
+                />
               </div>
               {selectedSupplier.isFlagged && (
                 <div className="col-span-2">
@@ -1001,6 +1024,12 @@ const AdminManagement: React.FC = () => {
                 onClick={() => setShowSupplierInfoModal(false)}
                 className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">
                 Close
+              </button>
+              <button
+                onClick={handleUpdateSupplier}
+                className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+                <Check size={18} />
+                Save
               </button>
               <button
                 onClick={() => handleToggleSupplierActive(selectedSupplier)}

@@ -190,6 +190,7 @@ export interface BOMItem {
   quantityRequired: number;
   unitOfMeasure: string;
   unitCost: number;
+  conversionRate: number;
 }
 
 export interface AdminProduct {
