@@ -205,11 +205,11 @@ const AdminProducts = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {bom.map((b, i) => {
-                const mat = materials.find((m: any) => m.id === b.inventory_item_id);
+                const mat = materials.find((m) => m.id === b.inventory_item_id);
                 return (
                   <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-3 py-2 font-medium text-gray-900">{mat?.name || b.inventory_item_id}</td>
-                    <td className="px-3 py-2 text-center font-bold">{b.quantity_required} {mat?.unit_of_measure || ''}</td>
+                    <td className="px-3 py-2 font-medium text-gray-900">{mat?.itemType || b.inventory_item_id}</td>
+                    <td className="px-3 py-2 text-center font-bold">{b.quantity_required} {mat?.stockUnit || ''}</td>
                     <td className="px-3 py-2 text-center">
                       <button onClick={() => removeBOMRow(i, setBOM)} className="flex items-center gap-1 px-2 py-1 hover:bg-red-100 rounded text-red-500 text-xs font-semibold mx-auto">
                         <Trash2 size={12} /> Remove
@@ -229,8 +229,8 @@ const AdminProducts = () => {
           <select value={newBOMItem.inventory_item_id} onChange={e => setNewBOMItem({ ...newBOMItem, inventory_item_id: e.target.value })}
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
             <option value="">Select Material</option>
-            {materials.map((m: any) => (
-              <option key={m.id} value={m.id}>{m.name} ({m.unit_of_measure})</option>
+            {materials.map((m) => (
+              <option key={m.id} value={m.id}>{m.itemType} ({m.stockUnit})</option>
             ))}
           </select>
         </div>

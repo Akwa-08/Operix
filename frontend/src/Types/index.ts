@@ -70,6 +70,7 @@ export interface Material {
   isActive: boolean;
   description?: string;
   lastSupplierCost?: number;
+  mappedSuppliers?: { id: string; name: string; flagCategory?: string }[];
 }
 
 export interface Product {
@@ -138,6 +139,7 @@ export interface FrontendSupplier {
   address: string;
   supplierStatus: string;
   isFlagged: boolean;
+  flagCategory: string;
   flagNotes: string;
   createdAt: string;
 }
@@ -190,6 +192,7 @@ export interface BOMItem {
   quantityRequired: number;
   unitOfMeasure: string;
   unitCost: number;
+  conversionRate: number;
 }
 
 export interface AdminProduct {
@@ -207,7 +210,7 @@ export interface AdminProduct {
 }
 
 // ── Deliveries ───────────────────────────────────────────────────────────────
-export type DeliveryStatus = "requested" | "ordered" | "en_route" | "received" | "returned" | "completed";
+export type DeliveryStatus = "requested" | "ordered" | "en_route" | "received" | "returned" | "completed" | "cancelled";
 
 export interface Delivery {
   id: string;

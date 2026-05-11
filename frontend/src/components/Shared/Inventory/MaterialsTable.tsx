@@ -1,5 +1,5 @@
 // Mobile card view, desktop table for materials inventory
-import { Eye, Edit2, Trash2 } from 'lucide-react';
+import { Eye, Edit2, Trash2, Users } from 'lucide-react';
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
 import { getMaterialStatusColor } from "../../../util/formatters";
@@ -10,6 +10,7 @@ interface MaterialsTableProps {
   onView: (material: Material) => void;
   onEdit: (material: Material) => void;
   onDelete?: (material: Material) => void;
+  onManageSuppliers?: (material: Material) => void;
   searchQuery?: string;
   statusFilter?: string;
 }
@@ -17,7 +18,7 @@ interface MaterialsTableProps {
 const statusColor = getMaterialStatusColor;
 
 export const MaterialsTable: React.FC<MaterialsTableProps> = ({
-  materials, userRole, onView, onEdit, onDelete, searchQuery = '', statusFilter = 'All',
+  materials, userRole, onView, onEdit, onDelete, onManageSuppliers, searchQuery = '', statusFilter = 'All',
 }) => {
   const perms = permissions[userRole].inventory;
 
@@ -43,16 +44,29 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
 
   const ActionBtns = ({ m }: { m: Material }) => (
     <div className="flex items-center gap-1 flex-wrap">
-      <button onClick={() => onView(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-gray-200 rounded-lg text-xs text-gray-700 font-semibold">
+      <button
+        onClick={() => onView(m)}
+        className="flex items-center gap-1 px-2 py-1.5 hover:bg-gray-200 rounded-lg text-xs text-gray-700 font-semibold">
         <Eye size={14} /> View
       </button>
       {(perms.canEditAllFields || perms.canEditStock) && (
-        <button onClick={() => onEdit(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-cyan-100 rounded-lg text-xs text-cyan-700 font-semibold">
+        <button
+          onClick={() => onEdit(m)}
+          className="flex items-center gap-1 px-2 py-1.5 hover:bg-cyan-100 rounded-lg text-xs text-cyan-700 font-semibold">
           <Edit2 size={14} /> Edit
         </button>
       )}
-      {perms.canDelete && onDelete && m.status.toLowerCase() !== 'phased out' && (
-        <button onClick={() => onDelete(m)} className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold whitespace-nowrap">
+      {userRole === "admin" && onManageSuppliers && (
+        <button
+          onClick={() => onManageSuppliers(m)}
+          className="flex items-center gap-1 px-2 py-1.5 hover:bg-blue-100 rounded-lg text-xs text-blue-700 font-semibold whitespace-nowrap">
+          <Users size={14} /> Suppliers
+        </button>
+      )}
+      {perms.canDelete && onDelete && m.status.toLowerCase() !== "phased out" && (
+        <button
+          onClick={() => onDelete(m)}
+          className="flex items-center gap-1 px-2 py-1.5 hover:bg-red-100 rounded-lg text-xs text-red-700 font-semibold whitespace-nowrap">
           <Trash2 size={14} /> Phase out
         </button>
       )}
@@ -80,7 +94,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
               <div><span className="text-gray-400">Reorder at:</span> <span className="font-medium text-gray-700">{m.reorderPoint}</span></div>
               {perms.canViewAll && (
                 <>
-                  <div><span className="text-gray-400">Purchase:</span> <span className="font-medium text-gray-700">{m.purchaseQty} {m.purchaseUnit}</span></div>
+                  <div><span className="text-gray-400">Conversion:</span> <span className="font-medium text-gray-700">1 {m.purchaseUnit} = {m.purchaseQty} {m.stockUnit}</span></div>
                   <div><span className="text-gray-400">Supplier:</span> <span className="font-medium text-gray-700">{m.supplier || '—'}</span></div>
                 </>
               )}
@@ -97,13 +111,12 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="px-4 py-3 text-left font-semibold text-gray-700">Item Type</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Variant</th>
+              <th className="px-4 py-3 text-left font-semibold text-gray-700">Description</th>
               <th className="px-4 py-3 text-center font-semibold text-gray-700">Stocks</th>
               <th className="px-4 py-3 text-center font-semibold text-gray-700">Unit</th>
               {perms.canViewAll && (
                 <>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Purchase QTY</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Purchase Unit</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Conversion</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Supplier</th>
                 </>
               )}
@@ -120,8 +133,7 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
                 <td className="px-4 py-3 text-center text-gray-600">{m.stockUnit}</td>
                 {perms.canViewAll && (
                   <>
-                    <td className="px-4 py-3 text-center text-gray-600">{m.purchaseQty}</td>
-                    <td className="px-4 py-3 text-center text-gray-600">{m.purchaseUnit}</td>
+                    <td className="px-4 py-3 text-center text-gray-600 whitespace-nowrap">1 {m.purchaseUnit} = {m.purchaseQty} {m.stockUnit}</td>
                     <td className="px-4 py-3 text-gray-700">{m.supplier || '—'}</td>
                   </>
                 )}
