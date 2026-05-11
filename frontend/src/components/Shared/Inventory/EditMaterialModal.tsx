@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Modal } from "../UI/Modal";
 import { Button } from "../UI/Button";
+import { Star, AlertTriangle, Flag } from "lucide-react";
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
 
@@ -11,9 +12,28 @@ interface EditMaterialModalProps {
   onClose: () => void;
   material: Material;
   userRole: UserRole;
-  suppliers: { id: string; name: string }[];
+  suppliers: { id: string; name: string; flag_category?: string }[];
   onSave: (data: Partial<Material>, supplierIds?: string[]) => void;
 }
+
+const getFlagPriority = (category?: string) => {
+  if (category === "Preferred") return 1;
+  if (category === "Warning") return 3;
+  if (category === "Critical") return 4;
+  return 2;
+};
+
+const renderSupplierNameWithFlag = (s: any) => {
+  const category = s.flag_category;
+  return (
+    <span className="flex items-center gap-1.5">
+      {category === "Preferred" && <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+      {category === "Warning" && <AlertTriangle size={14} className="text-orange-500 flex-shrink-0" />}
+      {category === "Critical" && <Flag size={14} className="text-red-600 fill-red-600 flex-shrink-0" />}
+      <span className="truncate">{s.name}</span>
+    </span>
+  );
+};
 
 export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
   isOpen,
@@ -200,7 +220,7 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                 Mapped Suppliers (At least one required) *
               </label>
               <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto p-3 border rounded-xl bg-gray-50">
-                {suppliers.map((s) => (
+                {[...suppliers].sort((a: any, b: any) => getFlagPriority(a.flag_category) - getFlagPriority(b.flag_category)).map((s) => (
                   <label
                     key={s.id}
                     className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
@@ -219,11 +239,11 @@ export const EditMaterialModal: React.FC<EditMaterialModalProps> = ({
                           );
                         }
                       }}
-                      className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500"
+                      className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500 flex-shrink-0"
                     />
-                    <span className="text-sm text-gray-700 truncate">
-                      {s.name}
-                    </span>
+                    <div className="text-sm text-gray-700 min-w-0 flex-1">
+                      {renderSupplierNameWithFlag(s)}
+                    </div>
                   </label>
                 ))}
               </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown, MoreVertical } from "lucide-react";
+import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown, MoreVertical, Star, Flag } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
@@ -31,6 +31,26 @@ const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: { show: 
         {children}
       </div>
     </div>
+  );
+};
+
+const getFlagPriority = (category?: string) => {
+  if (category === "Preferred") return 1;
+  if (category === "Warning") return 3;
+  if (category === "Critical") return 4;
+  return 2;
+};
+
+const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category") => {
+  const category = s[categoryKey] || s.flagCategory;
+  const name = s[nameKey];
+  return (
+    <span className="flex items-center gap-1.5">
+      {category === "Preferred" && <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+      {category === "Warning" && <AlertTriangle size={14} className="text-orange-500 flex-shrink-0" />}
+      {category === "Critical" && <Flag size={14} className="text-red-600 fill-red-600 flex-shrink-0" />}
+      <span className="truncate">{name}</span>
+    </span>
   );
 };
 
@@ -390,7 +410,7 @@ const AdminInventory = () => {
             <div className="mb-6">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Map Suppliers (At least one required) *</label>
               <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto p-3 border rounded-xl bg-gray-50">
-                {suppliers.map((s: any) => (
+                {[...suppliers].sort((a: any, b: any) => getFlagPriority(a.flag_category) - getFlagPriority(b.flag_category)).map((s: any) => (
                   <label key={s.id} className="flex items-center gap-2 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
                     <input
                       type="checkbox"
@@ -399,9 +419,9 @@ const AdminInventory = () => {
                         if (e.target.checked) setSelectedSupplierIds([...selectedSupplierIds, s.id]);
                         else setSelectedSupplierIds(selectedSupplierIds.filter(id => id !== s.id));
                       }}
-                      className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500"
+                      className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500 flex-shrink-0"
                     />
-                    <span className="text-sm text-gray-700 truncate">{s.name}</span>
+                    <div className="text-sm text-gray-700 min-w-0 flex-1">{renderSupplierNameWithFlag(s)}</div>
                   </label>
                 ))}
               </div>
@@ -423,7 +443,7 @@ const AdminInventory = () => {
                 Select suppliers that provide this material.
               </p>
               <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto p-3 border rounded-xl bg-gray-50">
-                {suppliers.map((s: any) => (
+                {[...suppliers].sort((a: any, b: any) => getFlagPriority(a.flag_category) - getFlagPriority(b.flag_category)).map((s: any) => (
                   <label
                     key={s.id}
                     className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${selectedMaterialSuppliers.includes(s.id) ? "bg-cyan-50 border-cyan-200" : "bg-white border-gray-200 hover:border-cyan-300"}`}>
@@ -446,11 +466,11 @@ const AdminInventory = () => {
                       }}
                       className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500"
                     />
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {s.name}
-                      </p>
-                      <p className="text-xs text-gray-500">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-gray-900 mb-0.5">
+                        {renderSupplierNameWithFlag(s)}
+                      </div>
+                      <p className="text-xs text-gray-500 truncate">
                         {s.email || "No email"}
                       </p>
                     </div>
@@ -806,7 +826,8 @@ const AdminInventory = () => {
                     className="w-full px-4 py-2 mb-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white"
                   />
                   <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 shadow-sm">
-                    {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
+                    {[...(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])]
+                      .sort((a: any, b: any) => getFlagPriority(a.flagCategory) - getFlagPriority(b.flagCategory))
                       .filter((s: any) => s.name.toLowerCase().includes(restockSupplierSearch.toLowerCase()))
                       .map((s: any) => (
                         <div
@@ -814,7 +835,7 @@ const AdminInventory = () => {
                           onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
                           className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
                         >
-                          <span>{s.name}</span>
+                          <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(s, "name", "flagCategory")}</div>
                           {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
                         </div>
                       ))}

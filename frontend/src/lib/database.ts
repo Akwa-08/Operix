@@ -323,7 +323,7 @@ export const db = {
     const { data, error } = await supabase
       .from("inventory_items")
       .select(
-        "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
+        "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name, flag_category))",
       )
       .order("name");
     if (error) throw error;

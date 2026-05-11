@@ -117,7 +117,7 @@ function mapSupplier(raw: any): FrontendSupplier {
     id: raw.id, supplierName: raw.name || '', email: raw.email || '',
     contactNumber: raw.phone || '', address: raw.address || '',
     supplierStatus: raw.is_active ? 'Active' : 'Inactive',
-    isFlagged: raw.is_flagged ?? false, flagNotes: raw.flag_notes || '',
+    isFlagged: raw.is_flagged ?? false, flagCategory: raw.flag_category || 'None', flagNotes: raw.flag_notes || '',
     createdAt: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
   };
 }
@@ -152,6 +152,7 @@ function mapMaterial(item: any): Material {
       ?.map((s: any) => ({
         id: s.suppliers?.id,
         name: s.suppliers?.name,
+        flagCategory: s.suppliers?.flag_category,
       }))
       .filter((s: any) => s.id) || [];
 
@@ -388,7 +389,7 @@ export function useManagementData() {
       return r; 
     },
     updateSupplier: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateSupplier(id, updates).then(() => refreshSups())); return r; },
-    flagSupplier: async (id: string, flagged: boolean, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
+    flagSupplier: async (id: string, flagged: boolean, category: string, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_category: category, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
     toggleSupplierActive: async (id: string, active: boolean) => { const r = await safe(() => db.updateSupplier(id, { is_active: active }).then(() => refreshSups())); return r; },
     getSupplierMaterials: async (supplierId: string) => {
       return await db.getSupplierMaterials(supplierId);
