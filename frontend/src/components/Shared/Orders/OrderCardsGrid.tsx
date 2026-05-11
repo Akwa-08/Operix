@@ -168,13 +168,13 @@ export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, 
     <AnimatePresence mode="popLayout">
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {orders.map(o => (
-          <StaffOrderCard 
-            key={o.id} 
-            order={o} 
-            onView={onView} 
-            onEdit={onEdit} 
-            onDelete={onDelete} 
-            onPay={onPay} 
+          <StaffOrderCard
+            key={o.id}
+            order={o}
+            onView={onView}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onPay={onPay}
             hideDeleteWhen={hideDeleteWhen}
             hidePayWhen={hidePayWhen}
           />

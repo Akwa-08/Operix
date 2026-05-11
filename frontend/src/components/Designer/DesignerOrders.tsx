@@ -1,17 +1,17 @@
-import {useState} from "react";
-import {Upload, Package, Clock, CheckCircle} from "lucide-react";
-import {SearchBar} from "../Shared/UI/SearchBar";
-import {StatusCard} from "../Shared/UI/StatusCard";
-import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {PageHeader} from "../Shared/UI/PageHeader";
-import {InfoBanner} from "../Shared/UI/InfoBanner";
-import {ViewToggle} from "../Shared/UI/ViewToggle";
-import {getOrderStatusColor} from "../../util/formatters";
-import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
-import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
-import type {Order} from "../../Types";
-import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
-import {useToast} from "../../context/ToastContext";
+import { useState } from "react";
+import { Upload, Package, Clock, CheckCircle } from "lucide-react";
+import { SearchBar } from "../Shared/UI/SearchBar";
+import { StatusCard } from "../Shared/UI/StatusCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { ViewToggle } from "../Shared/UI/ViewToggle";
+import { getOrderStatusColor } from "../../util/formatters";
+import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
+import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
+import type { Order } from "../../Types";
+import { useOrdersData, useMyProfile } from "../../hooks/useSupabase";
+import { useToast } from "../../context/ToastContext";
 
 const DesignerOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,7 +19,7 @@ const DesignerOrders = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const {profile} = useMyProfile();
+  const { profile } = useMyProfile();
 
   // Fetch all orders - we'll filter them locally for a better "Queue vs My Orders" experience
   const {

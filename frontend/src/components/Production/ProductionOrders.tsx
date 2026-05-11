@@ -22,7 +22,7 @@ const ProductionOrders = () => {
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [showExcessModal, setShowExcessModal] = useState(false);
   const [pendingPickupOrder, setPendingPickupOrder] = useState<Order | null>(null);
-  
+
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignOrderId, setAssignOrderId] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState("");
