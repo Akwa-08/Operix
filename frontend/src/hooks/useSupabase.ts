@@ -132,6 +132,8 @@ function mapEmployee(raw: any): EmployeeRecord {
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
     hireDate: parseDbDate(raw.hire_date)?.toLocaleDateString() || '',
     isActive: raw.is_active ?? true,
+    philhealthContribution: Number(raw.philhealth_contribution) || 0,
+    hdmfContribution: Number(raw.hdmf_contribution) || 0,
   };
 }
 
