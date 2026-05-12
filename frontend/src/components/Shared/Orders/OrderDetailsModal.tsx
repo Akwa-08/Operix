@@ -884,6 +884,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
         )}
 
         <div className="space-y-2 pt-4 border-t border-gray-200">
+          {/* Action button row with uniform flex-1 sizes */}
           <div className="flex gap-3">
             {/* Cashier/Admin Confirm/Complete Button */}
             {["cashier", "admin"].includes(userRole) &&

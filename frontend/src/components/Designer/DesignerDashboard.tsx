@@ -44,10 +44,7 @@ const DesignerDashboard = () => {
             (!o.assignedDesigner || o.assignedDesigner === profile?.id),
         )
         .sort((a, b) => {
-          // Priority 1: Suki status
-          if (a.isSuki && !b.isSuki) return -1;
-          if (!a.isSuki && b.isSuki) return 1;
-          // Priority 2: Date (oldest first)
+          // Priority: Date (oldest first)
           return (
             new Date(a.dateOrdered).getTime() -
             new Date(b.dateOrdered).getTime()

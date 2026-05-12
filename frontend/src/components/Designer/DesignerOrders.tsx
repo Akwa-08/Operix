@@ -52,8 +52,6 @@ const DesignerOrders = () => {
   const orders = allOrders.filter(
     (o) => o.assignedDesigner === profile?.id && !["In Queue", "Payment", "Production", "Pickup"].includes(o.status),
   ).sort((a, b) => {
-    if (a.isSuki && !b.isSuki) return -1;
-    if (!a.isSuki && b.isSuki) return 1;
     return new Date(a.dateOrdered).getTime() - new Date(b.dateOrdered).getTime();
   });
 
