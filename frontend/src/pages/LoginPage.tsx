@@ -156,7 +156,7 @@ export const LoginPage = () => {
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-              {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+              {showPassword ? <Eye size={14} /> : <EyeOff size={14} />}
             </button>
           </div>
         </motion.div>
