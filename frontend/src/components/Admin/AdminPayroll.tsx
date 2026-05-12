@@ -3,6 +3,7 @@ import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
   X, Edit2, RefreshCw, ThumbsUp, ThumbsDown, Banknote, AlertTriangle, Trash2, Lock,
+  FileText, DollarSign, Settings, SquareCheck,
 } from "lucide-react";
 import { supabase } from "../../config/supabaseClient";
 import {
@@ -52,6 +53,7 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
   const [exceptionalData, setExceptionalData] = useState<Record<string, ExceptionalLogRow[]>>({});
   const [selectedDates, setSelectedDates] = useState<Record<string, Set<string>>>({});
   const [hourAssignments, setHourAssignments] = useState<Record<string, Record<string, number>>>({});
+  const [customHoursInput, setCustomHoursInput] = useState<Record<string, string>>({});
   const [dataLoading, setDataLoading] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -132,15 +134,16 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
     });
   };
 
-  const assignHours = (empId: string, hrs: 4 | 8) => {
+  const assignHours = (empId: string, hrs: number) => {
     const sel = selectedDates[empId];
-    if (!sel || sel.size === 0) return;
+    if (!sel || sel.size === 0 || hrs <= 0 || hrs > 24) return;
     setHourAssignments(prev => {
       const next = { ...prev, [empId]: { ...(prev[empId] ?? {}) } };
       sel.forEach(d => { next[empId][d] = hrs; });
       return next;
     });
     setSelectedDates(prev => ({ ...prev, [empId]: new Set() }));
+    setCustomHoursInput(prev => ({ ...prev, [empId]: "" }));
   };
 
   const handleConfirm = async (log: AttendanceLog) => {
@@ -331,6 +334,20 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
                       className="px-3 py-1 bg-green-100 hover:bg-green-200 disabled:opacity-30 text-green-800 text-xs font-bold rounded-lg border border-green-300 transition-colors"
                     >
                       8 hrs
+                    </button>
+                    <input
+                      type="number" step="0.5" min="0.5" max="24"
+                      value={customHoursInput[log.employeeId] || ""}
+                      onChange={e => setCustomHoursInput(prev => ({ ...prev, [log.employeeId]: e.target.value }))}
+                      placeholder="Custom"
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    />
+                    <button
+                      onClick={() => { const h = parseFloat(customHoursInput[log.employeeId] || "0"); if (h > 0 && h <= 24) assignHours(log.employeeId, h); }}
+                      disabled={selected.size === 0 || !customHoursInput[log.employeeId] || parseFloat(customHoursInput[log.employeeId] || "0") <= 0}
+                      className="px-3 py-1 bg-purple-100 hover:bg-purple-200 disabled:opacity-30 text-purple-800 text-xs font-bold rounded-lg border border-purple-300 transition-colors"
+                    >
+                      Apply
                     </button>
                   </div>
                 </div>
@@ -548,6 +565,7 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [customHours, setCustomHours] = useState("");
 
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const label = (iso: string) => {
@@ -576,10 +594,11 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
     });
   };
 
-  const assignHours = async (hrs: 4 | 8) => {
-    if (selected.size === 0) return;
+  const assignHours = async (hrs: number) => {
+    if (selected.size === 0 || hrs <= 0 || hrs > 24) return;
     setRows(prev => prev.map(r => selected.has(r.punch_date) ? { ...r, hours_counted: hrs } : r));
     setSelected(new Set());
+    setCustomHours("");
   };
 
   const handleSave = async () => {
@@ -609,7 +628,7 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
         <button onClick={onClose} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
         <h3 className="text-xl font-bold text-gray-900 mb-1">Punch Details</h3>
         <p className="text-sm text-gray-500 mb-1">{log.fullName} · {log.position}</p>
-        <p className="text-xs text-gray-400 mb-5">Click dates to select, then assign 4 hrs or 8 hrs. Hit Save when done.</p>
+        <p className="text-xs text-gray-400 mb-5">Click dates to select, then assign hours. Hit Save when done.</p>
 
         {loading ? (
           <p className="text-sm text-gray-400 text-center py-8">Loading…</p>
@@ -625,20 +644,21 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
                 const isSel = selected.has(row.punch_date);
                 let cls = "";
                 if (isSel) cls = "bg-gray-800 text-white ring-2 ring-gray-600";
+                else if (row.hours_counted !== 8 && row.hours_counted !== 4) cls = "bg-purple-100 text-purple-800 ring-1 ring-purple-300";
                 else if (row.hours_counted === 4) cls = "bg-blue-100 text-blue-800 ring-1 ring-blue-300";
                 else cls = "bg-green-100 text-green-800 ring-1 ring-green-300";
                 return (
                   <button key={row.punch_date} onClick={() => toggle(row.punch_date)}
                     className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${cls}`}>
                     {label(row.punch_date)}
-                    {row.hours_counted === 4 && <span className="ml-1 opacity-60">½</span>}
+                    <span className="ml-1 opacity-60">{row.hours_counted}h</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* Hour controls */}
-            <div className="flex items-center gap-2 mb-6">
+            {/* Hour controls — quick buttons + custom input */}
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="text-xs text-gray-500">
                 {selected.size > 0 ? `${selected.size} selected — assign:` : "Click dates to select:"}
               </span>
@@ -651,19 +671,38 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
                 8 hrs (full)
               </button>
             </div>
+            <div className="flex items-center gap-2 mb-6">
+              <input
+                type="number"
+                step="0.5"
+                min="0.5"
+                max="24"
+                value={customHours}
+                onChange={e => setCustomHours(e.target.value)}
+                placeholder="Custom hrs"
+                className="w-24 px-2 py-1 border border-gray-300 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+              <button
+                onClick={() => { const h = parseFloat(customHours); if (h > 0 && h <= 24) assignHours(h); }}
+                disabled={selected.size === 0 || !customHours || parseFloat(customHours) <= 0}
+                className="px-3 py-1 bg-purple-100 hover:bg-purple-200 disabled:opacity-30 text-purple-800 text-xs font-bold rounded-lg border border-purple-300">
+                Apply Custom
+              </button>
+            </div>
 
             {/* Summary */}
             <div className="flex justify-between text-xs text-gray-500 mb-5 px-1">
               <span>Total hours: <strong>{rows.reduce((s,r) => s + r.hours_counted, 0)}h</strong></span>
-              <span>Days: <strong>{rows.reduce((s,r) => s + r.hours_counted, 0) / 8}</strong></span>
+              <span>Days: <strong>{(rows.reduce((s,r) => s + r.hours_counted, 0) / 8).toFixed(2)}</strong></span>
             </div>
           </>
         )}
 
         {/* Legend */}
-        <div className="flex gap-4 text-[10px] text-gray-500 mb-5">
+        <div className="flex gap-4 text-[10px] text-gray-500 mb-5 flex-wrap">
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-300 inline-block"/>8 hrs / full day</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-300 inline-block"/>4 hrs / half day</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-300 inline-block"/>Custom hours</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-800 inline-block"/>Selected</span>
         </div>
 
@@ -764,35 +803,33 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
           ${businessTripPay > 0 ? `<div class="row"><span>Business Trip Pay (${businessTripDays}d):</span><span>${fmt(businessTripPay)}</span></div>` : ""}
         <div class="row"><span>Regular Holiday Pay:</span><span>${fmt(record.regularHolidayPay)}</span></div>
         <div class="row"><span>Special Holiday Pay:</span><span>${fmt(record.specialHolidayPay)}</span></div>
-        <div class="row"><span>Regular OT:</span><span>${fmt(record.regularOvertime)}</span></div>
-        <div class="row"><span>Holiday OT:</span><span>${fmt(record.holidayOvertime)}</span></div>
-        <div class="row"><span>Special OT:</span><span>${fmt(record.specialOvertime)}</span></div>
-        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue" style="font-weight:600">Cash Advance Issued:</span><span class="blue" style="font-weight:700">+${fmt(record.cashAdvanceIssued)}</span></div>` : ""}
+        <div class="row"><span>Regular OT (×0.25):</span><span>${fmt(record.regularOvertime)}</span></div>
+        <div class="row"><span>Holiday OT (×0.60):</span><span>${fmt(record.holidayOvertime)}</span></div>
+        <div class="row"><span>Special OT (×0.30):</span><span>${fmt(record.specialOvertime)}</span></div>
+        ${record.tardyDeductions > 0 ? `<div class="row"><span class="red">Tardy Deduction:</span><span class="red">-${fmt(record.tardyDeductions)}</span></div>` : ""}
+        ${record.undertimeDeductions > 0 ? `<div class="row"><span class="red">Undertime Deduction:</span><span class="red">-${fmt(record.undertimeDeductions)}</span></div>` : ""}
         <div class="total-row"><span>GROSS INCOME:</span><span>${fmt(record.grossIncome)}</span></div>
       </div>
     </div>
     <div class="grid2">
       <div>
         <h3>DEDUCTIONS</h3>
-        <div class="row"><span>Tardy Deductions:</span><span class="red">${fmt(record.tardyDeductions)}</span></div>
-        <div class="row"><span>Undertime Deductions:</span><span class="red">${fmt(record.undertimeDeductions)}</span></div>
         <div class="row"><span>PhilHealth:</span><span class="blue">${fmt(record.philhealth)}</span></div>
         <div class="row"><span>HDMF (Pag-IBIG):</span><span class="blue">${fmt(record.hdmf)}</span></div>
         <div class="row"><span>Withholding Tax:</span><span>${fmt(record.withholdingTax)}</span></div>
         <div class="row"><span>CA Deduction:</span><span class="${record.cashAdvance > 0 ? 'red' : 'gray'}">${fmt(record.cashAdvance)}</span></div>
         <div class="row"><span>Carry-Over Deduction:</span><span class="${record.carryOverFromPrevious > 0 ? 'red' : 'gray'}">${fmt(record.carryOverFromPrevious)}</span></div>
-        <div class="total-row"><span>TOTAL DEDUCTIONS:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
+        <div class="total-row"><span>TOTAL DEDUCTIONS:</span><span class="red">${fmt(record.totalDeductions)}</span></div>
       </div>
       <div>
         <h3>PAY SUMMARY</h3>
         <div class="row"><span>Gross Income:</span><span class="green">${fmt(record.grossIncome)}</span></div>
-        ${record.cashAdvanceIssued > 0 ? `<div class="row"><span class="blue">Cash Advance Issued:</span><span class="blue">+${fmt(record.cashAdvanceIssued)}</span></div>` : ""}
-        <div class="row"><span>Total Deductions:</span><span class="red">-${fmt(record.totalDeductions)}</span></div>
+        <div class="row"><span>Total Deductions:</span><span class="red">${fmt(record.totalDeductions)}</span></div>
         <div class="net-box"><span>NET PAY</span><span class="green">${fmt(record.netPay)}</span></div>
         <div style="margin-top:8px;font-size:10px;color:#666">
           <div class="row"><span>Taxable Income:</span><span>${fmt(record.taxableIncome)}</span></div>
           <div class="row"><span>Tax Rate:</span><span>0%</span></div>
-          ${record.cashAdvanceIssued > 0 ? `<div class="row"><span style="color:#0369a1;font-weight:600">ℹ CA of ${fmt(record.cashAdvanceIssued)} issued and deducted this period.</span></div>` : ""}
+          ${record.cashAdvance > 0 ? `<div style="margin-top:4px;padding:4px;background:#fffbeb;border:1px solid #fcd34d;border-radius:3px;color:#92400e">ℹ Cash Advance of ${fmt(record.cashAdvance)} deducted this period.</div>` : ""}
         </div>
       </div>
     </div>
@@ -857,13 +894,19 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   {businessTripPay > 0 && rows(`Business Trip Pay (${businessTripDays}d)`, businessTripPay)}
                   {rows("Regular Holiday Pay", record.regularHolidayPay)}
                   {rows("Special Holiday Pay", record.specialHolidayPay)}
-                  {rows("Regular OT", record.regularOvertime)}
-                  {rows("Holiday OT", record.holidayOvertime)}
-                  {rows("Special OT", record.specialOvertime)}
-                  {record.cashAdvanceIssued > 0 && (
-                    <div className="flex justify-between py-0.5">
-                      <span className="text-blue-700 font-semibold">Cash Advance Issued</span>
-                      <span className="font-bold text-blue-700">+{fmt(record.cashAdvanceIssued)}</span>
+                  {rows("Regular OT (×0.25)", record.regularOvertime)}
+                  {rows("Holiday OT (×0.60)", record.holidayOvertime)}
+                  {rows("Special OT (×0.30)", record.specialOvertime)}
+                  {record.tardyDeductions > 0 && (
+                    <div className="flex justify-between text-sm py-0.5">
+                      <span className="text-red-600">Tardy Deduction</span>
+                      <span className="font-semibold text-red-600">-{fmt(record.tardyDeductions)}</span>
+                    </div>
+                  )}
+                  {record.undertimeDeductions > 0 && (
+                    <div className="flex justify-between text-sm py-0.5">
+                      <span className="text-red-600">Undertime Deduction</span>
+                      <span className="font-semibold text-red-600">-{fmt(record.undertimeDeductions)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
@@ -876,15 +919,13 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
               <div>
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">DEDUCTIONS</h3>
                 <div className="space-y-0.5 text-xs">
-                  {rows("Tardy Deductions", record.tardyDeductions, "text-red-600")}
-                  {rows("Undertime Deductions", record.undertimeDeductions, "text-red-600")}
                   {rows("PhilHealth", record.philhealth, "text-blue-600")}
                   {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
                   {rows("CA Deduction", record.cashAdvance, record.cashAdvance > 0 ? "text-red-600" : "text-gray-400")}
                   {rows("Carry-Over Deduction", record.carryOverFromPrevious, record.carryOverFromPrevious > 0 ? "text-red-600" : "text-gray-400")}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
-                    <span>TOTAL DEDUCTIONS:</span><span className="text-red-600">-{fmt(record.totalDeductions)}</span>
+                    <span>TOTAL DEDUCTIONS:</span><span className="text-red-600">{fmt(record.totalDeductions)}</span>
                   </div>
                 </div>
               </div>
@@ -892,13 +933,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">PAY SUMMARY</h3>
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between"><span>Gross Income:</span><span className="text-green-600 font-semibold">{fmt(record.grossIncome)}</span></div>
-                  {record.cashAdvanceIssued > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-blue-600">CA Issued (This Period):</span>
-                      <span className="text-blue-600 font-semibold">+{fmt(record.cashAdvanceIssued)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between"><span>Total Deductions:</span><span className="text-red-600 font-semibold">-{fmt(record.totalDeductions)}</span></div>
+                  <div className="flex justify-between"><span>Total Deductions:</span><span className="text-red-600 font-semibold">{fmt(record.totalDeductions)}</span></div>
                   <div className="bg-green-100 px-3 py-2 rounded font-bold flex justify-between mt-2">
                     <span>Net Pay</span><span className="text-green-700">{fmt(record.netPay)}</span>
                   </div>
@@ -906,9 +941,9 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                     <div className="flex justify-between"><span>Taxable Income:</span><span>{fmt(record.taxableIncome)}</span></div>
                     <div className="flex justify-between"><span>Tax Rate:</span><span>0%</span></div>
                   </div>
-                  {record.cashAdvanceIssued > 0 && (
+                  {record.cashAdvance > 0 && (
                     <div className="mt-2 px-2 py-1.5 bg-amber-50 border border-amber-200 rounded text-[10px] text-amber-700">
-                      ℹ CA of {fmt(record.cashAdvanceIssued)} issued and deducted this period.
+                      ℹ Cash Advance of {fmt(record.cashAdvance)} deducted this period.
                     </div>
                   )}
                 </div>
@@ -1115,6 +1150,239 @@ function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+// ─── Salary Breakdown Modal ──────────────────────────────────────────────────
+// Shows a detailed step-by-step computation with actual numbers and formulas
+function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollRecord; period: PayrollPeriod | null; onClose: () => void }) {
+  const pLabel = period
+    ? `${new Date(period.periodStart).toLocaleDateString("en-PH", { month: "long", day: "numeric" })} – ${new Date(period.periodEnd).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}`
+    : "";
+  const hourlyRate = record.dailyRate / 8;
+
+  const steps = [
+    { section: "EARNINGS", items: [
+      { label: "Daily Rate", formula: `Employee profile`, value: record.dailyRate, note: `₱${record.dailyRate.toFixed(2)}/day` },
+      { label: "Days Present", formula: `From attendance/biometrics`, value: record.daysPresent, note: `${record.daysPresent} day(s)` },
+      { label: "Basic Pay", formula: `Daily Rate × Days Present = ${fmt(record.dailyRate)} × ${record.daysPresent}`, value: record.basicPay, note: null },
+      { label: "Regular OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.25 × OT hrs`, value: record.regularOvertime, note: `Hourly: ${fmt(hourlyRate)}` },
+      { label: "Holiday OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.60 × OT hrs`, value: record.holidayOvertime, note: null },
+      { label: "Special OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.30 × OT hrs`, value: record.specialOvertime, note: null },
+      { label: "Regular Holiday Pay", formula: `Daily Rate × Holiday Days × 2.0`, value: record.regularHolidayPay, note: null },
+      { label: "Special Holiday Pay", formula: `Daily Rate × Holiday Days × 1.3`, value: record.specialHolidayPay, note: null },
+      { label: "Tardy Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.5 × late slots`, value: -record.tardyDeductions, note: `Subtracted from gross`, isNeg: true },
+      { label: "Undertime Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.5 × undertime slots`, value: -record.undertimeDeductions, note: `Subtracted from gross`, isNeg: true },
+    ]},
+    { section: "GROSS INCOME", items: [
+      { label: "Total Gross Income", formula: `Basic + OT + Holiday − Tardy − Undertime`, value: record.grossIncome, note: `This is column K in the Excel register`, isBold: true },
+    ]},
+    { section: "DEDUCTIONS", items: [
+      { label: "Withholding Tax", formula: `BIR tax table (₱0 if below ₱20,833/mo)`, value: record.withholdingTax, note: null },
+      { label: "Cash Advance", formula: `Sum of approved CAs this period`, value: record.cashAdvance, note: record.cashAdvance > 0 ? `Deducted same period` : null },
+      { label: "Carry-Over Deduction", formula: `Unpaid balance from previous period`, value: record.carryOverFromPrevious, note: null },
+      { label: "PhilHealth", formula: `Admin-set contribution`, value: record.philhealth, note: `Set in employee profile` },
+      { label: "HDMF (Pag-IBIG)", formula: `Admin-set contribution`, value: record.hdmf, note: `Set in employee profile` },
+    ]},
+    { section: "TOTAL DEDUCTIONS", items: [
+      { label: "Total Deductions", formula: `Tax + CA + Carry-Over + PhilHealth + HDMF`, value: record.totalDeductions, note: `This is column O in the Excel register`, isBold: true },
+    ]},
+    { section: "NET PAY", items: [
+      { label: "Net Pay", formula: `Gross Income − Total Deductions = ${fmt(record.grossIncome)} − ${fmt(record.totalDeductions)}`, value: record.netPay, note: `This is column P in the Excel register`, isBold: true },
+    ]},
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900">Salary Breakdown</h3>
+            <p className="text-sm text-gray-500">{record.employeeName} · {record.position}</p>
+            {pLabel && <p className="text-xs text-cyan-600 mt-0.5">📅 {pLabel}</p>}
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        </div>
+        <div className="p-6 max-h-[70vh] overflow-y-auto space-y-6">
+          {steps.map(section => (
+            <div key={section.section}>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">{section.section}</p>
+              <div className="space-y-2">
+                {section.items.map(item => (
+                  <div key={item.label} className={`flex items-start gap-3 p-3 rounded-lg border ${(item as any).isBold ? 'border-2 border-gray-400 bg-gray-100' : (item as any).isNeg ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs ${(item as any).isBold ? 'font-bold text-gray-900' : 'font-semibold text-gray-700'}`}>{item.label}</p>
+                      <p className="text-[11px] font-mono text-gray-500 mt-0.5">= {item.formula}</p>
+                      {item.note && <p className="text-[10px] text-gray-400 mt-0.5">{item.note}</p>}
+                    </div>
+                    <span className={`text-sm font-bold whitespace-nowrap ${(item as any).isNeg ? 'text-red-600' : (item as any).isBold ? (section.section === 'NET PAY' ? 'text-green-700' : 'text-gray-900') : 'text-gray-800'}`}>
+                      {(item as any).isNeg ? `-${fmt(Math.abs(item.value))}` : fmt(item.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-3 p-4 border-t bg-white">
+          <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Contributions Management Panel ───────────────────────────────────────────
+// Allows admin to update SSS, PhilHealth, HDMF, and Tax settings per employee
+function ContributionsPanel({ onClose }: { onClose: () => void }) {
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [edits, setEdits] = useState<Record<string, { philhealth: string; hdmf: string }>>({});
+  const [successMsg, setSuccessMsg] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("employees")
+        .select("id, employee_code, full_name, position, base_hourly_rate, philhealth_contribution, hdmf_contribution, is_active")
+        .eq("is_active", true)
+        .order("full_name");
+      setEmployees(data || []);
+      const initial: Record<string, { philhealth: string; hdmf: string }> = {};
+      (data || []).forEach((e: any) => {
+        initial[e.id] = {
+          philhealth: String(Number(e.philhealth_contribution) || 0),
+          hdmf: String(Number(e.hdmf_contribution) || 0),
+        };
+      });
+      setEdits(initial);
+      setLoading(false);
+    })();
+  }, []);
+
+  const handleSave = async (empId: string) => {
+    setSaving(empId);
+    const vals = edits[empId];
+    if (!vals) return;
+    await supabase
+      .from("employees")
+      .update({
+        philhealth_contribution: parseFloat(vals.philhealth) || 0,
+        hdmf_contribution: parseFloat(vals.hdmf) || 0,
+      })
+      .eq("id", empId);
+    setSaving(null);
+    setSuccessMsg(`Saved contributions for ${employees.find(e => e.id === empId)?.full_name}`);
+    setTimeout(() => setSuccessMsg(""), 3000);
+  };
+
+  const handleSaveAll = async () => {
+    setSaving("all");
+    for (const emp of employees) {
+      const vals = edits[emp.id];
+      if (!vals) continue;
+      await supabase
+        .from("employees")
+        .update({
+          philhealth_contribution: parseFloat(vals.philhealth) || 0,
+          hdmf_contribution: parseFloat(vals.hdmf) || 0,
+        })
+        .eq("id", emp.id);
+    }
+    setSaving(null);
+    setSuccessMsg("All contributions saved successfully!");
+    setTimeout(() => setSuccessMsg(""), 3000);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full my-8" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-6 border-b">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-cyan-100 flex items-center justify-center">
+              <Settings size={20} className="text-cyan-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Employee Contributions</h3>
+              <p className="text-xs text-gray-500">Update PhilHealth & HDMF contributions per employee. Changes take effect on next payroll compute.</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
+        </div>
+
+        {successMsg && (
+          <div className="mx-6 mt-4 px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-semibold flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-green-500" />{successMsg}
+          </div>
+        )}
+
+        <div className="p-6 max-h-[60vh] overflow-y-auto">
+          {loading ? (
+            <div className="text-center py-8 text-gray-400 text-sm">Loading employees…</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Employee</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Position</th>
+                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Daily Rate</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">PhilHealth (₱)</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">HDMF (₱)</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {employees.map(emp => (
+                  <tr key={emp.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-900">{emp.full_name}</p>
+                      <p className="text-xs text-gray-400">{emp.employee_code}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">{emp.position}</td>
+                    <td className="px-4 py-3 text-xs">{fmt(Number(emp.base_hourly_rate) || 0)}</td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={edits[emp.id]?.philhealth ?? "0"}
+                        onChange={e => setEdits(prev => ({ ...prev, [emp.id]: { ...prev[emp.id], philhealth: e.target.value } }))}
+                        className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={edits[emp.id]?.hdmf ?? "0"}
+                        onChange={e => setEdits(prev => ({ ...prev, [emp.id]: { ...prev[emp.id], hdmf: e.target.value } }))}
+                        className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleSave(emp.id)}
+                        disabled={saving === emp.id || saving === "all"}
+                        className="px-3 py-1 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg"
+                      >
+                        {saving === emp.id ? "…" : "Save"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div className="flex items-center justify-between p-4 border-t bg-gray-50">
+          <p className="text-[10px] text-gray-400">SSS and Withholding Tax are computed from BIR/SSS tables (currently ₱0 for most employees).</p>
+          <div className="flex gap-3">
+            <button onClick={onClose} className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Close</button>
+            <button onClick={handleSaveAll} disabled={saving === "all"} className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center gap-2">
+              {saving === "all" ? "Saving…" : "Save All"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1124,10 +1392,14 @@ const AdminPayroll: React.FC = () => {
   const [showPeriodDrop, setShowPeriodDrop] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [markPaidConfirm, setMarkPaidConfirm]   = useState<PayrollRecord | null>(null);
+  const [markBatchPaidConfirm, setMarkBatchPaidConfirm] = useState(false);
   const [deletePeriodConfirm, setDeletePeriodConfirm] = useState(false);
   const [editingLog, setEditingLog]         = useState<AttendanceLog | null>(null);
   const [punchDetailsLog, setPunchDetailsLog] = useState<AttendanceLog | null>(null);
   const [viewingRecord, setViewingRecord]   = useState<PayrollRecord | null>(null);
+  const [breakdownRecord, setBreakdownRecord] = useState<PayrollRecord | null>(null);
+  const [showContributions, setShowContributions] = useState(false);
+  const [selectedForPaid, setSelectedForPaid] = useState<Set<string>>(new Set());
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
 
   const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History"];
@@ -1185,7 +1457,48 @@ const AdminPayroll: React.FC = () => {
         <AttendanceEditModal log={editingLog} periodId={activePeriodId} onClose={() => setEditingLog(null)} onSave={async d => { const r = await updateAttendanceLog(d); return r; }} />
       )}
       {viewingRecord && <PayslipModal record={viewingRecord} period={currentPeriod} onClose={() => setViewingRecord(null)} />}
+      {breakdownRecord && <SalaryBreakdownModal record={breakdownRecord} period={currentPeriod} onClose={() => setBreakdownRecord(null)} />}
+      {showContributions && <ContributionsPanel onClose={() => setShowContributions(false)} />}
 
+      {markBatchPaidConfirm && (() => {
+        const pendingSelected = payrollRecords.filter(r => selectedForPaid.has(r.id) && r.status !== "paid");
+        return (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setMarkBatchPaidConfirm(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setMarkBatchPaidConfirm(false)} className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-lg"><X size={20}/></button>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0"><CheckCircle2 size={22} className="text-green-600"/></div>
+                <div><h3 className="text-lg font-bold text-gray-900">Mark as Paid?</h3><p className="text-sm text-gray-500">This cannot be undone easily</p></div>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4 mb-5 space-y-1 text-sm">
+                <p className="font-semibold text-gray-800">Mark {pendingSelected.length} employee{pendingSelected.length !== 1 ? "s" : ""} as paid?</p>
+                <div className="max-h-32 overflow-y-auto mt-2 space-y-1">
+                  {pendingSelected.map(r => (
+                    <div key={r.id} className="flex justify-between text-xs text-gray-600">
+                      <span>{r.employeeName}</span>
+                      <span className="font-bold text-green-700">{fmt(r.netPay)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between pt-2 border-t border-gray-200 mt-2">
+                  <span className="text-gray-600 font-semibold">Total:</span>
+                  <span className="font-bold text-green-700">{fmt(pendingSelected.reduce((s, r) => s + r.netPay, 0))}</span>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setMarkBatchPaidConfirm(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Cancel</button>
+                <button onClick={async () => {
+                  for (const r of pendingSelected) { await updatePayrollRecord(r.id, { status: "paid" }); }
+                  setMarkBatchPaidConfirm(false);
+                  setSelectedForPaid(new Set());
+                }} className="flex-1 py-3 bg-green-500 hover:bg-green-600 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2">
+                  <CheckCircle2 size={16}/> Confirm Paid
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {deletePeriodConfirm && currentPeriod && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setDeletePeriodConfirm(false)}>
           <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-8 relative" onClick={e => e.stopPropagation()}>
@@ -1367,7 +1680,7 @@ const AdminPayroll: React.FC = () => {
               <div className="space-y-3">
                 {[
                   { icon: RefreshCw, color: "text-blue-600", bg: "hover:bg-blue-50 hover:border-blue-300", label: "Compute Payroll", sub: "Auto-calculate salaries from attendance logs", action: () => activePeriodId && computePayroll(activePeriodId), disabled: !activePeriodId || computing || attendanceLogs.length === 0 || periodIsComplete },
-                  { icon: CheckCircle2, color: "text-green-600", bg: "hover:bg-green-50 hover:border-green-300", label: "Mark All as Paid", sub: "Mark all payroll records as disbursed", action: () => activePeriodId && markAllPaid(activePeriodId), disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
+                  { icon: Settings, color: "text-cyan-600", bg: "hover:bg-cyan-50 hover:border-cyan-300", label: "Manage Contributions", sub: "Update PhilHealth, HDMF per employee", action: () => setShowContributions(true), disabled: false },
                   { icon: Calendar, color: "text-purple-600", bg: "hover:bg-purple-50 hover:border-purple-300", label: "Close Period", sub: "Mark this payroll period as complete", action: () => activePeriodId && markPeriodComplete(activePeriodId), disabled: !activePeriodId || periodIsComplete },
                   { icon: RefreshCw, color: "text-orange-600", bg: "hover:bg-orange-50 hover:border-orange-300", label: "Reset & Recompute", sub: "Undo this period's computation", action: () => setShowResetConfirm(true), disabled: !activePeriodId || payrollRecords.length === 0 || periodIsComplete },
                 ].map(({ icon: Icon, color, bg, label, sub, action, disabled }) => (
@@ -1514,28 +1827,86 @@ const AdminPayroll: React.FC = () => {
             </div>
           ) : (
             <>
+              {/* Batch actions bar */}
+              {!periodIsComplete && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button onClick={() => setShowContributions(true)} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    <Settings size={16} className="text-cyan-600" /> Contributions
+                  </button>
+                  {selectedForPaid.size > 0 && (
+                    <button
+                      onClick={() => setMarkBatchPaidConfirm(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold"
+                    >
+                      <CheckCircle2 size={16} /> Mark {selectedForPaid.size} as Paid
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>{["Employee","Position","Daily Rate","Days","Basic Pay","OT Pay","Gross","Deductions","Net Pay","Status","Actions"].map(h => <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>)}</tr>
+                      <tr>
+                        {!periodIsComplete && (
+                          <th className="px-3 py-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={filteredRecords.filter(r => r.status !== "paid").length > 0 && filteredRecords.filter(r => r.status !== "paid").every(r => selectedForPaid.has(r.id))}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  const next = new Set(selectedForPaid);
+                                  filteredRecords.filter(r => r.status !== "paid").forEach(r => next.add(r.id));
+                                  setSelectedForPaid(next);
+                                } else {
+                                  setSelectedForPaid(new Set());
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                              title="Select all"
+                            />
+                          </th>
+                        )}
+                        {["Employee","Position","Daily Rate","Days","Basic Pay","OT Pay","Tardy/UT","Gross","Deductions","Net Pay","Status","Actions"].map(h => <th key={h} className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">{h}</th>)}
+                      </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {filteredRecords.map(rec => (
-                        <tr key={rec.id} className="hover:bg-gray-50">
+                        <tr key={rec.id} className={`${selectedForPaid.has(rec.id) ? "bg-cyan-50" : "hover:bg-gray-50"}`}>
+                          {!periodIsComplete && (
+                            <td className="px-3 py-3 text-center">
+                              {rec.status !== "paid" ? (
+                                <input
+                                  type="checkbox"
+                                  checked={selectedForPaid.has(rec.id)}
+                                  onChange={e => {
+                                    const next = new Set(selectedForPaid);
+                                    e.target.checked ? next.add(rec.id) : next.delete(rec.id);
+                                    setSelectedForPaid(next);
+                                  }}
+                                  className="w-4 h-4 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                                />
+                              ) : (
+                                <CheckCircle2 size={14} className="text-green-500 mx-auto" />
+                              )}
+                            </td>
+                          )}
                           <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{rec.employeeName}</td>
                           <td className="px-4 py-3 text-gray-500 text-xs">{rec.position}</td>
                           <td className="px-4 py-3 text-xs">{fmt(rec.dailyRate)}</td>
                           <td className="px-4 py-3 text-center">{rec.daysPresent}</td>
                           <td className="px-4 py-3 text-xs">{fmt(rec.basicPay)}</td>
                           <td className="px-4 py-3 text-xs">{fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td>
+                          <td className="px-4 py-3 text-xs text-red-600">{fmt(rec.tardyDeductions + rec.undertimeDeductions)}</td>
                           <td className="px-4 py-3 font-semibold text-blue-700 text-xs">{fmt(rec.grossIncome)}</td>
-                          <td className="px-4 py-3 text-red-600 text-xs">-{fmt(rec.totalDeductions)}</td>
+                          <td className="px-4 py-3 text-red-600 text-xs">{fmt(rec.totalDeductions)}</td>
                           <td className="px-4 py-3 font-bold text-green-700 text-xs">{fmt(rec.netPay)}</td>
                           <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{rec.status === "paid" ? "Paid" : "Pending"}</span></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
                               <button onClick={() => setViewingRecord(rec)} className="p-1.5 hover:bg-cyan-100 rounded-lg" title="View payslip"><Eye size={15} className="text-cyan-600" /></button>
+                              <button onClick={() => setBreakdownRecord(rec)} className="p-1.5 hover:bg-blue-100 rounded-lg" title="View salary breakdown"><FileText size={15} className="text-blue-600" /></button>
                               {!periodIsComplete && rec.status !== "paid" && (
                                 <button onClick={() => setMarkPaidConfirm(rec)} className="p-1.5 hover:bg-green-100 rounded-lg" title="Mark paid"><CheckCircle2 size={15} className="text-green-600" /></button>
                               )}
@@ -1566,9 +1937,10 @@ const AdminPayroll: React.FC = () => {
                         {step:3,label:"Basic Pay",formula:"Daily Rate × Days Present",note:"Core salary for the period",color:"bg-blue-50 border-blue-200"},
                         {step:4,label:"Regular Holiday Pay",formula:"Daily Rate × 2.00",note:"+100% extra on holiday worked",color:"bg-indigo-50 border-indigo-200"},
                         {step:5,label:"Special Holiday Pay",formula:"Daily Rate × 1.30",note:"+30% extra on special holiday",color:"bg-indigo-50 border-indigo-200"},
-                        {step:6,label:"Regular OT",formula:"(Daily Rate ÷ 8) × 1.25 × OT hours",note:"Source: XLS Overtime Regular column",color:"bg-green-50 border-green-200"},
-                        {step:7,label:"Regular Holiday OT",formula:"(Daily Rate ÷ 8) × 1.60 × OT hours",note:"",color:"bg-green-50 border-green-200"},
-                        {step:8,label:"Special Holiday OT",formula:"(Daily Rate ÷ 8) × 1.39 × OT hours",note:"Source: XLS Overtime Special column",color:"bg-green-50 border-green-200"},
+                        {step:6,label:"Regular OT",formula:"(Daily Rate ÷ 8) × 0.25 × OT hours",note:"Premium only — base already in Basic Pay",color:"bg-green-50 border-green-200"},
+                        {step:7,label:"Regular Holiday OT",formula:"(Daily Rate ÷ 8) × 0.60 × OT hours",note:"",color:"bg-green-50 border-green-200"},
+                        {step:8,label:"Special Holiday OT",formula:"(Daily Rate ÷ 8) × 0.30 × OT hours",note:"Premium only",color:"bg-green-50 border-green-200"},
+                        {step:9,label:"Tardy / Undertime",formula:"(Daily Rate ÷ 8) × 0.5 × Timeslots",note:"Subtracted from Gross Income (1 slot = 30 min)",color:"bg-red-50 border-red-200"},
                       ].map(({step,label,formula,note,color}) => (
                         <div key={step} className={`flex gap-3 p-3 rounded-lg border ${color}`}>
                           <div className="w-6 h-6 rounded-full bg-gray-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
@@ -1577,7 +1949,7 @@ const AdminPayroll: React.FC = () => {
                       ))}
                       <div className="flex gap-3 p-3 rounded-lg border-2 border-gray-400 bg-gray-100">
                         <div className="w-6 h-6 rounded-full bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">✓</div>
-                        <div><p className="text-xs font-bold text-gray-900">GROSS INCOME</p><p className="text-xs font-mono text-gray-700 mt-0.5">= Basic Pay + Holiday Pay + OT Pay + Additional Pay</p></div>
+                        <div><p className="text-xs font-bold text-gray-900">GROSS INCOME</p><p className="text-xs font-mono text-gray-700 mt-0.5">= Basic Pay + Holiday Pay + OT Pay + Additional Pay − Tardy − Undertime</p></div>
                       </div>
                     </div>
                   </div>
@@ -1585,11 +1957,10 @@ const AdminPayroll: React.FC = () => {
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">📉 Deductions</p>
                     <div className="space-y-3">
                       {[
-                        {step:9, label:"Tardy / Undertime",formula:"(Daily Rate ÷ 8) × 0.5 × Timeslots",note:"1 timeslot = 30 min late/early",color:"bg-red-50 border-red-200"},
-                        {step:10,label:"PhilHealth",formula:"(Daily Rate × 26) × 3% ÷ 2",note:"Employee share only, rounded to ₱5",color:"bg-orange-50 border-orange-200"},
-                        {step:11,label:"HDMF (Pag-IBIG)",formula:"₱200.00 fixed per period",note:"Constant deduction every 15 days",color:"bg-orange-50 border-orange-200"},
-                        {step:12,label:"Withholding Tax",formula:"₱0.00 (below threshold)",note:"BIR applies when monthly income > ₱20,833",color:"bg-yellow-50 border-yellow-200"},
-                        {step:13,label:"Cash Advance (Deduction)",formula:"Sum of PREVIOUS period's issued CAs",note:"Period N: CA issued → Period N+1: deducted. Limit: ₱2,000/period.",color:"bg-amber-50 border-amber-200"},
+                        {step:10,label:"Withholding Tax",formula:"₱0.00 (below threshold)",note:"BIR applies when monthly income > ₱20,833",color:"bg-yellow-50 border-yellow-200"},
+                        {step:11,label:"Cash Advance (Deduction)",formula:"Sum of approved CAs this period",note:"Deducted in the same period it was issued. Limit: ₱2,000/period.",color:"bg-amber-50 border-amber-200"},
+                        {step:12,label:"PhilHealth",formula:"Admin-set per employee",note:"Set in employee profile or Contributions panel",color:"bg-orange-50 border-orange-200"},
+                        {step:13,label:"HDMF (Pag-IBIG)",formula:"Admin-set per employee",note:"Set in employee profile or Contributions panel",color:"bg-orange-50 border-orange-200"},
                       ].map(({step,label,formula,note,color}) => (
                         <div key={step} className={`flex gap-3 p-3 rounded-lg border ${color}`}>
                           <div className="w-6 h-6 rounded-full bg-gray-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>

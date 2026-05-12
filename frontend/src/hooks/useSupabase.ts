@@ -766,17 +766,18 @@ export interface CashAdvanceEligibility {
   eligible: boolean;
   reason: 'eligible' | 'limit_reached';
   remaining: number; totalUsed: number;
+  periodLabel?: string;
 }
 
 export function useCashierCashAdvances() {
   const q = useQuery(() => db.cashAdvances.getPendingCount(), []);
   return {
     pendingCount: q.data ?? 0, loading: q.loading, refresh: q.refresh,
-    checkEligibility: async (employeeId: string): Promise<CashAdvanceEligibility> => {
-      try { return await db.cashAdvances.checkEligibility(employeeId); }
+    checkEligibility: async (employeeId: string, dateIssued?: string): Promise<CashAdvanceEligibility> => {
+      try { return await db.cashAdvances.checkEligibility(employeeId, dateIssued); }
       catch { return { eligible: false, reason: 'limit_reached', remaining: 0, totalUsed: 0 }; }
     },
-    submitRequest: async (data: { employee_id: string; amount: number; reason?: string }) => {
+    submitRequest: async (data: { employee_id: string; amount: number; reason?: string; date_issued?: string }) => {
       const r = await safe(() => db.cashAdvances.requestByCashier(data).then(() => q.refresh()));
       return r;
     },
