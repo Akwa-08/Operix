@@ -13,14 +13,13 @@ import {
   type AttendanceLog, type PayrollRecord, type PayrollPeriod, type PendingCashAdvance, type CashAdvance,
 } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
-import { fmtDate } from "../../util/formatters";
 
 const fmt = (n: number) =>
   `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const periodLabel = (p: PayrollPeriod) => {
-  const s = fmtDate(p.periodStart, { month: "short", day: "numeric" });
-  const e = fmtDate(p.periodEnd, { month: "short", day: "numeric", year: "numeric" });
+  const s = new Date(p.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+  const e = new Date(p.periodEnd).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
   return `${s} – ${e}`;
 };
 
@@ -44,11 +43,10 @@ interface ExceptionalLogRow {
   hours_counted: number;
 }
 
-function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, periodIsComplete }: {
+function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
   attendanceLogs: AttendanceLog[];
   activePeriodId: string | null;
   refresh: () => void;
-  periodIsComplete?: boolean;
 }) {
   const flaggedLogs = attendanceLogs.filter(l => l.hasIncompletePunch);
   const [processing, setProcessing] = useState<string | null>(null);
@@ -124,7 +122,7 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  if (!activePeriodId || flaggedLogs.length === 0 || periodIsComplete) return null;
+  if (!activePeriodId || flaggedLogs.length === 0) return null;
 
   const toggleDate = (empId: string, iso: string) => {
     setSelectedDates(prev => {
@@ -168,6 +166,13 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
       });
 
       if (error) throw error;
+
+      // Mark all records for this employee as resolved in the exceptional logs
+      await supabase
+        .from("attendance_exceptional_logs")
+        .update({ is_incomplete: false })
+        .eq("payroll_period_id", activePeriodId)
+        .eq("employee_id", log.employeeId);
 
       await supabase
         .from("attendance_logs")
@@ -255,7 +260,6 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
           const isProcessing = processing === log.id;
           const totalHours = empDates.reduce((s, d) => s + (assignments[d.punch_date] ?? 8), 0);
           const totalDays = totalHours / 8;
-          const noWorkDays = empDates.filter(d => (assignments[d.punch_date] ?? 8) === 0).length;
 
           return (
             <div key={log.id} className="p-5 bg-amber-50 hover:bg-amber-100 transition-colors">
@@ -268,11 +272,6 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
                     <span className="text-xs font-semibold text-gray-600 bg-white px-2 py-0.5 rounded-full border border-gray-200">
                       {log.workedHours}h recorded · {totalDays} day{totalDays !== 1 ? "s" : ""} counted
                     </span>
-                    {noWorkDays > 0 && (
-                      <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                        {noWorkDays} no-work day{noWorkDays !== 1 ? "s" : ""}
-                      </span>
-                    )}
                   </div>
 
                   {/* Date chips */}
@@ -300,10 +299,10 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
                       let chipClass = "";
                       if (isSel)
                         chipClass = "bg-gray-800 text-white ring-2 ring-gray-600";
-                      else if (hrs === 0)
-                        chipClass = "bg-red-100 text-red-800 ring-1 ring-red-300 line-through";
                       else if (hrs === 4)
                         chipClass = "bg-blue-100 text-blue-800 ring-1 ring-blue-300";
+                      else if (hrs === 0)
+                        chipClass = "bg-red-100 text-red-800 ring-1 ring-red-300";
                       else if (!row.is_incomplete)
                         chipClass = "bg-green-100 text-green-800 ring-1 ring-green-300";
                       else
@@ -314,11 +313,11 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
                           key={row.punch_date}
                           onClick={() => toggleDate(log.employeeId, row.punch_date)}
                           className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all select-none ${chipClass}`}
-                          title={hrs === 0 ? `No work — 0 hrs. Click to select.` : `${row.is_incomplete ? "⚠ Incomplete punch" : "✓ Complete"} — ${hrs}hrs assigned. Click to select.`}
+                          title={`${row.is_incomplete ? "⚠ Incomplete punch" : "✓ Complete"} — ${hrs}hrs assigned. Click to select.`}
                         >
                           {formatDate(row.punch_date)}
-                          {hrs === 0 && <span className="ml-1 text-red-500">✕</span>}
                           {hrs === 4 && <span className="ml-1 opacity-60">½</span>}
+                          {hrs === 0 && <span className="ml-1 opacity-60">0</span>}
                           {row.is_incomplete && hrs === 8 && <span className="ml-1 opacity-60">!</span>}
                         </button>
                       );
@@ -336,7 +335,6 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
                       onClick={() => assignHours(log.employeeId, 0)}
                       disabled={selected.size === 0}
                       className="px-3 py-1 bg-red-100 hover:bg-red-200 disabled:opacity-30 text-red-800 text-xs font-bold rounded-lg border border-red-300 transition-colors"
-                      title="No work done — just clocked in/out briefly"
                     >
                       0 hrs
                     </button>
@@ -355,15 +353,15 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
                       8 hrs
                     </button>
                     <input
-                      type="number" step="0.5" min="0" max="24"
+                      type="number" step="0.5" min="0.5" max="24"
                       value={customHoursInput[log.employeeId] || ""}
                       onChange={e => setCustomHoursInput(prev => ({ ...prev, [log.employeeId]: e.target.value }))}
                       placeholder="Custom"
                       className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-purple-400"
                     />
                     <button
-                      onClick={() => { const h = parseFloat(customHoursInput[log.employeeId] || "-1"); if (h >= 0 && h <= 24) assignHours(log.employeeId, h); }}
-                      disabled={selected.size === 0 || !customHoursInput[log.employeeId] || parseFloat(customHoursInput[log.employeeId] || "-1") < 0}
+                      onClick={() => { const h = parseFloat(customHoursInput[log.employeeId] || "0"); if (h > 0 && h <= 24) assignHours(log.employeeId, h); }}
+                      disabled={selected.size === 0 || !customHoursInput[log.employeeId] || parseFloat(customHoursInput[log.employeeId] || "0") <= 0}
                       className="px-3 py-1 bg-purple-100 hover:bg-purple-200 disabled:opacity-30 text-purple-800 text-xs font-bold rounded-lg border border-purple-300 transition-colors"
                     >
                       Apply
@@ -403,11 +401,12 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, period
         <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-600">
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-amber-300 inline-block" />Incomplete punch (8 hrs default)</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-200 inline-block" />Marked 4 hrs (half day)</span>
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-200 inline-block" />Marked 0 hrs (did not work)</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-green-200 inline-block" />Complete / 8 hrs</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-gray-800 inline-block" />Selected for grouping</span>
         </div>
         <p className="text-xs text-amber-800">
-          <strong>How to use:</strong> Click dates to select → press <strong>4 hrs</strong> or <strong>8 hrs</strong> → press <strong>Confirm</strong> or <strong>Remove</strong> per employee → hit <strong>Recompute</strong> in Salary Computation tab when done.
+          <strong>How to use:</strong> Click dates to select → press <strong>0 hrs</strong>, <strong>4 hrs</strong> or <strong>8 hrs</strong> → press <strong>Confirm</strong> per employee → hit <strong>Recompute</strong> in Salary Computation tab.
         </p>
       </div>
     </div>
@@ -552,8 +551,8 @@ function AttendanceEditModal({ log, periodId, onClose, onSave }: {
         )}
         <div className="space-y-3">
           {field("Worked Hours", "worked_hours", 0.5)}
-          {field("Late (timeslots × 30min)", "late_timeslots")}
-          {field("Early Leave (timeslots × 30min)", "early_leave_timeslots")}
+          {field("Late (minutes)", "late_timeslots")}
+          {field("Early Leave (minutes)", "early_leave_timeslots")}
           {field("Regular OT Hours", "regular_overtime_hours", 0.5)}
           {field("Holiday OT Hours", "holiday_overtime_hours", 0.5)}
           {field("Special OT Hours", "special_overtime_hours", 0.5)}
@@ -614,7 +613,7 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
   };
 
   const assignHours = async (hrs: number) => {
-    if (selected.size === 0 || hrs <= 0 || hrs > 24) return;
+    if (selected.size === 0 || hrs < 0 || hrs > 24) return;
     setRows(prev => prev.map(r => selected.has(r.punch_date) ? { ...r, hours_counted: hrs } : r));
     setSelected(new Set());
     setCustomHours("");
@@ -625,16 +624,24 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
     for (const row of rows) {
       await supabase
         .from("attendance_exceptional_logs")
-        .update({ hours_counted: row.hours_counted })
+        .update({
+          hours_counted: row.hours_counted,
+          is_incomplete: false // Resolution persisted here
+        })
         .eq("payroll_period_id", periodId)
         .eq("employee_id", log.employeeId)
         .eq("punch_date", row.punch_date);
     }
     // Recalculate days_present in attendance_logs from updated hours
     const totalDays = rows.reduce((s, r) => s + r.hours_counted, 0) / 8;
+    // Also clear the flag in the main attendance log
     await supabase
       .from("attendance_logs")
-      .update({ days_present: totalDays })
+      .update({
+        days_present: totalDays,
+        has_incomplete_punch: false,
+        incomplete_punch_dates: []
+      })
       .eq("id", log.id);
     setSaving(false);
     onSaved();
@@ -663,8 +670,9 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
                 const isSel = selected.has(row.punch_date);
                 let cls = "";
                 if (isSel) cls = "bg-gray-800 text-white ring-2 ring-gray-600";
-                else if (row.hours_counted !== 8 && row.hours_counted !== 4) cls = "bg-purple-100 text-purple-800 ring-1 ring-purple-300";
                 else if (row.hours_counted === 4) cls = "bg-blue-100 text-blue-800 ring-1 ring-blue-300";
+                else if (row.hours_counted === 0) cls = "bg-red-100 text-red-800 ring-1 ring-red-300";
+                else if (row.hours_counted !== 8) cls = "bg-purple-100 text-purple-800 ring-1 ring-purple-300";
                 else cls = "bg-green-100 text-green-800 ring-1 ring-green-300";
                 return (
                   <button key={row.punch_date} onClick={() => toggle(row.punch_date)}
@@ -681,6 +689,10 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
               <span className="text-xs text-gray-500">
                 {selected.size > 0 ? `${selected.size} selected — assign:` : "Click dates to select:"}
               </span>
+              <button onClick={() => assignHours(0)} disabled={selected.size === 0}
+                className="px-3 py-1 bg-red-100 hover:bg-red-200 disabled:opacity-30 text-red-800 text-xs font-bold rounded-lg border border-red-300">
+                0 hrs (Absent)
+              </button>
               <button onClick={() => assignHours(4)} disabled={selected.size === 0}
                 className="px-3 py-1 bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-blue-800 text-xs font-bold rounded-lg border border-blue-300">
                 4 hrs (½ day)
@@ -721,6 +733,7 @@ function PunchDetailsModal({ log, periodId, onClose, onSaved }: {
         <div className="flex gap-4 text-[10px] text-gray-500 mb-5 flex-wrap">
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-green-300 inline-block" />8 hrs / full day</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-300 inline-block" />4 hrs / half day</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-300 inline-block" />0 hrs / did not work</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-300 inline-block" />Custom hours</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-gray-800 inline-block" />Selected</span>
         </div>
@@ -775,7 +788,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
       });
   }, [period?.id, record.employeeId, record.dailyRate]);
   const pLabel = period
-    ? `${fmtDate(period.periodStart, { month: "long", day: "numeric" })} – ${fmtDate(period.periodEnd, { month: "long", day: "numeric", year: "numeric" })}`
+    ? `${new Date(period.periodStart).toLocaleDateString("en-PH", { month: "long", day: "numeric" })} – ${new Date(period.periodEnd).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}`
     : "";
 
   const handlePrint = () => {
@@ -802,7 +815,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <p style="margin:2px 0">Code: ${record.employeeCode}</p>
       </div>
       <div style="text-align:right">
-        <p style="font-size:13px;font-weight:bold">${fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p>
+        <p style="font-size:13px;font-weight:bold">${new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p>
         <p><b>Position:</b> ${record.position}</p>
       </div>
     </div>
@@ -825,8 +838,8 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <div class="row"><span>Regular OT (×0.25):</span><span>${fmt(record.regularOvertime)}</span></div>
         <div class="row"><span>Holiday OT (×0.60):</span><span>${fmt(record.holidayOvertime)}</span></div>
         <div class="row"><span>Special OT (×0.30):</span><span>${fmt(record.specialOvertime)}</span></div>
-        ${record.tardyDeductions > 0 ? `<div class="row"><span class="red">Tardy Deduction:</span><span class="red">-${fmt(record.tardyDeductions)}</span></div>` : ""}
-        ${record.undertimeDeductions > 0 ? `<div class="row"><span class="red">Undertime Deduction:</span><span class="red">-${fmt(record.undertimeDeductions)}</span></div>` : ""}
+        ${record.tardyDeductions > 0 ? `<div class="row"><span class="red">Tardy Deduction:</span><span class="red">${fmt(record.tardyDeductions)}</span></div>` : ""}
+        ${record.undertimeDeductions > 0 ? `<div class="row"><span class="red">Undertime Deduction:</span><span class="red">${fmt(record.undertimeDeductions)}</span></div>` : ""}
         <div class="total-row"><span>GROSS INCOME:</span><span>${fmt(record.grossIncome)}</span></div>
       </div>
     </div>
@@ -881,7 +894,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                 <p className="text-xs text-gray-500">Code: {record.employeeCode}</p>
               </div>
               <div className="text-right text-xs">
-                <p className="text-sm font-bold">{fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p>
+                <p className="text-sm font-bold">{new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p>
                 <p className="font-bold mt-1">Position:</p><p>{record.position}</p>
               </div>
             </div>
@@ -919,13 +932,13 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                   {record.tardyDeductions > 0 && (
                     <div className="flex justify-between text-sm py-0.5">
                       <span className="text-red-600">Tardy Deduction</span>
-                      <span className="font-semibold text-red-600">-{fmt(record.tardyDeductions)}</span>
+                      <span className="font-semibold text-red-600">{fmt(record.tardyDeductions)}</span>
                     </div>
                   )}
                   {record.undertimeDeductions > 0 && (
                     <div className="flex justify-between text-sm py-0.5">
                       <span className="text-red-600">Undertime Deduction</span>
-                      <span className="font-semibold text-red-600">-{fmt(record.undertimeDeductions)}</span>
+                      <span className="font-semibold text-red-600">{fmt(record.undertimeDeductions)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1 text-xs">
@@ -1118,7 +1131,7 @@ function CashAdvanceApprovalPanel() {
 }
 
 // ─── Biometrics Upload Button ─────────────────────────────────────────────────
-function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
+function BiometricsUploadButton({ onSuccess }: { onSuccess: (periodId?: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -1136,7 +1149,7 @@ function BiometricsUploadButton({ onSuccess }: { onSuccess: () => void }) {
       if (error) throw new Error(error.message);
       if (!data?.success) throw new Error(data?.error || "Upload failed");
       setResult(data);
-      onSuccess();
+      onSuccess(data.period?.id);
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -1181,15 +1194,15 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
     {
       section: "EARNINGS", items: [
         { label: "Daily Rate", formula: `Employee profile`, value: record.dailyRate, note: `₱${record.dailyRate.toFixed(2)}/day` },
-        { label: "Days Present", formula: `From attendance/biometrics`, value: record.daysPresent, note: `${record.daysPresent} day(s)`, noFormat: true },
+        { label: "Days Present", formula: `From attendance/biometrics`, value: record.daysPresent, note: `${record.daysPresent} day(s)` },
         { label: "Basic Pay", formula: `Daily Rate × Days Present = ${fmt(record.dailyRate)} × ${record.daysPresent}`, value: record.basicPay, note: null },
         { label: "Regular OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.25 × OT hrs`, value: record.regularOvertime, note: `Hourly: ${fmt(hourlyRate)}` },
         { label: "Holiday OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.60 × OT hrs`, value: record.holidayOvertime, note: null },
         { label: "Special OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.30 × OT hrs`, value: record.specialOvertime, note: null },
         { label: "Regular Holiday Pay", formula: `Daily Rate × Holiday Days × 2.0`, value: record.regularHolidayPay, note: null },
         { label: "Special Holiday Pay", formula: `Daily Rate × Holiday Days × 1.3`, value: record.specialHolidayPay, note: null },
-        { label: "Tardy Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.5 × late slots`, value: -record.tardyDeductions, note: `Subtracted from gross`, isNeg: true },
-        { label: "Undertime Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.5 × undertime slots`, value: -record.undertimeDeductions, note: `Subtracted from gross`, isNeg: true },
+        { label: "Tardy Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: -record.tardyDeductions, note: `Subtracted from gross`, isNeg: true },
+        { label: "Undertime Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: -record.undertimeDeductions, note: `Subtracted from gross`, isNeg: true },
       ]
     },
     {
@@ -1242,11 +1255,7 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
                       {item.note && <p className="text-[10px] text-gray-400 mt-0.5">{item.note}</p>}
                     </div>
                     <span className={`text-sm font-bold whitespace-nowrap ${(item as any).isNeg ? 'text-red-600' : (item as any).isBold ? (section.section === 'NET PAY' ? 'text-green-700' : 'text-gray-900') : 'text-gray-800'}`}>
-                      {(item as any).isNeg
-                        ? `-${fmt(Math.abs(item.value))}`
-                        : (item as any).noFormat
-                          ? String(item.value)
-                          : fmt(item.value)}
+                      {fmt(Math.abs(item.value))}
                     </span>
                   </div>
                 ))}
@@ -1460,14 +1469,14 @@ const AdminPayroll: React.FC = () => {
 
   const printPayrollTable = () => {
     if (!currentPeriod) return;
-    const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">-${fmt(rec.totalDeductions)}</td><td class="num grn">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === "paid" ? "Paid" : "Pending"}</td></tr>`).join("");
-    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.basicPay, 0))}</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s, r) => s + r.grossIncome, 0))}</td><td class="num red">-${fmt(payrollRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s, r) => s + r.netPay, 0))}</td><td></td></tr></tfoot></table></body></html>`);
+    const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">${fmt(rec.totalDeductions)}</td><td class="num grn">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === "paid" ? "Paid" : "Pending"}</td></tr>`).join("");
+    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.basicPay, 0))}</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s, r) => s + r.grossIncome, 0))}</td><td class="num red">${fmt(payrollRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s, r) => s + r.netPay, 0))}</td><td></td></tr></tfoot></table></body></html>`);
   };
 
   const printAttendanceLogs = () => {
     if (!currentPeriod) return;
     const rows = attendanceLogs.map(log => `<tr><td>${log.fullName}</td><td>${log.position}</td><td class="num">${log.workedHours}h</td><td class="num">${fmt(log.dailyRate)}</td><td class="ctr">${log.lateTimeslots}</td><td class="ctr">${log.earlyLeaveTimeslots}</td><td class="ctr">${log.regularOvertimeHours}/${log.holidayOvertimeHours}/${log.specialOvertimeHours}</td><td class="ctr">${log.businessTripDays}</td><td class="ctr">${log.absences}</td><td class="ctr">${log.onLeaveDays}</td><td class="num grn">${fmt(log.additionalPay)}</td><td class="num red">${fmt(log.deductionAmount)}</td></tr>`).join("");
-    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0}h2{font-size:13px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:8.5px;text-transform:uppercase}.num{text-align:right}.ctr{text-align:center}.grn{color:#16a34a}.red{color:#dc2626}</style></head><body><h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2><p>Period: ${periodLabel(currentPeriod)} | Employees: ${attendanceLogs.length} | Printed: ${fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th><th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th><th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0}h2{font-size:13px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:8.5px;text-transform:uppercase}.num{text-align:right}.ctr{text-align:center}.grn{color:#16a34a}.red{color:#dc2626}</style></head><body><h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2><p>Period: ${periodLabel(currentPeriod)} | Employees: ${attendanceLogs.length} | Printed: ${new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th><th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th><th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
   };
 
   const toggleExpand = (id: string) => { const s = new Set(expandedPeriods); s.has(id) ? s.delete(id) : s.add(id); setExpandedPeriods(s); };
@@ -1697,7 +1706,7 @@ const AdminPayroll: React.FC = () => {
                   ].map(({ label, val, isDeduction }) => (
                     <div key={label} className="flex items-center justify-between px-4 py-3 rounded-lg bg-gray-50">
                       <span className="text-sm font-semibold text-gray-700">{label}</span>
-                      <span className={`text-sm font-bold ${isDeduction ? "text-red-600" : "text-gray-900"}`}>{isDeduction ? "-" : ""}{fmt(val)}</span>
+                      <span className={`text-sm font-bold ${isDeduction ? "text-red-600" : "text-gray-900"}`}>{fmt(val)}</span>
                     </div>
                   ))}
                   <div className="flex items-center justify-between px-4 py-4 rounded-lg bg-green-200 border-2 border-green-300">
@@ -1731,7 +1740,6 @@ const AdminPayroll: React.FC = () => {
             attendanceLogs={attendanceLogs}
             activePeriodId={activePeriodId}
             refresh={refresh}
-            periodIsComplete={periodIsComplete}
           />
 
           {/* ── Cash Advance Pending Requests ── */}
@@ -1751,7 +1759,7 @@ const AdminPayroll: React.FC = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                 <input type="text" placeholder="Search by name or code…" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
               </div>
-              <BiometricsUploadButton onSuccess={refresh} />
+              <BiometricsUploadButton onSuccess={(id) => { refresh(); if (id) setSelectedPeriodId(id); }} />
               <button onClick={printAttendanceLogs} className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50"><Printer size={16} /> Print</button>
             </div>
           </div>
@@ -2034,7 +2042,7 @@ const AdminPayroll: React.FC = () => {
                         <Calendar size={20} className="text-gray-500" />
                         <div>
                           <p className="text-sm font-bold text-gray-900">{periodLabel(period)}</p>
-                          {period.payDate && <p className="text-xs text-gray-500">Pay Date: {fmtDate(period.payDate, { month: "long", day: "numeric", year: "numeric" })}</p>}
+                          {period.payDate && <p className="text-xs text-gray-500">Pay Date: {new Date(period.payDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</p>}
                           <p className="text-xs text-gray-400">Created: {period.createdAt}</p>
                         </div>
                       </div>

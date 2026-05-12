@@ -4,7 +4,6 @@
 
 import { supabase } from "../config/supabaseClient";
 import { sanitizeInput, isValidUUID } from "../util/security";
-import { parseDbDate } from "../util/formatters";
 
 /**
  * Uploads a file to the 'order-files' storage bucket.
@@ -136,17 +135,6 @@ export const db = {
     return data;
   },
 
-  async updateLastSeen() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase
-      .from("users")
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq("id", user.id);
-  },
-
   async updateMyProfile(updates: {
     first_name?: string;
     last_name?: string;
@@ -198,76 +186,41 @@ export const db = {
   // ── System Utilities (Logging & Notifications) ─────────────────────────
   async logAudit(action: string, table: string, id: string, metadata: any) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: profile } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-      await supabase.from("audit_logs").insert([
-        {
-          actor_id: user.id,
-          actor_role: profile?.role || "unknown",
-          action,
-          target_table: table,
-          target_id: id,
-          metadata,
-        },
-      ]);
-    } catch (e) {
-      console.error("Audit log failed:", e);
-    }
+      const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single();
+      await supabase.from('audit_logs').insert([{
+        actor_id: user.id,
+        actor_role: profile?.role || 'unknown',
+        action,
+        target_table: table,
+        target_id: id,
+        metadata
+      }]);
+    } catch (e) { console.error("Audit log failed:", e); }
   },
 
-  async notifyRoles(
-    roles: string[],
-    title: string,
-    message: string,
-    module?: string,
-    id?: string,
-  ) {
+  async notifyRoles(roles: string[], title: string, message: string, module?: string, id?: string) {
     try {
-      const { data: users } = await supabase
-        .from("users")
-        .select("id")
-        .in("role", roles);
+      const { data: users } = await supabase.from('users').select('id').in('role', roles);
       if (!users || users.length === 0) return;
-      const notifs = users.map((u) => ({
+      const notifs = users.map(u => ({
         user_id: u.id,
         title,
         message,
         related_module: module,
-        related_id: id,
+        related_id: id
       }));
-      await supabase.from("notifications").insert(notifs);
-    } catch (e) {
-      console.error("Notification failed:", e);
-    }
+      await supabase.from('notifications').insert(notifs);
+    } catch (e) { console.error("Notification failed:", e); }
   },
 
-  async notifyUser(
-    userId: string,
-    title: string,
-    message: string,
-    module?: string,
-    id?: string,
-  ) {
+  async notifyUser(userId: string, title: string, message: string, module?: string, id?: string) {
     try {
-      await supabase.from("notifications").insert([
-        {
-          user_id: userId,
-          title,
-          message,
-          related_module: module,
-          related_id: id,
-        },
-      ]);
-    } catch (e) {
-      console.error("User notification failed:", e);
-    }
+      await supabase.from('notifications').insert([{
+        user_id: userId, title, message, related_module: module, related_id: id
+      }]);
+    } catch (e) { console.error("User notification failed:", e); }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -308,10 +261,7 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Create Employee", "employees", data.id, {
-      name: data.full_name,
-      position: data.position,
-    });
+    await this.logAudit("Create Employee", "employees", data.id, { name: data.full_name, position: data.position });
     return data;
   },
 
@@ -352,10 +302,42 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Create Supplier", "suppliers", data.id, {
-      name: data.name,
-    });
+    await this.logAudit("Create Supplier", "suppliers", data.id, { name: data.name });
     return data;
+  },
+
+  async getSupplierMaterials(supplierId: string) {
+    const { data, error } = await supabase
+      .from("item_suppliers")
+      .select("inventory_item_id")
+      .eq("supplier_id", supplierId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async updateSupplierMaterials(supplierId: string, materialIds: string[]) {
+    // 1. Delete all existing mappings for this supplier
+    const { error: delError } = await supabase
+      .from("item_suppliers")
+      .delete()
+      .eq("supplier_id", supplierId);
+    if (delError) throw delError;
+
+    if (materialIds.length === 0) return { success: true };
+
+    // 2. Insert new mappings
+    const inserts = materialIds.map(id => ({
+      supplier_id: supplierId,
+      inventory_item_id: id,
+      is_preferred: false
+    }));
+
+    const { error: insError } = await supabase
+      .from("item_suppliers")
+      .insert(inserts);
+    if (insError) throw insError;
+
+    return { success: true };
   },
 
   async updateSupplier(id: string, updates: Record<string, any>) {
@@ -377,117 +359,35 @@ export const db = {
     const { data, error } = await supabase
       .from("inventory_items")
       .select(
-        "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name, flag_category))",
+        "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
       )
       .order("name");
     if (error) throw error;
     return data || [];
   },
 
-  async getSupplierMaterials(supplierId: string) {
-    const { data, error } = await supabase
-      .from("item_suppliers")
-      .select("inventory_item_id, inventory_items(id, name, unit_of_measure)")
-      .eq("supplier_id", supplierId);
-    if (error) throw error;
-    return data || [];
-  },
-
-  async updateSupplierMaterials(
-    supplierId: string,
-    inventoryItemIds: string[],
-  ) {
-    const { error: delErr } = await supabase
-      .from("item_suppliers")
-      .delete()
-      .eq("supplier_id", supplierId);
-    if (delErr) throw delErr;
-
-    if (inventoryItemIds.length > 0) {
-      const { error: insErr } = await supabase.from("item_suppliers").insert(
-        inventoryItemIds
-          .filter((id) => !!id)
-          .map((id) => ({
-            supplier_id: supplierId,
-            inventory_item_id: id,
-            is_preferred: false,
-            supplier_unit_price: 0,
-            lead_time_days: 0,
-          })),
-      );
-      if (insErr) throw insErr;
-    }
-  },
-
-  async updateMaterialSuppliers(materialId: string, supplierIds: string[]) {
-    const { error: delErr } = await supabase
-      .from("item_suppliers")
-      .delete()
-      .eq("inventory_item_id", materialId);
-    if (delErr) throw delErr;
-
-    if (supplierIds.length > 0) {
-      const { error: insErr } = await supabase.from("item_suppliers").insert(
-        supplierIds
-          .filter((id) => !!id)
-          .map((id, idx) => ({
-            inventory_item_id: materialId,
-            supplier_id: id,
-            is_preferred: idx === 0,
-            supplier_unit_price: 0,
-            lead_time_days: 0,
-          })),
-      );
-      if (insErr) throw insErr;
-    }
-  },
-
-  async createInventoryItem(
-    item: {
-      name: string;
-      unit_of_measure: string;
-      current_quantity?: number;
-      reorder_point?: number;
-      unit_cost?: number;
-      description?: string;
-      purchase_unit?: string;
-      conversion_rate?: number;
-    },
-    supplierIds: string[] = [],
-  ) {
+  async createInventoryItem(item: {
+    name: string;
+    unit_of_measure: string;
+    current_quantity?: number;
+    reorder_point?: number;
+    unit_cost?: number;
+    description?: string;
+    purchase_unit?: string;
+    conversion_rate?: number;
+  }) {
     const { data, error } = await supabase
       .from("inventory_items")
       .insert([{ ...item, is_active: true }])
       .select()
       .single();
     if (error) throw error;
-    if (supplierIds.length > 0) {
-      const { error: insErr } = await supabase.from("item_suppliers").insert(
-        supplierIds
-          .filter((id) => !!id)
-          .map((id, idx) => ({
-            inventory_item_id: data.id,
-            supplier_id: id,
-            is_preferred: idx === 0,
-            supplier_unit_price: 0,
-            lead_time_days: 0,
-          })),
-      );
-      if (insErr) throw insErr;
-    }
-
-    await this.logAudit("Create Inventory Item", "inventory_items", data.id, {
-      name: data.name,
-    });
+    await this.logAudit("Create Inventory Item", "inventory_items", data.id, { name: data.name });
     return data;
   },
 
   async updateInventoryItem(id: string, updates: Record<string, any>) {
-    const { data: oldItem } = await supabase
-      .from("inventory_items")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const { data: oldItem } = await supabase.from('inventory_items').select('*').eq('id', id).single();
     const { data, error } = await supabase
       .from("inventory_items")
       .update(updates)
@@ -499,20 +399,11 @@ export const db = {
     await this.logAudit("Update Inventory", "inventory_items", id, {
       before: oldItem,
       after: data,
-      changed_fields: Object.keys(updates),
+      changed_fields: Object.keys(updates)
     });
 
-    if (
-      data.current_quantity <= data.reorder_point &&
-      (!oldItem || oldItem.current_quantity > oldItem.reorder_point)
-    ) {
-      await this.notifyRoles(
-        ["admin", "cashier"],
-        "Low Stock Alert",
-        `${data.name} is below reorder point (${data.current_quantity} left).`,
-        "inventory",
-        id,
-      );
+    if (data.current_quantity <= data.reorder_point && (!oldItem || oldItem.current_quantity > oldItem.reorder_point)) {
+      await this.notifyRoles(['admin', 'cashier'], "Low Stock Alert", `${data.name} is below reorder point (${data.current_quantity} left).`, 'inventory', id);
     }
 
     return data;
@@ -548,10 +439,7 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Create Product", "products", data.id, {
-      name: data.name,
-      category: data.category,
-    });
+    await this.logAudit("Create Product", "products", data.id, { name: data.name, category: data.category });
     return data;
   },
 
@@ -580,7 +468,7 @@ export const db = {
       .select(
         `
       *,
-      customer:customer_id(id, first_name, last_name, email, contact_number, is_suki),
+      customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
@@ -607,7 +495,7 @@ export const db = {
       .select(
         `
       *,
-      customer:customer_id(id, first_name, last_name, email, contact_number, is_suki),
+      customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
@@ -619,56 +507,12 @@ export const db = {
     if (error) throw error;
     return data;
   },
-  async getLeastBurdenedDesigner(): Promise<string | null> {
-    // 1. Get all online and active designers (last 15 mins)
-    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-
-    const { data: designers, error: dErr } = await supabase
-      .from("users")
-      .select("id")
-      .eq("role", "designer")
-      .eq("is_active", true)
-      .gt("last_seen_at", fifteenMinsAgo);
-
-    if (dErr || !designers || designers.length === 0) return null;
-
-    // 2. Get active order counts for these designers
-    const { data: orders, error: oErr } = await supabase
-      .from("orders")
-      .select("assigned_designer")
-      .not("status", "in", '("completed","cancelled")')
-      .not("assigned_designer", "is", null);
-
-    if (oErr) return designers[0].id;
-
-    // 3. Map counts
-    const counts: Record<string, number> = {};
-    designers.forEach((d) => (counts[d.id] = 0));
-    orders.forEach((o: any) => {
-      if (counts[o.assigned_designer] !== undefined) {
-        counts[o.assigned_designer]++;
-      }
-    });
-
-    // 4. Find minimum
-    let minId = designers[0].id;
-    let minCount = counts[minId];
-
-    designers.forEach((d) => {
-      if (counts[d.id] < minCount) {
-        minCount = counts[d.id];
-        minId = d.id;
-      }
-    });
-
-    return minId;
-  },
 
   async createOrder(order: {
-    customer_id?: string;
-    guest_name?: string;
-    guest_phone?: string;
-    guest_email?: string;
+    customer_id?: string | null;
+    guest_name?: string | null;
+    guest_phone?: string | null;
+    guest_email?: string | null;
     order_type: string;
     special_instructions?: string;
     due_date?: string;
@@ -698,12 +542,6 @@ export const db = {
       orderNumber = `ORD-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
     }
 
-    // Auto-dispatch if not specified
-    let assignedDesigner = order.assigned_designer;
-    if (!assignedDesigner) {
-      assignedDesigner = (await this.getLeastBurdenedDesigner()) || undefined;
-    }
-
     const totalAmount = order.items.reduce(
       (s, i) => s + i.quantity * i.unit_price,
       0,
@@ -727,7 +565,7 @@ export const db = {
           due_date: order.due_date || null,
           total_amount: totalAmount,
           amount_paid: 0,
-          assigned_designer: assignedDesigner || null,
+          assigned_designer: order.assigned_designer || null,
           assigned_production: order.assigned_production || null,
           design_file_url: order.design_file_url || null,
         },
@@ -753,36 +591,20 @@ export const db = {
     await this.logAudit("Create Order", "orders", newOrder.id, {
       order_number: orderNumber,
       total_amount: totalAmount,
-      items_count: items.length,
+      items_count: items.length
     });
 
-    await this.notifyRoles(
-      ["admin", "cashier"],
-      "New Order Received",
-      `Order ${orderNumber} has been placed for ${order.guest_name || "a customer"}.`,
-      "orders",
-      newOrder.id,
-    );
+    await this.notifyRoles(['admin', 'cashier'], "New Order Received", `Order ${orderNumber} has been placed for ${order.guest_name || 'a customer'}.`, 'orders', newOrder.id);
 
     if (order.assigned_designer) {
-      await this.notifyUser(
-        order.assigned_designer,
-        "New Design Assignment",
-        `You have been assigned to design Order ${orderNumber}.`,
-        "orders",
-        newOrder.id,
-      );
+      await this.notifyUser(order.assigned_designer, "New Design Assignment", `You have been assigned to design Order ${orderNumber}.`, 'orders', newOrder.id);
     }
 
     return newOrder;
   },
 
   async updateOrder(id: string, updates: Record<string, any>) {
-    const { data: old } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("id", id)
-      .single();
+    const { data: old } = await supabase.from('orders').select('*').eq('id', id).single();
     const { data, error } = await supabase
       .from("orders")
       .update(updates)
@@ -794,25 +616,13 @@ export const db = {
     await this.logAudit("Update Order", "orders", id, {
       before: old,
       after: data,
-      changed: Object.keys(updates),
+      changed: Object.keys(updates)
     });
 
     if (updates.status && updates.status !== old.status) {
-      await this.notifyRoles(
-        ["admin", "cashier"],
-        "Order Status Updated",
-        `Order ${data.order_number} changed from ${old.status} to ${data.status}.`,
-        "orders",
-        id,
-      );
+      await this.notifyRoles(['admin', 'cashier'], "Order Status Updated", `Order ${data.order_number} changed from ${old.status} to ${data.status}.`, 'orders', id);
       if (data.customer_id) {
-        await this.notifyUser(
-          data.customer_id,
-          "Order Update",
-          `Your order ${data.order_number} is now ${data.status.replace("_", " ")}.`,
-          "orders",
-          id,
-        );
+        await this.notifyUser(data.customer_id, "Order Update", `Your order ${data.order_number} is now ${data.status.replace('_', ' ')}.`, 'orders', id);
       }
     }
 
@@ -904,16 +714,8 @@ export const db = {
 
     if (error) throw error;
 
-    await this.logAudit("Assign Designer", "orders", orderId, {
-      designer_id: designerId,
-    });
-    await this.notifyUser(
-      designerId,
-      "New Assignment",
-      `You have been assigned to Order ${data.order_number}. Please accept to start designing.`,
-      "orders",
-      orderId,
-    );
+    await this.logAudit("Assign Designer", "orders", orderId, { designer_id: designerId });
+    await this.notifyUser(designerId, "New Assignment", `You have been assigned to Order ${data.order_number}. Please accept to start designing.`, 'orders', orderId);
 
     return data;
   },
@@ -968,60 +770,12 @@ export const db = {
       }
     }
 
-    await this.logAudit("Designer Accept Order", "orders", orderId, {
-      order_number: order.order_number,
-    });
-    await this.notifyRoles(
-      ["admin", "cashier"],
-      "Designer Accepted Order",
-      `Order ${order.order_number} has been accepted by ${user.id}.`,
-      "orders",
-      orderId,
-    );
+    await this.logAudit("Designer Accept Order", "orders", orderId, { order_number: order.order_number });
+    await this.notifyRoles(['admin', 'cashier'], "Designer Accepted Order", `Order ${order.order_number} has been accepted by ${user.id}.`, 'orders', orderId);
 
     return updated;
   },
 
-  async designerRejectAssignedOrder(orderId: string) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("Not authenticated");
-
-    const { data: order, error: fetchError } = await supabase
-      .from("orders")
-      .select("id, order_number, assigned_designer, rejected_by_designers")
-      .eq("id", orderId)
-      .single();
-    if (fetchError) throw fetchError;
-    if (!order) throw new Error("Order not found");
-
-    if (order.assigned_designer !== user.id) {
-      throw new Error("Only the assigned designer can reject this order");
-    }
-
-    const rejectedBy = order.rejected_by_designers || [];
-    if (!rejectedBy.includes(user.id)) {
-      rejectedBy.push(user.id);
-    }
-
-    const { error: updateErr } = await supabase
-      .from("orders")
-      .update({
-        assigned_designer: null,
-        rejected_by_designers: rejectedBy,
-      })
-      .eq("id", orderId);
-    if (updateErr) throw updateErr;
-
-    await this.logAudit("Reject Assignment", "orders", orderId, {
-      designer_id: user.id,
-    });
-  },
-
-  /**
-   * 2b: Designer self-picks an unassigned in_queue order and starts designing.
-   */
   async designerSelfPickOrder(orderId: string) {
     const {
       data: { user },
@@ -1039,7 +793,7 @@ export const db = {
     if (order.status !== "in_queue") {
       throw new Error("Only in-queue orders can be self-picked");
     }
-    if (order.assigned_designer && order.assigned_designer !== user.id) {
+    if (order.assigned_designer) {
       throw new Error("Order is already assigned to another designer");
     }
 
@@ -1071,6 +825,40 @@ export const db = {
         console.warn("Self-pick notification failed:", msgErr);
       }
     }
+
+    return updated;
+  },
+
+  async designerRejectAssignedOrder(orderId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: order, error: fetchError } = await supabase
+      .from("orders")
+      .select("id, order_number, assigned_designer, status, rejected_by_designers")
+      .eq("id", orderId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error("Order not found");
+
+    if (order.assigned_designer !== user.id) {
+      throw new Error("Only the assigned designer can reject this order");
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from("orders")
+      .update({
+        assigned_designer: null,
+        status: "in_queue",
+        rejected_by_designers: [...(order.rejected_by_designers || []), user.id]
+      })
+      .eq("id", orderId)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+
+    await this.logAudit("Designer Reject Order", "orders", orderId, { order_number: order.order_number });
+    await this.notifyRoles(['admin', 'cashier'], "Designer Rejected Order", `Order ${order.order_number} was rejected by ${user.id} and returned to queue.`, 'orders', orderId);
 
     return updated;
   },
@@ -1202,18 +990,14 @@ export const db = {
 
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select(
-        "id, customer_id, assigned_designer, status, final_design_url, customer:customer_id(is_suki)",
-      )
+      .select("id, customer_id, assigned_designer, status, final_design_url")
       .eq("id", orderId)
       .single();
     if (fetchError) throw fetchError;
     if (!order) throw new Error("Order not found");
 
     if (isDesigner && order.assigned_designer !== user.id) {
-      throw new Error(
-        "You can only approve designs for orders assigned to you",
-      );
+      throw new Error("You can only approve designs for orders assigned to you");
     }
     if (order.status !== "designing") {
       throw new Error("Order is not currently in Designing phase");
@@ -1222,13 +1006,9 @@ export const db = {
       throw new Error("No final design found to approve");
     }
 
-    const nextStatus = (order as any).customer?.is_suki
-      ? "production"
-      : "payment";
-
     const { data, error } = await supabase
       .from("orders")
-      .update({ status: nextStatus })
+      .update({ status: "payment" })
       .eq("id", orderId)
       .eq("status", "designing")
       .select()
@@ -1237,12 +1017,11 @@ export const db = {
 
     if (order.customer_id) {
       try {
-        const message =
-          nextStatus === "production"
-            ? "Your final design has been approved! Since you are a trusted customer, we've started production immediately."
-            : "Your final design has been approved by our team. Your order is now in the Payment phase.";
-
-        await this.chat.sendMessage(order.customer_id, message, orderId);
+        await db.chat.sendMessage(
+          order.customer_id,
+          "Your final design has been approved by our team. Your order is now in the Payment phase.",
+          orderId,
+        );
       } catch (msgErr) {
         console.warn("Customer notification failed:", msgErr);
       }
@@ -1456,9 +1235,6 @@ export const db = {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
-    // We insert as 'pending' by default.
-    // We DO NOT update the order's amount_paid yet.
-    // That only happens when the cashier approves.
     const { error: payErr } = await supabase.from("payments").insert([
       {
         order_id: orderId,
@@ -1470,23 +1246,13 @@ export const db = {
     ]);
     if (payErr) throw payErr;
 
-    const { data: order } = await supabase
-      .from("orders")
-      .select("order_number")
-      .eq("id", orderId)
-      .single();
+    const { data: order } = await supabase.from('orders').select('order_number').eq('id', orderId).single();
     await this.logAudit("Record Payment", "payments", orderId, {
       amount: payment.amount,
       method: payment.payment_method,
-      ref: payment.reference_number,
+      ref: payment.reference_number
     });
-    await this.notifyRoles(
-      ["admin", "cashier"],
-      "New Payment Recorded",
-      `A payment of ₱${payment.amount.toLocaleString()} has been recorded for Order ${order?.order_number || "N/A"}.`,
-      "orders",
-      orderId,
-    );
+    await this.notifyRoles(['admin', 'cashier'], "New Payment Recorded", `A payment of ₱${payment.amount.toLocaleString()} has been recorded for Order ${order?.order_number || 'N/A'}.`, 'orders', orderId);
   },
 
   async approvePayment(paymentId: string, orderId: string) {
@@ -1497,10 +1263,7 @@ export const db = {
 
     if (updateError) throw updateError;
 
-    await this.logAudit("Approve Payment", "payments", paymentId, {
-      order_id: orderId,
-    });
-    // 2. Recalculate everything to be safe
+    await this.logAudit("Approve Payment", "payments", paymentId, { order_id: orderId });
     return this.syncOrderPaymentStatus(orderId);
   },
 
@@ -1531,19 +1294,10 @@ export const db = {
       } catch (err) {
         console.warn("Failed to notify customer of declined payment", err);
       }
-      await this.notifyUser(
-        order.customer_id,
-        "Payment Declined",
-        `Your payment for Order ${order.order_number} was declined. Reason: ${reason}`,
-        "orders",
-        orderId,
-      );
+      await this.notifyUser(order.customer_id, "Payment Declined", `Your payment for Order ${order.order_number} was declined. Reason: ${reason}`, 'orders', orderId);
     }
 
-    await this.logAudit("Decline Payment", "payments", paymentId, {
-      order_id: orderId,
-      reason,
-    });
+    await this.logAudit("Decline Payment", "payments", paymentId, { order_id: orderId, reason });
 
     await supabase
       .from("orders")
@@ -1728,11 +1482,7 @@ export const db = {
     if (error) throw error;
   },
 
-  async checkout(
-    specialInstructions?: string,
-    dueDate?: string,
-    itemIds?: string[],
-  ) {
+  async checkout(specialInstructions?: string, dueDate?: string, itemIds?: string[]) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -1743,30 +1493,23 @@ export const db = {
       cartItems = cartItems.filter((ci) => itemIds.includes(ci.id));
     }
 
-    if (!cartItems.length)
-      throw new Error("Cart is empty or no items selected");
+    if (!cartItems.length) throw new Error("Cart is empty or no items selected");
 
-    const orders = [];
-    for (const ci of cartItems) {
-      const order = await db.createOrder({
-        customer_id: user.id,
-        order_type: "online",
-        special_instructions: ci.specifications || specialInstructions,
-        due_date: dueDate,
-        design_file_url: ci.file_url,
-        items: [
-          {
-            product_id: ci.product_id,
-            product_name: ci.product?.name || "Unknown",
-            quantity: ci.quantity,
-            unit_price: parseFloat(ci.product?.final_price || "0"),
-            specifications: ci.specifications,
-            file_url: ci.file_url,
-          },
-        ],
-      });
-      orders.push(order);
-    }
+    const order = await db.createOrder({
+      customer_id: user.id,
+      order_type: "online",
+      special_instructions: specialInstructions,
+      due_date: dueDate,
+      design_file_url: cartItems[0]?.file_url,
+      items: cartItems.map((ci) => ({
+        product_id: ci.product_id,
+        product_name: ci.product?.name || "Unknown",
+        quantity: ci.quantity,
+        unit_price: parseFloat(ci.product?.final_price || "0"),
+        specifications: ci.specifications,
+        file_url: ci.file_url,
+      })),
+    });
 
     if (itemIds && itemIds.length > 0) {
       const { error } = await supabase
@@ -1778,7 +1521,7 @@ export const db = {
       await db.clearCart();
     }
 
-    return orders;
+    return order;
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1787,7 +1530,7 @@ export const db = {
   async getStaffList() {
     const { data, error } = await supabase
       .from("users")
-      .select("id, first_name, last_name, role, last_seen_at")
+      .select("id, first_name, last_name, role")
       .in("role", ["designer", "production", "admin"])
       .eq("is_active", true)
       .order("role")
@@ -1836,26 +1579,21 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   // PRODUCTS WITH BOM
   // ═══════════════════════════════════════════════════════════════════════════
-  async getProductsWithBOM(filters?: { category?: string; search?: string }) {
+  async getProductsWithBOM(filters?: { search?: string; category?: string }) {
     let query = supabase
       .from("products")
       .select(
-        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost, conversion_rate))",
-      )
-      .order("category")
-      .order("name");
+        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost))"
+      );
 
     if (filters?.category) query = query.eq("category", filters.category);
     if (filters?.search) {
-      const cleanSearch = filters.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      if (cleanSearch) {
-        query = query.or(
-          `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
-        );
-      }
+      query = query.or(`name.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query
+      .order("category")
+      .order("name");
     if (error) throw error;
     return data || [];
   },
@@ -1953,7 +1691,6 @@ export const db = {
     requested_quantity: number;
     expected_arrival_date?: string;
     notes?: string;
-    requested_by?: string;
   }) {
     const {
       data: { user },
@@ -1964,7 +1701,7 @@ export const db = {
       .insert([
         {
           ...d,
-          requested_by: d.requested_by || user.id,
+          requested_by: user.id,
           status: "requested",
         },
       ])
@@ -2046,27 +1783,16 @@ export const db = {
   chat: {
     formatChatTimestamp(dateStr: string) {
       if (!dateStr) return "";
-      const date = parseDbDate(dateStr);
-      if (!date) return "";
+      const date = new Date(dateStr);
       const now = new Date();
-      const tz = "Asia/Manila";
-
-      const isToday =
-        date.toLocaleDateString("en-CA", { timeZone: tz }) ===
-        now.toLocaleDateString("en-CA", { timeZone: tz });
-
+      const isToday = date.toDateString() === now.toDateString();
       if (isToday) {
-        return date.toLocaleTimeString("en-PH", {
-          hour: "numeric",
+        return date.toLocaleTimeString([], {
+          hour: "2-digit",
           minute: "2-digit",
-          timeZone: tz,
         });
       }
-      return date.toLocaleDateString("en-PH", {
-        month: "short",
-        day: "numeric",
-        timeZone: tz,
-      });
+      return date.toLocaleDateString([], { month: "short", day: "numeric" });
     },
 
     async getConversations() {
@@ -2124,9 +1850,7 @@ export const db = {
       } = await supabase.auth.getUser();
       if (!user) return 0;
 
-      const lastViewed =
-        localStorage.getItem(`chat_last_viewed_${user.id}`) ||
-        "1970-01-01T00:00:00Z";
+      const lastViewed = localStorage.getItem(`chat_last_viewed_${user.id}`) || "1970-01-01T00:00:00Z";
 
       const { count, error } = await supabase
         .from("chat_messages")
@@ -2144,10 +1868,7 @@ export const db = {
     markMessagesViewed(): void {
       const userId = localStorage.getItem("chat_user_id");
       if (userId) {
-        localStorage.setItem(
-          `chat_last_viewed_${userId}`,
-          new Date().toISOString(),
-        );
+        localStorage.setItem(`chat_last_viewed_${userId}`, new Date().toISOString());
       }
     },
 
@@ -2230,48 +1951,6 @@ export const db = {
         .single();
 
       if (error) throw error;
-
-      // ── Create a notification for the receiver ──────────────────────────
-      // Build sender display name from auth metadata
-      const meta = user.user_metadata || {};
-      const senderName =
-        [meta.first_name, meta.last_name].filter(Boolean).join(" ") ||
-        "Someone";
-
-      const preview = message.trim()
-        ? message.trim().substring(0, 80)
-        : "📷 Sent an image";
-
-      // Fire-and-forget: runs in background, won't block the message return
-      (async () => {
-        try {
-          const { error: notifErr } = await supabase
-            .from("notifications")
-            .insert({
-              user_id: receiverId,
-              title: "New Message",
-              message: `${senderName}: ${preview}`,
-              related_module: "messages",
-              related_id: user.id,
-            });
-
-          if (notifErr) {
-            console.error(
-              "❌ Message notification insert failed:",
-              notifErr.message,
-              notifErr,
-            );
-          } else {
-            console.log(
-              "✅ Message notification created for receiver:",
-              receiverId,
-            );
-          }
-        } catch (err: any) {
-          console.error("❌ Message notification error:", err);
-        }
-      })();
-
       return data;
     },
 
@@ -2409,7 +2088,11 @@ export const db = {
         .select(
           `
           *,
-          employee:employee_id(*)
+          employee:employee_id(
+            id, employee_code, full_name, position,
+            base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier,
+            philhealth_contribution, hdmf_contribution
+          )
         `,
         )
         .eq("payroll_period_id", periodId)
@@ -2487,7 +2170,10 @@ export const db = {
         .select(
           `
           *,
-          employee:employee_id(*)
+          employee:employee_id(
+            id, employee_code, base_hourly_rate,
+            philhealth_contribution, hdmf_contribution
+          )
         `,
         )
         .eq("payroll_period_id", periodId);
@@ -2501,19 +2187,15 @@ export const db = {
         .select("employee_id, hours_counted")
         .eq("payroll_period_id", periodId);
 
-      // ── CASH ADVANCE QUERIES ──────────────────────────────────────────────
-      // Robust CA matching: find CAs that should be deducted this period.
-      // 1. CAs already tagged to this period (from a previous compute) — idempotent
-      // 2. New CAs whose date_issued falls in this period's range
-      //    This handles re-imports and overlapping periods correctly.
-      // ──────────────────────────────────────────────────────────────────────
+      // FIX: filter approved CAs to those issued within THIS period's date range.
+      // Previously fetched ALL approved CAs from all time — could pull in old
+      // unprocessed advances from prior periods.
       const { data: allApprovedCAs } = await supabase
         .from("cash_advances")
-        .select("id, employee_id, amount, payroll_period_id")
+        .select("id, employee_id, amount")
         .in("status", ["approved", "added_to_current_payroll"])
-        .or(
-          `payroll_period_id.eq.${periodId},and(date_issued.gte.${periodStart},date_issued.lte.${periodEnd})`,
-        );
+        .gte("date_issued", periodStart)
+        .lte("date_issued", periodEnd);
 
       const { data: allDeductedCAs } = await supabase
         .from("cash_advances")
@@ -2530,22 +2212,19 @@ export const db = {
       // Group bulk data by employee_id for O(1) lookup inside the loop
       const exceptionalByEmp: Record<string, any[]> = {};
       (allExceptionalHours || []).forEach((r: any) => {
-        if (!exceptionalByEmp[r.employee_id])
-          exceptionalByEmp[r.employee_id] = [];
+        if (!exceptionalByEmp[r.employee_id]) exceptionalByEmp[r.employee_id] = [];
         exceptionalByEmp[r.employee_id].push(r);
       });
 
       const approvedCAsByEmp: Record<string, any[]> = {};
       (allApprovedCAs || []).forEach((r: any) => {
-        if (!approvedCAsByEmp[r.employee_id])
-          approvedCAsByEmp[r.employee_id] = [];
+        if (!approvedCAsByEmp[r.employee_id]) approvedCAsByEmp[r.employee_id] = [];
         approvedCAsByEmp[r.employee_id].push(r);
       });
 
       const deductedCAsByEmp: Record<string, any[]> = {};
       (allDeductedCAs || []).forEach((r: any) => {
-        if (!deductedCAsByEmp[r.employee_id])
-          deductedCAsByEmp[r.employee_id] = [];
+        if (!deductedCAsByEmp[r.employee_id]) deductedCAsByEmp[r.employee_id] = [];
         deductedCAsByEmp[r.employee_id].push(r);
       });
 
@@ -2578,18 +2257,10 @@ export const db = {
         // ────────────────────────────────────────────────────────────────────
         const empExceptional = exceptionalByEmp[emp.id] || [];
 
-        const daysPresent =
-          empExceptional.length > 0
-            ? empExceptional.reduce(
-                (s: number, r: any) =>
-                  s + (r.hours_counted != null ? Number(r.hours_counted) : 8),
-                0,
-              ) / 8
-            : Number(log.days_present) > 0
-              ? Number(log.days_present)
-              : Number(log.worked_hours) > 0
-                ? Math.round(Number(log.worked_hours) / 8)
-                : 0;
+        const rawDays = Number(log.days_present) || (Number(log.worked_hours) > 0 ? Math.round(Number(log.worked_hours) / 8) : 0);
+        const completeDays = Math.max(0, rawDays - empExceptional.length);
+        const exceptionalDays = empExceptional.reduce((s: number, r: any) => s + (Number(r.hours_counted) || 0), 0) / 8;
+        const daysPresent = completeDays + exceptionalDays;
 
         // ────────────────────────────────────────────────────────────────────
         // BASIC PAY
@@ -2629,9 +2300,9 @@ export const db = {
         const regularOT =
           hourlyRate * 0.25 * Number(log.regular_overtime_hours || 0);
         const holidayOT =
-          hourlyRate * 0.6 * Number(log.holiday_overtime_hours || 0);
+          hourlyRate * 0.60 * Number(log.holiday_overtime_hours || 0);
         const specialOT =
-          hourlyRate * 0.3 * Number(log.special_overtime_hours || 0);
+          hourlyRate * 0.30 * Number(log.special_overtime_hours || 0);
 
         // ────────────────────────────────────────────────────────────────────
         // TARDY & UNDERTIME DEDUCTIONS
@@ -2639,9 +2310,9 @@ export const db = {
         // These are subtracted from Gross Income (matching Excel formula).
         // ────────────────────────────────────────────────────────────────────
         const tardyDeductions =
-          hourlyRate * 0.5 * Number(log.late_timeslots || 0);
+          (dailyRate / 8 / 60) * Number(log.late_timeslots || 0);
         const undertimeDeductions =
-          hourlyRate * 0.5 * Number(log.early_leave_timeslots || 0);
+          (dailyRate / 8 / 60) * Number(log.early_leave_timeslots || 0);
 
         // ────────────────────────────────────────────────────────────────────
         // GROSS INCOME  (matches Excel: K7 = C7×D7 + E7+F7+G7+H7+I7 − J7 − J9)
@@ -2703,13 +2374,11 @@ export const db = {
         const alreadyDeducted = deductedCAsByEmp[emp.id] || [];
 
         const alreadyDeductedAmount = alreadyDeducted.reduce(
-          (s: number, a: any) => s + Number(a.amount),
-          0,
+          (s: number, a: any) => s + Number(a.amount), 0,
         );
 
         const newCAsAmount = newCAsToProcess.reduce(
-          (s: number, a: any) => s + Number(a.amount),
-          0,
+          (s: number, a: any) => s + Number(a.amount), 0,
         );
 
         const cashAdvanceIssued = Math.min(
@@ -2799,9 +2468,7 @@ export const db = {
       if (payrollUpsertBatch.length > 0) {
         const { data: saved, error: saveErr } = await supabase
           .from("payroll_records")
-          .upsert(payrollUpsertBatch, {
-            onConflict: "employee_id,payroll_period_id",
-          })
+          .upsert(payrollUpsertBatch, { onConflict: "employee_id,payroll_period_id" })
           .select();
 
         if (saveErr) throw saveErr;
@@ -2831,10 +2498,7 @@ export const db = {
             payroll_period_id: null,
             updated_at: new Date().toISOString(),
           })
-          .in(
-            "id",
-            (deductedCAs as any[]).map((a: any) => a.id),
-          );
+          .in("id", (deductedCAs as any[]).map((a: any) => a.id));
       }
 
       const { data: issuedCAs } = await supabase
@@ -2850,10 +2514,7 @@ export const db = {
             payroll_period_id: null,
             updated_at: new Date().toISOString(),
           })
-          .in(
-            "id",
-            (issuedCAs as any[]).map((a: any) => a.id),
-          );
+          .in("id", (issuedCAs as any[]).map((a: any) => a.id));
       }
 
       return { success: true };
@@ -2877,23 +2538,12 @@ export const db = {
         })
         .in("status", ["added_to_current_payroll", "deducted"])
         .eq("payroll_period_id", id);
-      await supabase
-        .from("payroll_records")
-        .delete()
-        .eq("payroll_period_id", id);
-      await supabase
-        .from("attendance_logs")
-        .delete()
-        .eq("payroll_period_id", id);
-      await supabase
-        .from("attendance_summary_imports")
-        .delete()
-        .eq("payroll_period_id", id);
+      await supabase.from("payroll_records").delete().eq("payroll_period_id", id);
+      await supabase.from("attendance_logs").delete().eq("payroll_period_id", id);
+      await supabase.from("attendance_exceptional_logs").delete().eq("payroll_period_id", id);
+      await supabase.from("attendance_summary_imports").delete().eq("payroll_period_id", id);
 
-      const { error } = await supabase
-        .from("payroll_periods")
-        .delete()
-        .eq("id", id);
+      const { error } = await supabase.from("payroll_periods").delete().eq("id", id);
       if (error) throw error;
     },
   },
@@ -3016,33 +2666,27 @@ export const db = {
       return data || [];
     },
 
-    async checkEligibility(
-      employeeId: string,
-      dateIssued?: string,
-    ): Promise<{
+    async checkEligibility(employeeId: string, customDate?: string): Promise<{
       eligible: boolean;
       reason: "eligible" | "limit_reached";
       remaining: number;
       totalUsed: number;
-      periodLabel?: string;
     }> {
       const MAX = 2000;
-      const targetDate = dateIssued || new Date().toISOString().split("T")[0];
+      const today = customDate || new Date().toISOString().split("T")[0];
 
       const { data: currentPeriodRow } = await supabase
         .from("payroll_periods")
         .select("id, period_start, period_end")
-        .lte("period_start", targetDate)
-        .gte("period_end", targetDate)
+        .lte("period_start", today)
+        .gte("period_end", today)
         .order("period_start", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       const getCalendarBounds = () => {
-        const d = new Date(targetDate + "T00:00:00");
-        const y = d.getFullYear(),
-          m = d.getMonth(),
-          day = d.getDate();
+        const d = new Date();
+        const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
         if (day <= 15) {
           return {
             currentStart: new Date(y, m, 1).toISOString().split("T")[0],
@@ -3058,21 +2702,14 @@ export const db = {
 
       const currentPeriodId = currentPeriodRow?.id ?? null;
       const { currentStart, currentEnd } = currentPeriodRow
-        ? {
-          currentStart: currentPeriodRow.period_start,
-          currentEnd: currentPeriodRow.period_end,
-        }
+        ? { currentStart: currentPeriodRow.period_start, currentEnd: currentPeriodRow.period_end }
         : getCalendarBounds();
-
-      const periodLabel = `${currentStart} ~ ${currentEnd}`;
 
       const { data: pendingApproved } = await supabase
         .from("cash_advances")
         .select("amount")
         .eq("employee_id", employeeId)
-        .in("status", ["pending", "approved"])
-        .gte("date_issued", currentStart)
-        .lte("date_issued", currentEnd);
+        .in("status", ["pending", "approved"]);
 
       const deductedCurrentQuery = supabase
         .from("cash_advances")
@@ -3094,22 +2731,10 @@ export const db = {
       const remaining = Math.max(0, MAX - totalUsed);
 
       if (remaining <= 0) {
-        return {
-          eligible: false,
-          reason: "limit_reached",
-          remaining: 0,
-          totalUsed,
-          periodLabel,
-        };
+        return { eligible: false, reason: "limit_reached", remaining: 0, totalUsed };
       }
 
-      return {
-        eligible: true,
-        reason: "eligible",
-        remaining,
-        totalUsed,
-        periodLabel,
-      };
+      return { eligible: true, reason: "eligible", remaining, totalUsed };
     },
 
     async requestByCashier(data: {
@@ -3132,22 +2757,20 @@ export const db = {
         );
       }
 
-      const today = new Date().toISOString().split("T")[0];
+      const targetDate = data.date_issued || new Date().toISOString().split("T")[0];
       const { data: currentPeriodRow } = await supabase
         .from("payroll_periods")
         .select("id, period_start, period_end")
-        .lte("period_start", today)
-        .gte("period_end", today)
+        .lte("period_start", targetDate)
+        .gte("period_end", targetDate)
         .order("period_start", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       const currentPeriodId = currentPeriodRow?.id ?? null;
 
-      const d = new Date();
-      const y = d.getFullYear(),
-        m = d.getMonth(),
-        day = d.getDate();
+      const d = new Date(targetDate + "T12:00:00");
+      const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
       const currentStart =
         currentPeriodRow?.period_start ??
         (day <= 15
@@ -3188,8 +2811,7 @@ export const db = {
           {
             employee_id: data.employee_id,
             amount,
-            date_issued:
-              data.date_issued || new Date().toISOString().split("T")[0],
+            date_issued: targetDate,
             reason: data.reason || null,
             status: "pending",
             issued_by: user.id,
@@ -3210,15 +2832,9 @@ export const db = {
       await db.logAudit("Request Cash Advance", "cash_advances", result.id, {
         employee_name: result.employee?.full_name,
         amount: result.amount,
-        requested_by: user.id,
+        requested_by: user.id
       });
-      await db.notifyRoles(
-        ["admin"],
-        "New Cash Advance Request",
-        `${result.employee?.full_name} is requesting ₱${result.amount.toLocaleString()}.`,
-        "payroll",
-        result.id,
-      );
+      await db.notifyRoles(['admin'], "New Cash Advance Request", `${result.employee?.full_name} is requesting ₱${result.amount.toLocaleString()}.`, 'payroll', result.id);
 
       return result;
     },

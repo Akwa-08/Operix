@@ -15,13 +15,19 @@ async function adminFetch(method: string, path: string, body?: any) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Not authenticated');
 
+  const isFormData = body instanceof FormData;
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${session.access_token}`,
+  };
+
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const res = await fetch(`${API_BASE}${normalizedPath}`, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-    },
-    body: body ? JSON.stringify(body) : undefined,
+    headers,
+    body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
   });
 
   const json = await res.json();
@@ -38,6 +44,9 @@ updateUser: (id: string, data: { email?: string; password?: string; role?: strin
 
   deleteUser: (id: string) =>
     adminFetch('DELETE', `/api/admin/users/${id}`),
+
+  uploadAttendance: (formData: FormData) =>
+    adminFetch('POST', '/api/payroll/upload-attendance', formData),
 
   // ── Direct Supabase (RLS: users_admin_update_any) ──
   async deactivateUsers(ids: string[]) {
