@@ -306,6 +306,40 @@ export const db = {
     return data;
   },
 
+  async getSupplierMaterials(supplierId: string) {
+    const { data, error } = await supabase
+      .from("item_suppliers")
+      .select("inventory_item_id")
+      .eq("supplier_id", supplierId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async updateSupplierMaterials(supplierId: string, materialIds: string[]) {
+    // 1. Delete all existing mappings for this supplier
+    const { error: delError } = await supabase
+      .from("item_suppliers")
+      .delete()
+      .eq("supplier_id", supplierId);
+    if (delError) throw delError;
+
+    if (materialIds.length === 0) return { success: true };
+
+    // 2. Insert new mappings
+    const inserts = materialIds.map(id => ({
+      supplier_id: supplierId,
+      inventory_item_id: id,
+      is_preferred: false
+    }));
+
+    const { error: insError } = await supabase
+      .from("item_suppliers")
+      .insert(inserts);
+    if (insError) throw insError;
+
+    return { success: true };
+  },
+
   async updateSupplier(id: string, updates: Record<string, any>) {
     const { data, error } = await supabase
       .from("suppliers")
@@ -791,6 +825,40 @@ export const db = {
         console.warn("Self-pick notification failed:", msgErr);
       }
     }
+
+    return updated;
+  },
+
+  async designerRejectAssignedOrder(orderId: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: order, error: fetchError } = await supabase
+      .from("orders")
+      .select("id, order_number, assigned_designer, status, rejected_by_designers")
+      .eq("id", orderId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error("Order not found");
+
+    if (order.assigned_designer !== user.id) {
+      throw new Error("Only the assigned designer can reject this order");
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from("orders")
+      .update({
+        assigned_designer: null,
+        status: "in_queue",
+        rejected_by_designers: [...(order.rejected_by_designers || []), user.id]
+      })
+      .eq("id", orderId)
+      .select()
+      .single();
+    if (updateErr) throw updateErr;
+
+    await this.logAudit("Designer Reject Order", "orders", orderId, { order_number: order.order_number });
+    await this.notifyRoles(['admin', 'cashier'], "Designer Rejected Order", `Order ${order.order_number} was rejected by ${user.id} and returned to queue.`, 'orders', orderId);
 
     return updated;
   },

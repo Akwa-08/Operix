@@ -355,6 +355,7 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       }));
       return r;
     },
+    rejectAssignedDesignOrder: async (orderId: string) => { const r = await safe(() => db.designerRejectAssignedOrder(orderId).then(() => refresh())); return r; },
   };
 }
 
@@ -383,9 +384,13 @@ export function useManagementData() {
       return r;
     },
     deactivateEmployee: async (id: string) => { const r = await safe(() => db.updateEmployee(id, { is_active: false }).then(() => refreshEmps())); return r; },
-    createSupplier: async (data: { name: string; phone?: string; email?: string }) => { const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email }).then(() => refreshSups())); return r; },
-    flagSupplier: async (id: string, flagged: boolean, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
+    createSupplier: async (data: { name: string; phone?: string; email?: string; address?: string }) => { const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups())); return r; },
+    updateSupplier: async (id: string, data: { name?: string; phone?: string; email?: string; address?: string }) => { const r = await safe(() => db.updateSupplier(id, { name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups())); return r; },
+    flagSupplier: async (id: string, flagged: boolean, category: string, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_category: category, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
     toggleSupplierActive: async (id: string, active: boolean) => { const r = await safe(() => db.updateSupplier(id, { is_active: active }).then(() => refreshSups())); return r; },
+    getSupplierMaterials: async (id: string) => { return await db.getSupplierMaterials(id); },
+    updateSupplierMaterials: async (id: string, materialIds: string[]) => { const r = await safe(() => db.updateSupplierMaterials(id, materialIds).then(() => refreshSups())); return r; },
+    toggleSuki: async (id: string, isSuki: boolean) => { const r = await safe(() => adminApi.toggleSuki(id, isSuki).then(() => refreshUsers())); return r; },
   };
 }
 
