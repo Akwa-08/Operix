@@ -230,7 +230,9 @@ const AdminProducts = () => {
             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg text-base bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
             <option value="">Select Material</option>
             {materials.map((m) => (
-              <option key={m.id} value={m.id}>{m.itemType} ({m.stockUnit})</option>
+              <option key={m.id} value={m.id}>
+                {m.itemType || (m as any).name || m.id} ({m.stockUnit || (m as any).unit_of_measure || '—'})
+              </option>
             ))}
           </select>
         </div>
