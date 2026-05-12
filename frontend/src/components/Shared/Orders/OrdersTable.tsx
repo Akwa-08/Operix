@@ -108,49 +108,49 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
       {/* ── DESKTOP TABLE (hidden on mobile) ─────────────────────────────── */}
       <div className="hidden md:block overflow-x-auto">
         <div className="overflow-x-auto w-full">
-<table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200">
-            <tr>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
-              <th className="px-4 py-3 text-left font-semibold text-gray-700">Product</th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">Qty</th>
-              {perms.canViewAll && (
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Amount</th>
-              )}
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
-              {perms.canViewAll && (
-                <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment</th>
-              )}
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">Due Date</th>
-              <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {filteredOrders.map((order) => (
-              <tr key={order.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-gray-900 font-semibold">{order.orderId}</td>
-                <td className="px-4 py-3 text-gray-900">{order.customerName || order.customer}</td>
-                <td className="px-4 py-3 text-gray-600">{order.productType || order.product}</td>
-                <td className="px-4 py-3 text-center font-semibold text-gray-900">{order.quantity}</td>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
+                <th className="px-4 py-3 text-left font-semibold text-gray-700">Product</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Qty</th>
                 {perms.canViewAll && (
-                  <td className="px-4 py-3 text-center font-semibold text-gray-900">₱{order.totalAmount.toLocaleString()}</td>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Amount</th>
                 )}
-                <td className="px-4 py-3 text-center"><OrderStatusBadge status={order.status} size="sm" /></td>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
                 {perms.canViewAll && (
-                  <td className="px-4 py-3 text-center">
-                    <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${paymentColor(order.paymentStatus)}`}>
-                      {order.paymentStatus === "Partially paid" ? "Paid Partially" : order.paymentStatus}
-                    </span>
-                  </td>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">Payment</th>
                 )}
-                <td className="px-4 py-3 text-center text-gray-600">{order.dueDate}</td>
-                <td className="px-4 py-3"><ActionButtons order={order} /></td>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Due Date</th>
+                <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-</div>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredOrders.map((order) => (
+                <tr key={order.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-900 font-semibold">{order.orderId}</td>
+                  <td className="px-4 py-3 text-gray-900">{order.customerName || order.customer}</td>
+                  <td className="px-4 py-3 text-gray-600">{order.productType || order.product}</td>
+                  <td className="px-4 py-3 text-center font-semibold text-gray-900">{order.quantity}</td>
+                  {perms.canViewAll && (
+                    <td className="px-4 py-3 text-center font-semibold text-gray-900">₱{order.totalAmount.toLocaleString()}</td>
+                  )}
+                  <td className="px-4 py-3 text-center"><OrderStatusBadge status={order.status} size="sm" /></td>
+                  {perms.canViewAll && (
+                    <td className="px-4 py-3 text-center">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${paymentColor(order.paymentStatus)}`}>
+                        {order.paymentStatus === "Partially paid" ? "Paid Partially" : order.paymentStatus}
+                      </span>
+                    </td>
+                  )}
+                  <td className="px-4 py-3 text-center text-gray-600">{order.dueDate}</td>
+                  <td className="px-4 py-3"><ActionButtons order={order} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

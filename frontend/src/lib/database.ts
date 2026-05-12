@@ -1902,6 +1902,41 @@ export const db = {
         .single();
 
       if (error) throw error;
+
+      // ── Create a notification for the receiver ──────────────────────────
+      // Build sender display name from auth metadata
+      const meta = user.user_metadata || {};
+      const senderName = [meta.first_name, meta.last_name]
+        .filter(Boolean)
+        .join(" ") || "Someone";
+
+      const preview = message.trim()
+        ? message.trim().substring(0, 80)
+        : "📷 Sent an image";
+
+      // Fire-and-forget: runs in background, won't block the message return
+      (async () => {
+        try {
+          const { error: notifErr } = await supabase
+            .from("notifications")
+            .insert({
+              user_id: receiverId,
+              title: "New Message",
+              message: `${senderName}: ${preview}`,
+              related_module: "messages",
+              related_id: user.id,
+            });
+
+          if (notifErr) {
+            console.error("❌ Message notification insert failed:", notifErr.message, notifErr);
+          } else {
+            console.log("✅ Message notification created for receiver:", receiverId);
+          }
+        } catch (err: any) {
+          console.error("❌ Message notification error:", err);
+        }
+      })();
+
       return data;
     },
 
