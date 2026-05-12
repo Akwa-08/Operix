@@ -1,6 +1,4 @@
-// src/components/Shared/Orders/OrdersTable.tsx
-// Mobile: stacked card view per order. Desktop: full table.
-
+import { useEffect, useRef } from "react";
 import { Eye, Edit2, Trash2, Upload, CheckCircle, AlertTriangle } from "lucide-react";
 import type { UserRole, Order } from "../../../Types";
 import { permissions } from "../../../util/permissions";
@@ -16,15 +14,23 @@ interface OrdersTableProps {
   onDelete?: (order: Order) => void;
   onUploadDesign?: (order: Order) => void;
   onUpdateStatus?: (order: Order) => void;
+  highlightedId?: string | null;
 }
 
 const paymentColor = getPaymentStatusColor;
 
 export const OrdersTable: React.FC<OrdersTableProps> = ({
   orders, userRole, onViewDetails, onEdit, onDelete,
-  onUploadDesign, onUpdateStatus,
+  onUploadDesign, onUpdateStatus, highlightedId
 }) => {
   const perms = permissions[userRole].orders;
+  const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (highlightedId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId]);
 
   const filteredOrders = orders;
 
@@ -75,7 +81,11 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
       {/* ── MOBILE CARD VIEW (hidden on md+) ─────────────────────────────── */}
       <div className="md:hidden divide-y divide-gray-100">
         {filteredOrders.map((order) => (
-          <div key={order.id} className={`p-4 space-y-2 transition-colors ${order.paymentStatus === "Partially paid" ? "bg-yellow-50/80" : ""}`}>
+          <div 
+            key={order.id} 
+            ref={highlightedId === order.id ? (el) => { (highlightedRef as any).current = el; } : null}
+            className={`p-4 space-y-2 transition-all ${highlightedId === order.id ? "highlight-pulse ring-2 ring-cyan-500" : ""} ${order.paymentStatus === "Partially paid" ? "bg-yellow-50/80" : ""}`}
+          >
             {/* Header row */}
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -135,7 +145,11 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredOrders.map((order) => (
-                <tr key={order.id} className={`hover:bg-gray-50 transition-colors ${order.paymentStatus === "Partially paid" ? "bg-yellow-50/80" : ""}`}>
+                <tr 
+                  key={order.id} 
+                  ref={highlightedId === order.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                  className={`hover:bg-gray-50 transition-all ${highlightedId === order.id ? "highlight-pulse bg-cyan-50/50" : ""} ${order.paymentStatus === "Partially paid" ? "bg-yellow-50/80" : ""}`}
+                >
                   <td className="px-4 py-3 text-gray-900 font-semibold">{order.orderId}</td>
                   <td className="px-4 py-3 text-gray-900">
                     <div className="flex items-center gap-2">
@@ -180,3 +194,4 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
     </div>
   );
 };
+
