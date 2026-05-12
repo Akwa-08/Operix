@@ -325,29 +325,103 @@ export const db = {
     const { data, error } = await supabase
       .from("inventory_items")
       .select(
-        "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
+        "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name, flag_category))",
       )
       .order("name");
     if (error) throw error;
     return data || [];
   },
 
-  async createInventoryItem(item: {
-    name: string;
-    unit_of_measure: string;
-    current_quantity?: number;
-    reorder_point?: number;
-    unit_cost?: number;
-    description?: string;
-    purchase_unit?: string;
-    conversion_rate?: number;
-  }) {
+  async getSupplierMaterials(supplierId: string) {
+    const { data, error } = await supabase
+      .from("item_suppliers")
+      .select("inventory_item_id, inventory_items(id, name, unit_of_measure)")
+      .eq("supplier_id", supplierId);
+    if (error) throw error;
+    return data || [];
+  },
+
+  async updateSupplierMaterials(supplierId: string, inventoryItemIds: string[]) {
+    const { error: delErr } = await supabase
+      .from("item_suppliers")
+      .delete()
+      .eq("supplier_id", supplierId);
+    if (delErr) throw delErr;
+
+    if (inventoryItemIds.length > 0) {
+      const { error: insErr } = await supabase.from("item_suppliers").insert(
+        inventoryItemIds
+          .filter((id) => !!id)
+          .map((id) => ({
+            supplier_id: supplierId,
+            inventory_item_id: id,
+            is_preferred: false,
+            supplier_unit_price: 0,
+            lead_time_days: 0,
+          })),
+      );
+      if (insErr) throw insErr;
+    }
+  },
+
+  async updateMaterialSuppliers(materialId: string, supplierIds: string[]) {
+    const { error: delErr } = await supabase
+      .from("item_suppliers")
+      .delete()
+      .eq("inventory_item_id", materialId);
+    if (delErr) throw delErr;
+
+    if (supplierIds.length > 0) {
+      const { error: insErr } = await supabase.from("item_suppliers").insert(
+        supplierIds
+          .filter((id) => !!id)
+          .map((id, idx) => ({
+            inventory_item_id: materialId,
+            supplier_id: id,
+            is_preferred: idx === 0,
+            supplier_unit_price: 0,
+            lead_time_days: 0,
+          })),
+      );
+      if (insErr) throw insErr;
+    }
+  },
+
+  async createInventoryItem(
+    item: {
+      name: string;
+      unit_of_measure: string;
+      current_quantity?: number;
+      reorder_point?: number;
+      unit_cost?: number;
+      description?: string;
+      purchase_unit?: string;
+      conversion_rate?: number;
+    },
+    supplierIds: string[] = [],
+  ) {
     const { data, error } = await supabase
       .from("inventory_items")
       .insert([{ ...item, is_active: true }])
       .select()
       .single();
     if (error) throw error;
+
+    if (supplierIds.length > 0) {
+      const { error: insErr } = await supabase.from("item_suppliers").insert(
+        supplierIds
+          .filter((id) => !!id)
+          .map((id, idx) => ({
+            inventory_item_id: data.id,
+            supplier_id: id,
+            is_preferred: idx === 0,
+            supplier_unit_price: 0,
+            lead_time_days: 0,
+          })),
+      );
+      if (insErr) throw insErr;
+    }
+
     await this.logAudit("Create Inventory Item", "inventory_items", data.id, { name: data.name });
     return data;
   },
@@ -1406,14 +1480,26 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   // PRODUCTS WITH BOM
   // ═══════════════════════════════════════════════════════════════════════════
-  async getProductsWithBOM() {
-    const { data, error } = await supabase
+  async getProductsWithBOM(filters?: { category?: string; search?: string }) {
+    let query = supabase
       .from("products")
       .select(
-        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost))",
+        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost, conversion_rate))",
       )
       .order("category")
       .order("name");
+
+    if (filters?.category) query = query.eq("category", filters.category);
+    if (filters?.search) {
+      const cleanSearch = filters.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (cleanSearch) {
+        query = query.or(
+          `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
+        );
+      }
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
@@ -1511,6 +1597,7 @@ export const db = {
     requested_quantity: number;
     expected_arrival_date?: string;
     notes?: string;
+    requested_by?: string;
   }) {
     const {
       data: { user },
@@ -1521,7 +1608,7 @@ export const db = {
       .insert([
         {
           ...d,
-          requested_by: user.id,
+          requested_by: d.requested_by || user.id,
           status: "requested",
         },
       ])

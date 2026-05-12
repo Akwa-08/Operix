@@ -117,7 +117,7 @@ function mapSupplier(raw: any): FrontendSupplier {
     id: raw.id, supplierName: raw.name || '', email: raw.email || '',
     contactNumber: raw.phone || '', address: raw.address || '',
     supplierStatus: raw.is_active ? 'Active' : 'Inactive',
-    isFlagged: raw.is_flagged ?? false, flagNotes: raw.flag_notes || '',
+    isFlagged: raw.is_flagged ?? false, flagCategory: raw.flag_category || 'None', flagNotes: raw.flag_notes || '',
     createdAt: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
   };
 }
@@ -144,16 +144,34 @@ function deriveMatStatus(item: any): MaterialStatus {
 }
 
 function mapMaterial(item: any): Material {
-  const pref = item.item_suppliers?.find((s: any) => s.is_preferred) ?? item.item_suppliers?.[0];
+  const pref =
+    item.item_suppliers?.find((s: any) => s.is_preferred) ??
+    item.item_suppliers?.[0];
+  const mappedSuppliers =
+    item.item_suppliers
+      ?.map((s: any) => ({
+        id: s.suppliers?.id,
+        name: s.suppliers?.name,
+        flagCategory: s.suppliers?.flag_category,
+      }))
+      .filter((s: any) => s.id) || [];
+
   return {
-    id: item.id, itemType: item.name, itemVariant: item.description || '',
-    usableStocks: Number(item.current_quantity), stockUnit: item.unit_of_measure,
-    reorderPoint: Number(item.reorder_point), unitCost: Number(item.unit_cost),
+    id: item.id,
+    itemType: item.name,
+    itemVariant: item.description || "",
+    usableStocks: Number(item.current_quantity),
+    stockUnit: item.unit_of_measure,
+    reorderPoint: Number(item.reorder_point),
+    unitCost: Number(item.unit_cost),
     purchaseQty: Number(item.conversion_rate ?? 1),
     purchaseUnit: item.purchase_unit || item.unit_of_measure,
-    supplier: pref?.suppliers?.name || '—', status: deriveMatStatus(item),
-    isActive: item.is_active, description: item.description,
+    supplier: pref?.suppliers?.name || "—",
+    status: deriveMatStatus(item),
+    isActive: item.is_active,
+    description: item.description,
     lastSupplierCost: pref ? Number(pref.supplier_unit_price) : undefined,
+    mappedSuppliers,
   };
 }
 
@@ -162,7 +180,7 @@ export function useMyProfile() {
   return { profile: q.data, ...q };
 }
 
-export const clearProfileCache = () => {};
+export const clearProfileCache = () => { };
 
 export function useUsers(filters?: { role?: string; status?: string }) {
   const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status], ['users']);
@@ -227,16 +245,27 @@ export function useInventoryData() {
     updateMaterial: async (id: string, updates: any) => {
       const r = await safe(() => db.updateInventoryItem(id, updates).then(() => q.refresh()));
       return r;
-    }
+    },
+    updateMaterialSuppliers: async (materialId: string, supplierIds: string[]) => {
+      const r = await safe(() =>
+        db.updateMaterialSuppliers(materialId, supplierIds).then(() => q.refresh()),
+      );
+      return r;
+    },
   };
 }
 
 export function useProductCatalog(filters?: { search?: string; category?: string }) {
-  const { products: raw, loading, error, refresh } = useProducts(filters);
+  const { products: raw, loading, error, refresh } = useProductsData(filters);
   const products: CatalogProduct[] = raw.map((p: any) => ({
-    id: p.id, title: p.name, category: p.category || '', variant: p.variant || '',
-    size: p.size_spec || '', price: Number(p.final_price), description: p.description || '',
-    isActive: p.is_active,
+    id: p.id,
+    title: p.name,
+    category: p.category || "",
+    variant: p.variant || "",
+    size: p.sizeSpec || "",
+    price: Number(p.finalPrice),
+    description: p.description || "",
+    isActive: p.isActive,
   }));
   return { products, loading, error, refresh };
 }
@@ -275,14 +304,14 @@ export function useCartData() {
 export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
   const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
   const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
-  
+
   const loading = ordersLoading || empLoading;
   const refresh = async () => { await Promise.all([ordersRefresh(), empRefresh()]); };
-  
+
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
   const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
-  
+
   const productionStaff = employees
     .filter((e: any) => e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
     .map((e: any) => ({ id: e.id, name: e.full_name }));
@@ -355,9 +384,22 @@ export function useManagementData() {
       return r;
     },
     deactivateEmployee: async (id: string) => { const r = await safe(() => db.updateEmployee(id, { is_active: false }).then(() => refreshEmps())); return r; },
-    createSupplier: async (data: { name: string; phone?: string; email?: string }) => { const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email }).then(() => refreshSups())); return r; },
-    flagSupplier: async (id: string, flagged: boolean, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
+    createSupplier: async (data: { name: string; phone?: string; email?: string; address?: string }) => {
+      const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups()));
+      return r;
+    },
+    updateSupplier: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateSupplier(id, updates).then(() => refreshSups())); return r; },
+    flagSupplier: async (id: string, flagged: boolean, category: string, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_category: category, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
     toggleSupplierActive: async (id: string, active: boolean) => { const r = await safe(() => db.updateSupplier(id, { is_active: active }).then(() => refreshSups())); return r; },
+    getSupplierMaterials: async (supplierId: string) => {
+      return await db.getSupplierMaterials(supplierId);
+    },
+    updateSupplierMaterials: async (supplierId: string, inventoryItemIds: string[]) => {
+      const r = await safe(() =>
+        db.updateSupplierMaterials(supplierId, inventoryItemIds).then(() => refreshSups()),
+      );
+      return r;
+    },
   };
 }
 
@@ -387,16 +429,16 @@ export function useDashboardData() {
 }
 
 function mapAdminProduct(raw: any): AdminProduct {
-  const bom: BOMItem[] = (raw.product_supply_mapping || []).map((m: any) => ({ id: m.id, inventoryItemId: m.inventory_item_id, materialName: m.inventory_items?.name || '—', quantityRequired: Number(m.quantity_required), unitOfMeasure: m.inventory_items?.unit_of_measure || '', unitCost: Number(m.inventory_items?.unit_cost) || 0 }));
+  const bom: BOMItem[] = (raw.product_supply_mapping || []).map((m: any) => ({ id: m.id, inventoryItemId: m.inventory_item_id, materialName: m.inventory_items?.name || '—', quantityRequired: Number(m.quantity_required), unitOfMeasure: m.inventory_items?.unit_of_measure || '', unitCost: Number(m.inventory_items?.unit_cost) || 0, conversionRate: Number(m.inventory_items?.conversion_rate) || 1 }));
   return { id: raw.id, name: raw.name, category: raw.category || '', variant: raw.variant || '', sizeSpec: raw.size_spec || '', materialCost: Number(raw.material_cost) || 0, profitFee: Number(raw.profit_fee) || 0, finalPrice: Number(raw.final_price) || 0, isActive: raw.is_active ?? true, description: raw.description || '', bom };
 }
 
-export function useProductsData() {
-  const q = useQuery(() => db.getProductsWithBOM(), [], ['products', 'product_supply_mapping', 'inventory_items']);
+export function useProductsData(filters?: { search?: string; category?: string }) {
+  const q = useQuery(() => db.getProductsWithBOM(filters), [filters?.search, filters?.category], ['products', 'product_supply_mapping', 'inventory_items']);
   const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
   const raw = q.data || [];
   const products: AdminProduct[] = raw.map(mapAdminProduct);
-  const materials = (rawMaterials || []).filter((m: any) => m.is_active);
+  const materials: Material[] = (rawMaterials || []).filter((m: any) => m.is_active).map(mapMaterial);
   const stats = { total: products.length, active: products.filter(p => p.isActive).length, inactive: products.filter(p => !p.isActive).length };
   return {
     products, stats, materials, loading: q.loading, error: q.error, refresh: q.refresh,
@@ -415,14 +457,39 @@ export function useDeliveries() {
   const q = useQuery(() => db.getDeliveries(), [], ['deliveries', 'inventory_items', 'suppliers']);
   const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
   const { data: rawSuppliers } = useQuery(() => db.getSuppliers(), [], ['suppliers']);
+  const { data: staffList } = useQuery(() => db.getStaffList(), [], ['users']);
+  const { data: rawEmployees } = useQuery(() => db.getEmployees(), [], ['employees']);
+
   const raw = q.data || [];
   const deliveries: Delivery[] = raw.map(mapDelivery);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
   const suppliers = (rawSuppliers || []).filter((s: any) => s.is_active);
-  const stats = { total: deliveries.length, requested: deliveries.filter(d => d.status === 'requested').length, ordered: deliveries.filter(d => d.status === 'ordered').length, enRoute: deliveries.filter(d => d.status === 'en_route').length, received: deliveries.filter(d => d.status === 'received').length, completed: deliveries.filter(d => d.status === 'completed').length };
+
+  const staff = (staffList || []).map((s: any) => ({
+    id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', role: s.role,
+  }));
+
+  const employees = (rawEmployees || []).map((e: any) => ({
+    id: e.id,
+    fullName: e.full_name,
+    role: e.role,
+    position: e.position
+  }));
+
+  const stats = {
+    total: deliveries.length,
+    requested: deliveries.filter(d => d.status === 'requested').length,
+    ordered: deliveries.filter(d => d.status === 'ordered').length,
+    enRoute: deliveries.filter(d => d.status === 'en_route').length,
+    received: deliveries.filter(d => d.status === 'received').length,
+    completed: deliveries.filter(d => d.status === 'completed').length,
+    returned: deliveries.filter(d => d.status === 'returned').length,
+    cancelled: deliveries.filter(d => d.status === 'cancelled').length
+  };
+
   return {
-    deliveries, stats, materials, suppliers, loading: q.loading, error: q.error, refresh: q.refresh,
-    createDelivery: async (data: { inventory_item_id: string; supplier_id?: string; requested_quantity: number; expected_arrival_date?: string; notes?: string }) => { const r = await safe(() => db.createDelivery(data).then(() => q.refresh())); return r; },
+    deliveries, stats, materials, suppliers, staff, employees, loading: q.loading, error: q.error, refresh: q.refresh,
+    createDelivery: async (data: { inventory_item_id: string; supplier_id?: string; requested_quantity: number; expected_arrival_date?: string; notes?: string; requested_by?: string }) => { const r = await safe(() => db.createDelivery(data).then(() => q.refresh())); return r; },
     updateDelivery: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateDelivery(id, updates).then(() => q.refresh())); return r; },
     confirmReceipt: async (id: string, receipt: { received_quantity: number; receipt_reference_number: string }) => { const r = await safe(() => db.confirmDeliveryReceipt(id, receipt).then(() => q.refresh())); return r; },
   };
@@ -735,10 +802,10 @@ export function useLogsData() {
     q.data.audit.forEach((raw: any) => {
       let details = '';
       const m = raw.metadata || {};
-      switch(raw.action) {
+      switch (raw.action) {
         case 'Update Inventory': details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`; break;
         case 'Create Order': details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`; break;
-        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_',' ')} (Ref: ${m.ref || 'N/A'}).`; break;
+        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_', ' ')} (Ref: ${m.ref || 'N/A'}).`; break;
         case 'Approve Payment': details = `Payment approved for order.`; break;
         case 'Decline Payment': details = `Payment declined. Reason: ${m.reason}`; break;
         case 'Request Cash Advance': details = `Requested ₱${m.amount?.toLocaleString()} for ${m.employee_name}.`; break;

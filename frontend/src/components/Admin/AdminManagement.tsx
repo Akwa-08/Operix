@@ -1,9 +1,8 @@
-import {useState} from "react";
+import { useState } from "react";
 import {
   Search,
   Eye,
   Flag,
-  FileText,
   ChevronDown,
   X,
   Check,
@@ -11,18 +10,20 @@ import {
 
   AlertTriangle,
   Power,
+  Package,
+  Star,
 } from "lucide-react";
-import {useManagementData} from "../../hooks/useSupabase";
-import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {useToast} from "../../context/ToastContext";
-import type {FrontendUser, FrontendSupplier, EmployeeRecord} from "../../Types";
+import { useManagementData, useInventoryData } from "../../hooks/useSupabase";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { useToast } from "../../context/ToastContext";
+import type { FrontendUser, FrontendSupplier, EmployeeRecord } from "../../Types";
 
 type Supplier = FrontendSupplier;
 
 
 
 // ── Inline Error Banner ───────────────────────────────────────────────
-function ErrBanner({msg}: {msg: string}) {
+function ErrBanner({ msg }: { msg: string }) {
   if (!msg) return null;
   return (
     <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 font-medium">
@@ -57,7 +58,7 @@ const F = ({
 );
 
 // ── Modal wrapper ────────────────────────────────────────────────────
-const Modal = ({show, onClose, title, children, width = "max-w-2xl"}: any) => {
+const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: any) => {
   if (!show) return null;
   return (
     <div
@@ -100,6 +101,10 @@ const AdminManagement: React.FC = () => {
   const [showCreateSupplierModal, setShowCreateSupplierModal] = useState(false);
   const [showSupplierInfoModal, setShowSupplierInfoModal] = useState(false);
   const [showFlagNotesModal, setShowFlagNotesModal] = useState(false);
+  const [showManageMaterialsModal, setShowManageMaterialsModal] = useState(false);
+  const [mappedMaterialIds, setMappedMaterialIds] = useState<string[]>([]);
+  const [materialSearch, setMaterialSearch] = useState("");
+  const [savingMapping, setSavingMapping] = useState(false);
   const [empToDeactivate, setEmpToDeactivate] = useState<EmployeeRecord | null>(
     null,
   );
@@ -155,8 +160,16 @@ const AdminManagement: React.FC = () => {
     name: "",
     phone: "",
     email: "",
+    address: "",
+  });
+  const [editSupplierForm, setEditSupplierForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
   });
   const [flagNotes, setFlagNotes] = useState("");
+  const [selectedFlagCategory, setSelectedFlagCategory] = useState("None");
 
   const tabs = [
     "User Account Management",
@@ -185,9 +198,13 @@ const AdminManagement: React.FC = () => {
     updateEmployee,
     deactivateEmployee,
     createSupplier,
+    updateSupplier,
     flagSupplier,
     toggleSupplierActive,
+    getSupplierMaterials,
+    updateSupplierMaterials,
   } = useManagementData();
+  const { materials } = useInventoryData();
 
   // ── Context-aware Create New ─────────────────────────────────────────
   const handleCreateNew = () => {
@@ -213,7 +230,7 @@ const AdminManagement: React.FC = () => {
       });
       setShowCreateEmpModal(true);
     } else {
-      setSupplierForm({name: "", phone: "", email: ""});
+      setSupplierForm({ name: "", phone: "", email: "", address: "" });
       setShowCreateSupplierModal(true);
     }
   };
@@ -349,18 +366,45 @@ const AdminManagement: React.FC = () => {
   // ── Supplier handlers ────────────────────────────────────────────────
   const handleViewSupplier = (s: Supplier) => {
     setSelectedSupplier(s);
+    setEditSupplierForm({
+      name: s.supplierName || "",
+      phone: s.contactNumber || "",
+      email: s.email || "",
+      address: s.address || "",
+    });
     setShowSupplierInfoModal(true);
   };
 
-  const handleSubmitCreateSupplier = async () => {
-    if (!supplierForm.name.trim()) {
+  const handleUpdateSupplier = async () => {
+    if (!selectedSupplier) return;
+    if (!editSupplierForm.name.trim()) {
       toast.error("Supplier name required");
+      return;
+    }
+    const r = await updateSupplier(selectedSupplier.id, {
+      name: editSupplierForm.name,
+      phone: editSupplierForm.phone,
+      email: editSupplierForm.email,
+      address: editSupplierForm.address,
+    });
+    if (r.success) {
+      toast.success("Supplier updated!");
+      setShowSupplierInfoModal(false);
+    } else {
+      toast.error(r.error || "Failed to update supplier");
+    }
+  };
+
+  const handleSubmitCreateSupplier = async () => {
+    if (!supplierForm.name.trim() || !supplierForm.phone.trim() || !supplierForm.email.trim() || !supplierForm.address.trim()) {
+      toast.error("Name, Phone, Email, and Address are required.");
       return;
     }
     const r = await createSupplier({
       name: supplierForm.name,
       phone: supplierForm.phone,
       email: supplierForm.email,
+      address: supplierForm.address,
     });
     if (r.success) {
       toast.success("Supplier created!");
@@ -368,14 +412,11 @@ const AdminManagement: React.FC = () => {
     } else toast.error("Error: " + r.error);
   };
 
-  const handleToggleFlag = async (id: string) => {
-    const s = suppliers.find((x) => x.id === id);
-    if (!s) return;
-    await flagSupplier(
-      id,
-      !s.isFlagged,
-      !s.isFlagged ? "Flagged by admin" : "",
-    );
+  const openFlagModal = (s: Supplier) => {
+    setSelectedSupplier(s);
+    setSelectedFlagCategory(s.flagCategory || "None");
+    setFlagNotes(s.flagNotes || "");
+    setShowFlagNotesModal(true);
   };
 
   const handleToggleSupplierActive = async (s: Supplier) => {
@@ -391,10 +432,38 @@ const AdminManagement: React.FC = () => {
 
   const handleSaveFlagNotes = async () => {
     if (!selectedSupplier) return;
-    const r = await flagSupplier(selectedSupplier.id, true, flagNotes);
+    const isFlagged = selectedFlagCategory !== "None";
+    const r = await flagSupplier(selectedSupplier.id, isFlagged, selectedFlagCategory, flagNotes);
     if (r.success) toast.success("Notes saved!");
     else toast.error(r.error || "Failed to save notes");
     setShowFlagNotesModal(false);
+  };
+
+  const handleManageMaterials = async (s: Supplier) => {
+    setSelectedSupplier(s);
+    try {
+      const currentMapping = await getSupplierMaterials(s.id);
+      setMappedMaterialIds(currentMapping.map((m: any) => m.inventory_item_id));
+      setShowManageMaterialsModal(true);
+    } catch (err: any) {
+      toast.error("Failed to fetch supplier materials");
+    }
+  };
+
+  const handleSaveMaterialsMapping = async () => {
+    if (!selectedSupplier) return;
+    setSavingMapping(true);
+    const r = await updateSupplierMaterials(
+      selectedSupplier.id,
+      mappedMaterialIds,
+    );
+    if (r.success) {
+      toast.success("Supplier materials updated");
+      setShowManageMaterialsModal(false);
+    } else {
+      toast.error(r.error || "Failed to update mapping");
+    }
+    setSavingMapping(false);
   };
 
   // ── Filtering + Sorting ──────────────────────────────────────────────
@@ -515,23 +584,23 @@ const AdminManagement: React.FC = () => {
           <F
             label="First Name"
             value={userForm.firstName}
-            onChange={(v: string) => setUserForm({...userForm, firstName: v})}
+            onChange={(v: string) => setUserForm({ ...userForm, firstName: v })}
           />
           <F
             label="Last Name"
             value={userForm.lastName}
-            onChange={(v: string) => setUserForm({...userForm, lastName: v})}
+            onChange={(v: string) => setUserForm({ ...userForm, lastName: v })}
           />
           <F
             label="Email *"
             type="email"
             value={userForm.email}
-            onChange={(v: string) => setUserForm({...userForm, email: v})}
+            onChange={(v: string) => setUserForm({ ...userForm, email: v })}
           />
           <F
             label="Phone"
             value={userForm.phoneNumber}
-            onChange={(v: string) => setUserForm({...userForm, phoneNumber: v})}
+            onChange={(v: string) => setUserForm({ ...userForm, phoneNumber: v })}
           />
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -539,7 +608,7 @@ const AdminManagement: React.FC = () => {
             </label>
             <select
               value={userForm.role}
-              onChange={(e) => setUserForm({...userForm, role: e.target.value})}
+              onChange={(e) => setUserForm({ ...userForm, role: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               <option value="">Select Role</option>
               {accountRoles.map((r) => (
@@ -553,14 +622,14 @@ const AdminManagement: React.FC = () => {
             label="Password *"
             type="password"
             value={userForm.password}
-            onChange={(v: string) => setUserForm({...userForm, password: v})}
+            onChange={(v: string) => setUserForm({ ...userForm, password: v })}
           />
           <F
             label="Confirm Password *"
             type="password"
             value={userForm.confirmPassword}
             onChange={(v: string) =>
-              setUserForm({...userForm, confirmPassword: v})
+              setUserForm({ ...userForm, confirmPassword: v })
             }
           />
         </div>
@@ -592,14 +661,14 @@ const AdminManagement: React.FC = () => {
             label="First Name"
             value={editUserForm.firstName}
             onChange={(v: string) =>
-              setEditUserForm({...editUserForm, firstName: v})
+              setEditUserForm({ ...editUserForm, firstName: v })
             }
           />
           <F
             label="Last Name"
             value={editUserForm.lastName}
             onChange={(v: string) =>
-              setEditUserForm({...editUserForm, lastName: v})
+              setEditUserForm({ ...editUserForm, lastName: v })
             }
           />
           <F
@@ -607,14 +676,14 @@ const AdminManagement: React.FC = () => {
             type="email"
             value={editUserForm.email}
             onChange={(v: string) =>
-              setEditUserForm({...editUserForm, email: v})
+              setEditUserForm({ ...editUserForm, email: v })
             }
           />
           <F
             label="Phone"
             value={editUserForm.phoneNumber}
             onChange={(v: string) =>
-              setEditUserForm({...editUserForm, phoneNumber: v})
+              setEditUserForm({ ...editUserForm, phoneNumber: v })
             }
           />
           <div>
@@ -624,7 +693,7 @@ const AdminManagement: React.FC = () => {
             <select
               value={editUserForm.role}
               onChange={(e) =>
-                setEditUserForm({...editUserForm, role: e.target.value})
+                setEditUserForm({ ...editUserForm, role: e.target.value })
               }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               {accountRoles.map((r) => (
@@ -725,18 +794,18 @@ const AdminManagement: React.FC = () => {
           <F
             label="Employee Code"
             value={empForm.employeeCode}
-            onChange={(v: string) => setEmpForm({...empForm, employeeCode: v})}
+            onChange={(v: string) => setEmpForm({ ...empForm, employeeCode: v })}
             placeholder="EMP-008"
           />
           <F
             label="Full Name *"
             value={empForm.fullName}
-            onChange={(v: string) => setEmpForm({...empForm, fullName: v})}
+            onChange={(v: string) => setEmpForm({ ...empForm, fullName: v })}
           />
           <F
             label="Position *"
             value={empForm.position}
-            onChange={(v: string) => setEmpForm({...empForm, position: v})}
+            onChange={(v: string) => setEmpForm({ ...empForm, position: v })}
             placeholder="e.g., Printer Operator"
           />
 
@@ -747,7 +816,7 @@ const AdminManagement: React.FC = () => {
             </label>
             <select
               value={empForm.role}
-              onChange={(e) => setEmpForm({...empForm, role: e.target.value})}
+              onChange={(e) => setEmpForm({ ...empForm, role: e.target.value })}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               <option value="">Select Role</option>
               {employeeRoles.map((r) => (
@@ -766,7 +835,7 @@ const AdminManagement: React.FC = () => {
             type="number"
             value={empForm.baseHourlyRate}
             onChange={(v: string) =>
-              setEmpForm({...empForm, baseHourlyRate: v})
+              setEmpForm({ ...empForm, baseHourlyRate: v })
             }
             placeholder="0.00"
           />
@@ -774,7 +843,7 @@ const AdminManagement: React.FC = () => {
             label="Hire Date"
             type="date"
             value={empForm.hireDate}
-            onChange={(v: string) => setEmpForm({...empForm, hireDate: v})}
+            onChange={(v: string) => setEmpForm({ ...empForm, hireDate: v })}
           />
         </div>
         <div className="flex gap-3">
@@ -800,21 +869,21 @@ const AdminManagement: React.FC = () => {
           <F
             label="Employee Code"
             value={selectedEmployee?.employeeCode || ""}
-            onChange={() => {}}
+            onChange={() => { }}
             disabled
           />
           <F
             label="Full Name"
             value={editEmpForm.fullName}
             onChange={(v: string) =>
-              setEditEmpForm({...editEmpForm, fullName: v})
+              setEditEmpForm({ ...editEmpForm, fullName: v })
             }
           />
           <F
             label="Position"
             value={editEmpForm.position}
             onChange={(v: string) =>
-              setEditEmpForm({...editEmpForm, position: v})
+              setEditEmpForm({ ...editEmpForm, position: v })
             }
           />
 
@@ -826,7 +895,7 @@ const AdminManagement: React.FC = () => {
             <select
               value={editEmpForm.role}
               onChange={(e) =>
-                setEditEmpForm({...editEmpForm, role: e.target.value})
+                setEditEmpForm({ ...editEmpForm, role: e.target.value })
               }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
               <option value="">Select Role</option>
@@ -843,7 +912,7 @@ const AdminManagement: React.FC = () => {
             type="number"
             value={editEmpForm.baseHourlyRate}
             onChange={(v: string) =>
-              setEditEmpForm({...editEmpForm, baseHourlyRate: v})
+              setEditEmpForm({ ...editEmpForm, baseHourlyRate: v })
             }
           />
           <F
@@ -851,7 +920,7 @@ const AdminManagement: React.FC = () => {
             type="number"
             value={editEmpForm.holidayMultiplier}
             onChange={(v: string) =>
-              setEditEmpForm({...editEmpForm, holidayMultiplier: v})
+              setEditEmpForm({ ...editEmpForm, holidayMultiplier: v })
             }
           />
           <F
@@ -859,19 +928,19 @@ const AdminManagement: React.FC = () => {
             type="number"
             value={editEmpForm.overtimeMultiplier}
             onChange={(v: string) =>
-              setEditEmpForm({...editEmpForm, overtimeMultiplier: v})
+              setEditEmpForm({ ...editEmpForm, overtimeMultiplier: v })
             }
           />
           <F
             label="Hire Date"
             value={selectedEmployee?.hireDate || ""}
-            onChange={() => {}}
+            onChange={() => { }}
             disabled
           />
           <F
             label="Status"
             value={selectedEmployee?.isActive ? "Active" : "Inactive"}
-            onChange={() => {}}
+            onChange={() => { }}
             disabled
           />
         </div>
@@ -901,25 +970,34 @@ const AdminManagement: React.FC = () => {
             label="Supplier Name *"
             value={supplierForm.name}
             onChange={(v: string) =>
-              setSupplierForm({...supplierForm, name: v})
+              setSupplierForm({ ...supplierForm, name: v })
             }
             placeholder="e.g., ABC Printing Supplies"
           />
           <F
-            label="Phone"
+            label="Phone *"
             value={supplierForm.phone}
             onChange={(v: string) =>
-              setSupplierForm({...supplierForm, phone: v})
+              setSupplierForm({ ...supplierForm, phone: v })
             }
             placeholder="09XX XXX XXXX"
           />
           <F
-            label="Email"
+            label="Email *"
             type="email"
             value={supplierForm.email}
             onChange={(v: string) =>
-              setSupplierForm({...supplierForm, email: v})
+              setSupplierForm({ ...supplierForm, email: v })
             }
+            placeholder="supplier@example.com"
+          />
+          <F
+            label="Address *"
+            value={supplierForm.address}
+            onChange={(v: string) =>
+              setSupplierForm({ ...supplierForm, address: v })
+            }
+            placeholder="Full business address"
           />
         </div>
         <div className="flex gap-3">
@@ -936,7 +1014,6 @@ const AdminManagement: React.FC = () => {
         </div>
       </Modal>
 
-      {/* ═══ SUPPLIER INFO MODAL ═══ */}
       <Modal
         show={showSupplierInfoModal && !!selectedSupplier}
         onClose={() => setShowSupplierInfoModal(false)}
@@ -944,14 +1021,11 @@ const AdminManagement: React.FC = () => {
         {selectedSupplier && (
           <>
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Name
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.supplierName}
-                </div>
-              </div>
+              <F
+                label="Name *"
+                value={editSupplierForm.name}
+                onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, name: v })}
+              />
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">
                   Status
@@ -961,29 +1035,23 @@ const AdminManagement: React.FC = () => {
                   {selectedSupplier.supplierStatus}
                 </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Phone
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.contactNumber || "—"}
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Email
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.email || "—"}
-                </div>
-              </div>
+              <F
+                label="Phone"
+                value={editSupplierForm.phone}
+                onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, phone: v })}
+              />
+              <F
+                label="Email"
+                type="email"
+                value={editSupplierForm.email}
+                onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, email: v })}
+              />
               <div className="col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">
-                  Address
-                </label>
-                <div className="px-4 py-2 bg-gray-50 border rounded-lg text-sm">
-                  {selectedSupplier.address || "—"}
-                </div>
+                <F
+                  label="Address"
+                  value={editSupplierForm.address}
+                  onChange={(v: string) => setEditSupplierForm({ ...editSupplierForm, address: v })}
+                />
               </div>
               {selectedSupplier.isFlagged && (
                 <div className="col-span-2">
@@ -1003,6 +1071,12 @@ const AdminManagement: React.FC = () => {
                 Close
               </button>
               <button
+                onClick={handleUpdateSupplier}
+                className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+                <Check size={18} />
+                Save
+              </button>
+              <button
                 onClick={() => handleToggleSupplierActive(selectedSupplier)}
                 className={`flex items-center gap-2 px-4 py-3 font-semibold rounded-xl text-white ${selectedSupplier.supplierStatus === "Active" ? "bg-red-500 hover:bg-red-600" : "bg-green-500 hover:bg-green-600"}`}>
                 <Power size={16} />
@@ -1019,18 +1093,115 @@ const AdminManagement: React.FC = () => {
       <Modal
         show={showFlagNotesModal && !!selectedSupplier}
         onClose={() => setShowFlagNotesModal(false)}
-        title={`Flag Notes — ${selectedSupplier?.supplierName || ""}`}>
+        title={`Status / Category — ${selectedSupplier?.supplierName || ""}`}>
+        <div className="mb-4">
+          <label className="block text-sm font-semibold text-gray-700 mb-1">
+            Supplier Category
+          </label>
+          <select
+            value={selectedFlagCategory}
+            onChange={(e) => setSelectedFlagCategory(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500">
+            <option value="None" className="text-gray-900">Standard / No Status</option>
+            <option value="Preferred" className="text-blue-600 font-semibold">Preferred Supplier</option>
+            <option value="Warning" className="text-orange-600 font-semibold">Warning Status</option>
+            <option value="Critical" className="text-red-600 font-semibold">Critical Issue</option>
+          </select>
+        </div>
+        <label className="block text-sm font-semibold text-gray-700 mb-1">
+          Notes (Optional)
+        </label>
         <textarea
           value={flagNotes}
           onChange={(e) => setFlagNotes(e.target.value)}
-          placeholder="Add notes about this supplier..."
-          className="w-full min-h-[150px] p-4 bg-gray-100 rounded-lg border-none resize-none focus:outline-none mb-6 text-sm"
+          placeholder="Add notes about this supplier's status..."
+          className="w-full min-h-[120px] p-4 bg-gray-100 rounded-lg border-none resize-none focus:outline-none mb-6 text-sm"
         />
         <div className="flex justify-end">
           <button
             onClick={handleSaveFlagNotes}
             className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl">
             Save Notes
+          </button>
+        </div>
+      </Modal>
+
+      {/* ═══ MANAGE MATERIALS MODAL ═══ */}
+      <Modal
+        show={showManageMaterialsModal && !!selectedSupplier}
+        onClose={() => setShowManageMaterialsModal(false)}
+        title={`Manage Materials — ${selectedSupplier?.supplierName || ""}`}
+        width="max-w-3xl">
+        <div className="space-y-4 mb-6">
+          <div className="flex justify-between items-center">
+            <p className="text-sm text-gray-500">
+              Select materials that this supplier provides.
+            </p>
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input
+                type="text"
+                placeholder="Filter materials..."
+                value={materialSearch}
+                onChange={(e) => setMaterialSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-1.5 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto p-2 border rounded-xl bg-gray-50">
+            {materials
+              .filter(m => !materialSearch ||
+                m.itemType.toLowerCase().includes(materialSearch.toLowerCase()) ||
+                (m.itemVariant || "").toLowerCase().includes(materialSearch.toLowerCase())
+              )
+              .map((m) => (
+                <label
+                  key={m.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${mappedMaterialIds.includes(m.id) ? "bg-cyan-50 border-cyan-200" : "bg-white border-gray-200 hover:border-cyan-300"}`}>
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500"
+                    checked={mappedMaterialIds.includes(m.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setMappedMaterialIds([...mappedMaterialIds, m.id]);
+                      } else {
+                        setMappedMaterialIds(
+                          mappedMaterialIds.filter((id) => id !== m.id),
+                        );
+                      }
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {m.itemType}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {m.itemVariant || "No variant"}
+                    </p>
+                  </div>
+                </label>
+              ))}
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowManageMaterialsModal(false)}
+            className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">
+            Cancel
+          </button>
+          <button
+            onClick={handleSaveMaterialsMapping}
+            disabled={savingMapping}
+            className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl disabled:opacity-50 flex items-center justify-center gap-2">
+            {savingMapping ? (
+              "Saving..."
+            ) : (
+              <>
+                <Check size={18} />
+                Save Mapping
+              </>
+            )}
           </button>
         </div>
       </Modal>
@@ -1226,7 +1397,7 @@ const AdminManagement: React.FC = () => {
                         <button
                           onClick={() => handleViewUser(u)}
                           className="p-1.5 hover:bg-cyan-100 rounded-lg"
-                          title="View/Edit">
+                          title="View or Edit">
                           <Eye size={18} className="text-cyan-600" />
                         </button>
                         {u.isActive && (
@@ -1334,7 +1505,7 @@ const AdminManagement: React.FC = () => {
                         <button
                           onClick={() => handleViewEmp(e)}
                           className="p-1.5 hover:bg-cyan-100 rounded-lg"
-                          title="View/Edit">
+                          title="View or Edit">
                           <Eye size={18} className="text-cyan-600" />
                         </button>
                         {e.isActive && (
@@ -1420,7 +1591,7 @@ const AdminManagement: React.FC = () => {
                         <button
                           onClick={() => handleViewSupplier(s)}
                           className="p-1.5 hover:bg-cyan-100 rounded-lg"
-                          title="View">
+                          title="View or Edit">
                           <Eye size={16} className="text-cyan-600" />
                         </button>
                         <button
@@ -1441,27 +1612,27 @@ const AdminManagement: React.FC = () => {
                           />
                         </button>
                         <button
-                          onClick={() => handleToggleFlag(s.id)}
-                          className={`p-1.5 rounded-lg ${s.isFlagged ? "bg-red-50 hover:bg-red-100" : "hover:bg-red-100"}`}
-                          title={s.isFlagged ? "Flagged" : "Flag"}>
-                          <Flag
-                            size={16}
-                            className={
-                              s.isFlagged
-                                ? "text-red-600 fill-red-600"
-                                : "text-gray-500"
-                            }
-                          />
+                          onClick={() => openFlagModal(s)}
+                          className={`p-1.5 rounded-lg hover:bg-gray-200 ${s.flagCategory === "Preferred" ? "bg-yellow-50" :
+                              s.flagCategory === "Warning" ? "bg-orange-50" :
+                                s.flagCategory === "Critical" ? "bg-red-50" : ""
+                            }`}
+                          title="Edit Status / Category">
+                          {s.flagCategory === "Preferred" ? (
+                            <Star size={16} className="text-yellow-500 fill-yellow-500" />
+                          ) : s.flagCategory === "Warning" ? (
+                            <AlertTriangle size={16} className="text-orange-500" />
+                          ) : s.flagCategory === "Critical" ? (
+                            <Flag size={16} className="text-red-600 fill-red-600" />
+                          ) : (
+                            <Flag size={16} className="text-gray-400" />
+                          )}
                         </button>
                         <button
-                          onClick={() => {
-                            setSelectedSupplier(s);
-                            setFlagNotes(s.flagNotes);
-                            setShowFlagNotesModal(true);
-                          }}
-                          className="p-1.5 hover:bg-gray-200 rounded-lg"
-                          title="Notes">
-                          <FileText size={16} className="text-gray-500" />
+                          onClick={() => handleManageMaterials(s)}
+                          className="p-1.5 hover:bg-cyan-100 rounded-lg"
+                          title="Manage Materials">
+                          <Package size={16} className="text-cyan-600" />
                         </button>
                       </div>
                     </td>

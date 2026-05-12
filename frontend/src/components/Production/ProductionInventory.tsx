@@ -38,13 +38,18 @@ const ProductionInventory = () => {
   const [showCreateDelivery, setShowCreateDelivery] = useState(false);
   const [newDelivery, setNewDelivery] = useState({
     inventory_item_id: "",
+    requested_by: "",
     requested_quantity: "",
     expected_arrival_date: "",
     notes: "",
+    supplier_id: "",
   });
+  const [resupplySearch, setResupplySearch] = useState("");
+  const [resupplySupplierSearch, setResupplySupplierSearch] = useState("");
+  const [resupplyStaffSearch, setResupplyStaffSearch] = useState("");
 
   const { materials, stats: materialStats, loading, updateMaterial } = useInventoryData();
-  const { materials: delMaterials, createDelivery } = useDeliveries();
+  const { materials: delMaterials, suppliers, employees, createDelivery } = useDeliveries();
   const toast = useToast();
 
   const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
@@ -64,20 +69,25 @@ const ProductionInventory = () => {
   };
 
   const handleCreateResupply = async () => {
-    if (!newDelivery.inventory_item_id || !newDelivery.requested_quantity) {
-      toast.error("Material and quantity are required");
+    if (!newDelivery.inventory_item_id || !newDelivery.requested_quantity || !newDelivery.supplier_id || !newDelivery.requested_by || !newDelivery.expected_arrival_date) {
+      toast.error("Requester, material, quantity, supplier, and arrival date are required");
       return;
     }
     const r = await createDelivery({
       inventory_item_id: newDelivery.inventory_item_id,
+      supplier_id: newDelivery.supplier_id,
       requested_quantity: Number(newDelivery.requested_quantity),
       expected_arrival_date: newDelivery.expected_arrival_date || undefined,
       notes: newDelivery.notes || undefined,
+      requested_by: newDelivery.requested_by,
     });
     if (r.success) {
       toast.success("Resupply request submitted!");
       setShowCreateDelivery(false);
-      setNewDelivery({ inventory_item_id: "", requested_quantity: "", expected_arrival_date: "", notes: "" });
+      setNewDelivery({ inventory_item_id: "", requested_quantity: "", expected_arrival_date: "", notes: "", supplier_id: "", requested_by: "" });
+      setResupplySearch("");
+      setResupplySupplierSearch("");
+      setResupplyStaffSearch("");
     } else {
       toast.error("Failed: " + r.error);
     }
@@ -113,25 +123,127 @@ const ProductionInventory = () => {
       {selectedMaterial && (
         <>
           <MaterialDetailsModal isOpen={showViewModal} material={selectedMaterial} userRole="production" onClose={() => setShowViewModal(false)} />
-          <EditMaterialModal isOpen={showEditModal} material={selectedMaterial} userRole="production" onClose={() => setShowEditModal(false)} onSave={handleSaveEdit} />
+          <EditMaterialModal isOpen={showEditModal} material={selectedMaterial} suppliers={suppliers} userRole="production" onClose={() => setShowEditModal(false)} onSave={handleSaveEdit} />
         </>
       )}
 
       {/* Create Resupply Request Modal */}
-      <Modal show={showCreateDelivery} onClose={() => setShowCreateDelivery(false)} title="Create Resupply Request">
-        <div className="space-y-4 mb-6">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Material *</label>
-            <select
-              value={newDelivery.inventory_item_id}
-              onChange={e => setNewDelivery({ ...newDelivery, inventory_item_id: e.target.value })}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500">
-              <option value="">Select material...</option>
-              {delMaterials.map((m: any) => (
-                <option key={m.id} value={m.id}>{m.name} ({m.unit_of_measure})</option>
-              ))}
-            </select>
+      <Modal show={showCreateDelivery} onClose={() => { setShowCreateDelivery(false); setResupplySearch(""); setResupplySupplierSearch(""); setResupplyStaffSearch(""); }} title="Create Resupply Request">
+        <div className="space-y-6 mb-6">
+          {/* Staff Selection Section */}
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-bold text-gray-700">1. Select Requester *</label>
+              {newDelivery.requested_by && (
+                <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase">Selected</span>
+              )}
+            </div>
+            <input
+              type="text"
+              placeholder="Search production staff..."
+              value={resupplyStaffSearch}
+              onChange={(e) => setResupplyStaffSearch(e.target.value)}
+              className="w-full px-4 py-2 mb-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white"
+            />
+            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 shadow-sm">
+              {employees
+                .filter(e =>
+                  (e.fullName || "").toLowerCase().includes(resupplyStaffSearch.toLowerCase()) &&
+                  (e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
+                )
+                .map((e: any) => (
+                  <div
+                    key={e.id}
+                    onClick={() => setNewDelivery({ ...newDelivery, requested_by: e.id })}
+                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.requested_by === e.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
+                  >
+                    <span>{e.fullName}</span>
+                    {newDelivery.requested_by === e.id && <CheckCircle size={14} className="text-cyan-600" />}
+                  </div>
+                ))}
+              {employees.filter(e =>
+                (e.fullName || "").toLowerCase().includes(resupplyStaffSearch.toLowerCase()) &&
+                (e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
+              ).length === 0 && (
+                  <div className="px-4 py-3 text-sm text-gray-400 text-center italic">No production staff found</div>
+                )}
+            </div>
           </div>
+
+          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-bold text-gray-700">2. Select Material *</label>
+              {newDelivery.inventory_item_id && (
+                <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase">Selected</span>
+              )}
+            </div>
+            <input
+              type="text"
+              placeholder="Search material..."
+              value={resupplySearch}
+              onChange={(e) => setResupplySearch(e.target.value)}
+              className="w-full px-4 py-2 mb-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white"
+            />
+            <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 shadow-sm">
+              {delMaterials
+                .filter((m: any) => m.name.toLowerCase().includes(resupplySearch.toLowerCase()))
+                .map((m: any) => (
+                  <div
+                    key={m.id}
+                    onClick={() => setNewDelivery({ ...newDelivery, inventory_item_id: m.id })}
+                    className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.inventory_item_id === m.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
+                  >
+                    <span>{m.name} <span className="text-xs text-gray-400 font-normal">({m.unit_of_measure})</span></span>
+                    {newDelivery.inventory_item_id === m.id && <CheckCircle size={14} className="text-cyan-600" />}
+                  </div>
+                ))}
+              {delMaterials.filter((m: any) => m.name.toLowerCase().includes(resupplySearch.toLowerCase())).length === 0 && (
+                <div className="px-4 py-3 text-sm text-gray-400 text-center italic">No materials found</div>
+              )}
+            </div>
+          </div>
+
+          {/* Supplier Selection Section */}
+          {newDelivery.inventory_item_id && (
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-bold text-gray-700">3. Select Supplier *</label>
+                {newDelivery.supplier_id && (
+                  <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase">Selected</span>
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="Search supplier..."
+                value={resupplySupplierSearch}
+                onChange={(e) => setResupplySupplierSearch(e.target.value)}
+                className="w-full px-4 py-2 mb-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white"
+              />
+              <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 shadow-sm">
+                {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
+                  .filter((s: any) => s.name.toLowerCase().includes(resupplySupplierSearch.toLowerCase()))
+                  .map((s: any) => (
+                    <div
+                      key={s.id}
+                      onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
+                      className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
+                    >
+                      <span>{s.name}</span>
+                      {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
+                    </div>
+                  ))}
+                {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
+                  .filter((s: any) => s.name.toLowerCase().includes(resupplySupplierSearch.toLowerCase())).length === 0 && (
+                    <div className="px-4 py-3 text-sm text-gray-400 text-center italic">
+                      {materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers?.length === 0
+                        ? "No suppliers mapped to this material"
+                        : "No suppliers found matching search"}
+                    </div>
+                  )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Quantity *</label>
@@ -145,7 +257,7 @@ const ProductionInventory = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Expected Arrival</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Expected Arrival *</label>
               <input
                 type="date"
                 value={newDelivery.expected_arrival_date}

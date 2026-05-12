@@ -33,7 +33,7 @@ const CashierInventory = () => {
   const tabs = ["Materials", "Deliveries"];
 
   const { materials, stats: materialStats, loading: matLoading, updateMaterial } = useInventoryData();
-  const { deliveries, stats: delStats, loading: delLoading, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
+  const { deliveries, stats: delStats, suppliers, loading: delLoading, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
   const loading = activeTab === "Materials" ? matLoading : delLoading;
 
@@ -242,7 +242,7 @@ const CashierInventory = () => {
       {selectedMaterial && activeTab === "Materials" && (
         <>
           <MaterialDetailsModal isOpen={showViewModal} material={selectedMaterial} userRole="cashier" onClose={() => setShowViewModal(false)} />
-          <EditMaterialModal isOpen={showEditModal} material={selectedMaterial} userRole="cashier" onClose={() => setShowEditModal(false)} onSave={handleSaveEdit} />
+          <EditMaterialModal isOpen={showEditModal} material={selectedMaterial} suppliers={suppliers} userRole="cashier" onClose={() => setShowEditModal(false)} onSave={handleSaveEdit} />
         </>
       )}
 
