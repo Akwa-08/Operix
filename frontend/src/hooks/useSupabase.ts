@@ -70,7 +70,7 @@ async function safe(fn: () => Promise<any>): Promise<{ success: boolean; error: 
 }
 
 function mapStatus(s: string): OrderStatus {
-  const m: Record<string, OrderStatus> = { in_queue: 'In Queue', designing: 'Designing', payment: 'Payment', production: 'Production', pickup: 'Pickup', completed: 'Completed', overdue: 'Overdue' };
+  const m: Record<string, OrderStatus> = { in_queue: 'In Queue', designing: 'Designing', payment: 'Payment', production: 'Production', pickup: 'Pickup', completed: 'Completed', overdue: 'Overdue', cancelled: 'Cancelled', cancel_requested: 'Cancel Requested' };
   return m[s] || (s as OrderStatus);
 }
 function mapPayment(s: string): PaymentStatus {
@@ -106,6 +106,7 @@ function mapOrder(raw: any): Order {
       status: (p.status || "pending") as "approved" | "declined" | "pending",
       decline_reason: p.decline_reason
     })) : [],
+    cancelReason: raw.cancel_reason || '',
     rejectedByDesigners: raw.rejected_by_designers || [],
   };
 }
@@ -531,6 +532,20 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       if (updates.totalAmount !== undefined) payload.total_amount = updates.totalAmount;
       if (updates.dueDate !== undefined) payload.due_date = updates.dueDate;
       const r = await safe(() => db.updateDesignerOrderDetails(orderId, payload).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    requestCancellation: async (orderId: string, reason: string) => {
+      const r = await safe(() => db.requestCancellation(orderId, reason).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    handleCancellationRequest: async (orderId: string, approve: boolean, designerNote?: string) => {
+      const r = await safe(() => db.handleCancellationRequest(orderId, approve, designerNote).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
       }));

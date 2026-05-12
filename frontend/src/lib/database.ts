@@ -1258,6 +1258,85 @@ export const db = {
     if (error) throw error;
   },
 
+  async requestCancellation(orderId: string, reason: string) {
+    // Mark order as cancel_requested with the reason
+    const { data: order, error: fetchErr } = await supabase
+      .from("orders")
+      .select("order_number, assigned_designer, customer_id")
+      .eq("id", orderId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "cancel_requested", cancel_reason: reason })
+      .eq("id", orderId);
+    if (error) throw error;
+
+    // Notify the assigned designer
+    if (order.assigned_designer) {
+      await this.notifyUser(
+        order.assigned_designer,
+        `Cancellation Request – ${order.order_number}`,
+        `Customer requested cancellation: "${reason}"`,
+        "orders",
+        orderId,
+      );
+    }
+    await this.logAudit("Request Cancellation", "orders", orderId, { reason });
+  },
+
+  async handleCancellationRequest(orderId: string, approve: boolean, designerNote?: string) {
+    const { data: order, error: fetchErr } = await supabase
+      .from("orders")
+      .select("order_number, customer_id")
+      .eq("id", orderId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    if (approve) {
+      // Cancel the order
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "cancelled", cancel_reason: null })
+        .eq("id", orderId);
+      if (error) throw error;
+
+      // Notify the customer
+      if (order.customer_id) {
+        await this.notifyUser(
+          order.customer_id,
+          `Order Cancelled – ${order.order_number}`,
+          "Your cancellation request has been approved. Your order has been cancelled.",
+          "orders",
+          orderId,
+        );
+      }
+      await this.logAudit("Approve Cancellation", "orders", orderId, {});
+    } else {
+      // Revert to Designing
+      const { error } = await supabase
+        .from("orders")
+        .update({ status: "designing", cancel_reason: null })
+        .eq("id", orderId);
+      if (error) throw error;
+
+      // Notify the customer with the rejection
+      if (order.customer_id) {
+        await this.notifyUser(
+          order.customer_id,
+          `Cancellation Denied – ${order.order_number}`,
+          designerNote
+            ? `Your cancellation request was declined: "${designerNote}"`
+            : "Your cancellation request was declined. Your order continues in design.",
+          "orders",
+          orderId,
+        );
+      }
+      await this.logAudit("Reject Cancellation", "orders", orderId, { note: designerNote });
+    }
+  },
+
   async getOrderBOM(orderId: string) {
     const { data: items, error: itemsErr } = await supabase
       .from("order_items")

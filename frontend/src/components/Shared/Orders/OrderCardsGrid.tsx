@@ -5,7 +5,7 @@ import {
   CheckCircle2, Hammer, Truck, Package, Edit2, AlertCircle
 } from "lucide-react";
 import type { Order } from "../../../Types";
-import { getPaymentStatusColor } from "../../../util/formatters";
+import { getPaymentStatusColor, getOrderStatusColor } from "../../../util/formatters";
 import { SukiBadge } from "../UI/SukiBadge";
 
 // ── Status timeline steps ────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ const mapStatus = (status: string): CardStatus => {
   const map: Record<string, CardStatus> = {
     "In Queue": "Queue", "Designing": "Design", "Design Approval": "Design",
     "Payment": "Payment", "Production": "Production", "Pickup": "Pick-up",
-    "Completed": "Complete", "Cancelled": "Complete",
+    "Completed": "Complete", "Cancelled": "Queue", // Cancelled doesn't follow the normal flow
   };
   return map[status] || "Queue";
 };
@@ -75,7 +75,11 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
           </div>
           <p className="text-xs text-gray-400 font-medium">{order.orderId}</p>
         </div>
-        <span className={`${(order.status === "Completed" && order.paymentStatus !== "Paid") ? "bg-yellow-500" : getStatusColor(cardStatus)} text-white px-2.5 py-0.5 rounded-full text-xs font-semibold`}>
+        <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+          (order.status === "Completed" && order.paymentStatus !== "Paid") 
+            ? "bg-yellow-500 text-white" 
+            : getOrderStatusColor(order.status)
+        }`}>
           {(order.status === "Completed" && order.paymentStatus !== "Paid") ? "Incomplete" : order.status}
         </span>
       </div>
@@ -141,7 +145,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
           className="flex-1 bg-sky-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-sky-600">
           <Eye size={14} /> View
         </button>
-        {onPay && order.paymentStatus !== "Paid" && order.status !== "In Queue" && order.status !== "Designing" && (!hidePayWhen || !hidePayWhen(order)) && (
+        {onPay && order.paymentStatus !== "Paid" && (!hidePayWhen || !hidePayWhen(order)) && (
           <button onClick={() => onPay(order)}
             className="flex-1 bg-emerald-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-emerald-600">
             <CreditCard size={14} /> Pay

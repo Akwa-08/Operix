@@ -341,7 +341,7 @@ export const SignUpPage = () => {
                   animate={{opacity: 1, height: "auto"}}
                   exit={{opacity: 0, height: 0}}
                   transition={{duration: 0.2}}
-                  className="mt-1.5 space-y-1">
+                  className="mt-1.5 space-y-2">
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map((i) => (
                       <motion.div
@@ -357,11 +357,41 @@ export const SignUpPage = () => {
                       />
                     ))}
                   </div>
-                  <p
-                    className="text-[11px] font-medium"
-                    style={{color: passwordStrength.color}}>
-                    {passwordStrength.label}
-                  </p>
+                  <div className="flex justify-between items-center">
+                    <p
+                      className="text-[11px] font-bold uppercase tracking-wider"
+                      style={{color: passwordStrength.color}}>
+                      {passwordStrength.label}
+                    </p>
+                  </div>
+
+                  {/* Password Guidelines Checklist */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${formData.password.length >= 8 ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {formData.password.length >= 8 ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${formData.password.length >= 8 ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>8+ Characters</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${/[A-Z]/.test(formData.password) ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {/[A-Z]/.test(formData.password) ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${/[A-Z]/.test(formData.password) ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>Capital Letter</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${/\d/.test(formData.password) ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {/\d/.test(formData.password) ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${/\d/.test(formData.password) ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>Number</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${/[^A-Za-z0-9]/.test(formData.password) ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {/[^A-Za-z0-9]/.test(formData.password) ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${/[^A-Za-z0-9]/.test(formData.password) ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>Symbol</span>
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

@@ -63,6 +63,7 @@ const ORDER_STATUS_COLORS: Record<string, string> = {
   Completed:    "bg-green-100 text-green-700",
   Overdue:      "bg-red-100 text-red-700",
   Cancelled:    "bg-gray-100 text-gray-700",
+  "Cancel Requested": "bg-orange-100 text-orange-700",
 };
 
 /** Payment status → Tailwind badge classes */

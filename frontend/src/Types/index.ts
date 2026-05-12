@@ -10,7 +10,9 @@ export type OrderStatus =
   | "Production"
   | "Pickup"
   | "Completed"
-  | "Overdue";
+  | "Overdue"
+  | "Cancelled"
+  | "Cancel Requested";
 
 export type PaymentStatus = "Paid" | "Unpaid" | "Partially paid";
 
@@ -54,6 +56,7 @@ export interface Order {
   lastDeclineReason?: string;
   hasUnreadDecline?: boolean;
   isSuki?: boolean;
+  cancelReason?: string;
   rejectedByDesigners?: string[];
 }
 
