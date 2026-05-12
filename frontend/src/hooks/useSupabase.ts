@@ -249,7 +249,7 @@ export function useProductCatalog(filters?: { search?: string; category?: string
   const products: CatalogProduct[] = raw.map((p: any) => ({
     id: p.id, title: p.name, category: p.category || '', variant: p.variant || '',
     size: p.size_spec || '', price: Number(p.final_price), description: p.description || '',
-    isActive: p.is_active,
+    isActive: p.is_active, maxCapacity: Number(p.max_capacity ?? 0),
   }));
   return { products, loading, error, refresh };
 }
@@ -286,6 +286,7 @@ export function useCartData() {
 }
 
 export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
+  const queryClient = useQueryClient();
   const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
   const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
   
