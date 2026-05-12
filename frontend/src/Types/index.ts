@@ -176,6 +176,7 @@ export interface CatalogProduct {
   price: number;
   description: string;
   isActive: boolean;
+  maxCapacity: number;
 }
 
 export interface CartItem {

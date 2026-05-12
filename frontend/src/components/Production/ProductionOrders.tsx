@@ -212,9 +212,9 @@ const ProductionOrders = () => {
                     {o.status === "Production" && o.assignedProduction && (
                       <button
                         onClick={() => handleMarkPickup(o)}
-                        disabled={(o.amountPaid || 0) < (o.totalAmount || 0)}
-                        title={(o.amountPaid || 0) < (o.totalAmount || 0) ? "Full payment required" : ""}
-                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-50 hover:bg-green-100 text-green-700"}`}>
+                        disabled={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki}
+                        title={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "Full payment required" : (o.isSuki && (o.amountPaid || 0) < (o.totalAmount || 0) ? "Suki Bypass Active" : "")}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-50 hover:bg-green-100 text-green-700"}`}>
                         ✓ Ready
                       </button>
                     )}
@@ -298,9 +298,9 @@ const ProductionOrders = () => {
                           {o.status === "Production" && o.assignedProduction && (
                             <button
                               onClick={() => handleMarkPickup(o)}
-                              disabled={(o.amountPaid || 0) < (o.totalAmount || 0)}
-                              title={(o.amountPaid || 0) < (o.totalAmount || 0) ? "Full payment required" : ""}
-                              className={`px-2 py-1 text-xs font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-100 hover:bg-green-200 text-green-700"}`}>
+                              disabled={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki}
+                              title={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "Full payment required" : (o.isSuki && (o.amountPaid || 0) < (o.totalAmount || 0) ? "Suki Bypass Active" : "")}
+                              className={`px-2 py-1 text-xs font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-100 hover:bg-green-200 text-green-700"}`}>
                               ✓ Ready
                             </button>
                           )}

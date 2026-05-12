@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Minus, Plus, Upload } from "lucide-react";
+import { X, Minus, Plus, Upload, AlertTriangle } from "lucide-react";
 import { FileUploadModal } from "./FileUploadModal";
 import { NoFileConfirmModal } from "./NoFileConfirmModal";
 
@@ -10,6 +10,7 @@ interface Product {
   price: number;
   variant: string;
   size: string;
+  maxCapacity?: number;
 }
 
 interface AddToCartModalProps {
@@ -33,6 +34,7 @@ interface AddToCartModalProps {
   initialFileUrl?: string;
   initialInstructions?: string;
   orderButtonText?: string;
+  maxCapacity?: number;
 }
 
 const sanitizeStorageUrl = (url: string | null | undefined): string => {
@@ -51,7 +53,12 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
   initialFileUrl,
   initialInstructions = "",
   orderButtonText = "Order",
+  maxCapacity,
 }) => {
+  // Derive effective cap: use prop override if provided, else fall back to product.maxCapacity
+  const effectiveCap = maxCapacity ?? product?.maxCapacity ?? Infinity;
+  const isOutOfStock = effectiveCap <= 0;
+  const isLowStock = !isOutOfStock && effectiveCap <= 5;
   const [quantity, setQuantity] = useState<number | string>(initialQuantity);
   const [fileUrl, setFileUrl] = useState<string | undefined>(initialFileUrl);
   const [fileName, setFileName] = useState<string | undefined>(undefined);
@@ -66,7 +73,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
       setQuantity(initialQuantity);
       setFileUrl(initialFileUrl);
       setSpecialInstructions(initialInstructions);
-      
+
       if (initialFileUrl) {
         const parts = initialFileUrl.split("/");
         setFileName(decodeURIComponent(parts[parts.length - 1]));
@@ -221,40 +228,69 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                     <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mb-1.5">
                       Quantity
                     </p>
+
+                    {/* Stock status badge */}
+                    {isOutOfStock ? (
+                      <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-600 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg mb-2 w-fit">
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        Out of Stock
+                      </div>
+                    ) : isLowStock ? (
+                      <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg mb-2 w-fit">
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        Only {effectiveCap} available
+                      </div>
+                    ) : null}
+
                     <div className="flex items-center gap-3">
                       <button
                         onClick={() => setQuantity((q) => Math.max(1, Number(q) - 1))}
                         className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 hover:border-cyan-400 hover:text-cyan-500 transition-colors cursor-pointer disabled:opacity-30"
-                        disabled={Number(quantity) <= 1}
+                        disabled={Number(quantity) <= 1 || isOutOfStock}
                       >
                         <Minus className="w-4 h-4" />
                       </button>
                       <input
                         type="number"
                         min={1}
-                        value={quantity}
+                        max={effectiveCap === Infinity ? undefined : effectiveCap}
+                        value={isOutOfStock ? 0 : quantity}
+                        disabled={isOutOfStock}
                         onChange={(e) => {
+                          if (isOutOfStock) return;
                           const val = e.target.value;
-                          if (val === "") {
-                            setQuantity("");
-                            return;
-                          }
+                          if (val === "") { setQuantity(""); return; }
                           const num = parseInt(val, 10);
-                          if (!isNaN(num)) setQuantity(num);
+                          if (!isNaN(num)) {
+                            setQuantity(effectiveCap !== Infinity ? Math.min(num, effectiveCap) : num);
+                          }
                         }}
                         onBlur={(e) => {
+                          if (isOutOfStock) return;
                           const num = parseInt(e.target.value, 10);
-                          setQuantity(!isNaN(num) && num >= 1 ? num : 1);
+                          const clamped = isNaN(num) || num < 1 ? 1
+                            : effectiveCap !== Infinity ? Math.min(num, effectiveCap)
+                              : num;
+                          setQuantity(clamped);
                         }}
-                        className="w-14 sm:w-16 text-xl sm:text-2xl font-black text-gray-900 text-center tabular-nums bg-transparent border-b-2 border-gray-300 focus:border-cyan-400 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-14 sm:w-16 text-xl sm:text-2xl font-black text-gray-900 text-center tabular-nums bg-transparent border-b-2 border-gray-300 focus:border-cyan-400 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:opacity-40"
                       />
                       <button
-                        onClick={() => setQuantity((q) => Number(q || 0) + 1)}
-                        className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 hover:border-cyan-400 hover:text-cyan-500 transition-colors cursor-pointer"
+                        onClick={() => setQuantity((q) => {
+                          const next = Number(q || 0) + 1;
+                          return effectiveCap !== Infinity ? Math.min(next, effectiveCap) : next;
+                        })}
+                        disabled={Number(quantity) >= effectiveCap || isOutOfStock}
+                        className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 hover:border-cyan-400 hover:text-cyan-500 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
+                    {effectiveCap !== Infinity && effectiveCap > 0 && !isOutOfStock && (
+                      <p className="text-[11px] text-gray-400 mt-1.5 font-medium">
+                        *Max quantity available: {effectiveCap}
+                      </p>
+                    )}
                   </div>
 
                   {/* File Upload */}
@@ -265,20 +301,19 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                     <div className="flex flex-col gap-3">
                       {fileUrl && (
                         <div className="relative group aspect-video w-full bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                          <img 
-                            src={sanitizeStorageUrl(fileUrl)} 
-                            alt="Design Preview" 
+                          <img
+                            src={sanitizeStorageUrl(fileUrl)}
+                            alt="Design Preview"
                             className="w-full h-full object-contain p-2 hover:scale-[1.02] transition-transform duration-300"
                           />
                         </div>
                       )}
                       <button
                         onClick={() => setShowFileUpload(true)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all cursor-pointer ${
-                          fileUrl
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all cursor-pointer ${fileUrl
                             ? "border-cyan-400 bg-cyan-50 text-cyan-700"
                             : "border-gray-300 bg-white text-gray-500 hover:border-cyan-400 hover:text-cyan-500"
-                        }`}
+                          }`}
                       >
                         <Upload className="w-4 h-4 shrink-0" />
                         <span className="truncate max-w-[140px] sm:max-w-[180px]">
@@ -325,18 +360,18 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                   <button
                     onClick={handleOrder}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isOutOfStock}
                     className="flex-1 py-3.5 sm:py-4 bg-cyan-400 hover:bg-cyan-500 text-white font-black text-sm uppercase tracking-wider rounded-xl sm:rounded-2xl shadow-lg shadow-cyan-100 transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                   >
-                    {isSubmitting ? "Processing..." : orderButtonText}
+                    {isSubmitting ? "Processing..." : isOutOfStock ? "Unavailable" : orderButtonText}
                   </button>
                   {showAddToCart && (
                     <button
                       onClick={handleAddToCart}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || isOutOfStock}
                       className="flex-1 py-3.5 sm:py-4 bg-white border-2 border-cyan-400 text-cyan-500 hover:bg-cyan-50 font-black text-sm uppercase tracking-wider rounded-xl sm:rounded-2xl transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                     >
-                      {isSubmitting ? "Adding..." : "Add to Cart"}
+                      {isSubmitting ? "Adding..." : isOutOfStock ? "Unavailable" : "Add to Cart"}
                     </button>
                   )}
                 </div>
@@ -362,8 +397,8 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
         onConfirm={confirmOrder}
         confirmLabel={
           orderButtonText === "Checkout" ? "Checkout Anyway" :
-          orderButtonText === "Confirm"  ? "Confirm Anyway"  :
-          "Order Anyway"
+            orderButtonText === "Confirm" ? "Confirm Anyway" :
+              "Order Anyway"
         }
       />
     </>

@@ -829,16 +829,23 @@ const AdminInventory = () => {
                     {[...(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])]
                       .sort((a: any, b: any) => getFlagPriority(a.flagCategory) - getFlagPriority(b.flagCategory))
                       .filter((s: any) => s.name.toLowerCase().includes(restockSupplierSearch.toLowerCase()))
-                      .map((s: any) => (
+                      .map((s: any) => {
+                        const fullSupplier = suppliers.find(sup => sup.id === s.id) as any;
+                        const hoverText = fullSupplier && (fullSupplier.flag_notes || fullSupplier.flag_category) 
+                          ? `Flag: ${fullSupplier.flag_category || 'None'}\nNotes: ${fullSupplier.flag_notes || 'None'}`
+                          : "No notes available";
+                        return (
                         <div
                           key={s.id}
+                          title={hoverText}
                           onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
                           className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
                         >
                           <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(s, "name", "flagCategory")}</div>
                           {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
                         </div>
-                      ))}
+                        );
+                      })}
                     {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
                       .filter((s: any) => s.name.toLowerCase().includes(restockSupplierSearch.toLowerCase())).length === 0 && (
                         <div className="px-4 py-3 text-sm text-gray-400 text-center italic">

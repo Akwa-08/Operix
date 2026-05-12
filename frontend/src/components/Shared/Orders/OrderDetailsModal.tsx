@@ -817,14 +817,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={outstanding > 0}
+                  disabled={outstanding > 0 && !order.isSuki}
                   onClick={() => onUpdateStatus("Pickup")}
-                  className={outstanding > 0 ? "opacity-50 cursor-not-allowed" : ""}>
+                  className={outstanding > 0 && !order.isSuki ? "opacity-50 cursor-not-allowed" : ""}>
                   Mark as Ready for Pickup
                 </Button>
-                {outstanding > 0 && (
+                {outstanding > 0 && !order.isSuki && (
                   <p className="text-[10px] text-red-600 font-semibold flex items-center gap-1">
                     <AlertCircle size={12} /> Full payment required to mark as Ready for Pickup
+                  </p>
+                )}
+                {outstanding > 0 && order.isSuki && (
+                  <p className="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
+                    <AlertCircle size={12} /> Suki Bypass: Can mark as ready despite outstanding balance
                   </p>
                 )}
               </div>
