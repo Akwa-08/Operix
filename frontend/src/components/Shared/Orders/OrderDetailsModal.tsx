@@ -524,18 +524,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             )}
             <InfoField label="Date Ordered" value={order.dateOrdered} />
             <InfoField label="Due Date" value={order.dueDate} />
-            {order.assignedDesigner && (
-              <InfoField
-                label="Assigned Designer"
-                value={order.designerName || "Not assigned"}
-              />
-            )}
-            {order.assignedProduction && (
-              <InfoField
-                label="Assigned Production"
-                value={order.productionName || "Not assigned"}
-              />
-            )}
+            <InfoField
+              label="Assigned Designer"
+              value={
+                !order.assignedDesigner 
+                  ? "Pending" 
+                  : (order.status === "In Queue" ? "Waiting for Designer" : order.designerName || "Pending")
+              }
+            />
+            <InfoField
+              label="Assigned Production"
+              value={order.productionName || "Pending"}
+            />
           </div>
         </div>
 

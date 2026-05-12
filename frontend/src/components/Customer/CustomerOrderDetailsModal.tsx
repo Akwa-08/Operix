@@ -14,10 +14,8 @@ import {
   Check,
   AlertCircle,
 } from "lucide-react";
-import {
-  fmtDate,
-} from "../../util/formatters";
-import { SukiBadge } from "../Shared/UI/SukiBadge";
+import {fmtDate} from "../../util/formatters";
+import {SukiBadge} from "../Shared/UI/SukiBadge";
 
 type OrderStatus =
   | "Queue"
@@ -105,21 +103,28 @@ export const CustomerOrderDetailsModal: React.FC<
               let circleColor =
                 "bg-gray-100 text-gray-400 border-2 border-white shadow-sm";
               if (isPast) {
-                circleColor = (step.status === "Payment" && order.paymentStatus === "Unpaid")
-                  ? "bg-red-500 text-white shadow-md border-transparent"
-                  : (step.status === "Payment" && order.paymentStatus === "Partially paid")
-                    ? "bg-yellow-500 text-white shadow-md border-transparent"
-                    : (step.status === "Complete" && order.paymentStatus !== "Paid")
+                circleColor =
+                  step.status === "Payment" && order.paymentStatus === "Unpaid"
+                    ? "bg-red-500 text-white shadow-md border-transparent"
+                    : step.status === "Payment" &&
+                        order.paymentStatus === "Partially paid"
                       ? "bg-yellow-500 text-white shadow-md border-transparent"
-                      : "bg-emerald-500 text-white shadow-md border-transparent";
+                      : step.status === "Complete" &&
+                          order.paymentStatus !== "Paid"
+                        ? "bg-yellow-500 text-white shadow-md border-transparent"
+                        : "bg-emerald-500 text-white shadow-md border-transparent";
               } else if (isCurrent) {
-                circleColor = (step.status === "Payment" && order.paymentStatus === "Unpaid")
-                  ? "bg-red-500 text-white shadow-md border-transparent"
-                  : (step.status === "Payment" && order.paymentStatus === "Partially paid")
-                    ? "bg-yellow-500 text-white shadow-md border-transparent"
-                    : step.status === "Complete"
-                      ? (order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white shadow-md border-transparent" : "bg-emerald-500 text-white shadow-md border-transparent")
-                      : "bg-[#E80088] text-white shadow-md border-transparent"; // Active Magenta
+                circleColor =
+                  step.status === "Payment" && order.paymentStatus === "Unpaid"
+                    ? "bg-red-500 text-white shadow-md border-transparent"
+                    : step.status === "Payment" &&
+                        order.paymentStatus === "Partially paid"
+                      ? "bg-yellow-500 text-white shadow-md border-transparent"
+                      : step.status === "Complete"
+                        ? order.paymentStatus !== "Paid"
+                          ? "bg-yellow-500 text-white shadow-md border-transparent"
+                          : "bg-emerald-500 text-white shadow-md border-transparent"
+                        : "bg-[#E80088] text-white shadow-md border-transparent"; // Active Magenta
               }
 
               let lineClass = "";
@@ -136,9 +141,11 @@ export const CustomerOrderDetailsModal: React.FC<
                   className="flex flex-col items-center flex-1 relative z-0">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${circleColor}`}>
-                    { (step.status === "Payment" && order.paymentStatus === "Unpaid" && (isPast || isCurrent)) ? (
+                    {step.status === "Payment" &&
+                    order.paymentStatus === "Unpaid" &&
+                    (isPast || isCurrent) ? (
                       <AlertCircle className="w-5 h-5" />
-                    ) : (isPast || (isCurrent && step.status === "Complete")) ? (
+                    ) : isPast || (isCurrent && step.status === "Complete") ? (
                       <Check className="w-5 h-5" />
                     ) : (
                       <Icon className="w-5 h-5" />
@@ -270,16 +277,22 @@ export const CustomerOrderDetailsModal: React.FC<
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-0.5">
                   Designer
                 </p>
-                <p className="font-medium text-gray-800 text-sm break-all">
-                  {order.designerName || "xxxxxxxxx"}
+                <p
+                  className={`font-medium text-sm break-all ${!order.assignedDesigner || (order.assignedDesigner && order.status === "In Queue") ? "text-orange-500 italic" : "text-gray-800"}`}>
+                  {!order.assignedDesigner
+                    ? "Pending"
+                    : order.status === "In Queue"
+                      ? "Waiting for Designer"
+                      : order.designerName}
                 </p>
               </div>
               <div>
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-0.5">
                   Production
                 </p>
-                <p className="font-medium text-gray-800 text-sm break-all">
-                  {order.productionName || "xxxxxxxxx"}
+                <p
+                  className={`font-medium text-sm break-all ${!order.assignedProduction ? "text-orange-500 italic" : "text-gray-800"}`}>
+                  {order.productionName || "Pending"}
                 </p>
               </div>
             </div>
