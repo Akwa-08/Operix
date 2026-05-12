@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Upload, Package, Clock, CheckCircle } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
@@ -15,6 +16,10 @@ import { useToast } from "../../context/ToastContext";
 import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 const DesignerOrders = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+  const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -36,6 +41,12 @@ const DesignerOrders = () => {
   } = useOrdersData();
 
   const toast = useToast();
+
+  useEffect(() => {
+    if (highlightedId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId, loading]);
 
   // Filter for orders assigned to THIS designer, excluding those in Payment/Production stages
   const orders = allOrders.filter(
@@ -149,7 +160,11 @@ const DesignerOrders = () => {
                   </p>
                 ) : (
                   filteredOrders.map((o: any) => (
-                    <div key={o.id} className="p-4 space-y-2">
+                    <div 
+                      key={o.id} 
+                      ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                      className={`p-4 space-y-2 transition-all ${highlightedId === o.id ? "highlight-pulse ring-2 ring-cyan-500" : ""}`}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="font-bold text-gray-900">{o.orderId}</p>
@@ -211,7 +226,11 @@ const DesignerOrders = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredOrders.map((o: any) => (
-                      <tr key={o.id} className="hover:bg-gray-50">
+                      <tr 
+                        key={o.id} 
+                        ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                        className={`hover:bg-gray-50 transition-all ${highlightedId === o.id ? "highlight-pulse bg-cyan-50/50" : ""}`}
+                      >
                         <td className="px-4 py-3 font-mono text-xs">{o.orderId}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -270,6 +289,7 @@ const DesignerOrders = () => {
                 orders={filteredOrders}
                 onView={handleViewOrder}
                 onPay={() => {}} 
+                highlightedId={highlightedId}
               />
             </div>
           )}
@@ -309,3 +329,4 @@ const DesignerOrders = () => {
 };
 
 export default DesignerOrders;
+

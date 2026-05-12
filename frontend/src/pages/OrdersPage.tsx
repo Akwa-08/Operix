@@ -1,7 +1,8 @@
 // src/pages/OrdersPage.tsx
 // Customer orders page — fetches real data from Supabase via useOrdersData()
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Search, Package, Clock, CheckCircle } from "lucide-react";
 import { CustomerOrderDetailsModal } from "../components/Customer/CustomerOrderDetailsModal";
@@ -17,6 +18,9 @@ import { useToast } from "../context/ToastContext";
 import { ConfirmModal } from "../components/Shared/UI/ConfirmModal";
 
 export const OrdersPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -36,6 +40,19 @@ export const OrdersPage: React.FC = () => {
   const itemsPerPage = 6;
 
   const { orders, loading, refresh, recordPayment, markDeclineAsRead } = useOrdersData();
+
+  // If highlightedId is present and belongs to an order not on the current page, we might need to jump to that page
+  useEffect(() => {
+    if (highlightedId && orders.length > 0) {
+      const index = filteredOrders.findIndex(o => o.id === highlightedId);
+      if (index !== -1) {
+        const page = Math.floor(index / itemsPerPage) + 1;
+        if (page !== currentPage) {
+          setCurrentPage(page);
+        }
+      }
+    }
+  }, [highlightedId, orders.length]);
 
   // Derive the full order object from the current orders array.
   // This always reflects the latest data without needing a useEffect sync.
@@ -105,7 +122,7 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handlePayOrder = (order: Order) => {
-    if (order.status !== "Payment") return;
+    if (order.status === "In Queue" || order.status === "Designing") return;
     setSelectedPayOrderId(order.id);
     setShowPayment(true);
   };
@@ -174,7 +191,8 @@ export const OrdersPage: React.FC = () => {
             onDelete={handleDeleteOrder}
             onPay={handlePayOrder}
             hideDeleteWhen={(o) => o.status !== "In Queue" && o.status !== "Designing"}
-            hidePayWhen={(o) => o.status !== "Payment"}
+            hidePayWhen={(o) => o.status === "In Queue" || o.status === "Designing"}
+            highlightedId={highlightedId}
           />
         </div>
 
@@ -261,3 +279,4 @@ export const OrdersPage: React.FC = () => {
     </div>
   );
 };
+
