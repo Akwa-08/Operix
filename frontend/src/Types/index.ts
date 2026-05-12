@@ -102,8 +102,7 @@ export interface Employee extends User {
   baseHourlyRate?: number;
   holidayRateMultiplier?: number;
   overtimeRateMultiplier?: number;
-  philhealthContribution: number;
-  hdmfContribution: number;
+
 }
 
 
@@ -157,6 +156,8 @@ export interface EmployeeRecord {
   overtimeRateMultiplier: number;
   hireDate: string;
   isActive: boolean;
+  philhealthContribution: number;
+  hdmfContribution: number;
 }
 
 
