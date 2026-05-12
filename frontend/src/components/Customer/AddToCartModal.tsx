@@ -10,7 +10,7 @@ interface Product {
   price: number;
   variant: string;
   size: string;
-  maxCapacity: number;
+  maxCapacity?: number;
 }
 
 interface AddToCartModalProps {
@@ -73,7 +73,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
       setQuantity(initialQuantity);
       setFileUrl(initialFileUrl);
       setSpecialInstructions(initialInstructions);
-      
+
       if (initialFileUrl) {
         const parts = initialFileUrl.split("/");
         setFileName(decodeURIComponent(parts[parts.length - 1]));
@@ -270,7 +270,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                           const num = parseInt(e.target.value, 10);
                           const clamped = isNaN(num) || num < 1 ? 1
                             : effectiveCap !== Infinity ? Math.min(num, effectiveCap)
-                            : num;
+                              : num;
                           setQuantity(clamped);
                         }}
                         className="w-14 sm:w-16 text-xl sm:text-2xl font-black text-gray-900 text-center tabular-nums bg-transparent border-b-2 border-gray-300 focus:border-cyan-400 focus:outline-none transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:opacity-40"
@@ -301,20 +301,19 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                     <div className="flex flex-col gap-3">
                       {fileUrl && (
                         <div className="relative group aspect-video w-full bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-                          <img 
-                            src={sanitizeStorageUrl(fileUrl)} 
-                            alt="Design Preview" 
+                          <img
+                            src={sanitizeStorageUrl(fileUrl)}
+                            alt="Design Preview"
                             className="w-full h-full object-contain p-2 hover:scale-[1.02] transition-transform duration-300"
                           />
                         </div>
                       )}
                       <button
                         onClick={() => setShowFileUpload(true)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all cursor-pointer ${
-                          fileUrl
+                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-bold transition-all cursor-pointer ${fileUrl
                             ? "border-cyan-400 bg-cyan-50 text-cyan-700"
                             : "border-gray-300 bg-white text-gray-500 hover:border-cyan-400 hover:text-cyan-500"
-                        }`}
+                          }`}
                       >
                         <Upload className="w-4 h-4 shrink-0" />
                         <span className="truncate max-w-[140px] sm:max-w-[180px]">
@@ -398,8 +397,8 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
         onConfirm={confirmOrder}
         confirmLabel={
           orderButtonText === "Checkout" ? "Checkout Anyway" :
-          orderButtonText === "Confirm"  ? "Confirm Anyway"  :
-          "Order Anyway"
+            orderButtonText === "Confirm" ? "Confirm Anyway" :
+              "Order Anyway"
         }
       />
     </>
