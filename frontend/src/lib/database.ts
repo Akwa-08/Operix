@@ -2190,13 +2190,10 @@ export const db = {
         // ────────────────────────────────────────────────────────────────────
         const empExceptional = exceptionalByEmp[emp.id] || [];
 
-        const daysPresent = empExceptional.length > 0
-          ? empExceptional.reduce((s: number, r: any) => s + (Number(r.hours_counted) || 8), 0) / 8
-          : Number(log.days_present) > 0
-            ? Number(log.days_present)
-            : Number(log.worked_hours) > 0
-              ? Math.round(Number(log.worked_hours) / 8)
-              : 0;
+        const rawDays = Number(log.days_present) || (Number(log.worked_hours) > 0 ? Math.round(Number(log.worked_hours) / 8) : 0);
+        const completeDays = Math.max(0, rawDays - empExceptional.length);
+        const exceptionalDays = empExceptional.reduce((s: number, r: any) => s + (Number(r.hours_counted) || 0), 0) / 8;
+        const daysPresent = completeDays + exceptionalDays;
 
         // ────────────────────────────────────────────────────────────────────
         // BASIC PAY

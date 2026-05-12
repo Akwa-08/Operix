@@ -151,6 +151,12 @@ function deriveMatStatus(item: any): MaterialStatus {
 
 function mapMaterial(item: any): Material {
   const pref = item.item_suppliers?.find((s: any) => s.is_preferred) ?? item.item_suppliers?.[0];
+  const mappedSuppliers = item.item_suppliers?.map((s: any) => ({
+    id: s.suppliers?.id,
+    name: s.suppliers?.name,
+    flagCategory: s.suppliers?.flag_category,
+  })).filter((s: any) => s.id) || [];
+
   return {
     id: item.id, itemType: item.name, itemVariant: item.description || '',
     usableStocks: Number(item.current_quantity), stockUnit: item.unit_of_measure,
@@ -160,6 +166,7 @@ function mapMaterial(item: any): Material {
     supplier: pref?.suppliers?.name || '—', status: deriveMatStatus(item),
     isActive: item.is_active, description: item.description,
     lastSupplierCost: pref ? Number(pref.supplier_unit_price) : undefined,
+    mappedSuppliers,
   };
 }
 
@@ -289,6 +296,7 @@ export function useCartData() {
 }
 
 export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
+  const queryClient = useQueryClient();
   const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
   const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
   
