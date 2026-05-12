@@ -2476,9 +2476,10 @@ export const db = {
         const daysPresent =
           empExceptional.length > 0
             ? empExceptional.reduce(
-              (s: number, r: any) => s + (Number(r.hours_counted) || 8),
-              0,
-            ) / 8
+                (s: number, r: any) =>
+                  s + (r.hours_counted != null ? Number(r.hours_counted) : 8),
+                0,
+              ) / 8
             : Number(log.days_present) > 0
               ? Number(log.days_present)
               : Number(log.worked_hours) > 0
