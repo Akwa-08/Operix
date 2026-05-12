@@ -14,6 +14,10 @@ import {
   Check,
   AlertCircle,
 } from "lucide-react";
+import {
+  fmtDate,
+} from "../../util/formatters";
+import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 type OrderStatus =
   | "Queue"
@@ -101,13 +105,21 @@ export const CustomerOrderDetailsModal: React.FC<
               let circleColor =
                 "bg-gray-100 text-gray-400 border-2 border-white shadow-sm";
               if (isPast) {
-                circleColor =
-                  "bg-emerald-500 text-white shadow-md border-transparent";
+                circleColor = (step.status === "Payment" && order.paymentStatus === "Unpaid")
+                  ? "bg-red-500 text-white shadow-md border-transparent"
+                  : (step.status === "Payment" && order.paymentStatus === "Partially paid")
+                    ? "bg-yellow-500 text-white shadow-md border-transparent"
+                    : (step.status === "Complete" && order.paymentStatus !== "Paid")
+                      ? "bg-yellow-500 text-white shadow-md border-transparent"
+                      : "bg-emerald-500 text-white shadow-md border-transparent";
               } else if (isCurrent) {
-                circleColor =
-                  step.status === "Complete"
-                    ? "bg-emerald-500 text-white shadow-md border-transparent"
-                    : "bg-[#E80088] text-white shadow-md border-transparent"; // Active Magenta
+                circleColor = (step.status === "Payment" && order.paymentStatus === "Unpaid")
+                  ? "bg-red-500 text-white shadow-md border-transparent"
+                  : (step.status === "Payment" && order.paymentStatus === "Partially paid")
+                    ? "bg-yellow-500 text-white shadow-md border-transparent"
+                    : step.status === "Complete"
+                      ? (order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white shadow-md border-transparent" : "bg-emerald-500 text-white shadow-md border-transparent")
+                      : "bg-[#E80088] text-white shadow-md border-transparent"; // Active Magenta
               }
 
               let lineClass = "";
@@ -124,7 +136,9 @@ export const CustomerOrderDetailsModal: React.FC<
                   className="flex flex-col items-center flex-1 relative z-0">
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${circleColor}`}>
-                    {isPast || (isCurrent && step.status === "Complete") ? (
+                    { (step.status === "Payment" && order.paymentStatus === "Unpaid" && (isPast || isCurrent)) ? (
+                      <AlertCircle className="w-5 h-5" />
+                    ) : (isPast || (isCurrent && step.status === "Complete")) ? (
                       <Check className="w-5 h-5" />
                     ) : (
                       <Icon className="w-5 h-5" />
@@ -159,9 +173,12 @@ export const CustomerOrderDetailsModal: React.FC<
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-0.5">
                   Name
                 </p>
-                <p className="font-bold text-gray-900 text-sm">
-                  {order.customerName}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-gray-900 text-sm">
+                    {order.customerName}
+                  </p>
+                  {order.isSuki && <SukiBadge />}
+                </div>
               </div>
               <div>
                 <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-0.5">
@@ -306,7 +323,7 @@ export const CustomerOrderDetailsModal: React.FC<
                       key={i}
                       className="hover:bg-gray-50/50 transition-colors">
                       <td className="px-5 py-3 text-gray-600 font-medium">
-                        {new Date(p.created_at).toLocaleDateString()}
+                        {fmtDate(p.created_at)}
                       </td>
                       <td className="px-5 py-3 text-right font-bold text-gray-900">
                         ₱{p.amount.toLocaleString()}

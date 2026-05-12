@@ -12,6 +12,7 @@ import {
   Power,
   Package,
   Star,
+  Crown,
 } from "lucide-react";
 import { useManagementData, useInventoryData } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
@@ -203,6 +204,7 @@ const AdminManagement: React.FC = () => {
     toggleSupplierActive,
     getSupplierMaterials,
     updateSupplierMaterials,
+    toggleSuki,
   } = useManagementData();
   const { materials } = useInventoryData();
 
@@ -702,6 +704,31 @@ const AdminManagement: React.FC = () => {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="col-span-2 mt-2">
+            <label className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-100 rounded-xl cursor-pointer hover:bg-amber-100/50 transition-colors">
+              <div className="relative flex items-center">
+                <input 
+                  type="checkbox"
+                  checked={selectedUser?.isSuki || false}
+                  onChange={(e) => {
+                    if (selectedUser) {
+                      toggleSuki(selectedUser.id, e.target.checked);
+                    }
+                  }}
+                  className="w-5 h-5 text-amber-600 focus:ring-amber-500 border-amber-300 rounded-md transition-all cursor-pointer"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-amber-900 flex items-center gap-1.5">
+                  <Crown size={14} className="fill-amber-500 text-amber-500" />
+                  Trusted Customer (Suki)
+                </span>
+                <span className="text-[11px] text-amber-700 font-medium">
+                  Bypass payment phase and proceed directly to production.
+                </span>
+              </div>
+            </label>
           </div>
         </div>
         <div className="flex gap-3">

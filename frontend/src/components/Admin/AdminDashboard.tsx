@@ -17,7 +17,10 @@ import {
 import {useDashboardData} from "../../hooks/useSupabase";
 import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {fmtMoney} from "../../util/formatters";
+import {
+  fmtDate,
+  fmtMoney,
+} from "../../util/formatters";
 
 // ─── Quick Action Card ────────────────────────────────────────────────────────
 const QuickActionCard: React.FC<{
@@ -154,10 +157,10 @@ function computeStats(orders: any[]) {
         new Date(o.due_date) < now &&
         !["completed", "pickup", "cancelled"].includes(o.status),
     ).length,
+    unassigned: orders.filter((o) => o.status === "in_queue" && !o.assigned_designer).length,
     collectionRate: revenue > 0 ? Math.round((collected / revenue) * 100) : 0,
   };
 }
-
 type Bucket = {label: string; start: Date; end: Date};
 
 function getBuckets(period: Period): Bucket[] {
@@ -169,7 +172,11 @@ function getBuckets(period: Period): Bucket[] {
       const end = new Date(h);
       end.setMinutes(59, 59, 999);
       return {
-        label: h.toLocaleTimeString("en-US", {hour: "numeric", hour12: true}),
+        label: h.toLocaleTimeString("en-US", {
+          hour: "numeric", 
+          hour12: true,
+          timeZone: "Asia/Manila"
+        }),
         start: new Date(h),
         end,
       };
@@ -184,7 +191,10 @@ function getBuckets(period: Period): Bucket[] {
       const end = new Date(d);
       end.setHours(23, 59, 59, 999);
       return {
-        label: d.toLocaleDateString("en-US", {weekday: "short"}),
+        label: d.toLocaleDateString("en-US", {
+          weekday: "short",
+          timeZone: "Asia/Manila"
+        }),
         start,
         end,
       };
@@ -223,6 +233,7 @@ function getBuckets(period: Period): Bucket[] {
         label: start.toLocaleDateString("en-US", {
           month: "short",
           year: "2-digit",
+          timeZone: "Asia/Manila"
         }),
         start,
         end,
@@ -241,7 +252,10 @@ function getBuckets(period: Period): Bucket[] {
         59,
       );
       return {
-        label: start.toLocaleDateString("en-US", {month: "short"}),
+        label: start.toLocaleDateString("en-US", {
+          month: "short",
+          timeZone: "Asia/Manila"
+        }),
         start,
         end,
       };
@@ -262,6 +276,7 @@ function getBuckets(period: Period): Bucket[] {
       label: start.toLocaleDateString("en-US", {
         month: "short",
         year: "2-digit",
+        timeZone: "Asia/Manila"
       }),
       start,
       end,
@@ -443,7 +458,7 @@ const AdminDashboard = () => {
             "Walk-in"
           : "Walk-in",
         product: o.order_items?.[0]?.product_name || "—",
-        dueDate: o.due_date ? new Date(o.due_date).toLocaleDateString() : "",
+        dueDate: fmtDate(o.due_date),
         status: o.status,
       }));
   }, [rawOrders]);
@@ -458,11 +473,8 @@ const AdminDashboard = () => {
   );
   const activeChart = CHART_TYPES.find((c) => c.key === chartType)!;
   const periodLabel = PERIODS.find((p) => p.key === period)?.label ?? "";
-  const dateStr = new Date().toLocaleDateString("en-US", {
+  const dateStr = fmtDate(new Date(), {
     weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
   });
 
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
@@ -501,6 +513,29 @@ const AdminDashboard = () => {
           ))}
         </div>
       </div>
+
+      {/* ── UNASSIGNED ORDERS WARNING ─────────────────────────────────── */}
+      {stats.unassigned > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between mb-6 shadow-sm border-l-4 border-l-red-500">
+          <div className="flex items-center gap-3">
+            <div className="bg-red-100 p-2 rounded-lg text-red-600">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <h4 className="text-red-900 font-bold">Unassigned Orders Detected</h4>
+              <p className="text-red-700 text-xs">
+                There are {stats.unassigned} orders in queue without a designer. 
+                Auto-dispatch is waiting for a designer to come online.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => navigate("/admin/orders")}
+            className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors">
+            Assign Now
+          </button>
+        </div>
+      )}
 
       {/* ── 3. KPI CARDS ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

@@ -94,13 +94,9 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handleDeleteOrder = async (order: Order) => {
-    if (order.status === "In Queue") {
+    if (order.status === "In Queue" || order.status === "Designing") {
       setOrderToCancel(order);
       setShowCancelConfirm(true);
-    } else if (order.status === "Designing") {
-      toast.error(
-        "Your order is currently being designed. Please message our designer to request a cancellation."
-      );
     } else {
       toast.error(
         "Order cannot be cancelled at this stage. Please contact us for assistance."

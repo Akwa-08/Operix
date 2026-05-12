@@ -11,6 +11,7 @@ import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 import { PageHeader } from "../Shared/UI/PageHeader";
 import { InfoBanner } from "../Shared/UI/InfoBanner";
 import { useOrdersData, useInventoryData, useMyProfile } from "../../hooks/useSupabase";
+import { fmtDate } from "../../util/formatters";
 
 const ProductionDashboard = () => {
   const { profile } = useMyProfile();
@@ -44,11 +45,8 @@ const ProductionDashboard = () => {
     [orders],
   );
 
-  const dateStr = new Date().toLocaleDateString("en-US", {
+  const dateStr = fmtDate(new Date(), {
     weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
   });
 
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
