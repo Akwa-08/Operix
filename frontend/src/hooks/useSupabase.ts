@@ -616,7 +616,7 @@ function mapAdminProduct(raw: any): AdminProduct {
 
 export function useProductsData(filters?: { search?: string; category?: string }) {
   const q = useQuery(() => db.getProductsWithBOM(filters), [filters?.search, filters?.category], ['products', 'product_supply_mapping', 'inventory_items']);
-  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
+  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items', 'item_suppliers', 'suppliers']);
   const raw = q.data || [];
   const products: AdminProduct[] = raw.map(mapAdminProduct);
   const materials: Material[] = (rawMaterials || []).filter((m: any) => m.is_active).map(mapMaterial);
