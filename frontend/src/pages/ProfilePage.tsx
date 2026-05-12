@@ -5,16 +5,16 @@
 
 import {useState, useEffect} from "react";
 import {User, Mail, Phone, MapPin, Lock, Eye, EyeOff} from "lucide-react";
-import { useToast } from "../context/ToastContext";
+import {useToast} from "../context/ToastContext";
 import {useAuth} from "../context/AuthContext";
 import authService from "../services/authService";
-import { db, uploadProfilePicture } from "../lib/database";
-import { clearProfileCache } from "../hooks/useSupabase";
-import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
-import { fmtDate } from "../util/formatters";
+import {db, uploadProfilePicture} from "../lib/database";
+import {clearProfileCache} from "../hooks/useSupabase";
+import {LoadingSpinner} from "../components/Shared/UI/LoadingSpinner";
+import {fmtDate} from "../util/formatters";
 
 export const ProfilePage = () => {
-  const { refreshUser, user } = useAuth();
+  const {refreshUser, user} = useAuth();
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -31,7 +31,9 @@ export const ProfilePage = () => {
   const [address, setAddress] = useState("");
   const [memberSince, setMemberSince] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null);
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(
+    null,
+  );
   const [isUploadingPicture, setIsUploadingPicture] = useState(false);
 
   // Password fields
@@ -83,11 +85,14 @@ export const ProfilePage = () => {
     setIsSaving(true);
     try {
       let finalAvatarUrl = avatarUrl;
-      
+
       if (profilePictureFile) {
         setIsUploadingPicture(true);
         // Pass the current avatarUrl to delete the old file after new upload
-        finalAvatarUrl = await uploadProfilePicture(profilePictureFile, avatarUrl);
+        finalAvatarUrl = await uploadProfilePicture(
+          profilePictureFile,
+          avatarUrl,
+        );
         setAvatarUrl(finalAvatarUrl);
         setProfilePictureFile(null);
         setIsUploadingPicture(false);
@@ -148,7 +153,9 @@ export const ProfilePage = () => {
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-sm p-6 md:p-10 mb-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">Personal Information</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
+            Personal Information
+          </h2>
           <div className="flex gap-3 w-full sm:w-auto">
             {isEditing && (
               <button
@@ -179,25 +186,30 @@ export const ProfilePage = () => {
         {/* Profile Header */}
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-10 pb-10 border-b border-gray-100 text-center sm:text-left">
           <div className="relative group w-24 h-24 rounded-full">
-            {avatarUrl || (profilePictureFile && URL.createObjectURL(profilePictureFile)) ? (
-              <img 
-                src={profilePictureFile ? URL.createObjectURL(profilePictureFile) : avatarUrl} 
-                alt="Profile" 
-                className="w-full h-full object-cover rounded-full shadow-inner" 
+            {avatarUrl ||
+            (profilePictureFile && URL.createObjectURL(profilePictureFile)) ? (
+              <img
+                src={
+                  profilePictureFile
+                    ? URL.createObjectURL(profilePictureFile)
+                    : avatarUrl
+                }
+                alt="Profile"
+                className="w-full h-full object-cover rounded-full shadow-inner"
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-3xl font-bold text-gray-600 shadow-inner">
                 {initials}
               </div>
             )}
-            
+
             {isEditing && (
               <label className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white text-xs font-bold opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer overflow-hidden">
                 {isUploadingPicture ? "Uploading..." : "Add/Edit"}
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
                   disabled={isUploadingPicture || isSaving}
                   onChange={(e) => {
                     if (e.target.files && e.target.files[0]) {
@@ -208,15 +220,21 @@ export const ProfilePage = () => {
                       }
                       setProfilePictureFile(file);
                     }
-                  }} 
+                  }}
                 />
               </label>
             )}
           </div>
           <div className="space-y-1">
             <h3 className="text-2xl font-bold text-gray-900">{fullName}</h3>
-            <p className="text-lg text-cyan-600 font-semibold capitalize">{user?.role || 'Member'}</p>
-            {memberSince && <p className="text-sm text-gray-400 font-medium">Member since {memberSince}</p>}
+            <p className="text-lg text-cyan-600 font-semibold capitalize">
+              {user?.role || "Member"}
+            </p>
+            {memberSince && (
+              <p className="text-sm text-gray-400 font-medium">
+                Member since {memberSince}
+              </p>
+            )}
           </div>
         </div>
 
@@ -273,18 +291,30 @@ export const ProfilePage = () => {
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-3xl p-8 md:p-10 w-full max-w-md shadow-2xl relative overflow-y-auto max-h-[90vh]">
-            <h3 className="text-2xl font-bold text-gray-900 mb-8">Change Password</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-8">
+              Change Password
+            </h3>
 
             <div className="mb-6">
               <label className="text-sm font-bold text-gray-600 mb-2 block">
                 New Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type={showNew ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full bg-gray-50 border-none rounded-xl pl-12 pr-12 py-3.5 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                  {showNew ? <EyeOff size={18} /> : <Eye size={18} />}
+                <Lock
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type={showNew ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-xl pl-12 pr-12 py-3.5 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(!showNew)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                  {showNew ? <Eye size={18} /> : <EyeOff size={18} />}
                 </button>
               </div>
             </div>
@@ -294,18 +324,34 @@ export const ProfilePage = () => {
                 Confirm New Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input type={showConfirm ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-gray-50 border-none rounded-xl pl-12 pr-12 py-3.5 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                  {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                <Lock
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-gray-50 border-none rounded-xl pl-12 pr-12 py-3.5 text-base focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                  {showConfirm ? <Eye size={18} /> : <EyeOff size={18} />}
                 </button>
               </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <button onClick={() => setShowPasswordModal(false)} className="flex-1 px-5 py-3.5 border border-gray-200 rounded-xl text-base font-bold text-gray-600 hover:bg-gray-50 transition active:scale-95">Cancel</button>
-              <button onClick={handlePasswordSave} disabled={isPasswordSaving}
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="flex-1 px-5 py-3.5 border border-gray-200 rounded-xl text-base font-bold text-gray-600 hover:bg-gray-50 transition active:scale-95">
+                Cancel
+              </button>
+              <button
+                onClick={handlePasswordSave}
+                disabled={isPasswordSaving}
                 className="flex-1 bg-cyan-500 text-white px-6 py-3.5 rounded-xl text-base font-bold hover:bg-cyan-600 shadow-md shadow-cyan-100 disabled:opacity-50 transition active:scale-95">
                 {isPasswordSaving ? "Saving..." : "Change Password"}
               </button>
@@ -332,7 +378,9 @@ const FieldWithIcon = ({
   disabled: boolean;
 }) => (
   <div>
-    <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">{label}</label>
+    <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">
+      {label}
+    </label>
     <div className="relative">
       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-cyan-500">
         {icon}
@@ -343,7 +391,9 @@ const FieldWithIcon = ({
         onChange={onChange}
         disabled={disabled}
         className={`w-full pl-12 pr-4 py-3.5 border-none rounded-xl transition-all duration-200 ${
-          disabled ? "bg-gray-50 text-gray-500" : "bg-white text-gray-900 shadow-sm focus:ring-2 focus:ring-cyan-500"
+          disabled
+            ? "bg-gray-50 text-gray-500"
+            : "bg-white text-gray-900 shadow-sm focus:ring-2 focus:ring-cyan-500"
         }`}
       />
     </div>
