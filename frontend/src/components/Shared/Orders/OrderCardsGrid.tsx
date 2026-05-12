@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+// src/components/Shared/Orders/OrderCardsGrid.tsx
+// Renders Order[] as card layout with timeline, mapping staff Order type → OrderCard format
+
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye, CreditCard, Trash2, Clock, Palette,
@@ -41,7 +43,7 @@ const getStatusColor = (status: CardStatus) => {
 const getPaymentColor = getPaymentStatusColor;
 
 // ── Single card ─────────────────────────────────────────────────────────────
-const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen, hidePayWhen, isHighlighted, highlightedRef }: {
+const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen, hidePayWhen }: {
   order: Order;
   onView: (o: Order) => void;
   onEdit?: (o: Order) => void;
@@ -49,19 +51,13 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
   onPay?: (o: Order) => void;
   hideDeleteWhen?: (o: Order) => boolean;
   hidePayWhen?: (o: Order) => boolean;
-  isHighlighted?: boolean;
-  highlightedRef?: any;
 }) => {
   const cardStatus = mapStatus(order.status);
   const stepIdx = statusSteps.findIndex(s => s.status === cardStatus);
 
   return (
-    <motion.div 
-      ref={highlightedRef}
-      initial={{ opacity: 0, y: 10 }} 
-      animate={{ opacity: 1, y: 0 }}
-      className={`p-5 rounded-2xl border transition-all ${isHighlighted ? "highlight-pulse ring-2 ring-cyan-500" : (order.hasUnreadDecline ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200')} ${order.paymentStatus === "Partially paid" ? 'bg-yellow-50/80' : 'bg-white'} shadow-sm flex flex-col gap-3 hover:shadow-md`}
-    >
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+      className={`p-5 rounded-2xl border transition-all ${order.hasUnreadDecline ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200'} ${order.paymentStatus === "Partially paid" ? 'bg-yellow-50/80' : 'bg-white'} shadow-sm flex flex-col gap-3 hover:shadow-md`}>
 
       {/* Header: customer + order number */}
       <div className="flex items-center gap-3">
@@ -141,7 +137,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
           className="flex-1 bg-sky-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-sky-600">
           <Eye size={14} /> View
         </button>
-        {onPay && order.paymentStatus !== "Paid" && order.status !== "In Queue" && order.status !== "Designing" && (!hidePayWhen || !hidePayWhen(order)) && (
+        {onPay && order.status === "Payment" && order.paymentStatus !== "Paid" && (!hidePayWhen || !hidePayWhen(order)) && (
           <button onClick={() => onPay(order)}
             className="flex-1 bg-emerald-500 text-white text-xs font-semibold py-2 rounded-lg flex items-center justify-center gap-1.5 hover:bg-emerald-600">
             <CreditCard size={14} /> Pay
@@ -174,18 +170,9 @@ interface OrderCardsGridProps {
   onPay?: (order: Order) => void;
   hideDeleteWhen?: (order: Order) => boolean;
   hidePayWhen?: (order: Order) => boolean;
-  highlightedId?: string | null;
 }
 
-export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete, onPay, hideDeleteWhen, hidePayWhen, highlightedId }) => {
-  const highlightedRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (highlightedId && highlightedRef.current) {
-      highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [highlightedId]);
-
+export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, onEdit, onDelete, onPay, hideDeleteWhen, hidePayWhen }) => {
   if (orders.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-dashed border-gray-200">
@@ -208,12 +195,9 @@ export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, 
             onPay={onPay}
             hideDeleteWhen={hideDeleteWhen}
             hidePayWhen={hidePayWhen}
-            isHighlighted={highlightedId === o.id}
-            highlightedRef={highlightedId === o.id ? highlightedRef : undefined}
           />
         ))}
       </motion.div>
     </AnimatePresence>
   );
 };
-
