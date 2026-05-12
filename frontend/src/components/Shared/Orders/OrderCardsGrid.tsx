@@ -30,14 +30,6 @@ const mapStatus = (status: string): CardStatus => {
   return map[status] || "Queue";
 };
 
-const getStatusColor = (status: CardStatus) => {
-  const colors: Record<CardStatus, string> = {
-    Queue: "bg-sky-500", Design: "bg-pink-500", Payment: "bg-green-500",
-    Production: "bg-violet-500", "Pick-up": "bg-amber-500", Complete: "bg-emerald-500",
-  };
-  return colors[status] || "bg-gray-400";
-};
-
 const getPaymentColor = getPaymentStatusColor;
 
 // ── Single card ─────────────────────────────────────────────────────────────
