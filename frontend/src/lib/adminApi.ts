@@ -60,4 +60,15 @@ updateUser: (id: string, data: { email?: string; password?: string; role?: strin
     if (error) throw error;
     return { success: true, data };
   },
+
+  async toggleSuki(id: string, isSuki: boolean) {
+    const { data, error } = await supabase
+      .from('users')
+      .update({ is_suki: isSuki })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return { success: true, data };
+  },
 };

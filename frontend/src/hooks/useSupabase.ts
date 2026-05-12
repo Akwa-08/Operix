@@ -20,7 +20,7 @@ import type {
   UserRole, FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
   AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole,
 } from '../Types';
-import { parseDbDate } from '../util/formatters';
+import { fmtDate, parseDbDate } from '../util/formatters';
 
 function useQuery<T>(
   fetcher: () => Promise<T>,
@@ -89,8 +89,8 @@ function mapOrder(raw: any): Order {
     quantity: items.reduce((s: number, i: any) => s + (i.quantity || 0), 0),
     totalAmount: Number(raw.total_amount) || 0,
     status: mapStatus(raw.status), paymentStatus: mapPayment(raw.payment_status),
-    dateOrdered: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
-    dueDate: parseDbDate(raw.due_date)?.toLocaleDateString() || '',
+    dateOrdered: fmtDate(raw.created_at),
+    dueDate: fmtDate(raw.due_date),
     specialInstructions: raw.special_instructions || items[0]?.specifications || '', designFile: raw.design_file_url || items[0]?.file_url || '',
     assignedDesigner: raw.assigned_designer || '', assignedProduction: raw.assigned_production || '',
     designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
@@ -99,12 +99,14 @@ function mapOrder(raw: any): Order {
     finalDesignUrl: raw.final_design_url || '',
     lastDeclineReason: raw.last_decline_reason || '',
     hasUnreadDecline: !!raw.has_unread_decline,
+    isSuki: !!c?.is_suki,
     payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
       id: p.id, amount: Number(p.amount) || 0, payment_method: p.payment_method,
       reference_number: p.reference_number, created_at: p.created_at,
       status: (p.status || "pending") as "approved" | "declined" | "pending",
       decline_reason: p.decline_reason
     })) : [],
+    rejectedByDesigners: raw.rejected_by_designers || [],
   };
 }
 
@@ -114,7 +116,9 @@ function mapUser(raw: any): FrontendUser {
     email: raw.email || '',
     role: raw.role ? raw.role.charAt(0).toUpperCase() + raw.role.slice(1) : 'Customer',
     contactNumber: raw.contact_number || '', isActive: raw.is_active ?? true,
-    createdAt: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
+    isSuki: !!raw.is_suki,
+    createdAt: fmtDate(raw.created_at),
+    lastSeenAt: raw.last_seen_at,
   };
 }
 
@@ -136,7 +140,7 @@ function mapEmployee(raw: any): EmployeeRecord {
     baseHourlyRate: Number(raw.base_hourly_rate) || 0,
     holidayRateMultiplier: Number(raw.holiday_rate_multiplier) || 2.0,
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
-    hireDate: parseDbDate(raw.hire_date)?.toLocaleDateString() || '',
+    hireDate: fmtDate(raw.hire_date),
     isActive: raw.is_active ?? true,
     philhealthContribution: Number(raw.philhealth_contribution) || 0,
     hdmfContribution: Number(raw.hdmf_contribution) || 0,
@@ -185,6 +189,20 @@ function mapMaterial(item: any): Material {
 
 export function useMyProfile() {
   const q = useQuery(async () => { return await db.getMyProfile(); }, ['my-profile'], ['users']);
+
+  useEffect(() => {
+    // Heartbeat every 2 minutes if tab is active
+    const heartbeat = () => {
+      if (document.visibilityState === 'visible') {
+        db.updateLastSeen();
+      }
+    };
+    
+    const interval = setInterval(heartbeat, 120000);
+    heartbeat(); // Initial
+    
+    return () => clearInterval(interval);
+  }, []);
   return { profile: q.data, ...q };
 }
 
@@ -221,6 +239,7 @@ export function useOrders(filters?: { status?: string; assigned_designer?: strin
   const orders = rawOrders || [];
   const staff = (staffList || []).map((s: any) => ({
     id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', role: s.role,
+    lastSeenAt: s.last_seen_at,
   }));
 
   const now = new Date();
@@ -336,11 +355,57 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
 
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
-  const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
+  const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ 
+    id: s.id, 
+    name: `${s.firstName} ${s.lastName}`.trim(),
+    lastSeenAt: s.lastSeenAt 
+  }));
 
   const productionStaff = employees
     .filter((e: any) => e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
     .map((e: any) => ({ id: e.id, name: e.full_name }));
+
+  // Auto-dispatch algorithm
+  useEffect(() => {
+    if (loading || !orders.length || !designers.length) return;
+
+    const unassigned = orders.filter(o => o.status === "In Queue" && !o.assignedDesigner);
+    if (unassigned.length === 0) return;
+
+    const dispatchNext = async () => {
+      const now = new Date();
+      for (const order of unassigned) {
+        const loads = designers.map(d => {
+          const loadCount = orders.filter(o => o.assignedDesigner === d.id && (o.status === "In Queue" || o.status === "Designing")).length;
+          const hasRejected = order.rejectedByDesigners?.includes(d.id);
+          
+          // Consider "online" if seen in the last 15 minutes
+          const lastSeenAt = d.lastSeenAt;
+          let isOnline = false;
+          if (lastSeenAt) {
+            const lastSeenDate = new Date(lastSeenAt);
+            const diffMs = now.getTime() - lastSeenDate.getTime();
+            isOnline = diffMs < 900000; // 15 mins
+          }
+
+          return { id: d.id, load: loadCount, hasRejected, isOnline };
+        });
+
+        // Filter for candidates who are ONLINE and haven't rejected
+        const candidates = loads
+          .filter(c => c.isOnline && !c.hasRejected)
+          .sort((a, b) => a.load - b.load);
+
+        if (candidates.length > 0) {
+          await db.assignDesignerForAcceptance(order.id, candidates[0].id);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      refresh();
+    };
+
+    dispatchNext();
+  }, [orders, designers, loading, queryClient, refresh]);
 
   return {
     orders, stats, staffList, designers, productionStaff, loading, error, refresh,
@@ -442,6 +507,13 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       })); 
       return r; 
     },
+    rejectAssignedDesignOrder: async (orderId: string) => { 
+      const r = await safe(() => db.designerRejectAssignedOrder(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      })); 
+      return r; 
+    },
     approveOrderDesign: async (orderId: string) => { 
       const r = await safe(() => db.approveOrderDesign(orderId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -503,6 +575,7 @@ export function useManagementData() {
       );
       return r;
     },
+    toggleSuki: async (id: string, isSuki: boolean) => { const r = await safe(() => adminApi.toggleSuki(id, isSuki).then(() => refreshUsers())); return r; },
   };
 }
 
@@ -518,7 +591,7 @@ export function useDashboard() {
     phasedOut: items.filter((i: any) => !i.is_active).length,
   };
   const lowStockItems = items.filter((i: any) => Number(i.current_quantity) > 0 && Number(i.current_quantity) <= Number(i.reorder_point)).map((i: any) => ({ id: i.id, name: i.name, currentQty: Number(i.current_quantity), reorderPoint: Number(i.reorder_point), unit: i.unit_of_measure }));
-  const recentOrders = orders.slice(0, 5).map((o: any) => { const c = o.customer; return { id: o.id, orderId: o.order_number, customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in', product: o.order_items?.[0]?.product_name || 'Multiple', amount: Number(o.total_amount) || 0, status: o.status, date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '' }; });
+  const recentOrders = orders.slice(0, 5).map((o: any) => { const c = o.customer; return { id: o.id, orderId: o.order_number, customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in', product: o.order_items?.[0]?.product_name || 'Multiple', amount: Number(o.total_amount) || 0, status: o.status, date: fmtDate(o.created_at) }; });
   const totalRevenue = orders.reduce((s: number, o: any) => s + (Number(o.total_amount) || 0), 0);
   const totalCollected = orders.reduce((s: number, o: any) => s + (Number(o.amount_paid) || 0), 0);
   const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, unpaid: orderStats.pendingPayment };
@@ -553,7 +626,7 @@ export function useProductsData(filters?: { search?: string; category?: string }
 
 function mapDelivery(raw: any): Delivery {
   const req = raw.requester;
-  return { id: raw.id, inventoryItemId: raw.inventory_item_id, materialName: raw.inventory_item?.name || '—', materialUnit: raw.inventory_item?.purchase_unit || raw.inventory_item?.unit_of_measure || '', supplierId: raw.supplier_id, supplierName: raw.supplier?.name || '—', requestedBy: raw.requested_by, requestedByName: req ? `${req.first_name || ''} ${req.last_name || ''}`.trim() : '—', requestedQuantity: Number(raw.requested_quantity), expectedArrivalDate: raw.expected_arrival_date || '', status: raw.status as DeliveryStatus, receivedQuantity: Number(raw.received_quantity) || 0, receiptReferenceNumber: raw.receipt_reference_number || '', receivedDate: raw.received_date ? new Date(raw.received_date).toLocaleDateString() : '', notes: raw.notes || '', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '' };
+  return { id: raw.id, inventoryItemId: raw.inventory_item_id, materialName: raw.inventory_item?.name || '—', materialUnit: raw.inventory_item?.purchase_unit || raw.inventory_item?.unit_of_measure || '', supplierId: raw.supplier_id, supplierName: raw.supplier?.name || '—', requestedBy: raw.requested_by, requestedByName: req ? `${req.first_name || ''} ${req.last_name || ''}`.trim() : '—', requestedQuantity: Number(raw.requested_quantity), expectedArrivalDate: raw.expected_arrival_date || '', status: raw.status as DeliveryStatus, receivedQuantity: Number(raw.received_quantity) || 0, receiptReferenceNumber: raw.receipt_reference_number || '', receivedDate: fmtDate(raw.received_date), notes: raw.notes || '', createdAt: fmtDate(raw.created_at) };
 }
 
 export function useDeliveries() {
@@ -619,7 +692,7 @@ export interface PendingCashAdvance {
 
 function mapCashAdvance(raw: any): CashAdvance {
   const emp = raw.employee; const issuer = raw.issuer;
-  return { id: raw.id, employeeId: raw.employee_id, employeeCode: emp?.employee_code || '', employeeName: emp?.full_name || '', employeePosition: emp?.position || '', amount: Number(raw.amount) || 0, dateIssued: raw.date_issued || '', reason: raw.reason || '', status: raw.status as CashAdvanceStatus, payrollPeriodId: raw.payroll_period_id || null, issuedByName: issuer ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim() : '—', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '', declineReason: raw.decline_reason || '' };
+  return { id: raw.id, employeeId: raw.employee_id, employeeCode: emp?.employee_code || '', employeeName: emp?.full_name || '', employeePosition: emp?.position || '', amount: Number(raw.amount) || 0, dateIssued: raw.date_issued || '', reason: raw.reason || '', status: raw.status as CashAdvanceStatus, payrollPeriodId: raw.payroll_period_id || null, issuedByName: issuer ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim() : '—', createdAt: fmtDate(raw.created_at), declineReason: raw.decline_reason || '' };
 }
 
 function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
@@ -691,7 +764,7 @@ function mapPeriod(raw: any): PayrollPeriod {
   return {
     id: raw.id, periodStart: raw.period_start, periodEnd: raw.period_end,
     payDate: raw.pay_date || '', status: raw.status,
-    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
+    createdAt: fmtDate(raw.created_at),
   };
 }
 

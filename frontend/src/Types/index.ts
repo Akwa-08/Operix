@@ -53,6 +53,8 @@ export interface Order {
   }[];
   lastDeclineReason?: string;
   hasUnreadDecline?: boolean;
+  isSuki?: boolean;
+  rejectedByDesigners?: string[];
 }
 
 export interface Material {
@@ -129,7 +131,9 @@ export interface FrontendUser {
   role: string;
   contactNumber: string;
   isActive: boolean;
+  isSuki?: boolean;
   createdAt: string;
+  lastSeenAt?: string;
 }
 
 export interface FrontendSupplier {

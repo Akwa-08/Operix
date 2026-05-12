@@ -135,6 +135,17 @@ export const db = {
     return data;
   },
 
+  async updateLastSeen() {
+    const {
+      data: {user},
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase
+      .from("users")
+      .update({last_seen_at: new Date().toISOString()})
+      .eq("id", user.id);
+  },
+
   async updateMyProfile(updates: {
     first_name?: string;
     last_name?: string;
@@ -186,41 +197,76 @@ export const db = {
   // ── System Utilities (Logging & Notifications) ─────────────────────────
   async logAudit(action: string, table: string, id: string, metadata: any) {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: {user},
+      } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single();
-      await supabase.from('audit_logs').insert([{
-        actor_id: user.id,
-        actor_role: profile?.role || 'unknown',
-        action,
-        target_table: table,
-        target_id: id,
-        metadata
-      }]);
-    } catch (e) { console.error("Audit log failed:", e); }
+      const {data: profile} = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+      await supabase.from("audit_logs").insert([
+        {
+          actor_id: user.id,
+          actor_role: profile?.role || "unknown",
+          action,
+          target_table: table,
+          target_id: id,
+          metadata,
+        },
+      ]);
+    } catch (e) {
+      console.error("Audit log failed:", e);
+    }
   },
 
-  async notifyRoles(roles: string[], title: string, message: string, module?: string, id?: string) {
+  async notifyRoles(
+    roles: string[],
+    title: string,
+    message: string,
+    module?: string,
+    id?: string,
+  ) {
     try {
-      const { data: users } = await supabase.from('users').select('id').in('role', roles);
+      const {data: users} = await supabase
+        .from("users")
+        .select("id")
+        .in("role", roles);
       if (!users || users.length === 0) return;
-      const notifs = users.map(u => ({
+      const notifs = users.map((u) => ({
         user_id: u.id,
         title,
         message,
         related_module: module,
-        related_id: id
+        related_id: id,
       }));
-      await supabase.from('notifications').insert(notifs);
-    } catch (e) { console.error("Notification failed:", e); }
+      await supabase.from("notifications").insert(notifs);
+    } catch (e) {
+      console.error("Notification failed:", e);
+    }
   },
 
-  async notifyUser(userId: string, title: string, message: string, module?: string, id?: string) {
+  async notifyUser(
+    userId: string,
+    title: string,
+    message: string,
+    module?: string,
+    id?: string,
+  ) {
     try {
-      await supabase.from('notifications').insert([{
-        user_id: userId, title, message, related_module: module, related_id: id
-      }]);
-    } catch (e) { console.error("User notification failed:", e); }
+      await supabase.from("notifications").insert([
+        {
+          user_id: userId,
+          title,
+          message,
+          related_module: module,
+          related_id: id,
+        },
+      ]);
+    } catch (e) {
+      console.error("User notification failed:", e);
+    }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -261,7 +307,10 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Create Employee", "employees", data.id, { name: data.full_name, position: data.position });
+    await this.logAudit("Create Employee", "employees", data.id, {
+      name: data.full_name,
+      position: data.position,
+    });
     return data;
   },
 
@@ -273,7 +322,7 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Update Employee", "employees", id, { updates });
+    await this.logAudit("Update Employee", "employees", id, {updates});
     return data;
   },
 
@@ -302,7 +351,9 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Create Supplier", "suppliers", data.id, { name: data.name });
+    await this.logAudit("Create Supplier", "suppliers", data.id, {
+      name: data.name,
+    });
     return data;
   },
 
@@ -314,7 +365,7 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Update Supplier", "suppliers", id, { updates });
+    await this.logAudit("Update Supplier", "suppliers", id, {updates});
     return data;
   },
 
@@ -406,7 +457,6 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-
     if (supplierIds.length > 0) {
       const { error: insErr } = await supabase.from("item_suppliers").insert(
         supplierIds
@@ -422,12 +472,18 @@ export const db = {
       if (insErr) throw insErr;
     }
 
-    await this.logAudit("Create Inventory Item", "inventory_items", data.id, { name: data.name });
+    await this.logAudit("Create Inventory Item", "inventory_items", data.id, {
+      name: data.name,
+    });
     return data;
   },
 
   async updateInventoryItem(id: string, updates: Record<string, any>) {
-    const { data: oldItem } = await supabase.from('inventory_items').select('*').eq('id', id).single();
+    const { data: oldItem } = await supabase
+      .from("inventory_items")
+      .select("*")
+      .eq("id", id)
+      .single();
     const { data, error } = await supabase
       .from("inventory_items")
       .update(updates)
@@ -439,11 +495,20 @@ export const db = {
     await this.logAudit("Update Inventory", "inventory_items", id, {
       before: oldItem,
       after: data,
-      changed_fields: Object.keys(updates)
+      changed_fields: Object.keys(updates),
     });
 
-    if (data.current_quantity <= data.reorder_point && (!oldItem || oldItem.current_quantity > oldItem.reorder_point)) {
-      await this.notifyRoles(['admin', 'cashier'], "Low Stock Alert", `${data.name} is below reorder point (${data.current_quantity} left).`, 'inventory', id);
+    if (
+      data.current_quantity <= data.reorder_point &&
+      (!oldItem || oldItem.current_quantity > oldItem.reorder_point)
+    ) {
+      await this.notifyRoles(
+        ["admin", "cashier"],
+        "Low Stock Alert",
+        `${data.name} is below reorder point (${data.current_quantity} left).`,
+        "inventory",
+        id,
+      );
     }
 
     return data;
@@ -479,7 +544,10 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Create Product", "products", data.id, { name: data.name, category: data.category });
+    await this.logAudit("Create Product", "products", data.id, {
+      name: data.name,
+      category: data.category,
+    });
     return data;
   },
 
@@ -491,7 +559,7 @@ export const db = {
       .select()
       .single();
     if (error) throw error;
-    await this.logAudit("Update Product", "products", id, { updates });
+    await this.logAudit("Update Product", "products", id, {updates});
     return data;
   },
 
@@ -508,7 +576,7 @@ export const db = {
       .select(
         `
       *,
-      customer:customer_id(id, first_name, last_name, email, contact_number),
+      customer:customer_id(id, first_name, last_name, email, contact_number, is_suki),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
@@ -535,7 +603,7 @@ export const db = {
       .select(
         `
       *,
-      customer:customer_id(id, first_name, last_name, email, contact_number),
+      customer:customer_id(id, first_name, last_name, email, contact_number, is_suki),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
@@ -547,12 +615,56 @@ export const db = {
     if (error) throw error;
     return data;
   },
+  async getLeastBurdenedDesigner(): Promise<string | null> {
+    // 1. Get all online and active designers (last 15 mins)
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    
+    const { data: designers, error: dErr } = await supabase
+      .from("users")
+      .select("id")
+      .eq("role", "designer")
+      .eq("is_active", true)
+      .gt("last_seen_at", fifteenMinsAgo);
+
+    if (dErr || !designers || designers.length === 0) return null;
+
+    // 2. Get active order counts for these designers
+    const { data: orders, error: oErr } = await supabase
+      .from("orders")
+      .select("assigned_designer")
+      .not("status", "in", '("completed","cancelled")')
+      .not("assigned_designer", "is", null);
+
+    if (oErr) return designers[0].id;
+
+    // 3. Map counts
+    const counts: Record<string, number> = {};
+    designers.forEach((d) => (counts[d.id] = 0));
+    orders.forEach((o: any) => {
+      if (counts[o.assigned_designer] !== undefined) {
+        counts[o.assigned_designer]++;
+      }
+    });
+
+    // 4. Find minimum
+    let minId = designers[0].id;
+    let minCount = counts[minId];
+
+    designers.forEach((d) => {
+      if (counts[d.id] < minCount) {
+        minCount = counts[d.id];
+        minId = d.id;
+      }
+    });
+
+    return minId;
+  },
 
   async createOrder(order: {
-    customer_id?: string | null;
-    guest_name?: string | null;
-    guest_phone?: string | null;
-    guest_email?: string | null;
+    customer_id?: string;
+    guest_name?: string;
+    guest_phone?: string;
+    guest_email?: string;
     order_type: string;
     special_instructions?: string;
     due_date?: string;
@@ -582,6 +694,12 @@ export const db = {
       orderNumber = `ORD-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
     }
 
+    // Auto-dispatch if not specified
+    let assignedDesigner = order.assigned_designer;
+    if (!assignedDesigner) {
+      assignedDesigner = (await this.getLeastBurdenedDesigner()) || undefined;
+    }
+
     const totalAmount = order.items.reduce(
       (s, i) => s + i.quantity * i.unit_price,
       0,
@@ -605,7 +723,7 @@ export const db = {
           due_date: order.due_date || null,
           total_amount: totalAmount,
           amount_paid: 0,
-          assigned_designer: order.assigned_designer || null,
+          assigned_designer: assignedDesigner || null,
           assigned_production: order.assigned_production || null,
           design_file_url: order.design_file_url || null,
         },
@@ -631,20 +749,36 @@ export const db = {
     await this.logAudit("Create Order", "orders", newOrder.id, {
       order_number: orderNumber,
       total_amount: totalAmount,
-      items_count: items.length
+      items_count: items.length,
     });
 
-    await this.notifyRoles(['admin', 'cashier'], "New Order Received", `Order ${orderNumber} has been placed for ${order.guest_name || 'a customer'}.`, 'orders', newOrder.id);
+    await this.notifyRoles(
+      ["admin", "cashier"],
+      "New Order Received",
+      `Order ${orderNumber} has been placed for ${order.guest_name || "a customer"}.`,
+      "orders",
+      newOrder.id,
+    );
 
     if (order.assigned_designer) {
-      await this.notifyUser(order.assigned_designer, "New Design Assignment", `You have been assigned to design Order ${orderNumber}.`, 'orders', newOrder.id);
+      await this.notifyUser(
+        order.assigned_designer,
+        "New Design Assignment",
+        `You have been assigned to design Order ${orderNumber}.`,
+        "orders",
+        newOrder.id,
+      );
     }
 
     return newOrder;
   },
 
   async updateOrder(id: string, updates: Record<string, any>) {
-    const { data: old } = await supabase.from('orders').select('*').eq('id', id).single();
+    const { data: old } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", id)
+      .single();
     const { data, error } = await supabase
       .from("orders")
       .update(updates)
@@ -656,13 +790,25 @@ export const db = {
     await this.logAudit("Update Order", "orders", id, {
       before: old,
       after: data,
-      changed: Object.keys(updates)
+      changed: Object.keys(updates),
     });
 
     if (updates.status && updates.status !== old.status) {
-      await this.notifyRoles(['admin', 'cashier'], "Order Status Updated", `Order ${data.order_number} changed from ${old.status} to ${data.status}.`, 'orders', id);
+      await this.notifyRoles(
+        ["admin", "cashier"],
+        "Order Status Updated",
+        `Order ${data.order_number} changed from ${old.status} to ${data.status}.`,
+        "orders",
+        id,
+      );
       if (data.customer_id) {
-        await this.notifyUser(data.customer_id, "Order Update", `Your order ${data.order_number} is now ${data.status.replace('_', ' ')}.`, 'orders', id);
+        await this.notifyUser(
+          data.customer_id,
+          "Order Update",
+          `Your order ${data.order_number} is now ${data.status.replace("_", " ")}.`,
+          "orders",
+          id,
+        );
       }
     }
 
@@ -754,8 +900,16 @@ export const db = {
 
     if (error) throw error;
 
-    await this.logAudit("Assign Designer", "orders", orderId, { designer_id: designerId });
-    await this.notifyUser(designerId, "New Assignment", `You have been assigned to Order ${data.order_number}. Please accept to start designing.`, 'orders', orderId);
+    await this.logAudit("Assign Designer", "orders", orderId, {
+      designer_id: designerId,
+    });
+    await this.notifyUser(
+      designerId,
+      "New Assignment",
+      `You have been assigned to Order ${data.order_number}. Please accept to start designing.`,
+      "orders",
+      orderId,
+    );
 
     return data;
   },
@@ -810,12 +964,60 @@ export const db = {
       }
     }
 
-    await this.logAudit("Designer Accept Order", "orders", orderId, { order_number: order.order_number });
-    await this.notifyRoles(['admin', 'cashier'], "Designer Accepted Order", `Order ${order.order_number} has been accepted by ${user.id}.`, 'orders', orderId);
+    await this.logAudit("Designer Accept Order", "orders", orderId, {
+      order_number: order.order_number,
+    });
+    await this.notifyRoles(
+      ["admin", "cashier"],
+      "Designer Accepted Order",
+      `Order ${order.order_number} has been accepted by ${user.id}.`,
+      "orders",
+      orderId,
+    );
 
     return updated;
   },
 
+  async designerRejectAssignedOrder(orderId: string) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    const { data: order, error: fetchError } = await supabase
+      .from("orders")
+      .select("id, order_number, assigned_designer, rejected_by_designers")
+      .eq("id", orderId)
+      .single();
+    if (fetchError) throw fetchError;
+    if (!order) throw new Error("Order not found");
+
+    if (order.assigned_designer !== user.id) {
+      throw new Error("Only the assigned designer can reject this order");
+    }
+
+    const rejectedBy = order.rejected_by_designers || [];
+    if (!rejectedBy.includes(user.id)) {
+      rejectedBy.push(user.id);
+    }
+
+    const { error: updateErr } = await supabase
+      .from("orders")
+      .update({
+        assigned_designer: null,
+        rejected_by_designers: rejectedBy,
+      })
+      .eq("id", orderId);
+    if (updateErr) throw updateErr;
+
+    await this.logAudit("Reject Assignment", "orders", orderId, {
+      designer_id: user.id,
+    });
+  },
+
+  /**
+   * 2b: Designer self-picks an unassigned in_queue order and starts designing.
+   */
   async designerSelfPickOrder(orderId: string) {
     const {
       data: { user },
@@ -996,14 +1198,18 @@ export const db = {
 
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select("id, customer_id, assigned_designer, status, final_design_url")
+      .select(
+        "id, customer_id, assigned_designer, status, final_design_url, customer:customer_id(is_suki)",
+      )
       .eq("id", orderId)
       .single();
     if (fetchError) throw fetchError;
     if (!order) throw new Error("Order not found");
 
     if (isDesigner && order.assigned_designer !== user.id) {
-      throw new Error("You can only approve designs for orders assigned to you");
+      throw new Error(
+        "You can only approve designs for orders assigned to you",
+      );
     }
     if (order.status !== "designing") {
       throw new Error("Order is not currently in Designing phase");
@@ -1012,9 +1218,13 @@ export const db = {
       throw new Error("No final design found to approve");
     }
 
+    const nextStatus = (order as any).customer?.is_suki
+      ? "production"
+      : "payment";
+
     const { data, error } = await supabase
       .from("orders")
-      .update({ status: "payment" })
+      .update({ status: nextStatus })
       .eq("id", orderId)
       .eq("status", "designing")
       .select()
@@ -1023,11 +1233,12 @@ export const db = {
 
     if (order.customer_id) {
       try {
-        await db.chat.sendMessage(
-          order.customer_id,
-          "Your final design has been approved by our team. Your order is now in the Payment phase.",
-          orderId,
-        );
+        const message =
+          nextStatus === "production"
+            ? "Your final design has been approved! Since you are a trusted customer, we've started production immediately."
+            : "Your final design has been approved by our team. Your order is now in the Payment phase.";
+
+        await this.chat.sendMessage(order.customer_id, message, orderId);
       } catch (msgErr) {
         console.warn("Customer notification failed:", msgErr);
       }
@@ -1162,6 +1373,9 @@ export const db = {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("Not authenticated");
 
+    // We insert as 'pending' by default.
+    // We DO NOT update the order's amount_paid yet.
+    // That only happens when the cashier approves.
     const { error: payErr } = await supabase.from("payments").insert([
       {
         order_id: orderId,
@@ -1173,13 +1387,23 @@ export const db = {
     ]);
     if (payErr) throw payErr;
 
-    const { data: order } = await supabase.from('orders').select('order_number').eq('id', orderId).single();
+    const { data: order } = await supabase
+      .from("orders")
+      .select("order_number")
+      .eq("id", orderId)
+      .single();
     await this.logAudit("Record Payment", "payments", orderId, {
       amount: payment.amount,
       method: payment.payment_method,
-      ref: payment.reference_number
+      ref: payment.reference_number,
     });
-    await this.notifyRoles(['admin', 'cashier'], "New Payment Recorded", `A payment of ₱${payment.amount.toLocaleString()} has been recorded for Order ${order?.order_number || 'N/A'}.`, 'orders', orderId);
+    await this.notifyRoles(
+      ["admin", "cashier"],
+      "New Payment Recorded",
+      `A payment of ₱${payment.amount.toLocaleString()} has been recorded for Order ${order?.order_number || "N/A"}.`,
+      "orders",
+      orderId,
+    );
   },
 
   async approvePayment(paymentId: string, orderId: string) {
@@ -1190,7 +1414,10 @@ export const db = {
 
     if (updateError) throw updateError;
 
-    await this.logAudit("Approve Payment", "payments", paymentId, { order_id: orderId });
+    await this.logAudit("Approve Payment", "payments", paymentId, {
+      order_id: orderId,
+    });
+    // 2. Recalculate everything to be safe
     return this.syncOrderPaymentStatus(orderId);
   },
 
@@ -1221,10 +1448,19 @@ export const db = {
       } catch (err) {
         console.warn("Failed to notify customer of declined payment", err);
       }
-      await this.notifyUser(order.customer_id, "Payment Declined", `Your payment for Order ${order.order_number} was declined. Reason: ${reason}`, 'orders', orderId);
+      await this.notifyUser(
+        order.customer_id,
+        "Payment Declined",
+        `Your payment for Order ${order.order_number} was declined. Reason: ${reason}`,
+        "orders",
+        orderId,
+      );
     }
 
-    await this.logAudit("Decline Payment", "payments", paymentId, { order_id: orderId, reason });
+    await this.logAudit("Decline Payment", "payments", paymentId, {
+      order_id: orderId,
+      reason,
+    });
 
     await supabase
       .from("orders")
@@ -1409,7 +1645,11 @@ export const db = {
     if (error) throw error;
   },
 
-  async checkout(specialInstructions?: string, dueDate?: string, itemIds?: string[]) {
+  async checkout(
+    specialInstructions?: string,
+    dueDate?: string,
+    itemIds?: string[],
+  ) {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -1420,23 +1660,30 @@ export const db = {
       cartItems = cartItems.filter((ci) => itemIds.includes(ci.id));
     }
 
-    if (!cartItems.length) throw new Error("Cart is empty or no items selected");
+    if (!cartItems.length)
+      throw new Error("Cart is empty or no items selected");
 
-    const order = await db.createOrder({
-      customer_id: user.id,
-      order_type: "online",
-      special_instructions: specialInstructions,
-      due_date: dueDate,
-      design_file_url: cartItems[0]?.file_url,
-      items: cartItems.map((ci) => ({
-        product_id: ci.product_id,
-        product_name: ci.product?.name || "Unknown",
-        quantity: ci.quantity,
-        unit_price: parseFloat(ci.product?.final_price || "0"),
-        specifications: ci.specifications,
-        file_url: ci.file_url,
-      })),
-    });
+    const orders = [];
+    for (const ci of cartItems) {
+      const order = await db.createOrder({
+        customer_id: user.id,
+        order_type: "online",
+        special_instructions: ci.specifications || specialInstructions,
+        due_date: dueDate,
+        design_file_url: ci.file_url,
+        items: [
+          {
+            product_id: ci.product_id,
+            product_name: ci.product?.name || "Unknown",
+            quantity: ci.quantity,
+            unit_price: parseFloat(ci.product?.final_price || "0"),
+            specifications: ci.specifications,
+            file_url: ci.file_url,
+          },
+        ],
+      });
+      orders.push(order);
+    }
 
     if (itemIds && itemIds.length > 0) {
       const { error } = await supabase
@@ -1448,7 +1695,7 @@ export const db = {
       await db.clearCart();
     }
 
-    return order;
+    return orders;
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1457,7 +1704,7 @@ export const db = {
   async getStaffList() {
     const { data, error } = await supabase
       .from("users")
-      .select("id, first_name, last_name, role")
+      .select("id, first_name, last_name, role, last_seen_at")
       .in("role", ["designer", "production", "admin"])
       .eq("is_active", true)
       .order("role")
@@ -1692,14 +1939,24 @@ export const db = {
       if (!dateStr) return "";
       const date = new Date(dateStr);
       const now = new Date();
-      const isToday = date.toDateString() === now.toDateString();
+      const tz = "Asia/Manila";
+
+      const isToday =
+        date.toLocaleDateString("en-CA", {timeZone: tz}) ===
+        now.toLocaleDateString("en-CA", {timeZone: tz});
+
       if (isToday) {
-        return date.toLocaleTimeString([], {
+        return date.toLocaleTimeString("en-PH", {
           hour: "2-digit",
           minute: "2-digit",
+          timeZone: tz,
         });
       }
-      return date.toLocaleDateString([], { month: "short", day: "numeric" });
+      return date.toLocaleDateString("en-PH", {
+        month: "short",
+        day: "numeric",
+        timeZone: tz,
+      });
     },
 
     async getConversations() {
@@ -1753,15 +2010,17 @@ export const db = {
 
     async getUnreadCount(): Promise<number> {
       const {
-        data: { user },
+        data: {user},
       } = await supabase.auth.getUser();
       if (!user) return 0;
 
-      const lastViewed = localStorage.getItem(`chat_last_viewed_${user.id}`) || "1970-01-01T00:00:00Z";
+      const lastViewed =
+        localStorage.getItem(`chat_last_viewed_${user.id}`) ||
+        "1970-01-01T00:00:00Z";
 
-      const { count, error } = await supabase
+      const {count, error} = await supabase
         .from("chat_messages")
-        .select("id", { count: "exact", head: true })
+        .select("id", {count: "exact", head: true})
         .eq("receiver_id", user.id)
         .gt("sent_at", lastViewed);
 
@@ -1775,13 +2034,16 @@ export const db = {
     markMessagesViewed(): void {
       const userId = localStorage.getItem("chat_user_id");
       if (userId) {
-        localStorage.setItem(`chat_last_viewed_${userId}`, new Date().toISOString());
+        localStorage.setItem(
+          `chat_last_viewed_${userId}`,
+          new Date().toISOString(),
+        );
       }
     },
 
     async initUserId(): Promise<void> {
       const {
-        data: { user },
+        data: {user},
       } = await supabase.auth.getUser();
       if (user) {
         localStorage.setItem("chat_user_id", user.id);
@@ -2778,9 +3040,15 @@ export const db = {
       await db.logAudit("Request Cash Advance", "cash_advances", result.id, {
         employee_name: result.employee?.full_name,
         amount: result.amount,
-        requested_by: user.id
+        requested_by: user.id,
       });
-      await db.notifyRoles(['admin'], "New Cash Advance Request", `${result.employee?.full_name} is requesting ₱${result.amount.toLocaleString()}.`, 'payroll', result.id);
+      await db.notifyRoles(
+        ["admin"],
+        "New Cash Advance Request",
+        `${result.employee?.full_name} is requesting ₱${result.amount.toLocaleString()}.`,
+        "payroll",
+        result.id,
+      );
 
       return result;
     },

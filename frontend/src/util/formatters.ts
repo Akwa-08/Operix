@@ -7,12 +7,49 @@ export function fmtMoney(v: number | undefined | null): string {
 }
 
 /** Parse a database timestamp, enforcing UTC if no timezone is provided */
-export function parseDbDate(iso: string | null | undefined): Date | null {
+export function parseDbDate(iso: any): Date | null {
   if (!iso) return null;
-  const normalized = /[Z+]/.test(iso) ? iso : iso.replace(" ", "T") + "Z";
+  // If it's already a Date object
+  if (iso instanceof Date) return iso;
+  
+  const isoStr = String(iso);
+  const normalized = /[Z+]/.test(isoStr) ? isoStr : isoStr.replace(" ", "T") + "Z";
   const date = new Date(normalized);
   return isNaN(date.getTime()) ? null : date;
 }
+
+/** Format a date string or object to Philippine locale (GMT+8) */
+export function fmtDate(iso: string | Date | null | undefined, options: Intl.DateTimeFormatOptions = {}): string {
+  if (!iso) return "";
+  const d = (typeof iso === 'string') ? parseDbDate(iso) : iso;
+  if (!d || isNaN(d.getTime())) return "";
+  
+  return d.toLocaleDateString("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    ...options
+  });
+}
+
+/** Format a date string or object to Philippine locale with time (GMT+8) */
+export function fmtDateTime(iso: string | Date | null | undefined, options: Intl.DateTimeFormatOptions = {}): string {
+  if (!iso) return "";
+  const d = (typeof iso === 'string') ? parseDbDate(iso) : iso;
+  if (!d || isNaN(d.getTime())) return "";
+  
+  return d.toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    ...options
+  });
+}
+
 
 // ── Status Color Mappings (Single Source of Truth) ─────────────────────────
 

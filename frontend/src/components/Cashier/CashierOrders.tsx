@@ -83,6 +83,10 @@ const CashierOrders = () => {
       o.orderId?.toLowerCase().includes(q) ||
       o.productType?.toLowerCase().includes(q)
     );
+  }).sort((a, b) => {
+    if (a.isSuki && !b.isSuki) return -1;
+    if (!a.isSuki && b.isSuki) return 1;
+    return 0;
   });
 
   const selectedOrder = selectedOrderId
