@@ -287,16 +287,21 @@ export function useInventoryData() {
 }
 
 export function useProductCatalog(filters?: { search?: string; category?: string }) {
-  const { products: raw, loading, error, refresh } = useProductsData(filters);
-  const products: CatalogProduct[] = raw.map((p: any) => ({
+  const { data: raw, loading, error, refresh } = useQuery(
+    () => db.getCatalogProducts(filters),
+    [filters?.search, filters?.category],
+    ['products', 'product_supply_mapping', 'inventory_items'],
+  );
+  const products: CatalogProduct[] = (raw || []).map((p: any) => ({
     id: p.id,
     title: p.name,
     category: p.category || "",
     variant: p.variant || "",
-    size: p.sizeSpec || "",
-    price: Number(p.finalPrice),
+    size: p.size_spec || "",
+    price: Number(p.final_price),
     description: p.description || "",
-    isActive: p.isActive,
+    isActive: p.is_active ?? true,
+    maxCapacity: Number(p.max_capacity ?? 0),
   }));
   return { products, loading, error, refresh };
 }

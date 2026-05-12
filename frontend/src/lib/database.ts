@@ -1725,6 +1725,32 @@ export const db = {
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // PRODUCT CATALOG VIEW (customer-facing, includes max_capacity from BOM)
+  // ═══════════════════════════════════════════════════════════════════════════
+  async getCatalogProducts(filters?: { category?: string; search?: string }) {
+    let query = supabase
+      .from("product_catalog_view")
+      .select("*")
+      .eq("is_active", true)
+      .order("category")
+      .order("name");
+
+    if (filters?.category) query = query.eq("category", filters.category);
+    if (filters?.search) {
+      const cleanSearch = filters.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (cleanSearch) {
+        query = query.or(
+          `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
+        );
+      }
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // PRODUCTS WITH BOM
   // ═══════════════════════════════════════════════════════════════════════════
   async getProductsWithBOM(filters?: { category?: string; search?: string }) {
