@@ -9,16 +9,17 @@ import {
 import {useToast} from "../../context/ToastContext";
 import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {getOrderStatusColor} from "../../util/formatters";
+import {getOrderStatusColor, fmtDate} from "../../util/formatters";
 import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
 import type {Order} from "../../Types";
 import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
+import {SukiBadge} from "../Shared/UI/SukiBadge";
 
 // ─── Designer Dashboard ────────────────────────────────────────────────────────
 
 const DesignerDashboard = () => {
   const {profile} = useMyProfile();
-  const {orders: allOrders, loading, refresh, selfAssign} = useOrdersData();
+  const {orders: allOrders, loading, refresh, selfAssign, rejectAssignedDesignOrder} = useOrdersData();
   const toast = useToast();
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -29,41 +30,56 @@ const DesignerDashboard = () => {
       allOrders.filter(
         (o) =>
           o.assignedDesigner === profile?.id &&
-          !["Payment", "Production", "Pickup"].includes(o.status),
+          o.status === "Designing",
       ),
     [allOrders, profile?.id],
   );
 
   const queueOrders = useMemo(
     () =>
-      allOrders.filter((o) => o.status === "In Queue" && !o.assignedDesigner),
+      allOrders
+        .filter(
+          (o) =>
+            o.status === "In Queue" &&
+            (!o.assignedDesigner || o.assignedDesigner === profile?.id),
+        )
+        .sort((a, b) => {
+          // Priority 1: Suki status
+          if (a.isSuki && !b.isSuki) return -1;
+          if (!a.isSuki && b.isSuki) return 1;
+          // Priority 2: Date (oldest first)
+          return (
+            new Date(a.dateOrdered).getTime() -
+            new Date(b.dateOrdered).getTime()
+          );
+        }),
     [allOrders],
   );
 
   const stats = useMemo(
-    () => ({
-      assigned: orders.length,
-      inProgress: orders.filter((o) => o.status === "Designing").length,
-      completed: orders.filter(
-        (o) => !["Designing", "In Queue"].includes(o.status),
-      ).length,
-      uploadedToday: orders.filter((o) => {
-        if (!o.dateOrdered) return false;
-        return (
-          new Date(o.dateOrdered).toDateString() === new Date().toDateString()
-        );
-      }).length,
-    }),
-    [orders],
+    () => {
+      const myAssignedAll = allOrders.filter(o => o.assignedDesigner === profile?.id);
+      return {
+        assigned: myAssignedAll.length,
+        inProgress: myAssignedAll.filter((o) => o.status === "Designing").length,
+        completed: myAssignedAll.filter(
+          (o) => !["Designing", "In Queue"].includes(o.status),
+        ).length,
+        uploadedToday: orders.filter((o) => {
+          if (!o.dateOrdered) return false;
+          return (
+            new Date(o.dateOrdered).toDateString() === new Date().toDateString()
+          );
+        }).length,
+      };
+    },
+    [allOrders, orders, profile?.id],
   );
 
   const recentOrders = useMemo(() => orders.slice(0, 6), [orders]);
 
-  const dateStr = new Date().toLocaleDateString("en-US", {
+  const dateStr = fmtDate(new Date(), {
     weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
   });
 
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
@@ -163,6 +179,7 @@ const DesignerDashboard = () => {
                         <span className="text-[10px] font-medium text-gray-400 border border-gray-200 px-1.5 rounded uppercase truncate max-w-[100px]">
                           {o.productType}
                         </span>
+                        {o.isSuki && <SukiBadge />}
                       </div>
                       <p className="text-xs text-gray-500 truncate">
                         Customer:{" "}
@@ -180,20 +197,38 @@ const DesignerDashboard = () => {
                           {o.dueDate || "No set date"}
                         </p>
                       </div>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation(); // Don't trigger the modal
-                          const r = await selfAssign(o.id);
-                          if (r.success) {
-                            toast.success(`Order ${o.orderId} accepted!`);
-                            refresh();
-                          } else {
-                            toast.error(r.error || "Failed to accept order");
-                          }
-                        }}
-                        className="px-4 py-1.5 bg-cyan-400 hover:bg-cyan-500 border-cyan-500 text-white text-xs font-bold rounded-lg shadow-sm shadow-blue-200 transition-all active:scale-95">
-                        Accept
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const r = await selfAssign(o.id);
+                            if (r.success) {
+                              toast.success(`Order ${o.orderId} accepted!`);
+                              refresh();
+                            } else {
+                              toast.error(r.error || "Failed to accept order");
+                            }
+                          }}
+                          className="px-4 py-1.5 bg-cyan-400 hover:bg-cyan-500 border-cyan-500 text-white text-xs font-bold rounded-lg shadow-sm shadow-blue-200 transition-all active:scale-95">
+                          Accept
+                        </button>
+                        {o.assignedDesigner === profile?.id && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const r = await rejectAssignedDesignOrder(o.id);
+                              if (r.success) {
+                                toast.success(`Order ${o.orderId} rejected.`);
+                                refresh();
+                              } else {
+                                toast.error(r.error || "Failed to reject order");
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-white border border-red-200 text-red-500 hover:bg-red-50 text-xs font-bold rounded-lg shadow-sm transition-all active:scale-95">
+                            Reject
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -240,8 +275,14 @@ const DesignerDashboard = () => {
                       <p className="font-bold text-gray-900 text-sm truncate">
                         {order.orderId}
                       </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {order.customerName} · {order.productType}
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs text-gray-500 truncate">
+                          {order.customerName}
+                        </p>
+                        {order.isSuki && <SukiBadge size="sm" />}
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">
+                        {order.productType}
                       </p>
                     </div>
                     <span
@@ -290,7 +331,12 @@ const DesignerDashboard = () => {
                         <td className="px-4 py-3 font-mono text-xs text-gray-700">
                           {order.orderId}
                         </td>
-                        <td className="px-4 py-3">{order.customerName}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-900">{order.customerName}</span>
+                            {order.isSuki && <SukiBadge />}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-gray-600">
                           {order.productType}
                         </td>

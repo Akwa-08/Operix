@@ -131,7 +131,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                         ₱{b.unitCost.toFixed(2)}
                       </td>
                       <td className="px-3 py-2 text-right font-semibold">
-                        ₱{(b.quantityRequired * b.unitCost).toFixed(2)}
+                        ₱{(b.quantityRequired * (b.unitCost / b.conversionRate)).toFixed(2)}
                       </td>
                     </tr>
                   ))}

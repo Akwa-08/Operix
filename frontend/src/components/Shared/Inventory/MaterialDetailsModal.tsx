@@ -5,7 +5,7 @@ import { Modal } from "../UI/Modal";
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
 import { getMaterialStatusColor } from "../../../util/formatters";
-import { Package, TrendingUp, AlertCircle } from "lucide-react";
+import { Package, TrendingUp, AlertCircle, Star, AlertTriangle, Flag } from "lucide-react";
 
 interface MaterialDetailsModalProps {
   isOpen: boolean;
@@ -22,6 +22,9 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
 }) => {
   const perms = permissions[userRole].inventory;
   const getStatusColor = getMaterialStatusColor;
+  
+  const mainSupplierObj = material.mappedSuppliers?.find(s => s.name === material.supplier);
+  const supplierFlag = mainSupplierObj?.flagCategory;
 
   return (
     <Modal
@@ -71,13 +74,13 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
                 <div className="flex items-center gap-2 mb-1">
                   <TrendingUp size={16} className="text-green-600" />
                   <span className="text-xs text-gray-500 font-semibold uppercase">
-                    Purchase Unit
+                    Conversion
                   </span>
                 </div>
-                <p className="text-2xl font-bold text-gray-900">
-                  {material.purchaseQty}
+                <p className="text-xl font-bold text-gray-900">
+                  1 {material.purchaseUnit}
                 </p>
-                <p className="text-xs text-gray-600">{material.purchaseUnit}</p>
+                <p className="text-xs text-gray-600">= {material.purchaseQty} {material.stockUnit}</p>
               </div>
             )}
           </div>
@@ -92,16 +95,24 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoField label="Item Type" value={material.itemType} />
-              <InfoField label="Item Variant" value={material.itemVariant} />
+              <InfoField label="Description" value={material.itemVariant} />
               <InfoField
                 label="Usable Stocks"
                 value={`${material.usableStocks} ${material.stockUnit}`}
               />
               <InfoField
-                label="Purchase Quantity"
-                value={`${material.purchaseQty} ${material.purchaseUnit}`}
+                label="Conversion"
+                value={`1 ${material.purchaseUnit} = ${material.purchaseQty} ${material.stockUnit}`}
               />
-              <InfoField label="Supplier" value={material.supplier} />
+              <div>
+                <p className="text-xs text-gray-500 font-semibold uppercase mb-1">Supplier</p>
+                <div className="flex items-center gap-1.5">
+                  {supplierFlag === "Preferred" && <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+                  {supplierFlag === "Warning" && <AlertTriangle size={14} className="text-orange-500 flex-shrink-0" />}
+                  {supplierFlag === "Critical" && <Flag size={14} className="text-red-600 fill-red-600 flex-shrink-0" />}
+                  <p className="text-sm text-gray-900 font-semibold truncate">{material.supplier}</p>
+                </div>
+              </div>
               <InfoField label="Status" value={material.status} />
             </div>
           </div>
@@ -116,7 +127,7 @@ export const MaterialDetailsModal: React.FC<MaterialDetailsModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoField label="Item Type" value={material.itemType} />
-              <InfoField label="Item Variant" value={material.itemVariant} />
+              <InfoField label="Description" value={material.itemVariant} />
               <InfoField
                 label="Current Stock"
                 value={`${material.usableStocks} ${material.stockUnit}`}

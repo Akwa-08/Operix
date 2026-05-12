@@ -1,17 +1,18 @@
-import {useState} from "react";
-import {Upload, Package, Clock, CheckCircle} from "lucide-react";
-import {SearchBar} from "../Shared/UI/SearchBar";
-import {StatusCard} from "../Shared/UI/StatusCard";
-import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
-import {PageHeader} from "../Shared/UI/PageHeader";
-import {InfoBanner} from "../Shared/UI/InfoBanner";
-import {ViewToggle} from "../Shared/UI/ViewToggle";
-import {getOrderStatusColor} from "../../util/formatters";
-import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
-import {OrderCardsGrid} from "../Shared/Orders/OrderCardsGrid";
-import type {Order} from "../../Types";
-import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
-import {useToast} from "../../context/ToastContext";
+import { useState } from "react";
+import { Upload, Package, Clock, CheckCircle } from "lucide-react";
+import { SearchBar } from "../Shared/UI/SearchBar";
+import { StatusCard } from "../Shared/UI/StatusCard";
+import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageHeader } from "../Shared/UI/PageHeader";
+import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { ViewToggle } from "../Shared/UI/ViewToggle";
+import { getOrderStatusColor } from "../../util/formatters";
+import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
+import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
+import type { Order } from "../../Types";
+import { useOrdersData, useMyProfile } from "../../hooks/useSupabase";
+import { useToast } from "../../context/ToastContext";
+import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 const DesignerOrders = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -19,7 +20,7 @@ const DesignerOrders = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
 
-  const {profile} = useMyProfile();
+  const { profile } = useMyProfile();
 
   // Fetch all orders - we'll filter them locally for a better "Queue vs My Orders" experience
   const {
@@ -29,8 +30,8 @@ const DesignerOrders = () => {
     updateFinalDesign,
     updateDesignerOrderDetails,
     refresh,
-    selfAssign,
     acceptAssignedDesignOrder,
+    rejectAssignedDesignOrder,
     approveOrderDesign,
   } = useOrdersData();
 
@@ -38,13 +39,17 @@ const DesignerOrders = () => {
 
   // Filter for orders assigned to THIS designer, excluding those in Payment/Production stages
   const orders = allOrders.filter(
-    (o) => o.assignedDesigner === profile?.id && !["Payment", "Production", "Pickup"].includes(o.status),
-  );
+    (o) => o.assignedDesigner === profile?.id && !["In Queue", "Payment", "Production", "Pickup"].includes(o.status),
+  ).sort((a, b) => {
+    if (a.isSuki && !b.isSuki) return -1;
+    if (!a.isSuki && b.isSuki) return 1;
+    return new Date(a.dateOrdered).getTime() - new Date(b.dateOrdered).getTime();
+  });
 
   const stats = {
     assigned: allOrders.filter((o) => o.assignedDesigner === profile?.id).length,
     inQueue: allOrders.filter(
-      (o) => o.status === "In Queue" && !o.assignedDesigner,
+      (o) => o.status === "In Queue" && o.assignedDesigner === profile?.id,
     ).length,
     inProgress: allOrders.filter(
       (o) => o.status === "Designing" && o.assignedDesigner === profile?.id,
@@ -76,11 +81,13 @@ const DesignerOrders = () => {
   const handleAcceptAssigned = async (orderId: string) => {
     const r = await acceptAssignedDesignOrder(orderId);
     if (!r.success) toast.error("Error: " + r.error);
+    else toast.success("Order accepted!");
   };
 
-  const handleSelfPick = async (orderId: string) => {
-    const r = await selfAssign(orderId);
+  const handleRejectAssigned = async (orderId: string) => {
+    const r = await rejectAssignedDesignOrder(orderId);
     if (!r.success) toast.error("Error: " + r.error);
+    else toast.success("Order rejected and passed to another designer.");
   };
 
   if (loading) return <LoadingSpinner type="table" />;
@@ -94,193 +101,180 @@ const DesignerOrders = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatusCard
-          title="Assigned"
+          icon={<CheckCircle size={18} />}
+          title="Assigned to Me"
           value={stats.assigned}
-          icon={<Package size={18} />}
           iconColor="text-purple-600"
         />
         <StatusCard
-          title="In Progress"
-          value={stats.inProgress}
           icon={<Clock size={18} />}
-          iconColor="text-orange-600"
+          title="In Queue"
+          value={stats.inQueue}
+          iconColor="text-amber-600"
         />
         <StatusCard
-          title="Done"
+          icon={<Package size={18} />}
+          title="Completed"
           value={stats.completed}
-          icon={<CheckCircle size={18} />}
-          iconColor="text-green-600"
+          iconColor="text-emerald-600"
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-6">
+        <div className="p-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
             <SearchBar
               value={searchQuery}
               onChange={setSearchQuery}
-              placeholder="Search orders..."
+              placeholder="Search assigned orders..."
             />
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
-          <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
-      </div>
 
-      <InfoBanner color="purple">
-        <Upload size={16} className="inline mr-1" />
-        <strong>Designer Workspace:</strong> View your assigned orders. Upload
-        designs when ready, then advance status to "Payment".
-      </InfoBanner>
+        <div className="p-4">
+          <InfoBanner color="purple">
+            <Upload size={16} className="inline mr-1" />
+            <strong>Designer Workspace:</strong> View your assigned orders. Upload
+            designs when ready, then advance status to "Payment".
+          </InfoBanner>
 
-      {viewMode === "list" ? (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* MOBILE */}
-          <div className="md:hidden divide-y divide-gray-100">
-            {filteredOrders.length === 0 ? (
-              <p className="px-4 py-8 text-center text-gray-400">
-                No orders assigned to you
-              </p>
-            ) : (
-              filteredOrders.map((o: any) => (
-                <div key={o.id} className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="font-bold text-gray-900">{o.orderId}</p>
-                      <p className="text-sm text-gray-500">
-                        {o.customerName} · {o.productType}
-                      </p>
-                    </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>
-                      {o.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm text-gray-500">
-                    <span>Qty: {o.quantity}</span>
-                    <span className="text-xs">Due: {o.dueDate}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleViewOrder(o)}
-                      className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold">
-                      <Package size={14} /> View
-                    </button>
-                    {o.status === "In Queue" && !o.assignedDesigner && (
-                      <button
-                        onClick={() => handleSelfPick(o.id)}
-                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-semibold rounded-lg">
-                        Pick Order
-                      </button>
-                    )}
-                    {o.status === "In Queue" &&
-                      o.assignedDesigner === profile?.id && (
-                        <button
-                          onClick={() => handleAcceptAssigned(o.id)}
-                          className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 text-sm font-semibold rounded-lg">
-                          Accept
-                        </button>
-                      )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-          {/* DESKTOP */}
-          <div className="hidden md:block overflow-x-auto">
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Order ID
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Customer
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Product
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Qty
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Due
-                    </th>
-                    <th className="px-4 py-3 text-center font-semibold text-gray-700">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredOrders.map((o: any) => (
-                    <tr key={o.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {o.orderId}
-                      </td>
-                      <td className="px-4 py-3">{o.customerName}</td>
-                      <td className="px-4 py-3 text-gray-600">
-                        {o.productType}
-                      </td>
-                      <td className="px-4 py-3 text-center">{o.quantity}</td>
-                      <td className="px-4 py-3 text-center">
+          {viewMode === "list" ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mt-4">
+              {/* MOBILE */}
+              <div className="md:hidden divide-y divide-gray-100">
+                {filteredOrders.length === 0 ? (
+                  <p className="px-4 py-8 text-center text-gray-400">
+                    No orders assigned to you
+                  </p>
+                ) : (
+                  filteredOrders.map((o: any) => (
+                    <div key={o.id} className="p-4 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-bold text-gray-900">{o.orderId}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-gray-500">
+                              {o.customerName} · {o.productType}
+                            </p>
+                            {o.isSuki && <SukiBadge />}
+                          </div>
+                        </div>
                         <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>
                           {o.status}
                         </span>
-                      </td>
-                      <td className="px-4 py-3 text-gray-600 text-xs">
-                        {o.dueDate}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            onClick={() => handleViewOrder(o)}
-                            className="p-1.5 hover:bg-cyan-100 rounded-lg">
-                            <Package size={16} className="text-cyan-600" />
-                          </button>
-                          {o.status === "In Queue" && !o.assignedDesigner && (
-                            <button
-                              onClick={() => handleSelfPick(o.id)}
-                              className="px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold rounded-lg">
-                              Accept
-                            </button>
-                          )}
-                          {o.status === "In Queue" &&
-                            o.assignedDesigner === profile?.id && (
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-500">
+                        <span>Qty: {o.quantity}</span>
+                        <span className="text-xs">Due: {o.dueDate}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleViewOrder(o)}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-cyan-50 hover:bg-cyan-100 rounded-lg text-sm text-cyan-700 font-semibold">
+                          <Package size={14} /> View
+                        </button>
+                        {o.status === "In Queue" &&
+                          o.assignedDesigner === profile?.id && (
+                            <>
                               <button
                                 onClick={() => handleAcceptAssigned(o.id)}
-                                className="px-2 py-1 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg">
+                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors">
                                 Accept
                               </button>
-                            )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {filteredOrders.length === 0 && (
+                              <button
+                                onClick={() => handleRejectAssigned(o.id)}
+                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-lg border border-red-200 transition-colors">
+                                Reject
+                              </button>
+                            </>
+                          )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              {/* DESKTOP */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <td
-                        colSpan={7}
-                        className="px-4 py-8 text-center text-gray-400">
-                        No orders assigned to you
-                      </td>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Order ID</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Customer</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Product</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">Qty</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">Status</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700">Due</th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredOrders.map((o: any) => (
+                      <tr key={o.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 font-mono text-xs">{o.orderId}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            {o.customerName}
+                            {o.isSuki && <SukiBadge />}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{o.productType}</td>
+                        <td className="px-4 py-3 text-center">{o.quantity}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>
+                            {o.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 text-xs">{o.dueDate}</td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => handleViewOrder(o)}
+                              className="p-1.5 hover:bg-cyan-100 rounded-lg">
+                              <Package size={16} className="text-cyan-600" />
+                            </button>
+                            {o.status === "In Queue" &&
+                              o.assignedDesigner === profile?.id && (
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleAcceptAssigned(o.id)}
+                                    className="px-2 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 text-xs font-semibold rounded-lg transition-colors">
+                                    Accept
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectAssigned(o.id)}
+                                    className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg border border-red-100 transition-colors">
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredOrders.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="px-4 py-8 text-center text-gray-400">
+                          No orders assigned to you
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="mt-4">
+              <OrderCardsGrid
+                orders={filteredOrders}
+                onView={handleViewOrder}
+                onPay={() => {}} 
+              />
+            </div>
+          )}
         </div>
-      ) : (
-        <OrderCardsGrid
-          orders={filteredOrders}
-          searchQuery={searchQuery}
-          onView={handleViewOrder}
-        />
-      )}
+      </div>
 
       {selectedOrder && (
         <OrderDetailsModal

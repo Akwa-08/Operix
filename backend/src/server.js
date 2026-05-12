@@ -260,6 +260,132 @@ function buildSyncRow(r, periodId, ratio) {
   };
 }
 
+// ── Parse the Exceptional sheet from the XLS to get per-day punch data ────────
+// Returns: { [employeeName]: [{ date: 'YYYY-MM-DD', isIncomplete: bool }] }
+function parseExceptionalSheet(buffer) {
+  try {
+    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+    // Find the Exceptional sheet — try common names, then fall back to Sheet 2
+    const sheetNames = workbook.SheetNames;
+    const exceptionalSheetName = sheetNames.find(n =>
+      n.toLowerCase().includes('exception') || n.toLowerCase().includes('punch')
+      || n.toLowerCase().includes('detail') || n.toLowerCase().includes('daily')
+    ) || (sheetNames.length >= 2 ? sheetNames[1] : null); // Fall back to Sheet 2
+    if (!exceptionalSheetName) return null; // Only 1 sheet, no exceptional data
+
+    const sheet = workbook.Sheets[exceptionalSheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+    if (rows.length < 3) return null;
+
+    // The exceptional sheet typically has:
+    // Row 0: headers or title
+    // Row 1+: employee_no | name | date | time_in | time_out | ...
+    // We need to figure out the column layout
+    const result = {};
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || !row[0]) continue;
+
+      const empName = row[1] ? String(row[1]).trim() : null;
+      if (!empName) continue;
+
+      const dateVal = row[2];
+      if (!dateVal) continue;
+
+      let dateStr;
+      if (dateVal instanceof Date) {
+        dateStr = dateVal.toISOString().split('T')[0];
+      } else if (typeof dateVal === 'string') {
+        const parsed = new Date(dateVal);
+        if (!isNaN(parsed.getTime())) dateStr = parsed.toISOString().split('T')[0];
+        else continue;
+      } else if (typeof dateVal === 'number') {
+        // Excel serial date
+        const d = XLSX.SSF.parse_date_code(dateVal);
+        if (d) dateStr = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        else continue;
+      } else continue;
+
+      const timeIn = row[3];
+      const timeOut = row[4];
+      const isIncomplete = !timeIn || !timeOut;
+
+      if (!result[empName]) result[empName] = [];
+      result[empName].push({ date: dateStr, isIncomplete });
+    }
+
+    return Object.keys(result).length > 0 ? result : null;
+  } catch (err) {
+    console.log('[parseExceptionalSheet] Could not parse exceptional sheet:', err.message);
+    return null;
+  }
+}
+
+// ── Create exceptional logs for a given period from parsed punch data ─────────
+async function createExceptionalLogs(punchData, matchMap, periodId, periodStart, periodEnd) {
+  if (!punchData) return 0;
+
+  const pStart = new Date(periodStart);
+  const pEnd = new Date(periodEnd);
+  const rows = [];
+  const employeesWithIncomplete = new Map(); // empId -> dates[]
+
+  for (const [empName, punches] of Object.entries(punchData)) {
+    const empId = matchMap.get(empName);
+    if (!empId) continue;
+
+    for (const punch of punches) {
+      const punchDate = new Date(punch.date);
+      // Only include punches that fall within this period
+      if (punchDate < pStart || punchDate > pEnd) continue;
+
+      rows.push({
+        payroll_period_id: periodId,
+        employee_id: empId,
+        employee_name: empName,
+        punch_date: punch.date,
+        is_incomplete: punch.isIncomplete,
+        hours_counted: 8, // Default, admin can adjust later
+      });
+
+      if (punch.isIncomplete) {
+        if (!employeesWithIncomplete.has(empId)) employeesWithIncomplete.set(empId, []);
+        employeesWithIncomplete.get(empId).push(punch.date);
+      }
+    }
+  }
+
+  if (rows.length === 0) return 0;
+
+  // Delete existing exceptional logs for this period first (idempotent)
+  await supabase
+    .from('attendance_exceptional_logs')
+    .delete()
+    .eq('payroll_period_id', periodId);
+
+  // Insert new exceptional logs
+  const { error } = await supabase
+    .from('attendance_exceptional_logs')
+    .insert(rows);
+  if (error) console.error('[createExceptionalLogs] Insert error:', error.message);
+
+  // Update attendance_logs with incomplete punch info
+  for (const [empId, dates] of employeesWithIncomplete.entries()) {
+    await supabase
+      .from('attendance_logs')
+      .update({
+        has_incomplete_punch: true,
+        incomplete_punch_dates: dates,
+      })
+      .eq('payroll_period_id', periodId)
+      .eq('employee_id', empId);
+  }
+
+  console.log(`[createExceptionalLogs] Period ${periodId}: ${rows.length} punch rows, ${employeesWithIncomplete.size} with incomplete`);
+  return rows.length;
+}
+
 // POST /api/payroll/upload-attendance
 app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendance_file'), async (req, res) => {
   try {
@@ -269,6 +395,10 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
       parseAttendanceXLS(req.file.buffer, req.file.originalname);
 
     console.log(`[upload] ${records.length} rows | ${periodStart} ~ ${periodEnd}`);
+
+    // Parse the Exceptional sheet for per-day punch data (if it exists)
+    const punchData = parseExceptionalSheet(req.file.buffer);
+    if (punchData) console.log(`[upload] Exceptional sheet found: ${Object.keys(punchData).length} employees with punch data`);
 
     const uniqueNames = [...new Set(records.map(r => r.employee_name))];
     const { matchMap, unmatchedNames } = await resolveEmployeesByName(uniqueNames);
@@ -335,6 +465,10 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
         if (e2) throw e2;
       }
 
+      // Create exceptional logs for BOTH periods (date-filtered to each period)
+      const excCount1 = await createExceptionalLogs(punchData, matchMap, period1Id, periodStart, p1EndStr);
+      const excCount2 = await createExceptionalLogs(punchData, matchMap, period2Id, p2StartStr, periodEnd);
+
       periodsCreated = [
         { id: period1Id, start: periodStart, end: p1EndStr, label: 'Period 1 (Days 1–15)' },
         { id: period2Id, start: p2StartStr, end: periodEnd, label: 'Period 2 (Days 16–end)' },
@@ -350,6 +484,7 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
           totalRows: records.length, matched: matchedRows.length,
           unmatched: unmatchedNames.length, unmatchedNames,
           syncedToAttendance: matchedRows.length * 2,
+          exceptionalLogs: (excCount1 || 0) + (excCount2 || 0),
           note: `Monthly data auto-split into 2 × 15-day periods (${ratio1.toFixed(0)*100|0}% / ${Math.round(ratio2*100)}%)`,
         },
       });
@@ -393,6 +528,9 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
         .eq('import_batch_id', batchId).not('employee_id', 'is', null);
     }
 
+    // Create exceptional logs for this period
+    const excCount = await createExceptionalLogs(punchData, matchMap, payrollPeriodId, periodStart, periodEnd);
+
     res.status(200).json({
       success: true, batchId,
       period: { start: periodStart, end: periodEnd },
@@ -400,6 +538,7 @@ app.post('/api/payroll/upload-attendance', requireAdmin, upload.single('attendan
       summary: {
         totalRows: records.length, matched: attendanceSyncRows.length,
         unmatched: unmatchedNames.length, unmatchedNames, syncedToAttendance: attendanceSyncRows.length,
+        exceptionalLogs: excCount || 0,
       },
     });
   } catch (err) {

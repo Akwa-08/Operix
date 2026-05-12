@@ -22,17 +22,17 @@ export const OrdersPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All Time");
   const [currentPage, setCurrentPage] = useState(1);
-  
+
   // Modals state
   const [showDetails, setShowDetails] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  
+
   const [showPayment, setShowPayment] = useState(false);
   const [selectedPayOrderId, setSelectedPayOrderId] = useState<string | null>(null);
-  
+
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
-  
+
   const itemsPerPage = 6;
 
   const { orders, loading, refresh, recordPayment, markDeclineAsRead } = useOrdersData();
@@ -42,7 +42,7 @@ export const OrdersPage: React.FC = () => {
   const selectedOrder = selectedOrderId
     ? orders.find(o => o.id === selectedOrderId) ?? null
     : null;
-    
+
   const selectedPayOrder = selectedPayOrderId
     ? orders.find(o => o.id === selectedPayOrderId) ?? null
     : null;
@@ -52,7 +52,7 @@ export const OrdersPage: React.FC = () => {
 
   const filteredOrders = orders.filter((o) => {
     let pass = true;
-    
+
     // Status Filter
     if (statusFilter === "In Queue") pass = o.status === "In Queue";
     else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production", "Pickup"].includes(o.status);
@@ -63,7 +63,7 @@ export const OrdersPage: React.FC = () => {
       const d = new Date(o.dateOrdered);
       const now = new Date();
       if (dateFilter === "Today") pass = d.toDateString() === now.toDateString();
-      else if (dateFilter === "This Week") pass = d >= new Date(now.getTime() - 7*24*60*60*1000);
+      else if (dateFilter === "This Week") pass = d >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       else if (dateFilter === "This Month") pass = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }
 
@@ -94,13 +94,9 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handleDeleteOrder = async (order: Order) => {
-    if (order.status === "In Queue") {
+    if (order.status === "In Queue" || order.status === "Designing") {
       setOrderToCancel(order);
       setShowCancelConfirm(true);
-    } else if (order.status === "Designing") {
-      toast.error(
-        "Your order is currently being designed. Please message our designer to request a cancellation."
-      );
     } else {
       toast.error(
         "Order cannot be cancelled at this stage. Please contact us for assistance."
@@ -172,11 +168,11 @@ export const OrdersPage: React.FC = () => {
 
         {/* Orders Grid */}
         <div>
-          <OrderCardsGrid 
-            orders={pagedOrders} 
-            onView={handleViewDetails} 
-            onDelete={handleDeleteOrder} 
-            onPay={handlePayOrder} 
+          <OrderCardsGrid
+            orders={pagedOrders}
+            onView={handleViewDetails}
+            onDelete={handleDeleteOrder}
+            onPay={handlePayOrder}
             hideDeleteWhen={(o) => o.status !== "In Queue" && o.status !== "Designing"}
             hidePayWhen={(o) => o.status !== "Payment"}
           />
@@ -199,11 +195,10 @@ export const OrdersPage: React.FC = () => {
                 <button
                   key={page}
                   onClick={() => handlePageChange(page)}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl text-sm sm:text-base font-black transition-all shadow-sm flex items-center justify-center cursor-pointer ${
-                    currentPage === page
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl text-sm sm:text-base font-black transition-all shadow-sm flex items-center justify-center cursor-pointer ${currentPage === page
                       ? "bg-cyan-400 text-white shadow-lg shadow-cyan-100 ring-2 ring-cyan-200"
                       : "bg-white text-gray-500 hover:bg-gray-50 hover:text-cyan-500 border border-gray-200"
-                  }`}>
+                    }`}>
                   {page}
                 </button>
               ))}
@@ -223,9 +218,9 @@ export const OrdersPage: React.FC = () => {
 
       {/* Details Modal */}
       {selectedOrder && (
-        <CustomerOrderDetailsModal 
-          isOpen={showDetails} 
-          order={selectedOrder} 
+        <CustomerOrderDetailsModal
+          isOpen={showDetails}
+          order={selectedOrder}
           onClose={() => setShowDetails(false)}
           onMarkAsRead={markDeclineAsRead}
         />
@@ -243,7 +238,7 @@ export const OrdersPage: React.FC = () => {
           onSubmit={handleSubmitPayment}
         />
       )}
- 
+
       {orderToCancel && (
         <ConfirmModal
           isOpen={showCancelConfirm}

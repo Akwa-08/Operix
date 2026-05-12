@@ -30,7 +30,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, prod
 
   const materialCost = bom.reduce((sum, row) => {
     const mat = materials.find((m: any) => m.id === row.inventory_item_id);
-    return sum + (mat ? Number(mat.unit_cost) * row.quantity_required : 0);
+    return sum + (mat ? (Number(mat.unit_cost) / (Number(mat.conversion_rate) || 1)) * row.quantity_required : 0);
   }, 0);
   const profitFee = Number(form.profit_fee) || 0;
   const finalPrice = materialCost + profitFee;
@@ -92,7 +92,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({ isOpen, prod
             <div className="space-y-2">
               {bom.map((row, i) => {
                 const mat = materials.find((m: any) => m.id === row.inventory_item_id);
-                const lineCost = mat ? Number(mat.unit_cost) * row.quantity_required : 0;
+                const lineCost = mat ? (Number(mat.unit_cost) / (Number(mat.conversion_rate) || 1)) * row.quantity_required : 0;
                 return (
                   <div key={i} className="grid grid-cols-[1fr_100px_100px_32px] gap-2 items-center">
                     <select value={row.inventory_item_id} onChange={e => updateBomRow(i, "inventory_item_id", e.target.value)}

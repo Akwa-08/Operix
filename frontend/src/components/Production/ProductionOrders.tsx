@@ -12,6 +12,7 @@ import { Package, Clock, CheckCircle } from "lucide-react";
 import type { Order } from "../../Types";
 import { useOrdersData, useMyProfile } from "../../hooks/useSupabase";
 import { useToast } from "../../context/ToastContext";
+import { SukiBadge } from "../Shared/UI/SukiBadge";
 import { ExcessMaterialModal } from "./ExcessMaterialModal";
 import { Modal } from "../Shared/UI/Modal";
 
@@ -22,7 +23,7 @@ const ProductionOrders = () => {
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [showExcessModal, setShowExcessModal] = useState(false);
   const [pendingPickupOrder, setPendingPickupOrder] = useState<Order | null>(null);
-  
+
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignOrderId, setAssignOrderId] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState("");
@@ -61,6 +62,10 @@ const ProductionOrders = () => {
       o.customerName?.toLowerCase().includes(q) ||
       o.orderId?.toLowerCase().includes(q)
     );
+  }).sort((a, b) => {
+    if (a.isSuki && !b.isSuki) return -1;
+    if (!a.isSuki && b.isSuki) return 1;
+    return 0;
   });
 
   const selectedOrder = selectedOrderId
@@ -169,9 +174,12 @@ const ProductionOrders = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-bold text-gray-900">{o.orderId}</p>
-                      <p className="text-sm text-gray-500">
-                        {o.customerName} · {o.productType}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-500">
+                          {o.customerName} · {o.productType}
+                        </p>
+                        {o.isSuki && <SukiBadge />}
+                      </div>
                     </div>
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>
@@ -191,7 +199,9 @@ const ProductionOrders = () => {
                     {o.status === "Production" && o.assignedProduction && (
                       <button
                         onClick={() => handleMarkPickup(o)}
-                        className="px-3 py-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-semibold rounded-lg">
+                        disabled={(o.amountPaid || 0) < (o.totalAmount || 0)}
+                        title={(o.amountPaid || 0) < (o.totalAmount || 0) ? "Full payment required" : ""}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-50 hover:bg-green-100 text-green-700"}`}>
                         ✓ Ready
                       </button>
                     )}
@@ -244,7 +254,12 @@ const ProductionOrders = () => {
                       <td className="px-4 py-3 font-mono text-xs">
                         {o.orderId}
                       </td>
-                      <td className="px-4 py-3">{o.customerName}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {o.customerName}
+                          {o.isSuki && <SukiBadge />}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-600">
                         {o.productType}
                       </td>
@@ -268,7 +283,9 @@ const ProductionOrders = () => {
                           {o.status === "Production" && o.assignedProduction && (
                             <button
                               onClick={() => handleMarkPickup(o)}
-                              className="px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold rounded-lg">
+                              disabled={(o.amountPaid || 0) < (o.totalAmount || 0)}
+                              title={(o.amountPaid || 0) < (o.totalAmount || 0) ? "Full payment required" : ""}
+                              className={`px-2 py-1 text-xs font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-100 hover:bg-green-200 text-green-700"}`}>
                               ✓ Ready
                             </button>
                           )}
