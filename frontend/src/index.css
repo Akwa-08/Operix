@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@layer base {
+  html {
+    overflow-x: hidden;
+    /* 
+      Tech-Boomer Accessibility Enhancement:
+      Bumping base font-size to 18px (from 16px).
+      This globally scales all `rem` values in Tailwind,
+      making padding, fonts, margins, and tap targets 12.5% larger effortlessly.
+    */
+    font-size: 18px;
+  }
+
+  body {
+    overflow-x: hidden;
+    background-color: var(--color-slate-50, #f8fafc);
+    color: var(--color-slate-900, #0f172a);
+    transition-property:
+      color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  button {
+    cursor: pointer;
+  }
+}
+
+/* ── Auth Form Utilities (Shared) ────────────────────────────────────────── */
+.su-input-wrap input:focus {
+  border-color: #e80088 !important;
+  box-shadow: 0 0 0 3px rgba(232, 0, 136, 0.1) !important;
+}
+
+.su-submit-btn {
+  background: linear-gradient(135deg, #e80088 0%, #aa00fd 50%, #00bef4 100%);
+  background-size: 200% 200%;
+  transition: all 0.3s ease;
+}
+
+.su-submit-btn:hover:not(:disabled) {
+  background-position: 100% 0;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(232, 0, 136, 0.35);
+}
+
+.su-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 4px 15px rgba(232, 0, 136, 0.25);
+}
+
+.su-glass {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.su-link:hover {
+  color: #e80088 !important;
+}
+
+@keyframes highlight-pulse {
+  0% { transform: scale(1); border-color: transparent; }
+  50% { transform: scale(1.03); border-color: #06b6d4; box-shadow: 0 0 20px rgba(6, 182, 212, 0.4); }
+  100% { transform: scale(1); border-color: transparent; }
+}
+
+.highlight-pulse {
+  animation: highlight-pulse 2s ease-in-out forwards;
+  z-index: 10;
+  scroll-margin-top: 100px;
+}

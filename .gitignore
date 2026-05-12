@@ -1,0 +1,10 @@
+node_modules/
+.env
+dist/
+build/
+.DS_Store
+mockdb.sql
+.agents/
+.sql
+/sql_scripts
+Operix*.*
