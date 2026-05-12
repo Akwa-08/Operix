@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   TrendingUp, DollarSign,
   Package, AlertTriangle, CheckCircle, Clock,
-  Banknote, Search, X, ChevronDown, Loader,
+  Banknote, Search, X, ChevronDown, Loader, CalendarDays,
 } from "lucide-react";
 import { useDashboard, useCashierCashAdvances, useEmployees } from "../../hooks/useSupabase";
 import type { CashAdvanceEligibility } from "../../hooks/useSupabase";
@@ -40,8 +40,8 @@ const KpiCard: React.FC<{
 
 function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
   onClose: () => void;
-  onSubmit: (d: { employee_id: string; amount: number; reason?: string }) => Promise<{ success: boolean; error: string | null }>;
-  checkEligibility: (id: string) => Promise<CashAdvanceEligibility>;
+  onSubmit: (d: { employee_id: string; amount: number; reason?: string; date_issued?: string }) => Promise<{ success: boolean; error: string | null }>;
+  checkEligibility: (id: string, dateIssued?: string) => Promise<CashAdvanceEligibility>;
 }) {
   const { employees: rawEmployees } = useEmployees();
   const [search, setSearch] = useState('');
@@ -55,6 +55,7 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
   const [submitted, setSubmitted] = useState(false);
   const [submittedAmount, setSubmittedAmount] = useState(0);
   const [err, setErr] = useState('');
+  const [dateIssued, setDateIssued] = useState(new Date().toISOString().split('T')[0]);
 
   const parsedAmount = Number(amount) || 0;
   const maxAllowed = eligibility?.remaining ?? CA_LIMIT;
@@ -75,20 +76,34 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
     setEligibility(null); setErr(''); setChecking(true);
     setAmount(String(CA_LIMIT));
     try {
-      const result = await checkEligibility(emp.id);
+      const result = await checkEligibility(emp.id, dateIssued);
       setEligibility(result);
       // Pre-fill amount with remaining available
       if (result.eligible) setAmount(String(result.remaining));
     }
     catch { setEligibility({ eligible: false, reason: 'limit_reached', remaining: 0, totalUsed: 0 }); }
     finally { setChecking(false); }
-  }, [checkEligibility]);
+  }, [checkEligibility, dateIssued]);
+
+  // Re-check eligibility when date changes (if employee already selected)
+  const handleDateChange = useCallback(async (newDate: string) => {
+    setDateIssued(newDate);
+    if (!selEmp) return;
+    setEligibility(null); setChecking(true); setErr('');
+    try {
+      const result = await checkEligibility(selEmp.id, newDate);
+      setEligibility(result);
+      if (result.eligible) setAmount(String(result.remaining));
+    }
+    catch { setEligibility({ eligible: false, reason: 'limit_reached', remaining: 0, totalUsed: 0 }); }
+    finally { setChecking(false); }
+  }, [selEmp, checkEligibility]);
 
   const handleSubmit = async () => {
     if (!selEmp || !eligibility?.eligible) return;
     if (!amountValid) { setErr(`Amount must be between ₱1 and ${fmt(maxAllowed)}.`); return; }
     setSubmitting(true); setErr('');
-    const r = await onSubmit({ employee_id: selEmp.id, amount: parsedAmount, reason: reason || undefined });
+    const r = await onSubmit({ employee_id: selEmp.id, amount: parsedAmount, reason: reason || undefined, date_issued: dateIssued });
     if (r.success) { setSubmittedAmount(parsedAmount); setSubmitted(true); }
     else setErr(r.error || 'Failed');
     setSubmitting(false);
@@ -170,6 +185,26 @@ function CashAdvanceModal({ onClose, onSubmit, checkEligibility }: {
                       </button>
                     ))}
                   </div>
+                )}
+              </div>
+
+              {/* Date Issued */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  <CalendarDays size={14} className="inline mr-1 -mt-0.5" />
+                  Date of Request *
+                  <span className="text-xs text-gray-400 font-normal ml-1">When was this CA requested?</span>
+                </label>
+                <input
+                  type="date"
+                  value={dateIssued}
+                  onChange={e => handleDateChange(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 font-medium"
+                />
+                {eligibility?.periodLabel && (
+                  <p className="text-xs text-blue-600 mt-1 font-medium">
+                    📅 Will be computed in period: {eligibility.periodLabel}
+                  </p>
                 )}
               </div>
 
@@ -284,7 +319,7 @@ const CashierDashboard = () => {
 
   const dateStr = new Date().toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
 
-  const handleSubmitCA = async (d: { employee_id: string; amount: number; reason?: string }) => {
+  const handleSubmitCA = async (d: { employee_id: string; amount: number; reason?: string; date_issued?: string }) => {
     const r = await submitRequest(d);
     if (r.success) refreshCA();
     return r;

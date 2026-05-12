@@ -138,6 +138,8 @@ function mapEmployee(raw: any): EmployeeRecord {
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
     hireDate: parseDbDate(raw.hire_date)?.toLocaleDateString() || '',
     isActive: raw.is_active ?? true,
+    philhealthContribution: Number(raw.philhealth_contribution) || 0,
+    hdmfContribution: Number(raw.hdmf_contribution) || 0,
   };
 }
 
@@ -186,7 +188,7 @@ export function useMyProfile() {
   return { profile: q.data, ...q };
 }
 
-export const clearProfileCache = () => {};
+export const clearProfileCache = () => { };
 
 export function useUsers(filters?: { role?: string; status?: string }) {
   const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status], ['users']);
@@ -328,14 +330,14 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
   const queryClient = useQueryClient();
   const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
   const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
-  
+
   const loading = ordersLoading || empLoading;
   const refresh = async () => { await Promise.all([ordersRefresh(), empRefresh()]); };
-  
+
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
   const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
-  
+
   const productionStaff = employees
     .filter((e: any) => e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
     .map((e: any) => ({ id: e.id, name: e.full_name }));
@@ -485,9 +487,9 @@ export function useManagementData() {
       return r;
     },
     deactivateEmployee: async (id: string) => { const r = await safe(() => db.updateEmployee(id, { is_active: false }).then(() => refreshEmps())); return r; },
-    createSupplier: async (data: { name: string; phone?: string; email?: string; address?: string }) => { 
-      const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups())); 
-      return r; 
+    createSupplier: async (data: { name: string; phone?: string; email?: string; address?: string }) => {
+      const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups()));
+      return r;
     },
     updateSupplier: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateSupplier(id, updates).then(() => refreshSups())); return r; },
     flagSupplier: async (id: string, flagged: boolean, category: string, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_category: category, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
@@ -560,34 +562,34 @@ export function useDeliveries() {
   const { data: rawSuppliers } = useQuery(() => db.getSuppliers(), [], ['suppliers']);
   const { data: staffList } = useQuery(() => db.getStaffList(), [], ['users']);
   const { data: rawEmployees } = useQuery(() => db.getEmployees(), [], ['employees']);
-  
+
   const raw = q.data || [];
   const deliveries: Delivery[] = raw.map(mapDelivery);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
   const suppliers = (rawSuppliers || []).filter((s: any) => s.is_active);
-  
+
   const staff = (staffList || []).map((s: any) => ({
     id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', role: s.role,
   }));
-  
+
   const employees = (rawEmployees || []).map((e: any) => ({
-    id: e.id, 
-    fullName: e.full_name, 
-    role: e.role, 
-    position: e.position 
+    id: e.id,
+    fullName: e.full_name,
+    role: e.role,
+    position: e.position
   }));
 
-  const stats = { 
-    total: deliveries.length, 
-    requested: deliveries.filter(d => d.status === 'requested').length, 
-    ordered: deliveries.filter(d => d.status === 'ordered').length, 
-    enRoute: deliveries.filter(d => d.status === 'en_route').length, 
-    received: deliveries.filter(d => d.status === 'received').length, 
+  const stats = {
+    total: deliveries.length,
+    requested: deliveries.filter(d => d.status === 'requested').length,
+    ordered: deliveries.filter(d => d.status === 'ordered').length,
+    enRoute: deliveries.filter(d => d.status === 'en_route').length,
+    received: deliveries.filter(d => d.status === 'received').length,
     completed: deliveries.filter(d => d.status === 'completed').length,
     returned: deliveries.filter(d => d.status === 'returned').length,
-    cancelled: deliveries.filter(d => d.status === 'cancelled').length 
+    cancelled: deliveries.filter(d => d.status === 'cancelled').length
   };
-  
+
   return {
     deliveries, stats, materials, suppliers, staff, employees, loading: q.loading, error: q.error, refresh: q.refresh,
     createDelivery: async (data: { inventory_item_id: string; supplier_id?: string; requested_quantity: number; expected_arrival_date?: string; notes?: string; requested_by?: string }) => { const r = await safe(() => db.createDelivery(data).then(() => q.refresh())); return r; },
@@ -903,10 +905,10 @@ export function useLogsData() {
     q.data.audit.forEach((raw: any) => {
       let details = '';
       const m = raw.metadata || {};
-      switch(raw.action) {
+      switch (raw.action) {
         case 'Update Inventory': details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`; break;
         case 'Create Order': details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`; break;
-        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_',' ')} (Ref: ${m.ref || 'N/A'}).`; break;
+        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_', ' ')} (Ref: ${m.ref || 'N/A'}).`; break;
         case 'Approve Payment': details = `Payment approved for order.`; break;
         case 'Decline Payment': details = `Payment declined. Reason: ${m.reason}`; break;
         case 'Request Cash Advance': details = `Requested ₱${m.amount?.toLocaleString()} for ${m.employee_name}.`; break;
@@ -934,17 +936,18 @@ export interface CashAdvanceEligibility {
   eligible: boolean;
   reason: 'eligible' | 'limit_reached';
   remaining: number; totalUsed: number;
+  periodLabel?: string;
 }
 
 export function useCashierCashAdvances() {
   const q = useQuery(() => db.cashAdvances.getPendingCount(), []);
   return {
     pendingCount: q.data ?? 0, loading: q.loading, refresh: q.refresh,
-    checkEligibility: async (employeeId: string): Promise<CashAdvanceEligibility> => {
-      try { return await db.cashAdvances.checkEligibility(employeeId); }
+    checkEligibility: async (employeeId: string, dateIssued?: string): Promise<CashAdvanceEligibility> => {
+      try { return await db.cashAdvances.checkEligibility(employeeId, dateIssued); }
       catch { return { eligible: false, reason: 'limit_reached', remaining: 0, totalUsed: 0 }; }
     },
-    submitRequest: async (data: { employee_id: string; amount: number; reason?: string }) => {
+    submitRequest: async (data: { employee_id: string; amount: number; reason?: string; date_issued?: string }) => {
       const r = await safe(() => db.cashAdvances.requestByCashier(data).then(() => q.refresh()));
       return r;
     },
