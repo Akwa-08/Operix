@@ -23,7 +23,11 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import {FileUploadModal} from "../../Customer/FileUploadModal";
+import {
+  fmtDate,
+} from "../../../util/formatters";
 import {ConfirmModal} from "../UI/ConfirmModal";
+import {SukiBadge} from "../UI/SukiBadge";
 
 const sanitizeStorageUrl = (url: string | null | undefined): string => {
   if (!url) return "";
@@ -238,15 +242,22 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
         <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-xl p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
             <div>
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-                {order.orderId}
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-900">
+                  {order.orderId}
+                </h2>
+                {order.isSuki && <SukiBadge />}
+              </div>
               <p className="text-gray-600 font-medium mt-1">
                 Ordered on {order.dateOrdered}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <OrderStatusBadge status={order.status} size="md" />
+              <OrderStatusBadge
+                status={order.status}
+                paymentStatus={order.paymentStatus}
+                size="md"
+              />
               {perms.canViewAll && (
                 <span
                   className={`px-3 py-1 rounded-full text-sm font-semibold border ${
@@ -470,10 +481,13 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               Customer Information
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 rounded-lg p-4">
-              <InfoField
-                label="Name"
-                value={order.customerName || order.customer || "N/A"}
-              />
+              <div className="flex items-center gap-2">
+                <InfoField
+                  label="Name"
+                  value={order.customerName || order.customer || "N/A"}
+                />
+                {order.isSuki && <SukiBadge />}
+              </div>
               <InfoField label="Email" value={order.customerEmail || "N/A"} />
               <InfoField label="Phone" value={order.customerPhone || "N/A"} />
             </div>
@@ -510,18 +524,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             )}
             <InfoField label="Date Ordered" value={order.dateOrdered} />
             <InfoField label="Due Date" value={order.dueDate} />
-            {order.assignedDesigner && (
-              <InfoField
-                label="Assigned Designer"
-                value={order.designerName || "Not assigned"}
-              />
-            )}
-            {order.assignedProduction && (
-              <InfoField
-                label="Assigned Production"
-                value={order.productionName || "Not assigned"}
-              />
-            )}
+            <InfoField
+              label="Assigned Designer"
+              value={
+                !order.assignedDesigner 
+                  ? "Pending" 
+                  : (order.status === "In Queue" ? "Waiting for Designer" : order.designerName || "Pending")
+              }
+            />
+            <InfoField
+              label="Assigned Production"
+              value={order.productionName || "Pending"}
+            />
           </div>
         </div>
 
@@ -554,7 +568,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                         key={i}
                         className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-gray-600">
-                          {new Date(p.created_at).toLocaleDateString()}
+                          {fmtDate(p.created_at)}
                         </td>
                         <td className="px-4 py-3 text-right font-bold text-gray-900">
                           ₱{p.amount.toLocaleString()}
@@ -799,12 +813,21 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
               <h3 className="text-sm font-bold text-gray-900 mb-3">
                 Update Production Status
               </h3>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => onUpdateStatus("Pickup")}>
-                Mark as Ready for Pickup
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={outstanding > 0}
+                  onClick={() => onUpdateStatus("Pickup")}
+                  className={outstanding > 0 ? "opacity-50 cursor-not-allowed" : ""}>
+                  Mark as Ready for Pickup
+                </Button>
+                {outstanding > 0 && (
+                  <p className="text-[10px] text-red-600 font-semibold flex items-center gap-1">
+                    <AlertCircle size={12} /> Full payment required to mark as Ready for Pickup
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
@@ -860,26 +883,33 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           {userRole === "cashier" &&
             ["Payment", "Pickup"].includes(order.status) &&
             onUpdateStatus && (
-              <Button
-                variant="primary"
-                className="flex-1 bg-cyan-400 hover:bg-cyan-500 border-cyan-500"
-                onClick={async () => {
-                  const isPaid =
-                    (order.amountPaid || 0) >= (order.totalAmount || 0);
-                  const nextStatus =
-                    order.status === "Pickup" ? "Completed" : "Production";
-                  const targetName =
-                    nextStatus === "Completed" ? "Completed" : "Production";
+              <div className="flex-1 flex flex-col gap-1">
+                <Button
+                  variant="primary"
+                  className={`w-full bg-cyan-400 hover:bg-cyan-500 border-cyan-500 ${(order.status === "Pickup" && outstanding > 0) ? "opacity-50 cursor-not-allowed" : ""}`}
+                  disabled={order.status === "Pickup" && outstanding > 0}
+                  onClick={async () => {
+                    const isPaid = (order.amountPaid || 0) >= (order.totalAmount || 0);
+                    const nextStatus = order.status === "Pickup" ? "Completed" : "Production";
+                    const targetName = nextStatus === "Completed" ? "Completed" : "Production";
 
-                  if (isPaid) {
-                    onUpdateStatus(nextStatus);
-                    toast.success(`Order confirmed and set to ${targetName}!`);
-                  } else {
-                    setShowPaymentConfirm(true);
-                  }
-                }}>
-                {order.status === "Pickup" ? "Complete Order" : "Confirm"}
-              </Button>
+                    if (isPaid) {
+                      onUpdateStatus(nextStatus);
+                      toast.success(`Order confirmed and set to ${targetName}!`);
+                    } else if (order.status === "Payment") {
+                      // Allow moving to Production with warning
+                      setShowPaymentConfirm(true);
+                    } else {
+                      // Block moving to Completed if not paid
+                      toast.error("Full payment is required to complete the order.");
+                    }
+                  }}>
+                  {order.status === "Pickup" ? "Complete Order" : "Confirm"}
+                </Button>
+                {order.status === "Pickup" && outstanding > 0 && (
+                  <p className="text-[10px] text-red-600 font-bold text-center">Full payment required</p>
+                )}
+              </div>
             )}
 
           {perms.canEditAll && onEdit && !isDesignerDesigning && (

@@ -13,13 +13,14 @@ import {
   type AttendanceLog, type PayrollRecord, type PayrollPeriod, type PendingCashAdvance, type CashAdvance,
 } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { fmtDate } from "../../util/formatters";
 
 const fmt = (n: number) =>
   `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const periodLabel = (p: PayrollPeriod) => {
-  const s = new Date(p.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
-  const e = new Date(p.periodEnd).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+  const s = fmtDate(p.periodStart, { month: "short", day: "numeric" });
+  const e = fmtDate(p.periodEnd, { month: "short", day: "numeric", year: "numeric" });
   return `${s} – ${e}`;
 };
 
@@ -774,7 +775,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
       });
   }, [period?.id, record.employeeId, record.dailyRate]);
   const pLabel = period
-    ? `${new Date(period.periodStart).toLocaleDateString("en-PH", { month: "long", day: "numeric" })} – ${new Date(period.periodEnd).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}`
+    ? `${fmtDate(period.periodStart, { month: "long", day: "numeric" })} – ${fmtDate(period.periodEnd, { month: "long", day: "numeric", year: "numeric" })}`
     : "";
 
   const handlePrint = () => {
@@ -801,7 +802,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <p style="margin:2px 0">Code: ${record.employeeCode}</p>
       </div>
       <div style="text-align:right">
-        <p style="font-size:13px;font-weight:bold">${new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p>
+        <p style="font-size:13px;font-weight:bold">${fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p>
         <p><b>Position:</b> ${record.position}</p>
       </div>
     </div>
@@ -880,7 +881,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                 <p className="text-xs text-gray-500">Code: {record.employeeCode}</p>
               </div>
               <div className="text-right text-xs">
-                <p className="text-sm font-bold">{new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p>
+                <p className="text-sm font-bold">{fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p>
                 <p className="font-bold mt-1">Position:</p><p>{record.position}</p>
               </div>
             </div>
@@ -1460,13 +1461,13 @@ const AdminPayroll: React.FC = () => {
   const printPayrollTable = () => {
     if (!currentPeriod) return;
     const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">-${fmt(rec.totalDeductions)}</td><td class="num grn">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === "paid" ? "Paid" : "Pending"}</td></tr>`).join("");
-    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.basicPay, 0))}</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s, r) => s + r.grossIncome, 0))}</td><td class="num red">-${fmt(payrollRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s, r) => s + r.netPay, 0))}</td><td></td></tr></tfoot></table></body></html>`);
+    printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.basicPay, 0))}</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s, r) => s + r.grossIncome, 0))}</td><td class="num red">-${fmt(payrollRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s, r) => s + r.netPay, 0))}</td><td></td></tr></tfoot></table></body></html>`);
   };
 
   const printAttendanceLogs = () => {
     if (!currentPeriod) return;
     const rows = attendanceLogs.map(log => `<tr><td>${log.fullName}</td><td>${log.position}</td><td class="num">${log.workedHours}h</td><td class="num">${fmt(log.dailyRate)}</td><td class="ctr">${log.lateTimeslots}</td><td class="ctr">${log.earlyLeaveTimeslots}</td><td class="ctr">${log.regularOvertimeHours}/${log.holidayOvertimeHours}/${log.specialOvertimeHours}</td><td class="ctr">${log.businessTripDays}</td><td class="ctr">${log.absences}</td><td class="ctr">${log.onLeaveDays}</td><td class="num grn">${fmt(log.additionalPay)}</td><td class="num red">${fmt(log.deductionAmount)}</td></tr>`).join("");
-    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0}h2{font-size:13px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:8.5px;text-transform:uppercase}.num{text-align:right}.ctr{text-align:center}.grn{color:#16a34a}.red{color:#dc2626}</style></head><body><h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2><p>Period: ${periodLabel(currentPeriod)} | Employees: ${attendanceLogs.length} | Printed: ${new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th><th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th><th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+    printWithIframe(`<!DOCTYPE html><html><head><title>Attendance</title><style>@page{size:landscape;margin:12mm}body{font-family:Arial,sans-serif;font-size:10px;color:#111;margin:0}h2{font-size:13px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:8.5px;text-transform:uppercase}.num{text-align:right}.ctr{text-align:center}.grn{color:#16a34a}.red{color:#dc2626}</style></head><body><h2>VTA LINK PRINTING SERVICES — ATTENDANCE LOGS</h2><p>Period: ${periodLabel(currentPeriod)} | Employees: ${attendanceLogs.length} | Printed: ${fmtDate(new Date(), { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Worked Hrs</th><th>Daily Rate</th><th>Late (×30m)</th><th>Early Leave (×30m)</th><th>OT R/H/S</th><th>Biz Trip</th><th>Absent</th><th>On Leave</th><th>Add. Pay</th><th>Deduction</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
   };
 
   const toggleExpand = (id: string) => { const s = new Set(expandedPeriods); s.has(id) ? s.delete(id) : s.add(id); setExpandedPeriods(s); };
@@ -2033,7 +2034,7 @@ const AdminPayroll: React.FC = () => {
                         <Calendar size={20} className="text-gray-500" />
                         <div>
                           <p className="text-sm font-bold text-gray-900">{periodLabel(period)}</p>
-                          {period.payDate && <p className="text-xs text-gray-500">Pay Date: {new Date(period.payDate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}</p>}
+                          {period.payDate && <p className="text-xs text-gray-500">Pay Date: {fmtDate(period.payDate, { month: "long", day: "numeric", year: "numeric" })}</p>}
                           <p className="text-xs text-gray-400">Created: {period.createdAt}</p>
                         </div>
                       </div>

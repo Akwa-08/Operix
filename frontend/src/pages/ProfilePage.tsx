@@ -11,6 +11,7 @@ import authService from "../services/authService";
 import { db, uploadProfilePicture } from "../lib/database";
 import { clearProfileCache } from "../hooks/useSupabase";
 import { LoadingSpinner } from "../components/Shared/UI/LoadingSpinner";
+import { fmtDate } from "../util/formatters";
 
 export const ProfilePage = () => {
   const { refreshUser, user } = useAuth();
@@ -53,7 +54,7 @@ export const ProfilePage = () => {
         setAvatarUrl(profile.avatar_url || "");
         if (profile.created_at) {
           setMemberSince(
-            new Date(profile.created_at).toLocaleDateString("en-US", {
+            fmtDate(profile.created_at, {
               year: "numeric",
               month: "long",
             }),

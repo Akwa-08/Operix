@@ -4,10 +4,11 @@
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Eye, CreditCard, Trash2, Clock, Palette,
-  CheckCircle2, Hammer, Truck, Package, Edit2, AlertCircle,
+  CheckCircle2, Hammer, Truck, Package, Edit2, AlertCircle
 } from "lucide-react";
 import type { Order } from "../../../Types";
 import { getPaymentStatusColor } from "../../../util/formatters";
+import { SukiBadge } from "../UI/SukiBadge";
 
 // ── Status timeline steps ────────────────────────────────────────────────────
 type CardStatus = "Queue" | "Design" | "Payment" | "Production" | "Pick-up" | "Complete";
@@ -56,7 +57,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      className={`bg-white p-5 rounded-2xl border ${order.hasUnreadDecline ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200'} shadow-sm flex flex-col gap-3 hover:shadow-md transition-shadow`}>
+      className={`p-5 rounded-2xl border transition-all ${order.hasUnreadDecline ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200'} ${order.paymentStatus === "Partially paid" ? 'bg-yellow-50/80' : 'bg-white'} shadow-sm flex flex-col gap-3 hover:shadow-md`}>
 
       {/* Header: customer + order number */}
       <div className="flex items-center gap-3">
@@ -64,10 +65,15 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
           {(order.customerName || "W")[0].toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-gray-900 truncate">{order.customerName || "Walk-in"}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 truncate">{order.customerName || "Walk-in"}</h3>
+            {order.isSuki && <SukiBadge />}
+          </div>
           <p className="text-xs text-gray-400 font-medium">{order.orderId}</p>
         </div>
-        <span className={`${getStatusColor(cardStatus)} text-white px-2.5 py-0.5 rounded-full text-xs font-semibold`}>{order.status}</span>
+        <span className={`${(order.status === "Completed" && order.paymentStatus !== "Paid") ? "bg-yellow-500" : getStatusColor(cardStatus)} text-white px-2.5 py-0.5 rounded-full text-xs font-semibold`}>
+          {(order.status === "Completed" && order.paymentStatus !== "Paid") ? "Incomplete" : order.status}
+        </span>
       </div>
 
       {/* Product + qty */}
@@ -87,8 +93,20 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
           const active = i === stepIdx;
           return (
             <div key={step.status} className="relative z-10 flex flex-col items-center flex-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 border-white shadow-sm ${done || active ? "bg-green-500 text-white" : "bg-gray-100 text-gray-400"}`}>
-                {done ? <CheckCircle2 size={12} /> : <Icon size={12} />}
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 border-white shadow-sm ${
+                (done || active)
+                  ? (step.status === "Payment" && order.paymentStatus === "Unpaid" ? "bg-red-500 text-white" :
+                     step.status === "Payment" && order.paymentStatus === "Partially paid" ? "bg-yellow-500 text-white" :
+                     step.status === "Complete" && order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white" : 
+                     "bg-green-500 text-white")
+                  : "bg-gray-100 text-gray-400"
+              }`}>
+                { (step.status === "Payment" && order.paymentStatus === "Unpaid" && (done || active))
+                  ? <AlertCircle size={12} />
+                  : (step.status === "Payment" && order.paymentStatus === "Partially paid" && (done || active))
+                  ? <CheckCircle2 size={12} /> // Use check for partial, just yellow bg
+                  : done ? <CheckCircle2 size={12} /> : <Icon size={12} /> 
+                }
               </div>
               <span className={`text-[8px] mt-1 font-medium ${active ? "text-gray-900 font-bold" : "text-gray-400"}`}>{step.label}</span>
             </div>
@@ -168,13 +186,13 @@ export const OrderCardsGrid: React.FC<OrderCardsGridProps> = ({ orders, onView, 
     <AnimatePresence mode="popLayout">
       <motion.div layout className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
         {orders.map(o => (
-          <StaffOrderCard 
-            key={o.id} 
-            order={o} 
-            onView={onView} 
-            onEdit={onEdit} 
-            onDelete={onDelete} 
-            onPay={onPay} 
+          <StaffOrderCard
+            key={o.id}
+            order={o}
+            onView={onView}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onPay={onPay}
             hideDeleteWhen={hideDeleteWhen}
             hidePayWhen={hidePayWhen}
           />

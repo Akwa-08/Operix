@@ -140,8 +140,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
           </span>
         </div>
         <span
-          className={`${getStatusColor(order.currentStatus)} text-white px-3 py-1 rounded-full text-xs font-semibold`}>
-          {getStatusLabel(order.currentStatus)}
+          className={`${(order.currentStatus === "Complete" && order.paymentStatus !== "Paid") ? "bg-yellow-500" : getStatusColor(order.currentStatus)} text-white px-3 py-1 rounded-full text-xs font-semibold`}>
+          {(order.currentStatus === "Complete" && order.paymentStatus !== "Paid") ? "Incomplete" : getStatusLabel(order.currentStatus)}
         </span>
       </div>
 
@@ -168,8 +168,8 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               className="relative z-10 flex flex-col items-center flex-1">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-colors duration-300 ${
-                  isCompleted || isActive
-                    ? "bg-green-500 text-white"
+                  (isCompleted || isActive)
+                    ? (step.status === "Complete" && order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white" : "bg-green-500 text-white")
                     : "bg-gray-100 text-gray-400"
                 }`}>
                 {isCompleted ? (

@@ -1,4 +1,5 @@
 import React, {useState, useRef, useEffect, useCallback} from "react";
+import {useSearchParams} from "react-router-dom";
 import {Search, Send, PlusCircle, ArrowLeft, ImageIcon, X} from "lucide-react";
 import {useAuth} from "../../../context/AuthContext";
 import {db} from "../../../lib/database";
@@ -112,15 +113,26 @@ const Messages: React.FC<MessagesProps> = ({title = "Messages"}) => {
   }, []);
 
   // ── Initial load ───────────────────────────────────────────────────────────
+  const [searchParams, setSearchParams] = useSearchParams();
+
   useEffect(() => {
     if (!user) return;
     loadConversations().then((data) => {
-      if (data.length > 0 && !selectedConvRef.current) {
+      // Check if we arrived via a notification deep-link (?openChat=userId)
+      const openChatUserId = searchParams.get("openChat");
+      if (openChatUserId) {
+        const target = data.find((c) => c.userId === openChatUserId);
+        if (target) {
+          openConversation(target);
+        }
+        // Clear the param so it doesn't re-trigger
+        setSearchParams({}, { replace: true });
+      } else if (data.length > 0 && !selectedConvRef.current) {
         openConversation(data[0]);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, searchParams]);
 
   // ── Realtime subscription ──────────────────────────────────────────────────
   useEffect(() => {

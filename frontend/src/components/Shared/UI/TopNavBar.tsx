@@ -1,8 +1,8 @@
 // frontend/src/components/Shared/UI/TopNavBar.tsx
-import {useState, useEffect, useRef} from "react";
-import {Bell, X, Menu} from "lucide-react";
-import {useNavigate, useLocation} from "react-router-dom";
-import {supabase} from "../../../config/supabaseClient";
+import { useState, useEffect, useRef } from "react";
+import { Bell, X, Menu } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { supabase } from "../../../config/supabaseClient";
 
 type NavbarProps = {
   displayName?: string;
@@ -42,7 +42,7 @@ const moduleIcon: Record<string, string> = {
   system: "⚙️",
 };
 
-const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
+const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [showNotif, setShowNotif] = useState(false);
@@ -50,52 +50,52 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
   const [tab, setTab] = useState<"all" | "unread">("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // ── Stable Channel Ref ──────────────────────────────────────────────────
+  // ── Notification fetching + realtime + polling ─────────────────────────────
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const isInitializing = useRef(false);
+  const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
-    const isFetching = {current: false};
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+    const isFetching = { current: false };
 
     const fetchNotifications = async (userId: string) => {
       if (isFetching.current || !isMounted) return;
       isFetching.current = true;
       try {
-        const {data} = await supabase
+        const { data } = await supabase
           .from("notifications")
           .select("*")
           .eq("user_id", userId)
-          .order("created_at", {ascending: false})
+          .order("created_at", { ascending: false })
           .limit(50);
 
         if (data && isMounted) {
           setNotifications(data as Notification[]);
         }
       } catch (err) {
-        console.error("Fetch failed:", err);
+        console.error("Notification fetch failed:", err);
       } finally {
         isFetching.current = false;
       }
     };
 
     const init = async () => {
-      if (isInitializing.current || channelRef.current) return;
-      isInitializing.current = true;
-
       try {
         const {
-          data: {user},
+          data: { user },
         } = await supabase.auth.getUser();
         if (!user || !isMounted) return;
+
+        userIdRef.current = user.id;
 
         // 1. Initial fetch
         await fetchNotifications(user.id);
 
-        // 2. Setup subscription (Once)
+        // 2. Realtime subscription for instant updates
         if (isMounted && !channelRef.current) {
           channelRef.current = supabase
-            .channel(`notifs_${user.id}`) // Shortened name
+            .channel(`notifs_${user.id}_${Date.now()}`)
             .on(
               "postgres_changes",
               {
@@ -108,14 +108,17 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
                 fetchNotifications(user.id);
               },
             )
-            .subscribe((status) => {
-              if (status === "CLOSED" || status === "CHANNEL_ERROR") {
-                channelRef.current = null; // Allow re-init on next check if needed
-              }
-            });
+            .subscribe();
         }
-      } finally {
-        isInitializing.current = false;
+
+        // 3. Polling fallback — guarantees updates even if Realtime is flaky
+        if (isMounted && !pollTimer) {
+          pollTimer = setInterval(() => {
+            fetchNotifications(user.id);
+          }, 10_000); // every 10 seconds
+        }
+      } catch (err) {
+        console.error("Notification init failed:", err);
       }
     };
 
@@ -123,6 +126,7 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
 
     return () => {
       isMounted = false;
+      if (pollTimer) clearInterval(pollTimer);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -146,17 +150,17 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
 
   const markRead = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await supabase.from("notifications").update({is_read: true}).eq("id", id);
+    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? {...n, is_read: true} : n)),
+      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
     );
   };
 
   const markAllRead = async () => {
     const ids = notifications.filter((n) => !n.is_read).map((n) => n.id);
     if (!ids.length) return;
-    await supabase.from("notifications").update({is_read: true}).in("id", ids);
-    setNotifications((prev) => prev.map((n) => ({...n, is_read: true})));
+    await supabase.from("notifications").update({ is_read: true }).in("id", ids);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
   const [previewNotif, setPreviewNotif] = useState<Notification | null>(null);
@@ -169,10 +173,10 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
     if (!n.is_read) {
       await supabase
         .from("notifications")
-        .update({is_read: true})
+        .update({ is_read: true })
         .eq("id", n.id);
       setNotifications((prev) =>
-        prev.map((x) => (x.id === n.id ? {...x, is_read: true} : x)),
+        prev.map((x) => (x.id === n.id ? { ...x, is_read: true } : x)),
       );
     }
   };
@@ -194,9 +198,12 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
             ? "/production"
             : "";
 
-    if (n.related_module === "messages") navigate(`${base}/messages`);
-    else if (n.related_module === "orders" || n.related_module === "payment")
-      navigate(`${base}/orders`);
+    if (n.related_module === "messages") {
+      // related_id = sender's user ID — pass it so Messages auto-opens that conversation
+      const chatParam = n.related_id ? `?openChat=${n.related_id}` : "";
+      navigate(`${base}/messages${chatParam}`);
+    } else if (n.related_module === "orders" || n.related_module === "payment")
+      navigate(`${base}/orders?highlight=${n.related_id}`);
   };
 
   const displayed =
@@ -263,11 +270,10 @@ const TopNavBar: React.FC<NavbarProps> = ({displayName, onMenuClick}) => {
                     <button
                       key={t}
                       onClick={() => setTab(t)}
-                      className={`flex-1 py-1 rounded-md text-xs font-semibold transition-all capitalize ${
-                        tab === t
-                          ? "bg-white shadow-sm text-gray-900"
-                          : "text-gray-500 hover:text-gray-700"
-                      }`}>
+                      className={`flex-1 py-1 rounded-md text-xs font-semibold transition-all capitalize ${tab === t
+                        ? "bg-white shadow-sm text-gray-900"
+                        : "text-gray-500 hover:text-gray-700"
+                        }`}>
                       {t}{" "}
                       {t === "unread" && unreadCount > 0
                         ? `(${unreadCount})`

@@ -31,16 +31,16 @@ const Modal = ({ show, onClose, title, children }: any) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 const AdminOrders = () => {
-  const [searchQuery, setSearchQuery]           = useState("");
-  const [statusFilter, setStatusFilter]         = useState("All");
-  const [periodFilter, setPeriodFilter]         = useState("All Time");
-  const [viewMode, setViewMode]                 = useState<"list" | "cards">("list");
-  const [showCreateModal, setShowCreateModal]   = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [periodFilter, setPeriodFilter] = useState("All Time");
+  const [viewMode, setViewMode] = useState<"list" | "cards">("list");
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [showAssignModal, setShowAssignModal]   = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [selectedOrderId, setSelectedOrderId]   = useState<string | null>(null);
-  const [assignForm, setAssignForm]             = useState({ designer: "", production: "" });
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [assignForm, setAssignForm] = useState({ designer: "", production: "" });
 
   const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, approvePayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
 
@@ -55,10 +55,10 @@ const AdminOrders = () => {
   const filteredOrders = orders.filter((o: any) => {
     // 1. Status Filter
     let pass = true;
-    if (statusFilter === "In Queue")   pass = o.status === "In Queue";
+    if (statusFilter === "In Queue") pass = o.status === "In Queue";
     else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production"].includes(o.status);
     else if (statusFilter === "Completed") pass = o.status === "Completed";
-    else if (statusFilter === "Unpaid")    pass = o.paymentStatus !== "Paid" && o.status !== "Cancelled";
+    else if (statusFilter === "Unpaid") pass = o.paymentStatus !== "Paid" && o.status !== "Cancelled";
     else if (statusFilter === "Overdue") {
       const now = new Date();
       const dueDate = new Date(o.dueDate);
@@ -72,11 +72,11 @@ const AdminOrders = () => {
     if (periodFilter !== "All Time") {
       const d = new Date(o.dateOrdered);
       const now = new Date();
-      if (periodFilter === "Today")     pass = d.toDateString() === now.toDateString();
-      else if (periodFilter === "This Week")  pass = d >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      if (periodFilter === "Today") pass = d.toDateString() === now.toDateString();
+      else if (periodFilter === "This Week") pass = d >= new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       else if (periodFilter === "This Month") pass = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
     }
-    
+
     if (!pass) return false;
 
     // 3. Search Query
@@ -89,6 +89,10 @@ const AdminOrders = () => {
     }
 
     return pass;
+  }).sort((a, b) => {
+    if (a.isSuki && !b.isSuki) return -1;
+    if (!a.isSuki && b.isSuki) return 1;
+    return 0;
   });
 
   const selectedOrder = selectedOrderId
@@ -100,14 +104,14 @@ const AdminOrders = () => {
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
       customer_id: orderData.customerId || null,
-      guest_name:  orderData.guestName || null,
+      guest_name: orderData.guestName || null,
       guest_phone: orderData.guestPhone || null,
       guest_email: orderData.guestEmail || null,
-      order_type:  orderData.orderType || "walk-in",
+      order_type: orderData.orderType || "walk-in",
       items: [{ product_name: orderData.productType, quantity: orderData.quantity, unit_price: orderData.totalAmount / (orderData.quantity || 1), specifications: orderData.specialInstructions }],
       special_instructions: orderData.specialInstructions,
       due_date: orderData.dueDate,
-      assigned_designer:  orderData.assignedDesigner || null,
+      assigned_designer: orderData.assignedDesigner || null,
       assigned_production: orderData.assignedProduction || null,
       comments: orderData.comments || null,
     });
@@ -120,7 +124,7 @@ const AdminOrders = () => {
   const handleAssign = async () => {
     if (!selectedOrder) return;
     const payload: any = {};
-    if (assignForm.designer)   payload.assigned_designer = assignForm.designer;
+    if (assignForm.designer) payload.assigned_designer = assignForm.designer;
     if (assignForm.production) payload.assigned_production = assignForm.production;
     const r = await assignStaff(selectedOrder.id, payload);
     if (r.success) {
@@ -132,9 +136,9 @@ const AdminOrders = () => {
   const handleDelete = async () => {
     if (!selectedOrder) return;
     const r = await deleteOrder(selectedOrder.id);
-    if (r.success) { 
-      setShowDeleteConfirm(false); 
-      setShowDetailsModal(false); 
+    if (r.success) {
+      setShowDeleteConfirm(false);
+      setShowDetailsModal(false);
       toast.success("Order deleted.");
     } else toast.error("Error: " + r.error);
   };
@@ -170,21 +174,21 @@ const AdminOrders = () => {
 
       {/* KPI Cards — 5 focused metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <KpiCard title="Total Orders"   value={stats.total}          icon={<Package size={16}     />} iconColor="text-cyan-600" />
-        <KpiCard title="Active"         value={activeCount}           icon={<Clock size={16}       />} iconColor="text-purple-600" />
-        <KpiCard title="Ready Pickup"   value={stats.readyPickup}    icon={<CheckCircle size={16} />} iconColor="text-green-600" 
+        <KpiCard title="Total Orders" value={stats.total} icon={<Package size={16} />} iconColor="text-cyan-600" />
+        <KpiCard title="Active" value={activeCount} icon={<Clock size={16} />} iconColor="text-purple-600" />
+        <KpiCard title="Ready Pickup" value={stats.readyPickup} icon={<CheckCircle size={16} />} iconColor="text-green-600"
           accent={stats.readyPickup > 0 ? "blue" : "none"} onClick={() => setStatusFilter("Ready Pickup")} />
-        <KpiCard title="Unpaid"         value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
+        <KpiCard title="Unpaid" value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
           accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setStatusFilter("Unpaid")} />
-        <KpiCard title="Overdue"        value={stats.overdue}        icon={<AlertCircle size={16} />} iconColor="text-red-600"
+        <KpiCard title="Overdue" value={stats.overdue} icon={<AlertCircle size={16} />} iconColor="text-red-600"
           accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setStatusFilter("Overdue")} />
       </div>
 
       {/* Unified filter bar */}
       <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-sm">
         <div className="flex flex-wrap gap-2 items-center">
-          <FilterDropdown label="Status"  value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
-          <FilterDropdown label="Period"  value={periodFilter} options={periodOptions} onChange={setPeriodFilter} />
+          <FilterDropdown label="Status" value={statusFilter} options={statusOptions} onChange={setStatusFilter} />
+          <FilterDropdown label="Period" value={periodFilter} options={periodOptions} onChange={setPeriodFilter} />
           <div className="flex-1 min-w-[180px]">
             <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search orders, customers..." />
           </div>

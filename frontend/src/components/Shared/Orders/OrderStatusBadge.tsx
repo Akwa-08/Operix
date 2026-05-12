@@ -5,6 +5,7 @@ import { getOrderStatusColor } from "../../../util/formatters";
 
 interface OrderStatusBadgeProps {
   status: string;
+  paymentStatus?: string;
   size?: "sm" | "md" | "lg";
 }
 
@@ -16,11 +17,21 @@ const SIZE_STYLES: Record<string, string> = {
 
 export const OrderStatusBadge: React.FC<OrderStatusBadgeProps> = ({
   status,
+  paymentStatus,
   size = "md",
-}) => (
-  <span
-    className={`inline-flex items-center justify-center rounded-full font-semibold border ${getOrderStatusColor(status)} ${SIZE_STYLES[size] || SIZE_STYLES.md}`}
-  >
-    {status}
-  </span>
-);
+}) => {
+  const isCompletedUnpaid = status === "Completed" && paymentStatus !== "Paid";
+  const colorClass = isCompletedUnpaid 
+    ? "bg-yellow-100 text-yellow-700 border-yellow-200" 
+    : getOrderStatusColor(status);
+  
+  const displayText = isCompletedUnpaid ? "Incomplete" : status;
+
+  return (
+    <span
+      className={`inline-flex items-center justify-center rounded-full font-semibold border ${colorClass} ${SIZE_STYLES[size] || SIZE_STYLES.md}`}
+    >
+      {displayText}
+    </span>
+  );
+};

@@ -8,6 +8,7 @@ import {
 import { useDashboard, useCashierCashAdvances, useEmployees } from "../../hooks/useSupabase";
 import type { CashAdvanceEligibility } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { fmtDate } from "../../util/formatters";
 
 const CA_LIMIT = 2000;
 const fmt = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
@@ -317,7 +318,9 @@ const CashierDashboard = () => {
   const { pendingCount, submitRequest, checkEligibility, refresh: refreshCA } = useCashierCashAdvances();
   const [showCA, setShowCA] = useState(false);
 
-  const dateStr = new Date().toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+  const dateStr = fmtDate(new Date(), {
+    weekday: "long",
+  });
 
   const handleSubmitCA = async (d: { employee_id: string; amount: number; reason?: string; date_issued?: string }) => {
     const r = await submitRequest(d);
