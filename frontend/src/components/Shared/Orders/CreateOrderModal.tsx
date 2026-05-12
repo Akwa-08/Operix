@@ -7,8 +7,9 @@ import type { UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
 import { Info, Loader2 } from "lucide-react";
 import { useToast } from "../../../context/ToastContext";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { db } from "../../../lib/database";
+import { AlertTriangle } from "lucide-react";
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -43,11 +44,11 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
   const [products, setProducts] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
-  // Load real products from inventory
+  // Load real products from catalog to get max_capacity
   useEffect(() => {
     const loadProducts = async () => {
       try {
-        const data = await db.getProductsWithBOM();
+        const data = await db.getCatalogProducts();
         setProducts(data.filter(p => p.is_active));
       } catch (err) {
         console.error("Failed to load products:", err);
@@ -59,16 +60,23 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     loadProducts();
   }, []);
 
+  const selectedProduct = useMemo(() => {
+    return products.find(p => p.name === formData.productType) || null;
+  }, [formData.productType, products]);
+
+  const effectiveCap = selectedProduct ? (selectedProduct.max_capacity ?? Infinity) : Infinity;
+  const isOutOfStock = !!selectedProduct && effectiveCap <= 0;
+  const isLowStock = !!selectedProduct && !isOutOfStock && effectiveCap <= 5;
+
   // Auto-calculate total amount
   useEffect(() => {
-    const selectedProduct = products.find(p => p.name === formData.productType);
     if (selectedProduct && formData.quantity) {
       const total = selectedProduct.final_price * Number(formData.quantity);
       setFormData(prev => ({ ...prev, totalAmount: total }));
     } else {
       setFormData(prev => ({ ...prev, totalAmount: 0 }));
     }
-  }, [formData.productType, formData.quantity, products]);
+  }, [selectedProduct, formData.quantity]);
 
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -78,6 +86,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     if (!formData.customerName.trim()) { toast.error("Customer name is required"); return; }
     if (!formData.productType) { toast.error("Product type is required"); return; }
     if (!formData.quantity || Number(formData.quantity) < 1) { toast.error("Quantity must be at least 1"); return; }
+    if (selectedProduct && Number(formData.quantity) > effectiveCap) { toast.error(`Quantity cannot exceed available stock (${effectiveCap})`); return; }
     if (!formData.dueDate) { toast.error("Due date is required"); return; }
     if (formData.totalAmount <= 0) { toast.error("Total amount must be greater than 0"); return; }
 
@@ -156,13 +165,30 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Product Type *
-              </label>
+              <div className="relative flex items-center justify-between mb-1">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Product Type *
+                </label>
+                {/* Stock status badge */}
+                {isOutOfStock ? (
+                  <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-600 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ml-2">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    Out of Stock
+                  </div>
+                ) : isLowStock ? (
+                  <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ml-2">
+                    <AlertTriangle className="w-3 h-3 shrink-0" />
+                    Only {effectiveCap} available
+                  </div>
+                ) : null}
+              </div>
               <div className="relative">
                 <select
                   value={formData.productType}
-                  onChange={(e) => handleChange("productType", e.target.value)}
+                  onChange={(e) => {
+                    handleChange("productType", e.target.value);
+                    handleChange("quantity", ""); // Reset quantity on product change
+                  }}
                   disabled={loadingProducts}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-50 disabled:cursor-not-allowed appearance-none"
                 >
@@ -182,27 +208,43 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Quantity *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-semibold text-gray-700">
+                  Quantity *
+                </label>
+                {effectiveCap !== Infinity && effectiveCap > 0 && !isOutOfStock && (
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                    Max: {effectiveCap}
+                  </span>
+                )}
+              </div>
               <input
                 type="number"
                 min="1"
-                value={formData.quantity}
+                max={effectiveCap === Infinity ? undefined : effectiveCap}
+                value={isOutOfStock ? 0 : formData.quantity}
+                disabled={isOutOfStock || !formData.productType}
                 onChange={(e) => {
+                  if (isOutOfStock) return;
                   const val = e.target.value;
                   if (val === "") {
                     handleChange("quantity", "");
                     return;
                   }
                   const num = parseInt(val, 10);
-                  if (!isNaN(num)) handleChange("quantity", num);
+                  if (!isNaN(num)) {
+                    handleChange("quantity", effectiveCap !== Infinity ? Math.min(num, effectiveCap) : num);
+                  }
                 }}
                 onBlur={(e) => {
+                  if (isOutOfStock) return;
                   const num = parseInt(e.target.value, 10);
-                  handleChange("quantity", !isNaN(num) && num >= 1 ? num : 1);
+                  const clamped = isNaN(num) || num < 1 ? 1
+                    : effectiveCap !== Infinity ? Math.min(num, effectiveCap)
+                    : num;
+                  handleChange("quantity", clamped);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="1"
               />
             </div>
@@ -279,13 +321,12 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
           </p>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
           <Button variant="secondary" onClick={onClose} className="flex-1">
             Cancel
           </Button>
-          <Button variant="primary" onClick={handleSubmit} className="flex-1">
-            Create Order
+          <Button variant="primary" onClick={handleSubmit} disabled={isOutOfStock || !formData.productType} className="flex-1">
+            {isOutOfStock ? "Out of Stock" : "Create Order"}
           </Button>
         </div>
       </div>
