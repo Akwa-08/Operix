@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Plus, Trash2, X, Check } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { Button } from "../Shared/UI/Button";
@@ -13,6 +12,8 @@ import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import { KpiCard } from "../Shared/UI/KpiCard";
 import { FilterDropdown } from "../Shared/UI/FilterDropdown";
+import { StatBreakdownModal } from "../Shared/UI/StatBreakdownModal";
+import type { BreakdownItem } from "../Shared/UI/StatBreakdownModal";
 import type { Order } from "../../Types";
 import { useOrdersData } from "../../hooks/useSupabase";
 
@@ -32,9 +33,6 @@ const Modal = ({ show, onClose, title, children }: any) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 const AdminOrders = () => {
-  const [searchParams] = useSearchParams();
-  const highlightedId = searchParams.get("highlight");
-
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [periodFilter, setPeriodFilter] = useState("All Time");
@@ -45,6 +43,7 @@ const AdminOrders = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({ designer: "", production: "" });
+  const [breakdownFilter, setBreakdownFilter] = useState<"readyPickup" | "unpaid" | "overdue" | null>(null);
 
   const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, approvePayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
 
@@ -93,6 +92,10 @@ const AdminOrders = () => {
     }
 
     return pass;
+  }).sort((a, b) => {
+    if (a.isSuki && !b.isSuki) return -1;
+    if (!a.isSuki && b.isSuki) return 1;
+    return 0;
   });
 
   const selectedOrder = selectedOrderId
@@ -177,11 +180,14 @@ const AdminOrders = () => {
         <KpiCard title="Total Orders" value={stats.total} icon={<Package size={16} />} iconColor="text-cyan-600" />
         <KpiCard title="Active" value={activeCount} icon={<Clock size={16} />} iconColor="text-purple-600" />
         <KpiCard title="Ready Pickup" value={stats.readyPickup} icon={<CheckCircle size={16} />} iconColor="text-green-600"
-          accent={stats.readyPickup > 0 ? "blue" : "none"} onClick={() => setStatusFilter("Ready Pickup")} />
+          accent={stats.readyPickup > 0 ? "blue" : "none"}
+          onClick={() => setBreakdownFilter("readyPickup")} />
         <KpiCard title="Unpaid" value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
-          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setStatusFilter("Unpaid")} />
+          accent={stats.completedUnpaid > 0 ? "yellow" : "none"}
+          onClick={() => setBreakdownFilter("unpaid")} />
         <KpiCard title="Overdue" value={stats.overdue} icon={<AlertCircle size={16} />} iconColor="text-red-600"
-          accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setStatusFilter("Overdue")} />
+          accent={stats.overdue > 0 ? "red" : "none"}
+          onClick={() => setBreakdownFilter("overdue")} />
       </div>
 
       {/* Unified filter bar */}
@@ -200,13 +206,11 @@ const AdminOrders = () => {
       {viewMode === "list" ? (
         <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder}
           onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }}
-          highlightedId={highlightedId} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
       ) : (
         <OrderCardsGrid orders={filteredOrders} searchQuery={searchQuery}
           onView={handleViewOrder} onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }}
-          highlightedId={highlightedId} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
       )}
 
       {/* Modals */}
@@ -234,6 +238,52 @@ const AdminOrders = () => {
           }}
           onRefresh={refresh} />
       )}
+
+      {/* Breakdown Modal */}
+      {breakdownFilter && (() => {
+        const now = new Date();
+        let items: BreakdownItem[] = [];
+        let title = "";
+        if (breakdownFilter === "readyPickup") {
+          title = "Ready for Pickup";
+          items = orders
+            .filter((o: Order) => o.status === "Pickup")
+            .map((o: Order) => ({
+              id: o.id, label: o.orderId, sublabel: o.customerName,
+              detail: o.productType, amount: o.totalAmount, paid: o.amountPaid,
+              status: o.status, date: o.dateOrdered,
+            }));
+        } else if (breakdownFilter === "unpaid") {
+          title = "Unpaid Orders";
+          items = orders
+            .filter((o: Order) => o.paymentStatus !== "Paid" && o.status !== "Cancelled")
+            .map((o: Order) => ({
+              id: o.id, label: o.orderId, sublabel: o.customerName,
+              detail: o.productType, amount: o.totalAmount, paid: o.amountPaid,
+              status: o.status, date: o.dateOrdered,
+            }));
+        } else if (breakdownFilter === "overdue") {
+          title = "Overdue Orders";
+          items = orders
+            .filter((o: Order) => {
+              const due = new Date(o.dueDate);
+              return due < now && !["Completed", "Cancelled", "Pickup"].includes(o.status);
+            })
+            .map((o: Order) => ({
+              id: o.id, label: o.orderId, sublabel: o.customerName,
+              detail: o.productType, amount: o.totalAmount, paid: o.amountPaid,
+              status: o.status, date: `Due: ${o.dueDate}`,
+            }));
+        }
+        return (
+          <StatBreakdownModal
+            title={title}
+            items={items}
+            isMoney
+            onClose={() => setBreakdownFilter(null)}
+          />
+        );
+      })()}
 
       {/* Assign Staff Modal */}
       <Modal show={showAssignModal} onClose={() => setShowAssignModal(false)} title={`Assign Staff — ${(selectedOrder as any)?.orderId || ""}`}>
@@ -266,13 +316,11 @@ const AdminOrders = () => {
         <p className="text-gray-600 mb-5">This will permanently delete <strong>{(selectedOrder as any)?.orderId}</strong> and all its items and payments. This cannot be undone.</p>
         <div className="flex gap-3">
           <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
-            <Trash2 size={18} /> Delete
-          </button>
+          <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2"><Trash2 size={18} />Delete</button>
         </div>
       </Modal>
     </div>
   );
 };
 
-export default AdminOrders;
+export default AdminOrders;

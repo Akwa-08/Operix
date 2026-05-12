@@ -1,10 +1,11 @@
 import { useState, useMemo } from "react";
 import {
   Search, Filter, Calendar as CalendarIcon, RefreshCw, Activity,
-  User, Briefcase, FileText, ShieldCheck, Package, BarChart2, Download
+  User, Briefcase, FileText, ShieldCheck, Package, BarChart2, Download, Tag
 } from "lucide-react";
 import { useLogsData } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { fmtDateTime } from "../../util/formatters";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type LogEntry = {
@@ -78,15 +79,23 @@ function mapLogEntry(raw: any): LogEntry {
 const AdminLogs = () => {
   const { logs: rawLogs, loading, error, refresh } = useLogsData();
 
-  const [activeTab, setActiveTab]   = useState<TabId>("all");
-  const [search, setSearch]         = useState("");
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [dateFrom, setDateFrom]     = useState("");
-  const [dateTo, setDateTo]         = useState("");
+  const [activeTab, setActiveTab]     = useState<TabId>("all");
+  const [search, setSearch]           = useState("");
+  const [roleFilter, setRoleFilter]   = useState("all");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [dateFrom, setDateFrom]       = useState("");
+  const [dateTo, setDateTo]           = useState("");
 
-  // ── Convert raw logs → LogEntry array ─────────────────────────────────────
+  // ── Convert raw logs → LogEntry with Manila timezone timestamp ────────────
   const allLogs: LogEntry[] = useMemo(() =>
-    (rawLogs || []).map((raw: any) => mapLogEntry(raw)),
+    (rawLogs || []).map((raw: any) => {
+      const entry = mapLogEntry(raw);
+      // Override date with Manila-timezone formatted datetime
+      entry.date = entry.timestamp
+        ? fmtDateTime(new Date(entry.timestamp).toISOString())
+        : entry.date;
+      return entry;
+    }),
     [rawLogs]
   );
 
@@ -100,9 +109,15 @@ const AdminLogs = () => {
     }
   }, [allLogs, activeTab]);
 
-  // ── Unique roles for filter dropdown ──────────────────────────────────────
+  // ── Unique roles for filter dropdown ──────────────────────────────────
   const roles = useMemo(() =>
     ["all", ...Array.from(new Set(tabLogs.map(l => l.role))).sort()],
+    [tabLogs]
+  );
+
+  // ── Unique actions for filter dropdown ──────────────────────────────
+  const actions = useMemo(() =>
+    ["all", ...Array.from(new Set(tabLogs.map(l => l.action))).sort()],
     [tabLogs]
   );
 
@@ -114,7 +129,7 @@ const AdminLogs = () => {
     inventory: allLogs.filter(l => l.source === "inventory").length,
   };
 
-  // ── Apply filters ─────────────────────────────────────────────────────────
+  // ── Apply filters ────────────────────────────────────────────────
   const filteredLogs = useMemo(() => {
     const term = search.toLowerCase();
     return tabLogs.filter(log => {
@@ -123,12 +138,13 @@ const AdminLogs = () => {
         log.action.toLowerCase().includes(term) ||
         log.details.toLowerCase().includes(term) ||
         log.module.toLowerCase().includes(term);
-      const matchRole = roleFilter === "all" || log.role === roleFilter;
-      const matchFrom = !dateFrom || log.timestamp >= new Date(dateFrom).getTime();
-      const matchTo   = !dateTo   || log.timestamp <= new Date(dateTo).setHours(23, 59, 59);
-      return matchSearch && matchRole && matchFrom && matchTo;
+      const matchRole   = roleFilter === "all" || log.role === roleFilter;
+      const matchAction = actionFilter === "all" || log.action === actionFilter;
+      const matchFrom   = !dateFrom || log.timestamp >= new Date(dateFrom).getTime();
+      const matchTo     = !dateTo   || log.timestamp <= new Date(dateTo).setHours(23, 59, 59);
+      return matchSearch && matchRole && matchAction && matchFrom && matchTo;
     });
-  }, [tabLogs, search, roleFilter, dateFrom, dateTo]);
+  }, [tabLogs, search, roleFilter, actionFilter, dateFrom, dateTo]);
 
   // ── Loading / Error states ─────────────────────────────────────────────────
   if (loading) return <LoadingSpinner type="table" message="Loading activity logs..." />;
@@ -234,6 +250,20 @@ const AdminLogs = () => {
             <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           </div>
 
+          {/* Action Type filter */}
+          <div className="relative flex-1 md:min-w-[160px]">
+            <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <select
+              id="audit-action-filter"
+              value={actionFilter}
+              onChange={e => setActionFilter(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border-none rounded-xl text-sm font-medium appearance-none focus:bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+            >
+              {actions.map(a => <option key={a} value={a}>{a === "all" ? "All Actions" : a}</option>)}
+            </select>
+            <Filter size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          </div>
+
           {/* Date From */}
           <div className="relative flex-1 md:min-w-[150px]">
             <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -260,9 +290,9 @@ const AdminLogs = () => {
         </div>
 
         {/* Clear filters */}
-        {(search || roleFilter !== "all" || dateFrom || dateTo) && (
+        {(search || roleFilter !== "all" || actionFilter !== "all" || dateFrom || dateTo) && (
           <button
-            onClick={() => { setSearch(""); setRoleFilter("all"); setDateFrom(""); setDateTo(""); }}
+            onClick={() => { setSearch(""); setRoleFilter("all"); setActionFilter("all"); setDateFrom(""); setDateTo(""); }}
             className="text-xs text-gray-500 hover:text-red-500 font-medium underline"
           >
             Clear filters
