@@ -1511,11 +1511,11 @@ export const db = {
   // ═══════════════════════════════════════════════════════════════════════════
   // PRODUCTS WITH BOM
   // ═══════════════════════════════════════════════════════════════════════════
-  async getProductsWithBOM(filters?: { category?: string; search?: string }) {
+  async getProductsWithBOM(filters?: { search?: string; category?: string }) {
     let query = supabase
       .from("products")
       .select(
-        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost))",
+        "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost))"
       );
 
     if (filters?.category) query = query.eq("category", filters.category);
@@ -1526,7 +1526,6 @@ export const db = {
     const { data, error } = await query
       .order("category")
       .order("name");
-
     if (error) throw error;
     return data || [];
   },

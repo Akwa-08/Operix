@@ -38,7 +38,6 @@ const ProductionInventory = () => {
   const [showCreateDelivery, setShowCreateDelivery] = useState(false);
   const [newDelivery, setNewDelivery] = useState({
     inventory_item_id: "",
-    requested_by: "",
     requested_quantity: "",
     expected_arrival_date: "",
     notes: "",
@@ -46,10 +45,9 @@ const ProductionInventory = () => {
   });
   const [resupplySearch, setResupplySearch] = useState("");
   const [resupplySupplierSearch, setResupplySupplierSearch] = useState("");
-  const [resupplyStaffSearch, setResupplyStaffSearch] = useState("");
 
   const { materials, stats: materialStats, loading, updateMaterial } = useInventoryData();
-  const { materials: delMaterials, suppliers, employees, createDelivery } = useDeliveries();
+  const { materials: delMaterials, suppliers, createDelivery } = useDeliveries();
   const toast = useToast();
 
   const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
@@ -69,8 +67,8 @@ const ProductionInventory = () => {
   };
 
   const handleCreateResupply = async () => {
-    if (!newDelivery.inventory_item_id || !newDelivery.requested_quantity || !newDelivery.supplier_id || !newDelivery.requested_by || !newDelivery.expected_arrival_date) {
-      toast.error("Requester, material, quantity, supplier, and arrival date are required");
+    if (!newDelivery.inventory_item_id || !newDelivery.requested_quantity || !newDelivery.supplier_id || !newDelivery.expected_arrival_date) {
+      toast.error("Material, quantity, supplier, and arrival date are required");
       return;
     }
     const r = await createDelivery({
@@ -79,15 +77,13 @@ const ProductionInventory = () => {
       requested_quantity: Number(newDelivery.requested_quantity),
       expected_arrival_date: newDelivery.expected_arrival_date || undefined,
       notes: newDelivery.notes || undefined,
-      requested_by: newDelivery.requested_by,
     });
     if (r.success) {
       toast.success("Resupply request submitted!");
       setShowCreateDelivery(false);
-      setNewDelivery({ inventory_item_id: "", requested_quantity: "", expected_arrival_date: "", notes: "", supplier_id: "", requested_by: "" });
+      setNewDelivery({ inventory_item_id: "", requested_quantity: "", expected_arrival_date: "", notes: "", supplier_id: "" });
       setResupplySearch("");
       setResupplySupplierSearch("");
-      setResupplyStaffSearch("");
     } else {
       toast.error("Failed: " + r.error);
     }
@@ -128,51 +124,12 @@ const ProductionInventory = () => {
       )}
 
       {/* Create Resupply Request Modal */}
-      <Modal show={showCreateDelivery} onClose={() => { setShowCreateDelivery(false); setResupplySearch(""); setResupplySupplierSearch(""); setResupplyStaffSearch(""); }} title="Create Resupply Request">
+      <Modal show={showCreateDelivery} onClose={() => { setShowCreateDelivery(false); setResupplySearch(""); setResupplySupplierSearch(""); }} title="Create Resupply Request">
         <div className="space-y-6 mb-6">
-          {/* Staff Selection Section */}
-          <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-bold text-gray-700">1. Select Requester *</label>
-              {newDelivery.requested_by && (
-                <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase">Selected</span>
-              )}
-            </div>
-            <input
-              type="text"
-              placeholder="Search production staff..."
-              value={resupplyStaffSearch}
-              onChange={(e) => setResupplyStaffSearch(e.target.value)}
-              className="w-full px-4 py-2 mb-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white"
-            />
-            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 shadow-sm">
-              {employees
-                .filter(e =>
-                  (e.fullName || "").toLowerCase().includes(resupplyStaffSearch.toLowerCase()) &&
-                  (e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
-                )
-                .map((e: any) => (
-                  <div
-                    key={e.id}
-                    onClick={() => setNewDelivery({ ...newDelivery, requested_by: e.id })}
-                    className={`px-4 py-2 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.requested_by === e.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
-                  >
-                    <span>{e.fullName}</span>
-                    {newDelivery.requested_by === e.id && <CheckCircle size={14} className="text-cyan-600" />}
-                  </div>
-                ))}
-              {employees.filter(e =>
-                (e.fullName || "").toLowerCase().includes(resupplyStaffSearch.toLowerCase()) &&
-                (e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
-              ).length === 0 && (
-                  <div className="px-4 py-3 text-sm text-gray-400 text-center italic">No production staff found</div>
-                )}
-            </div>
-          </div>
 
           <div className="p-4 bg-gray-50 rounded-xl border border-gray-200">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-bold text-gray-700">2. Select Material *</label>
+              <label className="text-sm font-bold text-gray-700">1. Select Material *</label>
               {newDelivery.inventory_item_id && (
                 <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase">Selected</span>
               )}
@@ -207,7 +164,7 @@ const ProductionInventory = () => {
           {newDelivery.inventory_item_id && (
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 animate-in fade-in slide-in-from-top-2 duration-300">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm font-bold text-gray-700">3. Select Supplier *</label>
+                <label className="text-sm font-bold text-gray-700">2. Select Supplier *</label>
                 {newDelivery.supplier_id && (
                   <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold uppercase">Selected</span>
                 )}

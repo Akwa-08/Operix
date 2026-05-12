@@ -245,21 +245,11 @@ export function useInventoryData() {
 }
 
 export function useProductCatalog(filters?: { search?: string; category?: string }) {
-  const { data: raw, loading, error, refresh } = useQuery(
-    () => db.getCatalogProducts(filters),
-    [filters?.search, filters?.category],
-    ['products', 'product_supply_mapping', 'inventory_items'],
-  );
-  const products: CatalogProduct[] = (raw || []).map((p: any) => ({
-    id: p.id,
-    title: p.name,
-    category: p.category || "",
-    variant: p.variant || "",
-    size: p.size_spec || "",
-    price: Number(p.final_price),
-    description: p.description || "",
-    isActive: p.is_active ?? true,
-    maxCapacity: Number(p.max_capacity ?? 0),
+  const { products: raw, loading, error, refresh } = useProducts(filters);
+  const products: CatalogProduct[] = raw.map((p: any) => ({
+    id: p.id, title: p.name, category: p.category || '', variant: p.variant || '',
+    size: p.size_spec || '', price: Number(p.final_price), description: p.description || '',
+    isActive: p.is_active,
   }));
   return { products, loading, error, refresh };
 }
@@ -296,7 +286,6 @@ export function useCartData() {
 }
 
 export function useOrdersData(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-  const queryClient = useQueryClient();
   const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
   const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
   
@@ -429,9 +418,9 @@ function mapAdminProduct(raw: any): AdminProduct {
   return { id: raw.id, name: raw.name, category: raw.category || '', variant: raw.variant || '', sizeSpec: raw.size_spec || '', materialCost: Number(raw.material_cost) || 0, profitFee: Number(raw.profit_fee) || 0, finalPrice: Number(raw.final_price) || 0, isActive: raw.is_active ?? true, description: raw.description || '', bom };
 }
 
-export function useProductsData(filters?: { search?: string; category?: string }) {
-  const q = useQuery(() => db.getProductsWithBOM(filters), [filters?.search, filters?.category], ['products', 'product_supply_mapping', 'inventory_items']);
-  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items', 'item_suppliers', 'suppliers']);
+export function useProductsData() {
+  const q = useQuery(() => db.getProductsWithBOM(), [], ['products', 'product_supply_mapping', 'inventory_items']);
+  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
   const raw = q.data || [];
   const products: AdminProduct[] = raw.map(mapAdminProduct);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
