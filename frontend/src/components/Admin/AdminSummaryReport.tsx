@@ -81,23 +81,31 @@ export const AdminSummaryReport = ({ isOpen, onClose }: AdminSummaryReportProps)
                 <TrendingUp size={18} className="text-[#E80088]" />
                 <h3 className="text-lg font-bold text-gray-900 uppercase tracking-widest">Financial Overview</h3>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <div className="p-4 bg-white border border-gray-200 rounded-xl">
                   <p className="text-xs text-gray-500 font-bold uppercase mb-1">Total Revenue</p>
                   <p className="text-2xl font-black text-gray-900">{fmtMoney(orderStats?.totalRevenue || 0)}</p>
                 </div>
                 <div className="p-4 bg-white border border-gray-200 rounded-xl">
+                  <p className="text-xs text-gray-500 font-bold uppercase mb-1">Material Cost</p>
+                  <p className="text-2xl font-black text-orange-600">{fmtMoney(orderStats?.totalMaterialCost || 0)}</p>
+                </div>
+                <div className="p-4 bg-white border border-gray-200 rounded-xl">
+                  <p className="text-xs text-gray-500 font-bold uppercase mb-1">Gross Profit</p>
+                  <p className="text-2xl font-black text-green-600">{fmtMoney(orderStats?.totalProfit || 0)}</p>
+                </div>
+                <div className="p-4 bg-white border border-gray-200 rounded-xl">
                   <p className="text-xs text-gray-500 font-bold uppercase mb-1">Collected</p>
-                  <p className="text-2xl font-black text-green-600">{fmtMoney(orderStats?.totalCollected || 0)}</p>
+                  <p className="text-2xl font-black text-blue-600">{fmtMoney(orderStats?.totalCollected || 0)}</p>
                 </div>
                 <div className="p-4 bg-white border border-gray-200 rounded-xl">
                   <p className="text-xs text-gray-500 font-bold uppercase mb-1">Outstanding</p>
                   <p className="text-2xl font-black text-amber-600">{fmtMoney(Math.max(0, (orderStats?.totalRevenue || 0) - (orderStats?.totalCollected || 0)))}</p>
                 </div>
                 <div className="p-4 bg-white border border-gray-200 rounded-xl">
-                  <p className="text-xs text-gray-500 font-bold uppercase mb-1">Collection Rate</p>
-                  <p className="text-2xl font-black text-blue-600">
-                    {orderStats?.totalRevenue ? Math.round((orderStats.totalCollected / orderStats.totalRevenue) * 100) : 0}%
+                  <p className="text-xs text-gray-500 font-bold uppercase mb-1">Profit Margin</p>
+                  <p className="text-2xl font-black text-purple-600">
+                    {orderStats?.totalRevenue ? Math.round((orderStats.totalProfit / orderStats.totalRevenue) * 100) : 0}%
                   </p>
                 </div>
               </div>

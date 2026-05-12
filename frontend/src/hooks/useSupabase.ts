@@ -376,7 +376,15 @@ export function useDashboard() {
   const recentOrders = orders.slice(0, 5).map((o: any) => { const c = o.customer; return { id: o.id, orderId: o.order_number, customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in', product: o.order_items?.[0]?.product_name || 'Multiple', amount: Number(o.total_amount) || 0, status: o.status, date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '' }; });
   const totalRevenue = orders.reduce((s: number, o: any) => s + (Number(o.total_amount) || 0), 0);
   const totalCollected = orders.reduce((s: number, o: any) => s + (Number(o.amount_paid) || 0), 0);
-  const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, unpaid: orderStats.pendingPayment };
+  const totalMaterialCost = orders.reduce((s: number, o: any) => {
+    const orderCost = (o.order_items || []).reduce((itemSum: number, item: any) => {
+      return itemSum + (Number(item.product?.material_cost || 0) * (item.quantity || 0));
+    }, 0);
+    return s + orderCost;
+  }, 0);
+  const totalProfit = totalRevenue - totalMaterialCost;
+
+  const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, totalMaterialCost, totalProfit, unpaid: orderStats.pendingPayment };
   const refresh = useCallback(async () => { await Promise.all([refreshOrders(), refreshInv()]); }, [refreshOrders, refreshInv]);
   return { orders, orderStats: extendedOrderStats, invStats, lowStockItems, recentOrders, loading: oL || iL, refresh };
 }

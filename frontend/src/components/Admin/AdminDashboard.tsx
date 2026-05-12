@@ -546,7 +546,41 @@ const AdminDashboard = () => {
           iconBg="bg-cyan-100"
           iconColor="text-cyan-600"
           accent="blue"
-          onClick={() => setBreakdown({ title: "Revenue Breakdown", description: "All orders generating revenue in the selected period.", data: periodOrders, columns: orderColumns, icon: <TrendingUp size={24} /> })}
+          onClick={() => {
+            const enrichedOrders = periodOrders.map(o => {
+              const totalCost = (o.order_items || []).reduce((sum: number, item: any) => {
+                const itemCost = Number(item.product?.material_cost) || 0;
+                return sum + (itemCost * item.quantity);
+              }, 0);
+              const totalRevenue = Number(o.total_amount) || 0;
+              return { ...o, materialCost: totalCost, profit: totalRevenue - totalCost };
+            });
+
+            const totalRev = enrichedOrders.reduce((s, o) => s + o.total_amount, 0);
+            const totalCost = enrichedOrders.reduce((s, o) => s + o.materialCost, 0);
+            const totalProfit = enrichedOrders.reduce((s, o) => s + o.profit, 0);
+            const avgMargin = totalRev > 0 ? (totalProfit / totalRev) * 100 : 0;
+
+            setBreakdown({
+              title: "Financial Revenue Breakdown",
+              description: `Monetary analysis for ${periodLabel}.`,
+              data: enrichedOrders,
+              summary: [
+                { label: "Total Revenue", value: fmtMoney(totalRev), icon: <TrendingUp size={18} />, color: "text-blue-600" },
+                { label: "Material Cost", value: fmtMoney(totalCost), icon: <Package size={18} />, color: "text-orange-600" },
+                { label: "Gross Profit", value: fmtMoney(totalProfit), icon: <DollarSign size={18} />, color: "text-green-600", subValue: `${avgMargin.toFixed(1)}% Margin` },
+              ],
+              columns: [
+                { header: "Order", accessor: (o) => <span className="font-mono font-bold text-xs">{o.orderId}</span> },
+                { header: "Customer", accessor: (o) => <span className="font-bold">{o.customerName}</span> },
+                { header: "Revenue", accessor: (o) => <span className="font-black text-blue-600">{fmtMoney(o.totalAmount)}</span> },
+                { header: "Cost", accessor: (o) => <span className="font-bold text-orange-600">{fmtMoney(o.materialCost)}</span> },
+                { header: "Profit", accessor: (o) => <span className="font-black text-green-600">{fmtMoney(o.profit)}</span> },
+                { header: "Status", accessor: (o) => <span className="px-2 py-0.5 rounded-full bg-gray-100 text-[10px] font-black uppercase">{o.status}</span> },
+              ],
+              icon: <TrendingUp size={24} />
+            });
+          }}
         />
         <KpiCard
           title="Collected"
@@ -556,7 +590,27 @@ const AdminDashboard = () => {
           iconBg="bg-green-100"
           iconColor="text-green-600"
           accent="green"
-          onClick={() => setBreakdown({ title: "Collected Payments", description: "Orders with payments collected.", data: periodOrders.filter((o) => Number(o.amount_paid) > 0), columns: orderColumns, icon: <DollarSign size={24} /> })}
+          onClick={() => {
+            const collectedOrders = periodOrders.filter((o) => Number(o.amount_paid) > 0);
+            const totalCollected = collectedOrders.reduce((s, o) => s + Number(o.amount_paid), 0);
+            setBreakdown({ 
+              title: "Collected Payments", 
+              description: "Breakdown of all payments received.", 
+              data: collectedOrders,
+              summary: [
+                { label: "Total Collected", value: fmtMoney(totalCollected), icon: <DollarSign size={18} />, color: "text-green-600" },
+                { label: "Orders", value: collectedOrders.length, icon: <Package size={18} />, color: "text-purple-600" },
+              ],
+              columns: [
+                { header: "Order", accessor: (o) => <span className="font-mono font-bold text-xs">{o.orderId}</span> },
+                { header: "Customer", accessor: (o) => <span className="font-bold">{o.customerName}</span> },
+                { header: "Total Amount", accessor: (o) => <span>{fmtMoney(o.totalAmount)}</span> },
+                { header: "Amount Paid", accessor: (o) => <span className="font-black text-green-600">{fmtMoney(o.amountPaid)}</span> },
+                { header: "Method", accessor: (o) => <span className="capitalize">{o.payments?.[0]?.payment_method || "—"}</span> },
+              ],
+              icon: <DollarSign size={24} /> 
+            });
+          }}
         />
         <KpiCard
           title="Outstanding"
@@ -566,7 +620,26 @@ const AdminDashboard = () => {
           iconBg="bg-amber-100"
           iconColor="text-amber-600"
           accent={stats.outstanding > 0 ? "yellow" : "green"}
-          onClick={() => setBreakdown({ title: "Outstanding Payments", description: "Orders with pending or partial payments.", data: periodOrders.filter((o) => Number(o.amount_paid) < Number(o.total_amount)), columns: orderColumns, icon: <CreditCard size={24} /> })}
+          onClick={() => {
+            const unpaidOrders = periodOrders.filter((o) => Number(o.amount_paid) < Number(o.total_amount));
+            const totalUnpaid = unpaidOrders.reduce((s, o) => s + (Number(o.total_amount) - Number(o.amount_paid)), 0);
+            setBreakdown({ 
+              title: "Outstanding Balances", 
+              description: "Orders requiring further payment collection.", 
+              data: unpaidOrders,
+              summary: [
+                { label: "Total Outstanding", value: fmtMoney(totalUnpaid), icon: <AlertTriangle size={18} />, color: "text-amber-600" },
+                { label: "At Risk Orders", value: unpaidOrders.length, icon: <Package size={18} />, color: "text-red-600" },
+              ],
+              columns: [
+                { header: "Order", accessor: (o) => <span className="font-mono font-bold text-xs">{o.orderId}</span> },
+                { header: "Customer", accessor: (o) => <span className="font-bold">{o.customerName}</span> },
+                { header: "Balance", accessor: (o) => <span className="font-black text-red-600">{fmtMoney(o.totalAmount - o.amountPaid)}</span> },
+                { header: "Due Date", accessor: (o) => <span className="text-gray-500 font-bold">{o.dueDate}</span> },
+              ],
+              icon: <CreditCard size={24} /> 
+            });
+          }}
         />
         <KpiCard
           title="Orders"
@@ -599,7 +672,25 @@ const AdminDashboard = () => {
           iconBg="bg-red-100"
           iconColor="text-red-600"
           accent={stats.overdue > 0 ? "red" : "none"}
-          onClick={() => setBreakdown({ title: "Overdue Orders", description: "Orders past their due date.", data: periodOrders.filter((o) => o.due_date && new Date(o.due_date) < new Date() && !["completed", "pickup", "cancelled"].includes(o.status)), columns: orderColumns, icon: <AlertTriangle size={24} /> })}
+          onClick={() => {
+            const overdue = periodOrders.filter((o) => o.due_date && new Date(o.due_date) < new Date() && !["completed", "pickup", "cancelled"].includes(o.status));
+            setBreakdown({ 
+              title: "Overdue Orders", 
+              description: "Orders that missed their production or pickup deadlines.", 
+              data: overdue,
+              summary: [
+                { label: "Critical Delay", value: overdue.length, icon: <AlertTriangle size={18} />, color: "text-red-600" },
+                { label: "Estimated Value", value: fmtMoney(overdue.reduce((s, o) => s + o.totalAmount, 0)), icon: <DollarSign size={18} />, color: "text-gray-600" },
+              ],
+              columns: [
+                { header: "Order", accessor: (o) => <span className="font-mono font-bold text-xs">{o.orderId}</span> },
+                { header: "Customer", accessor: (o) => <span className="font-bold">{o.customerName}</span> },
+                { header: "Due Date", accessor: (o) => <span className="text-red-600 font-black">{o.dueDate}</span> },
+                { header: "Stage", accessor: (o) => <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-black uppercase">{o.status}</span> },
+              ],
+              icon: <AlertTriangle size={24} /> 
+            });
+          }}
         />
       </div>
 

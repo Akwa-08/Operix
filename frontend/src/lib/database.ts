@@ -435,7 +435,7 @@ export const db = {
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
-      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url, product:product_id(material_cost, profit_fee)),
       payments(id, amount, payment_method, reference_number, created_at, status, decline_reason)
     `,
       )
@@ -462,7 +462,7 @@ export const db = {
       customer:customer_id(id, first_name, last_name, email, contact_number),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
-      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
+      order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url, product:product_id(material_cost, profit_fee)),
       payments(id, amount, payment_method, reference_number, created_at, status, decline_reason)
     `,
       )

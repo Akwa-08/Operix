@@ -199,9 +199,9 @@ const AdminOrders = () => {
         <KpiCard title="Ready Pickup"   value={stats.readyPickup}    icon={<CheckCircle size={16} />} iconColor="text-green-600" 
           accent={stats.readyPickup > 0 ? "blue" : "none"} onClick={() => setBreakdown({ title: "Ready for Pickup", description: "Orders awaiting customer pickup.", data: orders.filter(o => o.status === "Pickup"), columns: orderColumns, icon: <CheckCircle size={24} /> })} />
         <KpiCard title="Unpaid"         value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
-          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setBreakdown({ title: "Unpaid Orders", description: "Orders with pending or partial payments.", data: orders.filter(o => o.paymentStatus !== "Paid" && o.status !== "Cancelled"), columns: orderColumns, icon: <DollarSign size={24} /> })} />
+          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setBreakdown({ title: "Unpaid Orders", description: "Orders with pending or partial payments.", data: orders.filter(o => o.paymentStatus !== "Paid" && (o.status as string) !== "Cancelled"), columns: orderColumns, icon: <DollarSign size={24} /> })} />
         <KpiCard title="Overdue"        value={stats.overdue}        icon={<AlertCircle size={16} />} iconColor="text-red-600"
-          accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setBreakdown({ title: "Overdue Orders", description: "Orders past their due date.", data: orders.filter((o) => o.dueDate && new Date(o.dueDate) < new Date() && !["Completed", "Cancelled", "Pickup"].includes(o.status)), columns: orderColumns, icon: <AlertCircle size={24} /> })} />
+          accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setBreakdown({ title: "Overdue Orders", description: "Orders past their due date.", data: orders.filter((o) => o.dueDate && new Date(o.dueDate) < new Date() && !["Completed", "Cancelled", "Pickup"].includes(o.status as string)), columns: orderColumns, icon: <AlertCircle size={24} /> })} />
       </div>
 
       {/* Unified filter bar */}
