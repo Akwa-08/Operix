@@ -18,6 +18,7 @@ import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import type { Order } from "../../Types";
 import { useOrdersData } from "../../hooks/useSupabase";
 import { useToast } from "../../context/ToastContext";
+import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 const CashierOrders = () => {
   const [searchParams] = useSearchParams();
@@ -94,10 +95,6 @@ const CashierOrders = () => {
       o.orderId?.toLowerCase().includes(q) ||
       o.productType?.toLowerCase().includes(q)
     );
-  }).sort((a, b) => {
-    if (a.isSuki && !b.isSuki) return -1;
-    if (!a.isSuki && b.isSuki) return 1;
-    return 0;
   });
 
   const selectedOrder = selectedOrderId
@@ -202,9 +199,12 @@ const CashierOrders = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-bold text-gray-900">{o.orderId}</p>
-                      <p className="text-sm text-gray-500">
-                        {o.customerName} · {o.productType}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-500">
+                          {o.customerName} · {o.productType}
+                        </p>
+                        {o.isSuki && <SukiBadge />}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       <span
@@ -278,7 +278,12 @@ const CashierOrders = () => {
                       <td className="px-4 py-3 font-mono text-xs">
                         {o.orderId}
                       </td>
-                      <td className="px-4 py-3">{o.customerName}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {o.customerName}
+                          {o.isSuki && <SukiBadge />}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-600">
                         {o.productType}
                       </td>
