@@ -13,10 +13,14 @@ import {
   ClipboardList,
   MessageSquare,
   Activity,
+  FileText,
 } from "lucide-react";
 import {useDashboardData} from "../../hooks/useSupabase";
 import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
+import { StatBreakdownModal } from "../Shared/UI/StatBreakdownModal";
+import type { BreakdownItem } from "../Shared/UI/StatBreakdownModal";
+import AdminSummaryReport from "./AdminSummaryReport";
 import {
   fmtDate,
   fmtMoney,
@@ -409,10 +413,36 @@ const BarChart: React.FC<{
 };
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+// ── Raw order → BreakdownItem normalizer ─────────────────────────────────────
+function rawToBreakdownItem(o: any): BreakdownItem {
+  const c = o.customer;
+  const customerName = c
+    ? `${c.first_name || ""} ${c.last_name || ""}`.trim() || "Walk-in"
+    : "Walk-in";
+  const STATUS_LABEL: Record<string, string> = {
+    in_queue: "In Queue", designing: "Designing", payment: "Payment",
+    production: "Production", pickup: "Pickup", completed: "Completed", cancelled: "Cancelled",
+  };
+  return {
+    id: o.id,
+    label: o.order_number || o.id,
+    sublabel: customerName,
+    detail: o.order_items?.[0]?.product_name || "—",
+    amount: Number(o.total_amount) || 0,
+    paid: Number(o.amount_paid) || 0,
+    status: STATUS_LABEL[o.status] || o.status,
+    date: fmtDate(o.created_at),
+  };
+}
+
+type BreakdownKey = "revenue" | "collected" | "outstanding" | "orders" | "completed" | "overdue" | null;
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<Period>("month");
   const [chartType, setChartType] = useState<ChartType>("revenue");
+  const [breakdownKey, setBreakdownKey] = useState<BreakdownKey>(null);
+  const [showSummaryReport, setShowSummaryReport] = useState(false);
   const {data: liveData, loading, refresh} = useDashboardData();
 
   // Raw orders for client-side period filtering
@@ -477,6 +507,32 @@ const AdminDashboard = () => {
     weekday: "long",
   });
 
+  // ── Breakdown modal items derived from breakdownKey ───────────────────────
+  const breakdownItems: BreakdownItem[] = useMemo(() => {
+    const now = new Date();
+    switch (breakdownKey) {
+      case "revenue":     return periodOrders.map(rawToBreakdownItem);
+      case "collected":   return periodOrders.filter(o => Number(o.amount_paid) > 0).map(rawToBreakdownItem);
+      case "outstanding": return periodOrders.filter(o => Number(o.total_amount) > Number(o.amount_paid)).map(rawToBreakdownItem);
+      case "orders":      return periodOrders.map(rawToBreakdownItem);
+      case "completed":   return periodOrders.filter(o => o.status === "completed").map(rawToBreakdownItem);
+      case "overdue":     return periodOrders.filter(o =>
+        o.due_date && new Date(o.due_date) < now &&
+        !["completed", "pickup", "cancelled"].includes(o.status)
+      ).map(rawToBreakdownItem);
+      default: return [];
+    }
+  }, [breakdownKey, periodOrders]);
+
+  const BREAKDOWN_TITLES: Record<string, string> = {
+    revenue: "Revenue Breakdown",
+    collected: "Collected Payments",
+    outstanding: "Outstanding Balances",
+    orders: "All Orders",
+    completed: "Completed Orders",
+    overdue: "Overdue Orders",
+  };
+
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
@@ -489,11 +545,18 @@ const AdminDashboard = () => {
           </h1>
           <p className="text-sm text-gray-400 mt-1 font-medium">{dateStr}</p>
         </div>
-        <button
-          onClick={() => refresh?.()}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm active:scale-95 transition-all w-full sm:w-auto">
-          <RefreshCw size={15} className="text-cyan-500" /> Refresh Data
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={() => setShowSummaryReport(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-[#E80088] text-white rounded-xl text-sm font-bold hover:bg-[#C4006F] shadow-sm active:scale-95 transition-all whitespace-nowrap">
+            <FileText size={15} /> Summary Report
+          </button>
+          <button
+            onClick={() => refresh?.()}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 shadow-sm active:scale-95 transition-all whitespace-nowrap">
+            <RefreshCw size={15} className="text-cyan-500" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* ── 2. PERIOD SELECTOR ─────────────────────────────────────────────── */}
@@ -542,11 +605,12 @@ const AdminDashboard = () => {
         <KpiCard
           title="Revenue"
           value={fmtMoney(stats.revenue)}
-          sub={`${periodLabel} billed`}
+          sub={`${periodLabel} billed · click to view`}
           icon={<TrendingUp size={16} />}
           iconBg="bg-cyan-100"
           iconColor="text-cyan-600"
           accent="blue"
+          onClick={() => setBreakdownKey("revenue")}
         />
         <KpiCard
           title="Collected"
@@ -556,6 +620,7 @@ const AdminDashboard = () => {
           iconBg="bg-green-100"
           iconColor="text-green-600"
           accent="green"
+          onClick={() => setBreakdownKey("collected")}
         />
         <KpiCard
           title="Outstanding"
@@ -565,6 +630,7 @@ const AdminDashboard = () => {
           iconBg="bg-amber-100"
           iconColor="text-amber-600"
           accent={stats.outstanding > 0 ? "yellow" : "green"}
+          onClick={() => setBreakdownKey("outstanding")}
         />
         <KpiCard
           title="Orders"
@@ -573,6 +639,7 @@ const AdminDashboard = () => {
           icon={<Package size={16} />}
           iconBg="bg-purple-100"
           iconColor="text-purple-600"
+          onClick={() => setBreakdownKey("orders")}
         />
         <KpiCard
           title="Completed"
@@ -586,6 +653,7 @@ const AdminDashboard = () => {
           iconBg="bg-green-100"
           iconColor="text-green-600"
           accent="green"
+          onClick={() => setBreakdownKey("completed")}
         />
         <KpiCard
           title="Overdue"
@@ -595,6 +663,7 @@ const AdminDashboard = () => {
           iconBg="bg-red-100"
           iconColor="text-red-600"
           accent={stats.overdue > 0 ? "red" : "none"}
+          onClick={() => setBreakdownKey("overdue")}
         />
       </div>
 
@@ -633,18 +702,18 @@ const AdminDashboard = () => {
             onClick={() => navigate("/admin/payroll")}
           />
           <QuickActionCard
+            title="Summary Report"
+            description="Business overview & print"
+            icon={<FileText size={20} />}
+            color="bg-[#E80088]/10 text-[#E80088]"
+            onClick={() => setShowSummaryReport(true)}
+          />
+          <QuickActionCard
             title="Audit Logs"
             description="System activity trail"
             icon={<Activity size={20} />}
             color="bg-orange-100 text-orange-600"
             onClick={() => navigate("/admin/logs")}
-          />
-          <QuickActionCard
-            title="Messages"
-            description="Chat with staff & clients"
-            icon={<MessageSquare size={20} />}
-            color="bg-pink-100 text-pink-600"
-            onClick={() => navigate("/admin/messages")}
           />
         </div>
       </div>
@@ -1009,6 +1078,21 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+      {/* ── BREAKDOWN MODAL ───────────────────────────────────────────────── */}
+      {breakdownKey && (
+        <StatBreakdownModal
+          title={BREAKDOWN_TITLES[breakdownKey] || "Details"}
+          subtitle={`${periodLabel} · ${breakdownItems.length} record${breakdownItems.length !== 1 ? "s" : ""}`}
+          items={breakdownItems}
+          isMoney={["revenue", "collected", "outstanding"].includes(breakdownKey)}
+          onClose={() => setBreakdownKey(null)}
+        />
+      )}
+
+      {/* ── SUMMARY REPORT MODAL ─────────────────────────────────────────── */}
+      {showSummaryReport && (
+        <AdminSummaryReport onClose={() => setShowSummaryReport(false)} />
+      )}
     </div>
   );
 };

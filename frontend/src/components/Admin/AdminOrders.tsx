@@ -275,4 +275,4 @@ const AdminOrders = () => {
   );
 };
 
-export default AdminOrders;
+export default AdminOrders;
