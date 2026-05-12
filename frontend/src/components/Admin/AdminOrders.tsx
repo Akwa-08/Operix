@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Trash2, X, Check } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { Button } from "../Shared/UI/Button";
@@ -31,6 +32,9 @@ const Modal = ({ show, onClose, title, children }: any) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 const AdminOrders = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [periodFilter, setPeriodFilter] = useState("All Time");
@@ -200,11 +204,13 @@ const AdminOrders = () => {
       {viewMode === "list" ? (
         <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder}
           onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }}
+          highlightedId={highlightedId} />
       ) : (
         <OrderCardsGrid orders={filteredOrders} searchQuery={searchQuery}
           onView={handleViewOrder} onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }}
+          highlightedId={highlightedId} />
       )}
 
       {/* Modals */}
@@ -264,11 +270,13 @@ const AdminOrders = () => {
         <p className="text-gray-600 mb-5">This will permanently delete <strong>{(selectedOrder as any)?.orderId}</strong> and all its items and payments. This cannot be undone.</p>
         <div className="flex gap-3">
           <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2"><Trash2 size={18} />Delete</button>
+          <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+            <Trash2 size={18} /> Delete
+          </button>
         </div>
       </Modal>
     </div>
   );
 };
 
-export default AdminOrders;
+export default AdminOrders;
