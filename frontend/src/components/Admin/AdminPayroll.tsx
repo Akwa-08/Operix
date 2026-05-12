@@ -44,10 +44,11 @@ interface ExceptionalLogRow {
   hours_counted: number;
 }
 
-function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
+function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh, periodIsComplete }: {
   attendanceLogs: AttendanceLog[];
   activePeriodId: string | null;
   refresh: () => void;
+  periodIsComplete?: boolean;
 }) {
   const flaggedLogs = attendanceLogs.filter(l => l.hasIncompletePunch);
   const [processing, setProcessing] = useState<string | null>(null);
@@ -123,7 +124,7 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  if (!activePeriodId || flaggedLogs.length === 0) return null;
+  if (!activePeriodId || flaggedLogs.length === 0 || periodIsComplete) return null;
 
   const toggleDate = (empId: string, iso: string) => {
     setSelectedDates(prev => {
@@ -137,7 +138,7 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
 
   const assignHours = (empId: string, hrs: number) => {
     const sel = selectedDates[empId];
-    if (!sel || sel.size === 0 || hrs <= 0 || hrs > 24) return;
+    if (!sel || sel.size === 0 || hrs < 0 || hrs > 24) return;
     setHourAssignments(prev => {
       const next = { ...prev, [empId]: { ...(prev[empId] ?? {}) } };
       sel.forEach(d => { next[empId][d] = hrs; });
@@ -254,6 +255,7 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
           const isProcessing = processing === log.id;
           const totalHours = empDates.reduce((s, d) => s + (assignments[d.punch_date] ?? 8), 0);
           const totalDays = totalHours / 8;
+          const noWorkDays = empDates.filter(d => (assignments[d.punch_date] ?? 8) === 0).length;
 
           return (
             <div key={log.id} className="p-5 bg-amber-50 hover:bg-amber-100 transition-colors">
@@ -266,6 +268,11 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
                     <span className="text-xs font-semibold text-gray-600 bg-white px-2 py-0.5 rounded-full border border-gray-200">
                       {log.workedHours}h recorded · {totalDays} day{totalDays !== 1 ? "s" : ""} counted
                     </span>
+                    {noWorkDays > 0 && (
+                      <span className="text-xs font-semibold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                        {noWorkDays} no-work day{noWorkDays !== 1 ? "s" : ""}
+                      </span>
+                    )}
                   </div>
 
                   {/* Date chips */}
@@ -293,6 +300,8 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
                       let chipClass = "";
                       if (isSel)
                         chipClass = "bg-gray-800 text-white ring-2 ring-gray-600";
+                      else if (hrs === 0)
+                        chipClass = "bg-red-100 text-red-800 ring-1 ring-red-300 line-through";
                       else if (hrs === 4)
                         chipClass = "bg-blue-100 text-blue-800 ring-1 ring-blue-300";
                       else if (!row.is_incomplete)
@@ -305,9 +314,10 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
                           key={row.punch_date}
                           onClick={() => toggleDate(log.employeeId, row.punch_date)}
                           className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all select-none ${chipClass}`}
-                          title={`${row.is_incomplete ? "⚠ Incomplete punch" : "✓ Complete"} — ${hrs}hrs assigned. Click to select.`}
+                          title={hrs === 0 ? `No work — 0 hrs. Click to select.` : `${row.is_incomplete ? "⚠ Incomplete punch" : "✓ Complete"} — ${hrs}hrs assigned. Click to select.`}
                         >
                           {formatDate(row.punch_date)}
+                          {hrs === 0 && <span className="ml-1 text-red-500">✕</span>}
                           {hrs === 4 && <span className="ml-1 opacity-60">½</span>}
                           {row.is_incomplete && hrs === 8 && <span className="ml-1 opacity-60">!</span>}
                         </button>
@@ -323,6 +333,14 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
                         : "Click dates to select, then assign hours:"}
                     </span>
                     <button
+                      onClick={() => assignHours(log.employeeId, 0)}
+                      disabled={selected.size === 0}
+                      className="px-3 py-1 bg-red-100 hover:bg-red-200 disabled:opacity-30 text-red-800 text-xs font-bold rounded-lg border border-red-300 transition-colors"
+                      title="No work done — just clocked in/out briefly"
+                    >
+                      0 hrs
+                    </button>
+                    <button
                       onClick={() => assignHours(log.employeeId, 4)}
                       disabled={selected.size === 0}
                       className="px-3 py-1 bg-blue-100 hover:bg-blue-200 disabled:opacity-30 text-blue-800 text-xs font-bold rounded-lg border border-blue-300 transition-colors"
@@ -337,15 +355,15 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
                       8 hrs
                     </button>
                     <input
-                      type="number" step="0.5" min="0.5" max="24"
+                      type="number" step="0.5" min="0" max="24"
                       value={customHoursInput[log.employeeId] || ""}
                       onChange={e => setCustomHoursInput(prev => ({ ...prev, [log.employeeId]: e.target.value }))}
                       placeholder="Custom"
                       className="w-20 px-2 py-1 border border-gray-300 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-purple-400"
                     />
                     <button
-                      onClick={() => { const h = parseFloat(customHoursInput[log.employeeId] || "0"); if (h > 0 && h <= 24) assignHours(log.employeeId, h); }}
-                      disabled={selected.size === 0 || !customHoursInput[log.employeeId] || parseFloat(customHoursInput[log.employeeId] || "0") <= 0}
+                      onClick={() => { const h = parseFloat(customHoursInput[log.employeeId] || "-1"); if (h >= 0 && h <= 24) assignHours(log.employeeId, h); }}
+                      disabled={selected.size === 0 || !customHoursInput[log.employeeId] || parseFloat(customHoursInput[log.employeeId] || "-1") < 0}
                       className="px-3 py-1 bg-purple-100 hover:bg-purple-200 disabled:opacity-30 text-purple-800 text-xs font-bold rounded-lg border border-purple-300 transition-colors"
                     >
                       Apply
@@ -1163,7 +1181,7 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
     {
       section: "EARNINGS", items: [
         { label: "Daily Rate", formula: `Employee profile`, value: record.dailyRate, note: `₱${record.dailyRate.toFixed(2)}/day` },
-        { label: "Days Present", formula: `From attendance/biometrics`, value: record.daysPresent, note: `${record.daysPresent} day(s)` },
+        { label: "Days Present", formula: `From attendance/biometrics`, value: record.daysPresent, note: `${record.daysPresent} day(s)`, noFormat: true },
         { label: "Basic Pay", formula: `Daily Rate × Days Present = ${fmt(record.dailyRate)} × ${record.daysPresent}`, value: record.basicPay, note: null },
         { label: "Regular OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.25 × OT hrs`, value: record.regularOvertime, note: `Hourly: ${fmt(hourlyRate)}` },
         { label: "Holiday OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.60 × OT hrs`, value: record.holidayOvertime, note: null },
@@ -1224,7 +1242,11 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
                       {item.note && <p className="text-[10px] text-gray-400 mt-0.5">{item.note}</p>}
                     </div>
                     <span className={`text-sm font-bold whitespace-nowrap ${(item as any).isNeg ? 'text-red-600' : (item as any).isBold ? (section.section === 'NET PAY' ? 'text-green-700' : 'text-gray-900') : 'text-gray-800'}`}>
-                      {(item as any).isNeg ? `-${fmt(Math.abs(item.value))}` : fmt(item.value)}
+                      {(item as any).isNeg
+                        ? `-${fmt(Math.abs(item.value))}`
+                        : (item as any).noFormat
+                          ? String(item.value)
+                          : fmt(item.value)}
                     </span>
                   </div>
                 ))}
@@ -1709,6 +1731,7 @@ const AdminPayroll: React.FC = () => {
             attendanceLogs={attendanceLogs}
             activePeriodId={activePeriodId}
             refresh={refresh}
+            periodIsComplete={periodIsComplete}
           />
 
           {/* ── Cash Advance Pending Requests ── */}
