@@ -16,7 +16,7 @@ import {
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
 const fmt = (n: number) =>
-  `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Math.abs(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const periodLabel = (p: PayrollPeriod) => {
   const s = new Date(p.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
@@ -914,6 +914,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
     <div class="grid2">
       <div>
         <h3>DEDUCTIONS</h3>
+        <div class="row"><span>SSS:</span><span class="blue">${fmt(record.sss)}</span></div>
         <div class="row"><span>PhilHealth:</span><span class="blue">${fmt(record.philhealth)}</span></div>
         <div class="row"><span>HDMF (Pag-IBIG):</span><span class="blue">${fmt(record.hdmf)}</span></div>
         <div class="row"><span>Withholding Tax:</span><span>${fmt(record.withholdingTax)}</span></div>
@@ -1019,6 +1020,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
               <div>
                 <h3 className="text-xs font-bold tracking-widest mb-2 pb-1 border-b border-gray-300">DEDUCTIONS</h3>
                 <div className="space-y-0.5 text-xs">
+                  {rows("SSS", record.sss, "text-blue-600")}
                   {rows("PhilHealth", record.philhealth, "text-blue-600")}
                   {rows("HDMF (Pag-IBIG)", record.hdmf, "text-blue-600")}
                   {rows("Withholding Tax", record.withholdingTax, "text-gray-500")}
@@ -1281,8 +1283,8 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
         { label: "Special OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.30 × OT hrs`, value: record.specialOvertime, note: null },
         { label: "Regular Holiday Pay", formula: `Daily Rate × Holiday Days × 2.0`, value: record.regularHolidayPay, note: null },
         { label: "Special Holiday Pay", formula: `Daily Rate × Holiday Days × 1.3`, value: record.specialHolidayPay, note: null },
-        { label: "Tardy Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: -record.tardyDeductions, note: `Subtracted from gross`, isNeg: true },
-        { label: "Undertime Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: -record.undertimeDeductions, note: `Subtracted from gross`, isNeg: true },
+        { label: "Tardy Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: Math.abs(record.tardyDeductions), note: `Subtracted from gross`, isNeg: true },
+        { label: "Undertime Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: Math.abs(record.undertimeDeductions), note: `Subtracted from gross`, isNeg: true },
       ]
     },
     {
@@ -1295,13 +1297,14 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
         { label: "Withholding Tax", formula: `BIR tax table (₱0 if below ₱20,833/mo)`, value: record.withholdingTax, note: null },
         { label: "Cash Advance", formula: `Sum of approved CAs this period`, value: record.cashAdvance, note: record.cashAdvance > 0 ? `Deducted same period` : null },
         { label: "Carry-Over Deduction", formula: `Unpaid balance from previous period`, value: record.carryOverFromPrevious, note: null },
+        { label: "SSS", formula: `Admin-set contribution`, value: record.sss, note: `Set in Contributions` },
         { label: "PhilHealth", formula: `Admin-set contribution`, value: record.philhealth, note: `Set in employee profile` },
         { label: "HDMF (Pag-IBIG)", formula: `Admin-set contribution`, value: record.hdmf, note: `Set in employee profile` },
       ]
     },
     {
       section: "TOTAL DEDUCTIONS", items: [
-        { label: "Total Deductions", formula: `Tax + CA + Carry-Over + PhilHealth + HDMF`, value: record.totalDeductions, note: `This is column O in the Excel register`, isBold: true },
+        { label: "Total Deductions", formula: `Tax + CA + Carry-Over + SSS + PhilHealth + HDMF`, value: record.totalDeductions, note: `This is column O in the Excel register`, isBold: true },
       ]
     },
     {
@@ -1357,20 +1360,21 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [edits, setEdits] = useState<Record<string, { philhealth: string; hdmf: string }>>({});
+  const [edits, setEdits] = useState<Record<string, { sss: string; philhealth: string; hdmf: string }>>({});
   const [successMsg, setSuccessMsg] = useState("");
 
   useEffect(() => {
     (async () => {
       const { data } = await supabase
         .from("employees")
-        .select("id, employee_code, full_name, position, base_hourly_rate, philhealth_contribution, hdmf_contribution, is_active")
+        .select("id, employee_code, full_name, position, base_hourly_rate, sss_contribution, philhealth_contribution, hdmf_contribution, is_active")
         .eq("is_active", true)
         .order("full_name");
       setEmployees(data || []);
-      const initial: Record<string, { philhealth: string; hdmf: string }> = {};
+      const initial: Record<string, { sss: string; philhealth: string; hdmf: string }> = {};
       (data || []).forEach((e: any) => {
         initial[e.id] = {
+          sss: String(Number(e.sss_contribution) || 0),
           philhealth: String(Number(e.philhealth_contribution) || 0),
           hdmf: String(Number(e.hdmf_contribution) || 0),
         };
@@ -1387,6 +1391,7 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
     await supabase
       .from("employees")
       .update({
+        sss_contribution: parseFloat(vals.sss) || 0,
         philhealth_contribution: parseFloat(vals.philhealth) || 0,
         hdmf_contribution: parseFloat(vals.hdmf) || 0,
       })
@@ -1404,6 +1409,7 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
       await supabase
         .from("employees")
         .update({
+          sss_contribution: parseFloat(vals.sss) || 0,
           philhealth_contribution: parseFloat(vals.philhealth) || 0,
           hdmf_contribution: parseFloat(vals.hdmf) || 0,
         })
@@ -1424,7 +1430,7 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Employee Contributions</h3>
-              <p className="text-xs text-gray-500">Update PhilHealth & HDMF contributions per employee. Changes take effect on next payroll compute.</p>
+              <p className="text-xs text-gray-500">Update SSS, PhilHealth & HDMF contributions per employee. Changes take effect on next payroll compute.</p>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X size={20} /></button>
@@ -1446,6 +1452,7 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Employee</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Position</th>
                   <th className="px-4 py-3 text-left font-semibold text-gray-700">Daily Rate</th>
+                  <th className="px-4 py-3 text-center font-semibold text-gray-700">SSS (₱)</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">PhilHealth (₱)</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">HDMF (₱)</th>
                   <th className="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
@@ -1463,9 +1470,17 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
                     <td className="px-4 py-3">
                       <input
                         type="number" step="0.01" min="0"
+                        value={edits[emp.id]?.sss ?? "0"}
+                        onChange={e => setEdits(prev => ({ ...prev, [emp.id]: { ...prev[emp.id], sss: e.target.value } }))}
+                        className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="number" step="0.01" min="0"
                         value={edits[emp.id]?.philhealth ?? "0"}
                         onChange={e => setEdits(prev => ({ ...prev, [emp.id]: { ...prev[emp.id], philhealth: e.target.value } }))}
-                        className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                        className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -1473,7 +1488,7 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
                         type="number" step="0.01" min="0"
                         value={edits[emp.id]?.hdmf ?? "0"}
                         onChange={e => setEdits(prev => ({ ...prev, [emp.id]: { ...prev[emp.id], hdmf: e.target.value } }))}
-                        className="w-24 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                        className="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-xs text-right focus:outline-none focus:ring-2 focus:ring-cyan-400"
                       />
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -1492,7 +1507,7 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
         <div className="flex items-center justify-between p-4 border-t bg-gray-50">
-          <p className="text-[10px] text-gray-400">SSS and Withholding Tax are computed from BIR/SSS tables (currently ₱0 for most employees).</p>
+          <p className="text-[10px] text-gray-400">Withholding Tax is computed from BIR tables (currently ₱0 for most employees).</p>
           <div className="flex gap-3">
             <button onClick={onClose} className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl text-sm">Close</button>
             <button onClick={handleSaveAll} disabled={saving === "all"} className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white font-semibold rounded-xl text-sm flex items-center gap-2">
@@ -2099,8 +2114,9 @@ const AdminPayroll: React.FC = () => {
                       {[
                         { step: 10, label: "Withholding Tax", formula: "₱0.00 (below threshold)", note: "BIR applies when monthly income > ₱20,833", color: "bg-yellow-50 border-yellow-200" },
                         { step: 11, label: "Cash Advance (Deduction)", formula: "Sum of approved CAs this period", note: "Deducted in the same period it was issued. Limit: ₱2,000/period.", color: "bg-amber-50 border-amber-200" },
-                        { step: 12, label: "PhilHealth", formula: "Admin-set per employee", note: "Set in employee profile or Contributions panel", color: "bg-orange-50 border-orange-200" },
-                        { step: 13, label: "HDMF (Pag-IBIG)", formula: "Admin-set per employee", note: "Set in employee profile or Contributions panel", color: "bg-orange-50 border-orange-200" },
+                        { step: 12, label: "SSS", formula: "Admin-set per employee", note: "Set in Contributions panel" },
+                        { step: 13, label: "PhilHealth", formula: "Admin-set per employee", note: "Set in Contributions panel" },
+                        { step: 14, label: "HDMF (Pag-IBIG)", formula: "Admin-set per employee", note: "Set in employee profile or Contributions panel", color: "bg-orange-50 border-orange-200" },
                       ].map(({ step, label, formula, note, color }) => (
                         <div key={step} className={`flex gap-3 p-3 rounded-lg border ${color}`}>
                           <div className="w-6 h-6 rounded-full bg-gray-700 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{step}</div>
@@ -2162,7 +2178,7 @@ const AdminPayroll: React.FC = () => {
                                   <td className="px-3 py-2 font-medium text-gray-900">{rec.employeeName}</td>
                                   <td className="px-3 py-2 text-gray-500">{rec.position}</td>
                                   <td className="px-3 py-2 text-blue-600 font-semibold">{fmt(rec.grossIncome)}</td>
-                                  <td className="px-3 py-2 text-red-600 font-semibold">-{fmt(rec.totalDeductions)}</td>
+                                  <td className="px-3 py-2 text-red-600 font-semibold">{fmt(rec.totalDeductions)}</td>
                                   <td className="px-3 py-2 text-green-600 font-semibold">{fmt(rec.netPay)}</td>
                                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{rec.status === "paid" ? "Paid" : "Pending"}</span></td>
                                   <td className="px-3 py-2"><button onClick={() => setViewingRecord(rec)} className="p-1 hover:bg-gray-200 rounded" title="View payslip"><Eye size={14} className="text-gray-600" /></button></td>
