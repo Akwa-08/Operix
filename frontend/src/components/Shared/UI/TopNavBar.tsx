@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { Bell, X, Menu } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../../config/supabaseClient";
+import { useOrdersData } from "../../../hooks/useSupabase";
 
 type NavbarProps = {
   displayName?: string;
@@ -49,6 +50,10 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [tab, setTab] = useState<"all" | "unread">("all");
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const isAdmin = location.pathname.startsWith("/admin");
+  const { stats } = useOrdersData();
+  const unassignedCount = (isAdmin && stats?.unassigned) || 0;
 
   // ── Notification fetching + realtime + polling ─────────────────────────────
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -203,7 +208,11 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
       const chatParam = n.related_id ? `?openChat=${n.related_id}` : "";
       navigate(`${base}/messages${chatParam}`);
     } else if (n.related_module === "orders" || n.related_module === "payment") {
-      navigate(`${base}/orders?highlight=${n.related_id}`);
+      if (n.id === "virtual-unassigned") {
+        navigate(`${base}/orders?filter=unassigned`);
+      } else {
+        navigate(`${base}/orders?highlight=${n.related_id}`);
+      }
     } else if (n.related_module === "inventory") {
       navigate(`${base}/inventory?highlight=${n.related_id}`);
     } else if (n.related_module === "payroll") {
@@ -211,9 +220,26 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
     }
   };
 
-  const displayed =
+  const rawDisplayed =
     tab === "unread" ? notifications.filter((n) => !n.is_read) : notifications;
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const displayed = (() => {
+    if (unassignedCount > 0) {
+      const virtual: Notification = {
+        id: "virtual-unassigned",
+        title: "Unassigned Orders",
+        message: `There are ${unassignedCount} orders waiting for assignment.`,
+        related_module: "orders",
+        related_id: "unassigned",
+        is_read: false,
+        created_at: new Date().toISOString(),
+      };
+      return [virtual, ...rawDisplayed];
+    }
+    return rawDisplayed;
+  })();
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length + (unassignedCount > 0 ? 1 : 0);
 
   return (
     <div className="fixed top-0 left-0 w-full h-16 bg-white border-b border-gray-200 flex items-center px-4 sm:px-6 justify-between z-50 shadow-sm">
@@ -319,7 +345,7 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
                           {timeAgo(n.created_at)}
                         </p>
                       </div>
-                      {!n.is_read && (
+                      {n.id !== "virtual-unassigned" && !n.is_read && (
                         <button
                           onClick={(e) => markRead(n.id, e)}
                           className="text-xs text-cyan-600 hover:text-cyan-700 font-semibold whitespace-nowrap flex-shrink-0 mt-0.5">
