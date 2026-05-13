@@ -1,11 +1,11 @@
 // backend/src/server.js
 require('dotenv').config();
-const express        = require('express');
-const cors           = require('cors');
+const express = require('express');
+const cors = require('cors');
 const { randomUUID } = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
-const app  = express();
+const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors({
@@ -110,7 +110,7 @@ async function checkUnpaidOrders() {
   console.log('[Reminder Job] Checking for unpaid orders...');
   try {
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-    
+
     // 1. Get unpaid orders older than 3 days that haven't been notified
     // We select customer contact info for registered users and guest info for walk-ins
     const { data: orders, error } = await supabase
@@ -154,7 +154,7 @@ async function checkUnpaidOrders() {
 
       // C. Mark as notified so we don't spam them
       await supabase.from('orders').update({ unpaid_notification_sent: true }).eq('id', order.id);
-      
+
       console.log(`[Reminder Job] Processed notifications for Order: ${orderNum}`);
     }
   } catch (err) {

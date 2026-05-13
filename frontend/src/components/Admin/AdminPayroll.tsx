@@ -48,7 +48,8 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
   activePeriodId: string | null;
   refresh: () => void;
 }) {
-  const flaggedLogs = attendanceLogs.filter(l => l.hasIncompletePunch);
+  const [resolvedEmpIds, setResolvedEmpIds] = useState<Set<string>>(new Set());
+  const flaggedLogs = attendanceLogs.filter(l => l.hasIncompletePunch && !resolvedEmpIds.has(l.employeeId));
   const [processing, setProcessing] = useState<string | null>(null);
   const [exceptionalData, setExceptionalData] = useState<Record<string, ExceptionalLogRow[]>>({});
   const [selectedDates, setSelectedDates] = useState<Record<string, Set<string>>>({});
@@ -118,11 +119,21 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
     setHourAssignments({});
     setDataError(null);
     setDataLoading(false);
+    setResolvedEmpIds(new Set());
   }, [activePeriodId]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  if (!activePeriodId || flaggedLogs.length === 0) return null;
+  if (!activePeriodId) return null;
+
+  if (flaggedLogs.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Incomplete Punches</h3>
+        <p className="text-sm text-gray-500">No incomplete punches detected for this period.</p>
+      </div>
+    );
+  }
 
   const toggleDate = (empId: string, iso: string) => {
     setSelectedDates(prev => {
@@ -179,6 +190,7 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
         .update({ has_incomplete_punch: false, incomplete_punch_dates: [] })
         .eq("id", log.id);
 
+      setResolvedEmpIds(prev => { const n = new Set(prev); n.add(log.employeeId); return n; });
       setSelectedDates(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
       setHourAssignments(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
 
@@ -234,6 +246,47 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
       setSelectedDates(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
       setHourAssignments(prev => { const n = { ...prev }; delete n[log.employeeId]; return n; });
 
+      refresh();
+      await loadData();
+    } finally {
+      setProcessing(null);
+    }
+  };
+
+  const handleConfirmAll = async () => {
+    if (!activePeriodId) return;
+    setProcessing("all");
+    try {
+      for (const log of flaggedLogs) {
+        const empDates = exceptionalData[log.employeeId] ?? [];
+        const assignments = hourAssignments[log.employeeId] ?? {};
+        
+        const hoursMap: Record<string, number> = {};
+        empDates.forEach(row => {
+          hoursMap[row.punch_date] = assignments[row.punch_date] ?? 8;
+        });
+
+        const { error } = await supabase.rpc('update_punch_hours', {
+          p_period_id: activePeriodId,
+          p_employee_id: log.employeeId,
+          p_hours: hoursMap,
+        });
+        if (error) throw error;
+
+        await supabase
+          .from("attendance_exceptional_logs")
+          .update({ is_incomplete: false })
+          .eq("payroll_period_id", activePeriodId)
+          .eq("employee_id", log.employeeId);
+
+        await supabase
+          .from("attendance_logs")
+          .update({ has_incomplete_punch: false, incomplete_punch_dates: [] })
+          .eq("id", log.id);
+      }
+
+      setSelectedDates({});
+      setHourAssignments({});
       refresh();
       await loadData();
     } finally {
@@ -372,15 +425,6 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
                 {/* Confirm / Remove */}
                 <div className="flex flex-col gap-2 flex-shrink-0">
                   <button
-                    onClick={() => handleConfirm(log)}
-                    disabled={isProcessing}
-                    title="Accept all dates with assigned hours — then hit Recompute"
-                    className="flex items-center gap-1.5 px-3 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-semibold rounded-lg whitespace-nowrap"
-                  >
-                    <CheckCircle2 size={13} />
-                    {isProcessing ? "…" : "Confirm"}
-                  </button>
-                  <button
                     onClick={() => handleRemove(log)}
                     disabled={isProcessing}
                     title="Remove incomplete days — then hit Recompute"
@@ -394,6 +438,21 @@ function FlaggedEmployeesPanel({ attendanceLogs, activePeriodId, refresh }: {
             </div>
           );
         })}
+      </div>
+
+      {/* Action Footer */}
+      <div className="px-6 py-4 border-t border-amber-100 bg-amber-50 flex justify-between items-center">
+        <div className="text-sm text-amber-700 font-medium">
+          Assign hours for each employee above before confirming all.
+        </div>
+        <button
+          onClick={handleConfirmAll}
+          disabled={processing === "all" || flaggedLogs.length === 0}
+          className="flex items-center gap-1.5 px-4 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+        >
+          <CheckCircle2 size={16} />
+          {processing === "all" ? "Processing..." : "Confirm All"}
+        </button>
       </div>
 
       {/* Legend */}
