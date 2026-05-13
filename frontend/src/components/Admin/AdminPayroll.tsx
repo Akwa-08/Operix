@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
@@ -1434,7 +1434,7 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 const AdminPayroll: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const location = useLocation();
+
   const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History"];
   const initialTab = searchParams.get("tab") || "Payroll Dashboard";
   const [activeTab, setActiveTab] = useState(initialTab);

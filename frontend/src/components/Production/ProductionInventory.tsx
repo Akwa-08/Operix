@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, X } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";

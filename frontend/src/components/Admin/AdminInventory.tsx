@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown, MoreVertical, Star, Flag, Info } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
@@ -111,7 +111,7 @@ const AdminInventory = () => {
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
   const [searchParams] = useSearchParams();
-  const location = useLocation();
+
   const highlightedId = searchParams.get("highlight");
 
   const tabs = ["Materials", "Products", "Deliveries"];

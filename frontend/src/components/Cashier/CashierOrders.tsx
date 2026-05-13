@@ -9,7 +9,6 @@ import { PageHeader } from "../Shared/UI/PageHeader";
 import { InfoBanner } from "../Shared/UI/InfoBanner";
 import { ViewToggle } from "../Shared/UI/ViewToggle";
 import {
-  getOrderStatusColor,
   getPaymentStatusColor,
 } from "../../util/formatters";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
