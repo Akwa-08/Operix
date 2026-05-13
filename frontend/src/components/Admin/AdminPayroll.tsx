@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Calendar, CheckCircle2, Clock, AlertCircle,
   Upload, Printer, Eye, Search, ChevronDown, ChevronUp,
@@ -1027,11 +1028,18 @@ function DeclineReasonModal({ advance, onClose, onDecline }: {
 }
 
 // ─── Cash Advance Approval Panel ──────────────────────────────────────────────
-function CashAdvanceApprovalPanel() {
+function CashAdvanceApprovalPanel({ highlightedId }: { highlightedId?: string | null }) {
   const { pendingAdvances, loading, refresh, approveAdvance, declineAdvance } = usePendingCashAdvances();
   const [decliningAdvance, setDecliningAdvance] = useState<PendingCashAdvance | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [flashResult, setFlashResult] = useState<{ id: string; type: "approved" | "declined" } | null>(null);
+  const highlightRef = useRef<HTMLTableRowElement>(null);
+
+  useEffect(() => {
+    if (highlightedId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId, loading, pendingAdvances]);
 
   const handleApprove = async (adv: PendingCashAdvance) => {
     setApprovingId(adv.id);
@@ -1075,8 +1083,13 @@ function CashAdvanceApprovalPanel() {
               <tbody className="divide-y divide-gray-50">
                 {pendingAdvances.map(adv => {
                   const over = exceedsLimit(adv); const isApproving = approvingId === adv.id; const justActed = flashResult?.id === adv.id;
+                  const isHighlighted = highlightedId === adv.id;
                   return (
-                    <tr key={adv.id} className={`transition-colors ${justActed ? (flashResult?.type === "approved" ? "bg-green-50" : "bg-red-50") : over ? "bg-orange-50" : "hover:bg-gray-50"}`}>
+                    <tr
+                      key={adv.id}
+                      ref={isHighlighted ? highlightRef : null}
+                      className={`transition-colors ${isHighlighted ? "highlight-pulse" : ""} ${justActed ? (flashResult?.type === "approved" ? "bg-green-50" : "bg-red-50") : over ? "bg-orange-50" : "hover:bg-gray-50"}`}
+                    >
                       <td className="px-4 py-3 whitespace-nowrap"><p className="font-semibold text-gray-900">{adv.employeeName}</p><p className="text-xs text-gray-400 font-mono">{adv.employeeCode}</p></td>
                       <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{adv.employeePosition}</td>
                       <td className="px-4 py-3 max-w-[160px]"><p className="text-xs text-gray-600 truncate">{adv.reason || <span className="italic text-gray-300">No reason</span>}</p></td>
@@ -1420,7 +1433,13 @@ function ContributionsPanel({ onClose }: { onClose: () => void }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 const AdminPayroll: React.FC = () => {
-  const [activeTab, setActiveTab] = useState("Payroll Dashboard");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History"];
+  const initialTab = searchParams.get("tab") || "Payroll Dashboard";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const highlightedId = searchParams.get("highlight");
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showPeriodDrop, setShowPeriodDrop] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -1435,7 +1454,19 @@ const AdminPayroll: React.FC = () => {
   const [selectedForPaid, setSelectedForPaid] = useState<Set<string>>(new Set());
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(new Set());
 
-  const tabs = ["Payroll Dashboard", "Attendance Logs", "Salary Computation", "Salary History"];
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && tabs.includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set("tab", tab);
+    setSearchParams(newParams, { replace: true });
+  };
 
   const {
     periods, currentPeriod, activePeriodId, setSelectedPeriodId,
@@ -1664,7 +1695,7 @@ const AdminPayroll: React.FC = () => {
       {/* ── Tab Navigation ── */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {tabs.map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>{tab}</button>
+          <button key={tab} onClick={() => handleTabChange(tab)} className={`px-6 py-2.5 rounded-lg font-semibold text-sm whitespace-nowrap transition-all duration-150 ${activeTab === tab ? "bg-cyan-500 text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}>{tab}</button>
         ))}
       </div>
 
@@ -1735,7 +1766,7 @@ const AdminPayroll: React.FC = () => {
           />
 
           {/* ── Cash Advance Pending Requests ── */}
-          <CashAdvanceApprovalPanel />
+          <CashAdvanceApprovalPanel highlightedId={highlightedId} />
 
           {/* ── Cash Advance History ── */}
           <CashAdvanceHistoryPanel />

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown, MoreVertical, Star, Flag, Info } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
@@ -109,6 +110,10 @@ const AdminInventory = () => {
   const [restockSupplierSearch, setRestockSupplierSearch] = useState("");
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
+  const [searchParams] = useSearchParams();
+
+  const highlightedId = searchParams.get("highlight");
+
   const tabs = ["Materials", "Products", "Deliveries"];
   const {
     materials,
@@ -121,6 +126,13 @@ const AdminInventory = () => {
   const { deliveries, stats: delStats, materials: delMaterials, suppliers, loading: delLoading, createDelivery, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
   const loading = activeTab === "Materials" ? matLoading : activeTab === "Products" ? prodLoading : delLoading;
+
+  // Auto-switch to Materials tab if highlight param exists (highlighting is handled by the table)
+  useEffect(() => {
+    if (highlightedId && materials.length > 0) {
+      setActiveTab("Materials");
+    }
+  }, [highlightedId, materials]);
 
   // ══════════════════════════════════════════════════════════════════════════════
   // MATERIALS HANDLERS
@@ -385,7 +397,8 @@ const AdminInventory = () => {
             onDelete={(m: Material) => { setSelectedMaterial(m); setShowDeleteModal(true); }}
             onManageSuppliers={handleManageSuppliers}
             searchQuery={searchQuery}
-            statusFilter={materialStatusFilter} />
+            statusFilter={materialStatusFilter}
+            highlightedId={highlightedId} />
           {selectedMaterial && (
             <>
               <MaterialDetailsModal isOpen={showViewModal} material={selectedMaterial} userRole="admin" onClose={() => setShowViewModal(false)} />
