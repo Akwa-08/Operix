@@ -5,15 +5,18 @@ import {
   CheckCircle,
   Upload,
   RefreshCw,
+  FileBarChart,
 } from "lucide-react";
 import {useToast} from "../../context/ToastContext";
 import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
+import {PageSummaryCard} from "../Shared/UI/PageSummaryCard";
 import {getOrderStatusColor, fmtDate} from "../../util/formatters";
 import {OrderDetailsModal} from "../Shared/Orders/OrderDetailsModal";
 import type {Order} from "../../Types";
 import {useOrdersData, useMyProfile} from "../../hooks/useSupabase";
 import {SukiBadge} from "../Shared/UI/SukiBadge";
+import {downloadCSV, printReport, buildKpiHtml, buildHtmlTable} from "../../util/reportExport";
 
 // ─── Designer Dashboard ────────────────────────────────────────────────────────
 
@@ -97,6 +100,54 @@ const DesignerDashboard = () => {
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
+
+      {/* ── DESIGN SUMMARY ─────────────────────────────────────────── */}
+      <PageSummaryCard
+        title="My Workload"
+        icon={<FileBarChart size={16} />}
+        onDownloadCSV={() => {
+          downloadCSV("designer_orders", [
+            { header: "Order #", accessor: (o: Order) => o.orderId },
+            { header: "Customer", accessor: (o: Order) => o.customerName },
+            { header: "Product", accessor: (o: Order) => o.productType },
+            { header: "Status", accessor: (o: Order) => o.status },
+            { header: "Date Ordered", accessor: (o: Order) => o.dateOrdered },
+            { header: "Due Date", accessor: (o: Order) => o.dueDate },
+          ], orders);
+        }}
+        onPrint={() => {
+          printReport("Designer Work Report", dateStr, [
+            {
+              title: "Summary",
+              content: `<div class="summary-text">You have <strong>${stats.assigned}</strong> orders assigned. <strong>${stats.inProgress}</strong> are currently being designed, <strong>${stats.completed}</strong> have moved to production. ${queueOrders.length > 0 ? `<strong>${queueOrders.length}</strong> orders are waiting in queue.` : 'No pending queue orders.'}</div>`,
+            },
+            {
+              title: "Metrics",
+              content: buildKpiHtml([
+                { label: "Assigned", value: String(stats.assigned) },
+                { label: "In Progress", value: String(stats.inProgress) },
+                { label: "Completed", value: String(stats.completed) },
+                { label: "In Queue", value: String(queueOrders.length) },
+              ]),
+            },
+            {
+              title: "Current Orders",
+              content: buildHtmlTable([
+                { header: "Order #", accessor: (o: Order) => o.orderId },
+                { header: "Customer", accessor: (o: Order) => o.customerName },
+                { header: "Product", accessor: (o: Order) => o.productType },
+                { header: "Status", accessor: (o: Order) => o.status },
+                { header: "Due Date", accessor: (o: Order) => o.dueDate },
+              ], orders),
+            },
+          ]);
+        }}
+      >
+        You have <strong>{stats.assigned}</strong> orders assigned.
+        {" "}<strong className="text-purple-700">{stats.inProgress}</strong> are currently being designed,
+        {" "}<strong className="text-green-700">{stats.completed}</strong> have moved to production.
+        {queueOrders.length > 0 && (<>{" "}<strong className="text-cyan-700">{queueOrders.length}</strong> orders are waiting in queue.</>)}
+      </PageSummaryCard>
 
       {/* ── KPI CARDS ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

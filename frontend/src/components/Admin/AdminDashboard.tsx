@@ -1,4 +1,4 @@
-import {useState, useMemo} from "react";
+import {useState, useMemo, useCallback} from "react";
 import { useNavigate } from "react-router-dom";
 import {
   RefreshCw,
@@ -13,14 +13,23 @@ import {
   ClipboardList,
   MessageSquare,
   Activity,
+  FileBarChart,
 } from "lucide-react";
 import {useDashboardData} from "../../hooks/useSupabase";
 import {KpiCard} from "../Shared/UI/KpiCard";
 import {LoadingSpinner} from "../Shared/UI/LoadingSpinner";
+import { PageSummaryCard, StatBreakdown } from "../Shared/UI/PageSummaryCard";
 import {
   fmtDate,
   fmtMoney,
 } from "../../util/formatters";
+import {
+  fmtMoneyFull,
+  downloadCSV,
+  printReport,
+  buildKpiHtml,
+  buildHtmlTable,
+} from "../../util/reportExport";
 
 // ─── Quick Action Card ────────────────────────────────────────────────────────
 const QuickActionCard: React.FC<{
@@ -477,6 +486,100 @@ const AdminDashboard = () => {
     weekday: "long",
   });
 
+  // ── Report Export Handlers ──────────────────────────────────────────────
+  const handleDownloadCSV = useCallback(() => {
+    downloadCSV("operix_business_report", [
+      { header: "Order #", accessor: (o: any) => o.order_number || o.id },
+      { header: "Customer", accessor: (o: any) => o.customer ? `${o.customer.first_name || ""} ${o.customer.last_name || ""}`.trim() || "Walk-in" : "Walk-in" },
+      { header: "Product", accessor: (o: any) => o.order_items?.[0]?.product_name || "—" },
+      { header: "Amount (₱)", accessor: (o: any) => Number(o.total_amount) || 0 },
+      { header: "Paid (₱)", accessor: (o: any) => Number(o.amount_paid) || 0 },
+      { header: "Status", accessor: (o: any) => (o.status || "").replace(/_/g, " ") },
+      { header: "Payment", accessor: (o: any) => (o.payment_status || "unpaid").replace(/_/g, " ") },
+      { header: "Date Ordered", accessor: (o: any) => o.created_at ? new Date(o.created_at).toLocaleDateString("en-PH") : "—" },
+      { header: "Due Date", accessor: (o: any) => o.due_date ? new Date(o.due_date).toLocaleDateString("en-PH") : "—" },
+    ], periodOrders);
+  }, [periodOrders]);
+
+  const handlePrintReport = useCallback(() => {
+    printReport(
+      "Operix Business Report",
+      `${periodLabel} Overview`,
+      [
+        {
+          title: "Business Summary",
+          content: `<div class="summary-text">During <strong>${periodLabel}</strong>, your business generated <strong>${fmtMoneyFull(stats.revenue)}</strong> in revenue across <strong>${stats.total}</strong> orders. You have collected <strong>${fmtMoneyFull(stats.collected)}</strong> (<strong>${stats.collectionRate}%</strong> collection rate). <strong>${fmtMoneyFull(stats.outstanding)}</strong> remains outstanding. ${stats.overdue > 0 ? `<span style="color:#dc2626"><strong>${stats.overdue} order(s)</strong> are overdue and need immediate attention.</span>` : "All orders are on schedule."} ${lowStockItems.length > 0 ? `<span style="color:#d97706"><strong>${lowStockItems.length} material(s)</strong> are running low on stock.</span>` : "All materials are sufficiently stocked."}</div>`,
+        },
+        {
+          title: "Key Performance Indicators",
+          content: buildKpiHtml([
+            { label: "Revenue", value: fmtMoneyFull(stats.revenue), sub: `${periodLabel} billed` },
+            { label: "Collected", value: fmtMoneyFull(stats.collected), sub: `${stats.collectionRate}% rate` },
+            { label: "Outstanding", value: fmtMoneyFull(stats.outstanding), sub: "Uncollected" },
+            { label: "Total Orders", value: String(stats.total), sub: periodLabel },
+            { label: "Completed", value: String(stats.completed), sub: stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}% fulfillment` : "—" },
+            { label: "Overdue", value: String(stats.overdue), sub: "Need action" },
+          ]),
+        },
+        {
+          title: "Order Pipeline (Current State)",
+          content: buildHtmlTable(
+            [
+              { header: "Stage", accessor: (s: any) => s.label },
+              { header: "Count", accessor: (s: any) => s.count, align: "center" as const },
+            ],
+            pipeline,
+          ),
+        },
+        ...(overdueList.length > 0
+          ? [
+              {
+                title: "Overdue Orders",
+                content: buildHtmlTable(
+                  [
+                    { header: "Order #", accessor: (o: any) => o.orderId },
+                    { header: "Customer", accessor: (o: any) => o.customer },
+                    { header: "Product", accessor: (o: any) => o.product },
+                    { header: "Due Date", accessor: (o: any) => o.dueDate },
+                  ],
+                  overdueList,
+                ),
+              },
+            ]
+          : []),
+        ...(lowStockItems.length > 0
+          ? [
+              {
+                title: "Low Stock Alerts",
+                content: buildHtmlTable(
+                  [
+                    { header: "Material", accessor: (i: any) => i.name },
+                    { header: "Current Stock", accessor: (i: any) => `${i.currentQty} ${i.unit}`, align: "center" as const },
+                    { header: "Reorder Point", accessor: (i: any) => `${i.reorderPoint} ${i.unit}`, align: "center" as const },
+                  ],
+                  lowStockItems,
+                ),
+              },
+            ]
+          : []),
+        {
+          title: "Recent Orders",
+          content: buildHtmlTable(
+            [
+              { header: "Order #", accessor: (o: any) => o.orderId },
+              { header: "Customer", accessor: (o: any) => o.customerName },
+              { header: "Product", accessor: (o: any) => o.product },
+              { header: "Amount", accessor: (o: any) => fmtMoneyFull(o.amount), align: "right" as const },
+              { header: "Status", accessor: (o: any) => (o.status || "").replace(/_/g, " ") },
+              { header: "Date", accessor: (o: any) => o.date },
+            ],
+            recentOrders,
+          ),
+        },
+      ],
+    );
+  }, [stats, periodLabel, pipeline, overdueList, lowStockItems, recentOrders, periodOrders]);
+
   if (loading) return <LoadingSpinner message="Loading dashboard..." />;
 
   return (
@@ -514,6 +617,44 @@ const AdminDashboard = () => {
         </div>
       </div>
 
+      {/* ── BUSINESS SUMMARY ──────────────────────────────────────────────── */}
+      <PageSummaryCard
+        title="Business Summary"
+        icon={<FileBarChart size={16} />}
+        onDownloadCSV={handleDownloadCSV}
+        onPrint={handlePrintReport}
+      >
+        During <strong>{periodLabel}</strong>, your business generated{" "}
+        <strong className="text-cyan-700">{fmtMoney(stats.revenue)}</strong> in
+        revenue across <strong>{stats.total}</strong> orders. You&apos;ve collected{" "}
+        <strong className="text-green-700">{fmtMoney(stats.collected)}</strong>{" "}
+        ({stats.collectionRate}% collection rate).{" "}
+        {stats.outstanding > 0 && (
+          <>
+            <strong className="text-amber-700">
+              {fmtMoney(stats.outstanding)}
+            </strong>{" "}
+            remains outstanding.{" "}
+          </>
+        )}
+        {stats.overdue > 0 ? (
+          <span className="text-red-600 font-semibold">
+            {stats.overdue} order(s) are overdue and need immediate attention.
+          </span>
+        ) : (
+          <span className="text-green-600">All orders are on schedule.</span>
+        )}{" "}
+        {lowStockItems.length > 0 ? (
+          <span className="text-amber-600">
+            {lowStockItems.length} material(s) are running low.
+          </span>
+        ) : (
+          <span className="text-green-600">
+            All materials are sufficiently stocked.
+          </span>
+        )}
+      </PageSummaryCard>
+
       {/* ── UNASSIGNED ORDERS WARNING ─────────────────────────────────── */}
       {stats.unassigned > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between mb-6 shadow-sm border-l-4 border-l-red-500">
@@ -539,63 +680,116 @@ const AdminDashboard = () => {
 
       {/* ── 3. KPI CARDS ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiCard
-          title="Revenue"
-          value={fmtMoney(stats.revenue)}
-          sub={`${periodLabel} billed`}
-          icon={<TrendingUp size={16} />}
-          iconBg="bg-cyan-100"
-          iconColor="text-cyan-600"
-          accent="blue"
-        />
-        <KpiCard
-          title="Collected"
-          value={fmtMoney(stats.collected)}
-          sub={`${stats.collectionRate}% collection rate`}
-          icon={<DollarSign size={16} />}
-          iconBg="bg-green-100"
-          iconColor="text-green-600"
-          accent="green"
-        />
-        <KpiCard
-          title="Outstanding"
-          value={fmtMoney(stats.outstanding)}
-          sub="Uncollected payments"
-          icon={<CreditCard size={16} />}
-          iconBg="bg-amber-100"
-          iconColor="text-amber-600"
-          accent={stats.outstanding > 0 ? "yellow" : "green"}
-        />
-        <KpiCard
-          title="Orders"
-          value={`${stats.total}`}
-          sub={`Placed — ${periodLabel}`}
-          icon={<Package size={16} />}
-          iconBg="bg-purple-100"
-          iconColor="text-purple-600"
-        />
-        <KpiCard
-          title="Completed"
-          value={`${stats.completed}`}
-          sub={
-            stats.total > 0
-              ? `${Math.round((stats.completed / stats.total) * 100)}% fulfillment rate`
-              : "of period orders"
-          }
-          icon={<CheckCircle size={16} />}
-          iconBg="bg-green-100"
-          iconColor="text-green-600"
-          accent="green"
-        />
-        <KpiCard
-          title="Overdue"
-          value={`${stats.overdue}`}
-          sub="Need immediate action"
-          icon={<AlertTriangle size={16} />}
-          iconBg="bg-red-100"
-          iconColor="text-red-600"
-          accent={stats.overdue > 0 ? "red" : "none"}
-        />
+        <div>
+          <KpiCard
+            title="Revenue"
+            value={fmtMoney(stats.revenue)}
+            sub={`${periodLabel} billed`}
+            icon={<TrendingUp size={16} />}
+            iconBg="bg-cyan-100"
+            iconColor="text-cyan-600"
+            accent="blue"
+          />
+          <div className="mt-1 px-1">
+            <StatBreakdown title="Revenue Sources" items={[
+              { label: "Total billed", value: fmtMoney(stats.revenue), color: "#0ea5e9" },
+              { label: "From completed", value: fmtMoney(periodOrders.filter(o => o.status === "completed").reduce((s: number, o: any) => s + (Number(o.total_amount) || 0), 0)), color: "#10b981" },
+              { label: "From active", value: fmtMoney(periodOrders.filter(o => !["completed", "cancelled"].includes(o.status)).reduce((s: number, o: any) => s + (Number(o.total_amount) || 0), 0)), color: "#8b5cf6" },
+              { label: `Based on ${stats.total} orders`, value: periodLabel },
+            ]} />
+          </div>
+        </div>
+        <div>
+          <KpiCard
+            title="Collected"
+            value={fmtMoney(stats.collected)}
+            sub={`${stats.collectionRate}% collection rate`}
+            icon={<DollarSign size={16} />}
+            iconBg="bg-green-100"
+            iconColor="text-green-600"
+            accent="green"
+          />
+          <div className="mt-1 px-1">
+            <StatBreakdown title="Collection Details" items={[
+              { label: "Total collected", value: fmtMoney(stats.collected), color: "#10b981" },
+              { label: "Still outstanding", value: fmtMoney(stats.outstanding), color: "#f59e0b" },
+              { label: "Collection rate", value: `${stats.collectionRate}%`, color: "#0ea5e9" },
+            ]} />
+          </div>
+        </div>
+        <div>
+          <KpiCard
+            title="Outstanding"
+            value={fmtMoney(stats.outstanding)}
+            sub="Uncollected payments"
+            icon={<CreditCard size={16} />}
+            iconBg="bg-amber-100"
+            iconColor="text-amber-600"
+            accent={stats.outstanding > 0 ? "yellow" : "green"}
+          />
+          <div className="mt-1 px-1">
+            <StatBreakdown title="Outstanding Breakdown" items={[
+              { label: "Revenue billed", value: fmtMoney(stats.revenue), color: "#0ea5e9" },
+              { label: "Minus collected", value: `- ${fmtMoney(stats.collected)}`, color: "#10b981" },
+              { label: "= Outstanding", value: fmtMoney(stats.outstanding), color: "#f59e0b" },
+            ]} />
+          </div>
+        </div>
+        <div>
+          <KpiCard
+            title="Orders"
+            value={`${stats.total}`}
+            sub={`Placed — ${periodLabel}`}
+            icon={<Package size={16} />}
+            iconBg="bg-purple-100"
+            iconColor="text-purple-600"
+          />
+          <div className="mt-1 px-1">
+            <StatBreakdown title="Order Status" items={pipeline.map(s => ({
+              label: s.label, value: s.count, color: s.color,
+            }))} />
+          </div>
+        </div>
+        <div>
+          <KpiCard
+            title="Completed"
+            value={`${stats.completed}`}
+            sub={
+              stats.total > 0
+                ? `${Math.round((stats.completed / stats.total) * 100)}% fulfillment rate`
+                : "of period orders"
+            }
+            icon={<CheckCircle size={16} />}
+            iconBg="bg-green-100"
+            iconColor="text-green-600"
+            accent="green"
+          />
+          <div className="mt-1 px-1">
+            <StatBreakdown title="Fulfillment" items={[
+              { label: "Completed", value: stats.completed, color: "#10b981" },
+              { label: "Still active", value: stats.total - stats.completed, color: "#8b5cf6" },
+              { label: "Fulfillment rate", value: stats.total > 0 ? `${Math.round((stats.completed / stats.total) * 100)}%` : "—" },
+            ]} />
+          </div>
+        </div>
+        <div>
+          <KpiCard
+            title="Overdue"
+            value={`${stats.overdue}`}
+            sub="Need immediate action"
+            icon={<AlertTriangle size={16} />}
+            iconBg="bg-red-100"
+            iconColor="text-red-600"
+            accent={stats.overdue > 0 ? "red" : "none"}
+          />
+          <div className="mt-1 px-1">
+            <StatBreakdown title="Overdue Details" items={[
+              { label: "Past due date", value: stats.overdue, color: "#ef4444" },
+              { label: "On schedule", value: stats.total - stats.overdue - stats.completed, color: "#10b981" },
+              { label: "Unassigned", value: stats.unassigned, color: "#f59e0b" },
+            ]} />
+          </div>
+        </div>
       </div>
 
       {/* ── QUICK ACTIONS ────────────────────────────────────────────── */}

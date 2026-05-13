@@ -5,13 +5,17 @@ import {
   CheckCircle,
   AlertTriangle,
   RefreshCw,
+  FileBarChart,
 } from "lucide-react";
 import { KpiCard } from "../Shared/UI/KpiCard";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 import { PageHeader } from "../Shared/UI/PageHeader";
 import { InfoBanner } from "../Shared/UI/InfoBanner";
+import { PageSummaryCard } from "../Shared/UI/PageSummaryCard";
 import { useOrdersData, useInventoryData, useMyProfile } from "../../hooks/useSupabase";
 import { fmtDate } from "../../util/formatters";
+import { downloadCSV, printReport, buildKpiHtml, buildHtmlTable } from "../../util/reportExport";
+import type { Order } from "../../Types";
 
 const ProductionDashboard = () => {
   const { profile } = useMyProfile();
@@ -60,6 +64,53 @@ const ProductionDashboard = () => {
           <RefreshCw size={14} /> Refresh
         </button>
       </PageHeader>
+
+      {/* ── PRODUCTION SUMMARY ──────────────────────────────────────── */}
+      <PageSummaryCard
+        title="Production Overview"
+        icon={<FileBarChart size={16} />}
+        onDownloadCSV={() => {
+          downloadCSV("production_orders", [
+            { header: "Order #", accessor: (o: Order) => o.orderId },
+            { header: "Customer", accessor: (o: Order) => o.customerName },
+            { header: "Product", accessor: (o: Order) => o.productType },
+            { header: "Status", accessor: (o: Order) => o.status },
+            { header: "Due Date", accessor: (o: Order) => o.dueDate },
+          ], orders);
+        }}
+        onPrint={() => {
+          printReport("Production Work Report", dateStr, [
+            {
+              title: "Summary",
+              content: `<div class="summary-text">You have <strong>${stats.assigned}</strong> orders assigned. <strong>${stats.inProduction}</strong> are in production, <strong>${stats.completedToday}</strong> were completed today. ${stats.lowStockAlerts > 0 ? `<span style="color:#dc2626"><strong>${stats.lowStockAlerts}</strong> materials are running low.</span>` : 'All materials are sufficiently stocked.'}</div>`,
+            },
+            {
+              title: "Metrics",
+              content: buildKpiHtml([
+                { label: "Assigned", value: String(stats.assigned) },
+                { label: "In Production", value: String(stats.inProduction) },
+                { label: "Completed Today", value: String(stats.completedToday) },
+                { label: "Low Stock", value: String(stats.lowStockAlerts) },
+              ]),
+            },
+            {
+              title: "Production Queue",
+              content: buildHtmlTable([
+                { header: "Order #", accessor: (o: Order) => o.orderId },
+                { header: "Customer", accessor: (o: Order) => o.customerName },
+                { header: "Product", accessor: (o: Order) => o.productType },
+                { header: "Status", accessor: (o: Order) => o.status },
+                { header: "Due Date", accessor: (o: Order) => o.dueDate },
+              ], orders.filter((o: Order) => o.status === "Production")),
+            },
+          ]);
+        }}
+      >
+        You have <strong>{stats.assigned}</strong> orders assigned.
+        {" "}<strong className="text-blue-700">{stats.inProduction}</strong> are in production,
+        {" "}<strong className="text-green-700">{stats.completedToday}</strong> were completed today.
+        {stats.lowStockAlerts > 0 && (<>{" "}<span className="text-red-600 font-semibold">{stats.lowStockAlerts} material(s) are running low.</span></>)}
+      </PageSummaryCard>
 
       {/* ── KPI CARDS ───────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
