@@ -1,4 +1,4 @@
-// Mobile card view, desktop table for materials inventory
+import { useEffect, useRef } from 'react';
 import { Eye, Edit2, Trash2, Users } from 'lucide-react';
 import type { Material, UserRole } from "../../../Types";
 import { permissions } from "../../../util/permissions";
@@ -13,14 +13,22 @@ interface MaterialsTableProps {
   onManageSuppliers?: (material: Material) => void;
   searchQuery?: string;
   statusFilter?: string;
+  highlightedId?: string | null;
 }
 
 const statusColor = getMaterialStatusColor;
 
 export const MaterialsTable: React.FC<MaterialsTableProps> = ({
-  materials, userRole, onView, onEdit, onDelete, onManageSuppliers, searchQuery = '', statusFilter = 'All',
+  materials, userRole, onView, onEdit, onDelete, onManageSuppliers, searchQuery = '', statusFilter = 'All', highlightedId
 }) => {
   const perms = permissions[userRole].inventory;
+  const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (highlightedId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId]);
 
   const filtered = materials.filter((m) => {
     const matchesSearch =
@@ -79,7 +87,11 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
       {/* ── MOBILE CARD VIEW ─────────────────────────────────────────────── */}
       <div className="md:hidden divide-y divide-gray-100">
         {filtered.map((m) => (
-          <div key={m.id} className="p-4 space-y-2">
+          <div 
+            key={m.id} 
+            ref={highlightedId === m.id ? (el) => { (highlightedRef as any).current = el; } : null}
+            className={`p-4 space-y-2 transition-all ${highlightedId === m.id ? "highlight-pulse ring-2 ring-cyan-500" : ""}`}
+          >
             <div className="flex items-start justify-between gap-2">
               <div>
                 <p className="font-bold text-gray-900 text-base">{m.itemType}</p>
@@ -126,7 +138,11 @@ export const MaterialsTable: React.FC<MaterialsTableProps> = ({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filtered.map((m) => (
-              <tr key={m.id} className="hover:bg-gray-50">
+              <tr 
+                key={m.id} 
+                ref={highlightedId === m.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                className={`hover:bg-gray-50 transition-all ${highlightedId === m.id ? "highlight-pulse bg-cyan-50/50" : ""}`}
+              >
                 <td className="px-4 py-3 text-gray-900 font-medium">{m.itemType}</td>
                 <td className="px-4 py-3 text-gray-600">{m.itemVariant || '—'}</td>
                 <td className="px-4 py-3 text-center font-semibold text-gray-900">{m.usableStocks}</td>

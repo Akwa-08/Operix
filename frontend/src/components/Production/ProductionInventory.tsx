@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, X } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
@@ -76,6 +77,12 @@ const ProductionInventory = () => {
   const { materials: delMaterials, suppliers, employees, createDelivery } = useDeliveries();
   const toast = useToast();
 
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+
+  // No tab switching needed here as ProductionInventory is single-view for materials
+  // Highlighting is handled by the table via highlightedId prop
+
   const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
   const handleEditMaterial = (material: Material) => { setSelectedMaterial(material); setShowEditModal(true); };
 
@@ -142,7 +149,7 @@ const ProductionInventory = () => {
         📦 <strong>Note:</strong> You can view materials, update stock levels, and create resupply requests for low-stock items.
       </InfoBanner>
 
-      <MaterialsTable materials={materials} userRole="production" onView={handleViewMaterial} onEdit={handleEditMaterial} searchQuery={searchQuery} />
+      <MaterialsTable materials={materials} userRole="production" onView={handleViewMaterial} onEdit={handleEditMaterial} searchQuery={searchQuery} highlightedId={highlightedId} />
 
       {selectedMaterial && (
         <>

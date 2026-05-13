@@ -32,7 +32,7 @@ function useQuery<T>(
   // IMPROVED: If the first element of deps is a string (e.g., 'orders'), we use deps directly.
   // This allows for explicit invalidation via queryClient.invalidateQueries({ queryKey: ['orders'] }).
   const queryKey: QueryKey = (deps.length > 0 && typeof deps[0] === 'string')
-    ? deps 
+    ? deps
     : ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
 
   const { data, isLoading, error, refetch } = useTanStackQuery({
@@ -141,7 +141,7 @@ function mapEmployee(raw: any): EmployeeRecord {
     baseHourlyRate: Number(raw.base_hourly_rate) || 0,
     holidayRateMultiplier: Number(raw.holiday_rate_multiplier) || 2.0,
     overtimeRateMultiplier: Number(raw.overtime_rate_multiplier) || 1.5,
-    hireDate: fmtDate(raw.hire_date),
+    hireDate: parseDbDate(raw.hire_date)?.toLocaleDateString() || '',
     isActive: raw.is_active ?? true,
     philhealthContribution: Number(raw.philhealth_contribution) || 0,
     hdmfContribution: Number(raw.hdmf_contribution) || 0,
@@ -198,10 +198,10 @@ export function useMyProfile() {
         db.updateLastSeen();
       }
     };
-    
+
     const interval = setInterval(heartbeat, 120000);
     heartbeat(); // Initial
-    
+
     return () => clearInterval(interval);
   }, []);
   return { profile: q.data, ...q };
@@ -231,8 +231,8 @@ export function useProducts(filters?: { search?: string; category?: string }) {
 
 export function useOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
   const { data: rawOrders, loading, error, refresh } = useQuery(
-    () => db.getOrders(filters), 
-    ['orders', filters?.status, filters?.assigned_designer, filters?.assigned_production], 
+    () => db.getOrders(filters),
+    ['orders', filters?.status, filters?.assigned_designer, filters?.assigned_production],
     ['orders', 'order_items', 'payments']
   );
   const { data: staffList } = useQuery(() => db.getStaffList(), [], ['employees', 'users']);
@@ -251,10 +251,10 @@ export function useOrders(filters?: { status?: string; assigned_designer?: strin
     payment: orders.filter((o: any) => o.status === 'payment').length,
     production: orders.filter((o: any) => o.status === 'production').length,
     pickup: orders.filter((o: any) => o.status === 'pickup').length,
-    completed: orders.filter((o: any) => o.status === 'completed').length,
+    completed: orders.filter((o: any) => o.status === 'completed' && o.payment_status === 'paid').length,
     overdue: orders.filter((o: any) => o.due_date && new Date(o.due_date) < now && !['completed', 'cancelled', 'pickup'].includes(o.status)).length,
     pendingPayment: orders.filter((o: any) => o.payment_status !== 'paid' && o.status !== 'cancelled').length,
-    completedUnpaid: orders.filter((o: any) => o.payment_status !== 'paid' && o.status !== 'cancelled').length,
+    completedUnpaid: orders.filter((o: any) => o.payment_status !== 'paid' && o.status === 'completed').length,
     readyPickup: orders.filter((o: any) => o.status === 'pickup').length,
   };
 
@@ -327,16 +327,16 @@ export function useCartData() {
     updateCartItem: async (id: string, updates: { quantity?: number; specifications?: string; fileUrl?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem: async (id: string) => { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart: async () => { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
-    checkout: async (notes?: string, due?: string, ids?: string[]) => { 
-      try { 
-        const o = await db.checkout(notes, due, ids); 
+    checkout: async (notes?: string, due?: string, ids?: string[]) => {
+      try {
+        const o = await db.checkout(notes, due, ids);
         // Explicitly invalidate orders so they reflect "live" on navigation
         queryClient.invalidateQueries({ queryKey: ['orders'] });
-        await refresh(); 
-        return { success: true, error: null, order: o }; 
-      } catch (e: any) { 
-        return { success: false, error: e.message, order: null }; 
-      } 
+        await refresh();
+        return { success: true, error: null, order: o };
+      } catch (e: any) {
+        return { success: false, error: e.message, order: null };
+      }
     },
     directOrder: async (data: { productId: string; productName: string; quantity: number; unitPrice: number; specifications?: string; fileUrl?: string }) => {
       try {
@@ -361,10 +361,10 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
 
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
-  const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ 
-    id: s.id, 
+  const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({
+    id: s.id,
     name: `${s.firstName} ${s.lastName}`.trim(),
-    lastSeenAt: s.lastSeenAt 
+    lastSeenAt: s.lastSeenAt
   }));
 
   const productionStaff = employees
@@ -384,7 +384,7 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
         const loads = designers.map(d => {
           const loadCount = orders.filter(o => o.assignedDesigner === d.id && (o.status === "In Queue" || o.status === "Designing")).length;
           const hasRejected = order.rejectedByDesigners?.includes(d.id);
-          
+
           // Consider "online" if seen in the last 15 minutes
           const lastSeenAt = d.lastSeenAt;
           let isOnline = false;
@@ -449,83 +449,83 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       });
       return r;
     },
-    deleteOrder: async (orderId: string) => { 
+    deleteOrder: async (orderId: string) => {
       const r = await safe(() => db.deleteOrder(orderId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => { 
+    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
       const r = await safe(() => db.recordPayment(orderId, payment).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    approvePayment: async (paymentId: string, orderId: string) => { 
+    approvePayment: async (paymentId: string, orderId: string) => {
       const r = await safe(() => db.approvePayment(paymentId, orderId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    declinePayment: async (paymentId: string, orderId: string, reason: string) => { 
+    declinePayment: async (paymentId: string, orderId: string, reason: string) => {
       const r = await safe(() => db.declinePayment(paymentId, orderId, reason).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    markDeclineAsRead: async (orderId: string) => { 
+    markDeclineAsRead: async (orderId: string) => {
       const r = await safe(() => db.markDeclineAsRead(orderId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    selfAssign: async (orderId: string) => { 
-      const r = await safe(async () => { 
-        await db.designerSelfPickOrder(orderId); 
+    selfAssign: async (orderId: string) => {
+      const r = await safe(async () => {
+        await db.designerSelfPickOrder(orderId);
         queryClient.invalidateQueries({ queryKey: ['orders'] });
-        await refresh(); 
-      }); 
-      return r; 
+        await refresh();
+      });
+      return r;
     },
-    updateCustomerDesign: async (orderId: string, url: string) => { 
+    updateCustomerDesign: async (orderId: string, url: string) => {
       const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    updateFinalDesign: async (orderId: string, url: string) => { 
+    updateFinalDesign: async (orderId: string, url: string) => {
       const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    acceptAssignedDesignOrder: async (orderId: string) => { 
+    acceptAssignedDesignOrder: async (orderId: string) => {
       const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    rejectAssignedDesignOrder: async (orderId: string) => { 
+    rejectAssignedDesignOrder: async (orderId: string) => {
       const r = await safe(() => db.designerRejectAssignedOrder(orderId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
-    approveOrderDesign: async (orderId: string) => { 
+    approveOrderDesign: async (orderId: string) => {
       const r = await safe(() => db.approveOrderDesign(orderId).then(() => {
         queryClient.invalidateQueries({ queryKey: ['orders'] });
         refresh();
-      })); 
-      return r; 
+      }));
+      return r;
     },
     updateDesignerOrderDetails: async (orderId: string, updates: { totalAmount?: number; dueDate?: string }) => {
       const payload: { total_amount?: number; due_date?: string } = {};
@@ -712,7 +712,7 @@ export interface PendingCashAdvance {
 
 function mapCashAdvance(raw: any): CashAdvance {
   const emp = raw.employee; const issuer = raw.issuer;
-  return { id: raw.id, employeeId: raw.employee_id, employeeCode: emp?.employee_code || '', employeeName: emp?.full_name || '', employeePosition: emp?.position || '', amount: Number(raw.amount) || 0, dateIssued: raw.date_issued || '', reason: raw.reason || '', status: raw.status as CashAdvanceStatus, payrollPeriodId: raw.payroll_period_id || null, issuedByName: issuer ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim() : '—', createdAt: fmtDate(raw.created_at), declineReason: raw.decline_reason || '' };
+  return { id: raw.id, employeeId: raw.employee_id, employeeCode: emp?.employee_code || '', employeeName: emp?.full_name || '', employeePosition: emp?.position || '', amount: Number(raw.amount) || 0, dateIssued: raw.date_issued || '', reason: raw.reason || '', status: raw.status as CashAdvanceStatus, payrollPeriodId: raw.payroll_period_id || null, issuedByName: issuer ? `${issuer.first_name || ''} ${issuer.last_name || ''}`.trim() : '—', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '', declineReason: raw.decline_reason || '' };
 }
 
 function mapPendingCashAdvance(raw: any, allPending: any[]): PendingCashAdvance {
@@ -784,7 +784,7 @@ function mapPeriod(raw: any): PayrollPeriod {
   return {
     id: raw.id, periodStart: raw.period_start, periodEnd: raw.period_end,
     payDate: raw.pay_date || '', status: raw.status,
-    createdAt: fmtDate(raw.created_at),
+    createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '',
   };
 }
 
@@ -809,21 +809,35 @@ function mapAttendanceLog(raw: any): AttendanceLog {
 
 function mapPayrollRecord(raw: any): PayrollRecord {
   const emp = raw.employee;
+  const dailyRate = Number(raw.daily_rate) || Number(emp?.base_hourly_rate) || 0;
+  const daysPresent = Number(raw.days_present) || 0;
+  const basicPay = Number(raw.basic_pay) || (dailyRate * daysPresent);
+  
+  const regularOT = Number(raw.regular_overtime) || 0;
+  const holidayOT = Number(raw.holiday_overtime) || 0;
+  const specialOT = Number(raw.special_overtime) || 0;
+  const tardyDeductions = Number(raw.tardy_deductions) || 0;
+  const undertimeDeductions = Number(raw.undertime_deductions) || 0;
+  
+  const grossIncome = Number(raw.gross_income) || (basicPay + regularOT + holidayOT + specialOT - tardyDeductions - undertimeDeductions);
+  const totalDeductions = Number(raw.total_deductions) || 0;
+  const netPay = Number(raw.net_pay) || (grossIncome - totalDeductions);
+
   return {
     id: raw.id, employeeId: raw.employee_id, employeeName: emp?.full_name || '',
     employeeCode: emp?.employee_code || '', position: emp?.position || '',
-    dailyRate: Number(raw.daily_rate) || 0, daysPresent: Number(raw.days_present) || 0,
-    basicPay: Number(raw.basic_pay) || 0, regularHolidayPay: Number(raw.regular_holiday_pay) || 0,
-    specialHolidayPay: Number(raw.special_holiday_pay) || 0, regularOvertime: Number(raw.regular_overtime) || 0,
-    holidayOvertime: Number(raw.holiday_overtime) || 0, specialOvertime: Number(raw.special_overtime) || 0,
-    grossIncome: Number(raw.gross_income) || 0, tardyDeductions: Number(raw.tardy_deductions) || 0,
-    undertimeDeductions: Number(raw.undertime_deductions) || 0, sss: Number(raw.sss) || 0,
+    dailyRate, daysPresent,
+    basicPay, regularHolidayPay: Number(raw.regular_holiday_pay) || 0,
+    specialHolidayPay: Number(raw.special_holiday_pay) || 0, regularOvertime: regularOT,
+    holidayOvertime: holidayOT, specialOvertime: specialOT,
+    grossIncome, tardyDeductions,
+    undertimeDeductions, sss: Number(raw.sss) || 0,
     philhealth: Number(raw.philhealth) || 0, hdmf: Number(raw.hdmf) || 0,
     withholdingTax: Number(raw.withholding_tax) || 0, cashAdvance: Number(raw.cash_advance) || 0,
     cashAdvanceIssued: Number(raw.cash_advance_issued) || 0,
     carryOverFromPrevious: Number(raw.carry_over_from_previous) || 0,
-    totalDeductions: Number(raw.total_deductions) || 0,
-    netPay: Number(raw.net_pay) || 0, taxableIncome: Number(raw.taxable_income) || 0,
+    totalDeductions,
+    netPay, taxableIncome: Number(raw.taxable_income) || 0,
     status: raw.status || 'pending',
   };
 }
@@ -856,12 +870,12 @@ export function usePayrollData() {
 
   const attendanceQ = useQuery(
     () => activePeriodId ? db.payroll.getAttendanceLogs(activePeriodId) : Promise.resolve([]),
-    [activePeriodId],
+    ['attendance', activePeriodId],
     ['attendance_logs', 'employees']
   );
   const payrollQ = useQuery(
     () => activePeriodId ? db.payroll.getPayrollRecords(activePeriodId) : Promise.resolve([]),
-    [activePeriodId],
+    ['payroll', activePeriodId],
     ['payroll_records', 'employees']
   );
 
@@ -909,9 +923,7 @@ export function usePayrollData() {
     computePayroll: async (periodId: string) => {
       setComputing(true);
       const r = await safe(async () => {
-        // Only re-flag incomplete punches on the FIRST compute (no payroll records yet).
-        // On recomputes, the admin has already confirmed/resolved incomplete punches,
-        // so we must NOT re-flag them.
+        // Restore old behavior: flag incomplete punches on first compute
         const { count } = await supabase
           .from('payroll_records')
           .select('id', { count: 'exact', head: true })
@@ -921,6 +933,7 @@ export function usePayrollData() {
           await attendanceQ.refresh();
         }
         await db.payroll.computePayroll(periodId);
+        await attendanceQ.refresh(); // Keep UI in sync on all computes
         await payrollQ.refresh();
       });
       setComputing(false);
@@ -1029,18 +1042,17 @@ export interface CashAdvanceEligibility {
   eligible: boolean;
   reason: 'eligible' | 'limit_reached';
   remaining: number; totalUsed: number;
-  periodLabel?: string;
 }
 
 export function useCashierCashAdvances() {
   const q = useQuery(() => db.cashAdvances.getPendingCount(), []);
   return {
     pendingCount: q.data ?? 0, loading: q.loading, refresh: q.refresh,
-    checkEligibility: async (employeeId: string, dateIssued?: string): Promise<CashAdvanceEligibility> => {
-      try { return await db.cashAdvances.checkEligibility(employeeId, dateIssued); }
+    checkEligibility: async (employeeId: string, customDate?: string): Promise<CashAdvanceEligibility> => {
+      try { return await db.cashAdvances.checkEligibility(employeeId, customDate); }
       catch { return { eligible: false, reason: 'limit_reached', remaining: 0, totalUsed: 0 }; }
     },
-    submitRequest: async (data: { employee_id: string; amount: number; reason?: string; date_issued?: string }) => {
+    submitRequest: async (data: { employee_id: string; amount: number; date_issued?: string; reason?: string }) => {
       const r = await safe(() => db.cashAdvances.requestByCashier(data).then(() => q.refresh()));
       return r;
     },

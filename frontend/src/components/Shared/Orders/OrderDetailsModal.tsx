@@ -916,7 +916,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                       toast.error("Full payment is required to complete the order.");
                     }
                   }}>
-                  {order.status === "Pickup" ? "Complete Order" : "Confirm"}
+                  {order.status === "Pickup" ? "Picked up" : "Confirm"}
                 </Button>
               )}
 
