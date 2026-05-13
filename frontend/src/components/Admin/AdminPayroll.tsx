@@ -15,7 +15,7 @@ import {
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
 const fmt = (n: number) =>
-  `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `₱${Math.abs(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const periodLabel = (p: PayrollPeriod) => {
   const s = new Date(p.periodStart).toLocaleDateString("en-PH", { month: "short", day: "numeric" });
@@ -1268,8 +1268,8 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
         { label: "Special OT", formula: `(${fmt(record.dailyRate)} ÷ 8) × 0.30 × OT hrs`, value: record.specialOvertime, note: null },
         { label: "Regular Holiday Pay", formula: `Daily Rate × Holiday Days × 2.0`, value: record.regularHolidayPay, note: null },
         { label: "Special Holiday Pay", formula: `Daily Rate × Holiday Days × 1.3`, value: record.specialHolidayPay, note: null },
-        { label: "Tardy Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: -record.tardyDeductions, note: `Subtracted from gross`, isNeg: true },
-        { label: "Undertime Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: -record.undertimeDeductions, note: `Subtracted from gross`, isNeg: true },
+        { label: "Tardy Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: Math.abs(record.tardyDeductions), note: `Subtracted from gross`, isNeg: true },
+        { label: "Undertime Deduction", formula: `(${fmt(record.dailyRate)} ÷ 8 ÷ 60) × minutes`, value: Math.abs(record.undertimeDeductions), note: `Subtracted from gross`, isNeg: true },
       ]
     },
     {
@@ -2131,7 +2131,7 @@ const AdminPayroll: React.FC = () => {
                                   <td className="px-3 py-2 font-medium text-gray-900">{rec.employeeName}</td>
                                   <td className="px-3 py-2 text-gray-500">{rec.position}</td>
                                   <td className="px-3 py-2 text-blue-600 font-semibold">{fmt(rec.grossIncome)}</td>
-                                  <td className="px-3 py-2 text-red-600 font-semibold">-{fmt(rec.totalDeductions)}</td>
+                                  <td className="px-3 py-2 text-red-600 font-semibold">{fmt(rec.totalDeductions)}</td>
                                   <td className="px-3 py-2 text-green-600 font-semibold">{fmt(rec.netPay)}</td>
                                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{rec.status === "paid" ? "Paid" : "Pending"}</span></td>
                                   <td className="px-3 py-2"><button onClick={() => setViewingRecord(rec)} className="p-1 hover:bg-gray-200 rounded" title="View payslip"><Eye size={14} className="text-gray-600" /></button></td>

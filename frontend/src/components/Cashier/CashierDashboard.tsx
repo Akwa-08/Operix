@@ -10,7 +10,7 @@ import type { CashAdvanceEligibility } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 
 const CA_LIMIT = 2000;
-const fmt = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+const fmt = (n: number) => `₱${Math.abs(n).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 function fmtMoney(v: number | undefined | null) {
   const n = Number(v) || 0;
   if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`;
