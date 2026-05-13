@@ -287,7 +287,7 @@ export const AddToCartModal: React.FC<AddToCartModalProps> = ({
                       </button>
                     </div>
                     {effectiveCap !== Infinity && effectiveCap > 0 && !isOutOfStock && (
-                      <p className="text-[11px] text-gray-400 mt-1.5 font-medium">
+                      <p className="text-[11px] text-cyan-600 mt-1.5 font-bold uppercase tracking-wider">
                         *Max quantity available: {effectiveCap}
                       </p>
                     )}
