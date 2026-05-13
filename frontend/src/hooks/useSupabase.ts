@@ -251,10 +251,10 @@ export function useOrders(filters?: { status?: string; assigned_designer?: strin
     payment: orders.filter((o: any) => o.status === 'payment').length,
     production: orders.filter((o: any) => o.status === 'production').length,
     pickup: orders.filter((o: any) => o.status === 'pickup').length,
-    completed: orders.filter((o: any) => o.status === 'completed').length,
+    completed: orders.filter((o: any) => o.status === 'completed' && o.payment_status === 'paid').length,
     overdue: orders.filter((o: any) => o.due_date && new Date(o.due_date) < now && !['completed', 'cancelled', 'pickup'].includes(o.status)).length,
     pendingPayment: orders.filter((o: any) => o.payment_status !== 'paid' && o.status !== 'cancelled').length,
-    completedUnpaid: orders.filter((o: any) => o.payment_status !== 'paid' && o.status !== 'cancelled').length,
+    completedUnpaid: orders.filter((o: any) => o.payment_status !== 'paid' && o.status === 'completed').length,
     readyPickup: orders.filter((o: any) => o.status === 'pickup').length,
   };
 

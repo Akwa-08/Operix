@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
@@ -30,9 +31,17 @@ const CashierInventory = () => {
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [receipt, setReceipt] = useState({ received_quantity: "", receipt_reference_number: "" });
 
-  const tabs = ["Materials", "Deliveries"];
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
 
   const { materials, stats: materialStats, loading: matLoading, updateMaterial } = useInventoryData();
+
+  // Auto-switch to Materials tab if highlight param exists (highlighting is handled by the table)
+  useEffect(() => {
+    if (highlightedId && materials.length > 0) {
+      setActiveTab("Materials");
+    }
+  }, [highlightedId, materials]);
   const { deliveries, stats: delStats, suppliers, loading: delLoading, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
   const loading = activeTab === "Materials" ? matLoading : delLoading;
@@ -114,7 +123,7 @@ const CashierInventory = () => {
             ℹ️ <strong>Note:</strong> You can view materials and update stock manually. Contact admin for supplier changes.
           </InfoBanner>
 
-          <MaterialsTable materials={materials} userRole="cashier" onView={handleViewMaterial} onEdit={handleEditMaterial} searchQuery={searchQuery} />
+          <MaterialsTable materials={materials} userRole="cashier" onView={handleViewMaterial} onEdit={handleEditMaterial} searchQuery={searchQuery} highlightedId={highlightedId} />
         </>
       )}
 
