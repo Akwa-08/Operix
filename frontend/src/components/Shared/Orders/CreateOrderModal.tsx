@@ -213,7 +213,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                   Quantity *
                 </label>
                 {effectiveCap !== Infinity && effectiveCap > 0 && !isOutOfStock && (
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                  <span className="text-[10px] text-cyan-600 font-bold uppercase tracking-wider">
                     Max: {effectiveCap}
                   </span>
                 )}

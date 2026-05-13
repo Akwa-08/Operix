@@ -10,7 +10,7 @@ import { InfoBanner } from "../Shared/UI/InfoBanner";
 import { MaterialsTable } from "../Shared/Inventory/MaterialsTable";
 import { MaterialDetailsModal } from "../Shared/Inventory/MaterialDetailsModal";
 import { EditMaterialModal } from "../Shared/Inventory/EditMaterialModal";
-import { Package, CheckCircle, AlertTriangle } from "lucide-react";
+import { Package, CheckCircle, AlertTriangle, Star, Flag, Info } from "lucide-react";
 import type { Material } from "../../Types";
 import { useInventoryData, useDeliveries } from "../../hooks/useSupabase";
 
@@ -25,6 +25,30 @@ const Modal = ({ show, onClose, title, children }: { show: boolean; onClose: () 
         {children}
       </div>
     </div>
+  );
+};
+
+const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category") => {
+  const category = s[categoryKey] || s.flagCategory;
+  const name = s[nameKey];
+  const notes = s.flag_notes || s.flagNotes;
+  return (
+    <span className="flex items-center gap-1.5">
+      {category === "Preferred" && <Star size={14} className="text-yellow-500 fill-yellow-500 flex-shrink-0" />}
+      {category === "Warning" && <AlertTriangle size={14} className="text-orange-500 flex-shrink-0" />}
+      {category === "Critical" && <Flag size={14} className="text-red-500 fill-red-500 flex-shrink-0" />}
+      <span className={category === "Critical" ? "text-red-600 font-semibold" : category === "Warning" ? "text-orange-600 font-medium" : ""}>{name}</span>
+      {notes && (
+        <button 
+          type="button" 
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert(`Supplier Note for ${name}:\n${notes}`); }} 
+          className="text-gray-400 hover:text-cyan-600 focus:outline-none flex-shrink-0 ml-1" 
+          title="View Note"
+        >
+          <Info size={14} />
+        </button>
+      )}
+    </span>
   );
 };
 
@@ -222,16 +246,19 @@ const ProductionInventory = () => {
               <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg bg-white divide-y divide-gray-100 shadow-sm">
                 {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
                   .filter((s: any) => s.name.toLowerCase().includes(resupplySupplierSearch.toLowerCase()))
-                  .map((s: any) => (
+                  .map((s: any) => {
+                    const fullSupplier = suppliers.find(sup => sup.id === s.id) as any;
+                    const supplierWithNotes = { ...s, flag_notes: fullSupplier?.flag_notes, flagNotes: fullSupplier?.flag_notes };
+                    return (
                     <div
                       key={s.id}
                       onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
                       className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
                     >
-                      <span>{s.name}</span>
+                      <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(supplierWithNotes, "name", "flagCategory")}</div>
                       {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
                     </div>
-                  ))}
+                  )})}
                 {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
                   .filter((s: any) => s.name.toLowerCase().includes(resupplySupplierSearch.toLowerCase())).length === 0 && (
                     <div className="px-4 py-3 text-sm text-gray-400 text-center italic">
