@@ -41,7 +41,7 @@ const getFlagPriority = (category?: string) => {
   return 2;
 };
 
-const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category") => {
+const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category", onViewNote?: (name: string, note: string) => void) => {
   const category = s[categoryKey] || s.flagCategory;
   const name = s[nameKey];
   const notes = s.flag_notes || s.flagNotes;
@@ -54,7 +54,12 @@ const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKe
       {notes && (
         <button 
           type="button" 
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert(`Supplier Note for ${name}:\n${notes}`); }} 
+          onClick={(e) => { 
+            e.preventDefault(); 
+            e.stopPropagation(); 
+            if (onViewNote) onViewNote(name, notes);
+            else alert(`Supplier Note for ${name}:\n${notes}`); 
+          }} 
           className="text-gray-400 hover:text-cyan-600 focus:outline-none flex-shrink-0 ml-1" 
           title="View Note"
         >
@@ -108,6 +113,7 @@ const AdminInventory = () => {
   const [restockSearch, setRestockSearch] = useState("");
   const [restockSupplierSearch, setRestockSupplierSearch] = useState("");
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [noteModal, setNoteModal] = useState({ show: false, title: "", content: "" });
 
   const tabs = ["Materials", "Products", "Deliveries"];
   const {
@@ -432,7 +438,7 @@ const AdminInventory = () => {
                       }}
                       className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500 flex-shrink-0"
                     />
-                    <div className="text-sm text-gray-700 min-w-0 flex-1">{renderSupplierNameWithFlag(s)}</div>
+                    <div className="text-sm text-gray-700 min-w-0 flex-1">{renderSupplierNameWithFlag(s, "name", "flag_category", (name, note) => setNoteModal({ show: true, title: `Supplier Note: ${name}`, content: note }))}</div>
                   </label>
                 ))}
               </div>
@@ -479,7 +485,7 @@ const AdminInventory = () => {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-gray-900 mb-0.5">
-                        {renderSupplierNameWithFlag(s)}
+                        {renderSupplierNameWithFlag(s, "name", "flag_category", (name, note) => setNoteModal({ show: true, title: `Supplier Note: ${name}`, content: note }))}
                       </div>
                       <p className="text-xs text-gray-500 truncate">
                         {s.email || "No email"}
@@ -849,7 +855,7 @@ const AdminInventory = () => {
                           onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
                           className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
                         >
-                          <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(supplierWithNotes, "name", "flagCategory")}</div>
+                          <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(supplierWithNotes, "name", "flagCategory", (name, note) => setNoteModal({ show: true, title: `Supplier Note: ${name}`, content: note }))}</div>
                           {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
                         </div>
                         );
@@ -1014,6 +1020,18 @@ const AdminInventory = () => {
               delivery={selectedDelivery}
             />
           )}
+          {/* Supplier Note Modal */}
+          <Modal 
+            show={noteModal.show} 
+            onClose={() => setNoteModal({ ...noteModal, show: false })} 
+            title={noteModal.title}
+            width="max-w-md"
+          >
+            <div className="bg-cyan-50 border border-cyan-100 p-4 rounded-xl text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {noteModal.content}
+            </div>
+            <Button variant="primary" className="w-full mt-6" onClick={() => setNoteModal({ ...noteModal, show: false })}>Close</Button>
+          </Modal>
         </div>
       )}
     </div>

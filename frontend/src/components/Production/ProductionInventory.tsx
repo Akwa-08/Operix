@@ -28,7 +28,7 @@ const Modal = ({ show, onClose, title, children }: { show: boolean; onClose: () 
   );
 };
 
-const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category") => {
+const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category", onViewNote?: (name: string, note: string) => void) => {
   const category = s[categoryKey] || s.flagCategory;
   const name = s[nameKey];
   const notes = s.flag_notes || s.flagNotes;
@@ -39,10 +39,15 @@ const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKe
       {category === "Critical" && <Flag size={14} className="text-red-500 fill-red-500 flex-shrink-0" />}
       <span className={category === "Critical" ? "text-red-600 font-semibold" : category === "Warning" ? "text-orange-600 font-medium" : ""}>{name}</span>
       {notes && (
-        <button 
-          type="button" 
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert(`Supplier Note for ${name}:\n${notes}`); }} 
-          className="text-gray-400 hover:text-cyan-600 focus:outline-none flex-shrink-0 ml-1" 
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (onViewNote) onViewNote(name, notes);
+            else alert(`Supplier Note for ${name}:\n${notes}`);
+          }}
+          className="text-gray-400 hover:text-cyan-600 focus:outline-none flex-shrink-0 ml-1"
           title="View Note"
         >
           <Info size={14} />
@@ -71,6 +76,7 @@ const ProductionInventory = () => {
   const [resupplySearch, setResupplySearch] = useState("");
   const [resupplySupplierSearch, setResupplySupplierSearch] = useState("");
   const [resupplyStaffSearch, setResupplyStaffSearch] = useState("");
+  const [noteModal, setNoteModal] = useState({ show: false, title: "", content: "" });
 
   const { materials, stats: materialStats, loading, updateMaterial } = useInventoryData();
   const { materials: delMaterials, suppliers, employees, createDelivery } = useDeliveries();
@@ -121,7 +127,7 @@ const ProductionInventory = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <PageHeader title="Inventory" subtitle="View materials and create resupply requests" />
+      <PageHeader title="Inventory" subtitle="View and manage material stock levels" />
 
       <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6">
         <StatusCard title="Total Materials" value={materialStats.total} icon={<Package size={18} />} iconColor="text-cyan-600" isCurrency={false} />
@@ -132,14 +138,11 @@ const ProductionInventory = () => {
       <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm mb-6">
         <div className="flex flex-col md:flex-row gap-3">
           <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search materials..." />
-          <Button variant="primary" icon={<Plus size={18} />} onClick={() => setShowCreateDelivery(true)}>
-            Create Resupply Request
-          </Button>
         </div>
       </div>
 
       <InfoBanner color="orange">
-        📦 <strong>Note:</strong> You can view materials, update stock levels, and create resupply requests for low-stock items.
+        <strong>Note:</strong> You can view material details and update current stock levels.
       </InfoBanner>
 
       <MaterialsTable materials={materials} userRole="production" onView={handleViewMaterial} onEdit={handleEditMaterial} searchQuery={searchQuery} />
@@ -250,15 +253,16 @@ const ProductionInventory = () => {
                     const fullSupplier = suppliers.find(sup => sup.id === s.id) as any;
                     const supplierWithNotes = { ...s, flag_notes: fullSupplier?.flag_notes, flagNotes: fullSupplier?.flag_notes };
                     return (
-                    <div
-                      key={s.id}
-                      onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
-                      className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
-                    >
-                      <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(supplierWithNotes, "name", "flagCategory")}</div>
-                      {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
-                    </div>
-                  )})}
+                      <div
+                        key={s.id}
+                        onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
+                        className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
+                      >
+                        <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(supplierWithNotes, "name", "flagCategory", (name, note) => setNoteModal({ show: true, title: `Supplier Note: ${name}`, content: note }))}</div>
+                        {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
+                      </div>
+                    )
+                  })}
                 {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
                   .filter((s: any) => s.name.toLowerCase().includes(resupplySupplierSearch.toLowerCase())).length === 0 && (
                     <div className="px-4 py-3 text-sm text-gray-400 text-center italic">
@@ -308,6 +312,17 @@ const ProductionInventory = () => {
           <button onClick={() => setShowCreateDelivery(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
           <button onClick={handleCreateResupply} className="flex-1 px-4 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-xl">Submit Request</button>
         </div>
+      </Modal>
+      {/* Supplier Note Modal */}
+      <Modal
+        show={noteModal.show}
+        onClose={() => setNoteModal({ ...noteModal, show: false })}
+        title={noteModal.title}
+      >
+        <div className="bg-cyan-50 border border-cyan-100 p-4 rounded-xl text-gray-700 whitespace-pre-wrap leading-relaxed">
+          {noteModal.content}
+        </div>
+        <Button variant="primary" className="w-full mt-6" onClick={() => setNoteModal({ ...noteModal, show: false })}>Close</Button>
       </Modal>
     </div>
   );
