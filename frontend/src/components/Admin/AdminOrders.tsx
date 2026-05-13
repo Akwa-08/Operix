@@ -174,7 +174,7 @@ const AdminOrders = () => {
 
   // ── Report Export ──────────────────────────────────────────────────────────
   const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
-  const totalCollected = orders.reduce((s, o) => s + o.amountPaid, 0);
+  const totalCollected = orders.reduce((s, o) => s + (o.amountPaid || 0), 0);
 
   const handleOrdersCSV = useCallback(() => {
     downloadCSV("orders_report", [
@@ -183,7 +183,7 @@ const AdminOrders = () => {
       { header: "Product", accessor: (o: Order) => o.productType },
       { header: "Qty", accessor: (o: Order) => o.quantity },
       { header: "Amount (₱)", accessor: (o: Order) => o.totalAmount },
-      { header: "Paid (₱)", accessor: (o: Order) => o.amountPaid },
+      { header: "Paid (₱)", accessor: (o: Order) => o.amountPaid || 0 },
       { header: "Status", accessor: (o: Order) => o.status },
       { header: "Payment", accessor: (o: Order) => o.paymentStatus },
       { header: "Date Ordered", accessor: (o: Order) => o.dateOrdered },
