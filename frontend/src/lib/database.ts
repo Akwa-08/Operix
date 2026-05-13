@@ -2386,8 +2386,11 @@ export const db = {
         // ────────────────────────────────────────────────────────────────────
         const withholdingTax = 0;
 
-        // SSS is NOT included in this payroll register format.
-        const sss = 0;
+        // ────────────────────────────────────────────────────────────────────
+        // SSS (SOCIAL SECURITY SYSTEM)
+        // Fetched from employee record's manual sss_contribution field.
+        // ────────────────────────────────────────────────────────────────────
+        const sss = Number(emp.sss_contribution) || 0;
 
         // ────────────────────────────────────────────────────────────────────
         // CASH ADVANCE — SAME-PERIOD DEDUCTION
@@ -2423,8 +2426,8 @@ export const db = {
         const carryOverFromPrevious = carryOverByEmp[emp.id] || 0;
 
         // ────────────────────────────────────────────────────────────────────
-        // TOTAL DEDUCTIONS  (matches Excel: O7 = L7 + M7 + N7 + N8 + N9)
-        // = Withholding Tax + CA + PhilHealth + HDMF
+        // TOTAL DEDUCTIONS
+        // = Withholding Tax + CA + CarryOver + PhilHealth + HDMF + SSS
         // NOTE: Tardy/Undertime are NOT here — they reduce Gross Income.
         // ────────────────────────────────────────────────────────────────────
         const totalDeductions =
@@ -2432,7 +2435,8 @@ export const db = {
           cashAdvanceDeduction +
           carryOverFromPrevious +
           philhealth +
-          hdmf;
+          hdmf +
+          sss;
 
         // ────────────────────────────────────────────────────────────────────
         // NET PAY
