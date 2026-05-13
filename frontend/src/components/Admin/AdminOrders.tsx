@@ -32,7 +32,7 @@ const Modal = ({ show, onClose, title, children }: any) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 const AdminOrders = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedId = searchParams.get("highlight");
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -50,6 +50,17 @@ const AdminOrders = () => {
   const pageSizeOptions = ["6", "12", "18", "24"];
 
   useEffect(() => {
+    const filter = searchParams.get("filter");
+    if (filter === "unassigned") {
+      setStatusFilter("Unassigned");
+      // Clean up URL so user can manually change filters later
+      const next = new URLSearchParams(searchParams);
+      next.delete("filter");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [statusFilter, periodFilter, searchQuery, pageSize]);
 
@@ -57,7 +68,7 @@ const AdminOrders = () => {
 
   const toast = useToast();
 
-  const statusOptions = ["All", "In Queue", "Active", "Completed", "Incomplete", "Overdue", "Ready Pickup"];
+  const statusOptions = ["All", "Unassigned", "In Queue", "Active", "Completed", "Incomplete", "Overdue", "Ready Pickup"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
 
   // Active orders = Designing + Payment + Production
@@ -66,7 +77,8 @@ const AdminOrders = () => {
   const filteredOrders = orders.filter((o: any) => {
     // 1. Status Filter
     let pass = true;
-    if (statusFilter === "In Queue") pass = o.status === "In Queue";
+    if (statusFilter === "Unassigned") pass = o.status === "In Queue" && !o.assignedDesigner;
+    else if (statusFilter === "In Queue") pass = o.status === "In Queue";
     else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production"].includes(o.status);
     else if (statusFilter === "Incomplete") pass = o.status === "Completed" && o.paymentStatus !== "Paid";
     else if (statusFilter === "Completed") pass = o.status === "Completed" && o.paymentStatus === "Paid";

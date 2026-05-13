@@ -256,6 +256,7 @@ export function useOrders(filters?: { status?: string; assigned_designer?: strin
     pendingPayment: orders.filter((o: any) => o.payment_status !== 'paid' && o.status !== 'cancelled').length,
     completedUnpaid: orders.filter((o: any) => o.payment_status !== 'paid' && o.status === 'completed').length,
     readyPickup: orders.filter((o: any) => o.status === 'pickup').length,
+    unassigned: orders.filter((o: any) => o.status === 'in_queue' && !o.assigned_designer).length,
   };
 
   return { orders, stats, staff, loading, error, refresh };

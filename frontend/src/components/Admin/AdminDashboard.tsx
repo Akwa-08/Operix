@@ -530,7 +530,7 @@ const AdminDashboard = () => {
             </div>
           </div>
           <button 
-            onClick={() => navigate("/admin/orders")}
+            onClick={() => navigate("/admin/orders?filter=unassigned")}
             className="px-4 py-2 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors">
             Assign Now
           </button>
