@@ -1,0 +1,2861 @@
+// // frontend/src/lib/database.ts
+// // Direct Supabase queries — NO Express middleman
+// // RLS handles all security. This file is the ONLY data access layer.
+
+// import { supabase } from "../config/supabaseClient";
+// import { sanitizeInput, isValidUUID } from "../util/security";
+
+// /**
+//  * Uploads a file to the 'order-files' storage bucket.
+//  * Organizes files by user ID and timestamp to avoid collisions.
+//  * If an oldUrl is provided, it attempts to delete the previous file from storage.
+//  */
+// export async function uploadOrderFile(
+//     file: File,
+//     oldUrl?: string,
+// ): Promise<string> {
+//     const {
+//         data: { user },
+//     } = await supabase.auth.getUser();
+//     if (!user) throw new Error("Not authenticated");
+
+//     // Validate file size (2MB limit as per UI)
+//     if (file.size > 2 * 1024 * 1024)
+//         throw new Error("File size exceeds 2MB limit");
+
+//     const fileExt = file.name.split(".").pop();
+//     const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+//     const filePath = `customer-uploads/${fileName}`;
+
+//     const { error: uploadError } = await supabase.storage
+//         .from("order-files")
+//         .upload(filePath, file, {
+//             cacheControl: "3600",
+//             upsert: false,
+//         });
+
+//     if (uploadError) {
+//         console.error("Error uploading file:", uploadError);
+//         throw uploadError;
+//     }
+
+//     // Delete old file if it exists and belongs to the 'order-files' bucket
+//     if (oldUrl && oldUrl.includes("order-files/")) {
+//         try {
+//             const oldPath = oldUrl.split("order-files/").pop();
+//             if (oldPath) {
+//                 await supabase.storage.from("order-files").remove([oldPath]);
+//                 console.log(
+//                     "Successfully removed old order file from storage:",
+//                     oldPath,
+//                 );
+//             }
+//         } catch (deleteError) {
+//             console.warn("Failed to delete old order file:", deleteError);
+//         }
+//     }
+
+//     const {
+//         data: { publicUrl },
+//     } = supabase.storage.from("order-files").getPublicUrl(filePath);
+
+//     return publicUrl;
+// }
+
+// /**
+//  * Uploads a profile picture to the 'user-profile' storage bucket.
+//  * If an oldUrl is provided, it attempts to delete the previous file from storage.
+//  */
+// export async function uploadProfilePicture(
+//     file: File,
+//     oldUrl?: string,
+// ): Promise<string> {
+//     const {
+//         data: { user },
+//     } = await supabase.auth.getUser();
+//     if (!user) throw new Error("Not authenticated");
+
+//     // Validate file size (2MB limit)
+//     if (file.size > 2 * 1024 * 1024)
+//         throw new Error("File size exceeds 2MB limit");
+
+//     // 1. Prepare new file info
+//     const fileExt = file.name.split(".").pop();
+//     const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+//     // 2. Upload new file
+//     const { error: uploadError } = await supabase.storage
+//         .from("user-profile")
+//         .upload(fileName, file, {
+//             cacheControl: "3600",
+//             upsert: true,
+//         });
+
+//     if (uploadError) {
+//         console.error("Error uploading profile picture:", uploadError);
+//         throw uploadError;
+//     }
+
+//     // 3. Delete old file if it exists and belongs to the 'user-profile' bucket
+//     if (oldUrl && oldUrl.includes("user-profile/")) {
+//         try {
+//             const oldPath = oldUrl.split("user-profile/").pop();
+//             if (oldPath) {
+//                 await supabase.storage.from("user-profile").remove([oldPath]);
+//                 console.log("Successfully removed old avatar from storage:", oldPath);
+//             }
+//         } catch (deleteError) {
+//             console.warn("Failed to delete old profile picture:", deleteError);
+//         }
+//     }
+
+//     const {
+//         data: { publicUrl },
+//     } = supabase.storage.from("user-profile").getPublicUrl(fileName);
+
+//     return publicUrl;
+// }
+
+// // ═══════════════════════════════════════════════════════════════════════════════
+// // USERS (own profile — admin CRUD uses backend /api/admin/*)
+// // ═══════════════════════════════════════════════════════════════════════════════
+
+// export const db = {
+//     // ── Profile ────────────────────────────────────────────────────────────
+//     async getMyProfile() {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) return null;
+//         const { data } = await supabase
+//             .from("users")
+//             .select("*")
+//             .eq("id", user.id)
+//             .single();
+//         return data;
+//     },
+
+//     async updateMyProfile(updates: {
+//         first_name?: string;
+//         last_name?: string;
+//         contact_number?: string;
+//         address?: string;
+//         email?: string;
+//         avatar_url?: string;
+//     }) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         if (updates.first_name !== undefined || updates.last_name !== undefined) {
+//             await supabase.auth.updateUser({
+//                 data: { first_name: updates.first_name, last_name: updates.last_name },
+//             });
+//         }
+
+//         const { data, error } = await supabase
+//             .from("users")
+//             .update(updates)
+//             .eq("id", user.id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async updateMyPassword(newPassword: string) {
+//         const { error } = await supabase.auth.updateUser({ password: newPassword });
+//         if (error) throw error;
+//     },
+
+//     // ── Users list (staff can read all via RLS) ────────────────────────────
+//     async getUsers(filters?: { role?: string; status?: string }) {
+//         let query = supabase
+//             .from("users")
+//             .select("*")
+//             .order("created_at", { ascending: false });
+//         if (filters?.role) query = query.eq("role", filters.role);
+//         if (filters?.status === "active") query = query.eq("is_active", true);
+//         if (filters?.status === "inactive") query = query.eq("is_active", false);
+//         const { data, error } = await query;
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     // ── System Utilities (Logging & Notifications) ─────────────────────────
+//     async logAudit(action: string, table: string, id: string, metadata: any) {
+//         try {
+//             const { data: { user } } = await supabase.auth.getUser();
+//             if (!user) return;
+//             const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single();
+//             await supabase.from('audit_logs').insert([{
+//                 actor_id: user.id,
+//                 actor_role: profile?.role || 'unknown',
+//                 action,
+//                 target_table: table,
+//                 target_id: id,
+//                 metadata
+//             }]);
+//         } catch (e) { console.error("Audit log failed:", e); }
+//     },
+
+//     async notifyRoles(roles: string[], title: string, message: string, module?: string, id?: string) {
+//         try {
+//             const { data: users } = await supabase.from('users').select('id').in('role', roles);
+//             if (!users || users.length === 0) return;
+//             const notifs = users.map(u => ({
+//                 user_id: u.id,
+//                 title,
+//                 message,
+//                 related_module: module,
+//                 related_id: id
+//             }));
+//             await supabase.from('notifications').insert(notifs);
+//         } catch (e) { console.error("Notification failed:", e); }
+//     },
+
+//     async notifyUser(userId: string, title: string, message: string, module?: string, id?: string) {
+//         try {
+//             await supabase.from('notifications').insert([{
+//                 user_id: userId, title, message, related_module: module, related_id: id
+//             }]);
+//         } catch (e) { console.error("User notification failed:", e); }
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // EMPLOYEES
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getEmployees() {
+//         const { data, error } = await supabase
+//             .from("employees")
+//             .select("*")
+//             .order("employee_code");
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async createEmployee(emp: {
+//         employee_code?: string;
+//         full_name: string;
+//         position: string;
+//         role?: string;
+//         base_hourly_rate?: number;
+//         hire_date?: string;
+//         // FIX: per-employee PhilHealth and HDMF contributions (replacing auto-calc and fixed ₱200)
+//         philhealth_contribution?: number;
+//         hdmf_contribution?: number;
+//     }) {
+//         const { data, error } = await supabase
+//             .from("employees")
+//             .insert([
+//                 {
+//                     ...emp,
+//                     is_active: true,
+//                     base_hourly_rate: emp.base_hourly_rate || 0,
+//                     hire_date: emp.hire_date || new Date().toISOString().split("T")[0],
+//                     philhealth_contribution: emp.philhealth_contribution ?? 0,
+//                     hdmf_contribution: emp.hdmf_contribution ?? 0,
+//                 },
+//             ])
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         await this.logAudit("Create Employee", "employees", data.id, { name: data.full_name, position: data.position });
+//         return data;
+//     },
+
+//     async updateEmployee(id: string, updates: Record<string, any>) {
+//         const { data, error } = await supabase
+//             .from("employees")
+//             .update(updates)
+//             .eq("id", id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         await this.logAudit("Update Employee", "employees", id, { updates });
+//         return data;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // SUPPLIERS
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getSuppliers() {
+//         const { data, error } = await supabase
+//             .from("suppliers")
+//             .select("*")
+//             .order("name");
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async createSupplier(s: {
+//         name: string;
+//         contact_person?: string;
+//         phone?: string;
+//         email?: string;
+//         address?: string;
+//     }) {
+//         const { data, error } = await supabase
+//             .from("suppliers")
+//             .insert([{ ...s, is_active: true, is_flagged: false }])
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         await this.logAudit("Create Supplier", "suppliers", data.id, { name: data.name });
+//         return data;
+//     },
+
+//     async getSupplierMaterials(supplierId: string) {
+//         const { data, error } = await supabase
+//             .from("item_suppliers")
+//             .select("inventory_item_id")
+//             .eq("supplier_id", supplierId);
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async updateSupplierMaterials(supplierId: string, materialIds: string[]) {
+//         // 1. Delete all existing mappings for this supplier
+//         const { error: delError } = await supabase
+//             .from("item_suppliers")
+//             .delete()
+//             .eq("supplier_id", supplierId);
+//         if (delError) throw delError;
+
+//         if (materialIds.length === 0) return { success: true };
+
+//         // 2. Insert new mappings
+//         const inserts = materialIds.map(id => ({
+//             supplier_id: supplierId,
+//             inventory_item_id: id,
+//             is_preferred: false
+//         }));
+
+//         const { error: insError } = await supabase
+//             .from("item_suppliers")
+//             .insert(inserts);
+//         if (insError) throw insError;
+
+//         return { success: true };
+//     },
+
+//     async updateSupplier(id: string, updates: Record<string, any>) {
+//         const { data, error } = await supabase
+//             .from("suppliers")
+//             .update(updates)
+//             .eq("id", id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         await this.logAudit("Update Supplier", "suppliers", id, { updates });
+//         return data;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // INVENTORY
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getInventoryItems() {
+//         const { data, error } = await supabase
+//             .from("inventory_items")
+//             .select(
+//                 "*, item_suppliers(id, supplier_unit_price, lead_time_days, is_preferred, suppliers(id, name))",
+//             )
+//             .order("name");
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async createInventoryItem(item: {
+//         name: string;
+//         unit_of_measure: string;
+//         current_quantity?: number;
+//         reorder_point?: number;
+//         unit_cost?: number;
+//         description?: string;
+//         purchase_unit?: string;
+//         conversion_rate?: number;
+//     }) {
+//         const { data, error } = await supabase
+//             .from("inventory_items")
+//             .insert([{ ...item, is_active: true }])
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         await this.logAudit("Create Inventory Item", "inventory_items", data.id, { name: data.name });
+//         return data;
+//     },
+
+//     async updateInventoryItem(id: string, updates: Record<string, any>) {
+//         const { data: oldItem } = await supabase.from('inventory_items').select('*').eq('id', id).single();
+//         const { data, error } = await supabase
+//             .from("inventory_items")
+//             .update(updates)
+//             .eq("id", id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+
+//         await this.logAudit("Update Inventory", "inventory_items", id, {
+//             before: oldItem,
+//             after: data,
+//             changed_fields: Object.keys(updates)
+//         });
+
+//         if (data.current_quantity <= data.reorder_point && (!oldItem || oldItem.current_quantity > oldItem.reorder_point)) {
+//             await this.notifyRoles(['admin', 'cashier'], "Low Stock Alert", `${data.name} is below reorder point (${data.current_quantity} left).`, 'inventory', id);
+//         }
+
+//         return data;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // PRODUCTS
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getProducts(filters?: { category?: string; search?: string }) {
+//         let query = supabase
+//             .from("products")
+//             .select("*")
+//             .order("category")
+//             .order("name");
+//         if (filters?.category) query = query.eq("category", filters.category);
+//         if (filters?.search) {
+//             const cleanSearch = sanitizeInput(filters.search);
+//             if (cleanSearch) {
+//                 query = query.or(
+//                     `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
+//                 );
+//             }
+//         }
+//         const { data, error } = await query;
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async createProduct(p: Record<string, any>) {
+//         const { data, error } = await supabase
+//             .from("products")
+//             .insert([{ ...p, is_active: true }])
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         await this.logAudit("Create Product", "products", data.id, { name: data.name, category: data.category });
+//         return data;
+//     },
+
+//     async updateProduct(id: string, updates: Record<string, any>) {
+//         const { data, error } = await supabase
+//             .from("products")
+//             .update(updates)
+//             .eq("id", id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         await this.logAudit("Update Product", "products", id, { updates });
+//         return data;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // ORDERS
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getOrders(filters?: {
+//         status?: string;
+//         assigned_designer?: string;
+//         assigned_production?: string;
+//     }) {
+//         let query = supabase
+//             .from("orders")
+//             .select(
+//                 `
+//       *,
+//       customer:customer_id(id, first_name, last_name, email, contact_number),
+//       designer:assigned_designer(id, first_name, last_name),
+//       production_staff:assigned_production(id, full_name),
+//       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
+//       payments(id, amount, payment_method, reference_number, created_at, status, decline_reason)
+//     `,
+//             )
+//             .order("created_at", { ascending: false });
+
+//         if (filters?.status && filters.status !== "all")
+//             query = query.eq("status", filters.status);
+//         if (filters?.assigned_designer)
+//             query = query.eq("assigned_designer", filters.assigned_designer);
+//         if (filters?.assigned_production)
+//             query = query.eq("assigned_production", filters.assigned_production);
+
+//         const { data, error } = await query;
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async getOrderById(id: string) {
+//         const { data, error } = await supabase
+//             .from("orders")
+//             .select(
+//                 `
+//       *,
+//       customer:customer_id(id, first_name, last_name, email, contact_number),
+//       designer:assigned_designer(id, first_name, last_name),
+//       production_staff:assigned_production(id, full_name),
+//       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
+//       payments(id, amount, payment_method, reference_number, created_at, status, decline_reason)
+//     `,
+//             )
+//             .eq("id", id)
+//             .single();
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async createOrder(order: {
+//         customer_id?: string | null;
+//         guest_name?: string | null;
+//         guest_phone?: string | null;
+//         guest_email?: string | null;
+//         order_type: string;
+//         special_instructions?: string;
+//         due_date?: string;
+//         assigned_designer?: string;
+//         assigned_production?: string;
+//         comments?: string;
+//         design_file_url?: string;
+//         items: {
+//             product_id?: string;
+//             product_name: string;
+//             quantity: number;
+//             unit_price: number;
+//             specifications?: string;
+//             file_url?: string;
+//         }[];
+//     }) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         let orderNumber: string;
+//         try {
+//             const { data: seq } = await supabase.rpc("get_next_order_seq");
+//             orderNumber = `ORD-${new Date().getFullYear()}-${String(seq ?? Date.now()).padStart(5, "0")}`;
+//         } catch {
+//             orderNumber = `ORD-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`;
+//         }
+
+//         const totalAmount = order.items.reduce(
+//             (s, i) => s + i.quantity * i.unit_price,
+//             0,
+//         );
+
+//         const { data: newOrder, error: orderErr } = await supabase
+//             .from("orders")
+//             .insert([
+//                 {
+//                     order_number: orderNumber,
+//                     customer_id: order.customer_id || null,
+//                     guest_name: order.guest_name || null,
+//                     guest_phone: order.guest_phone || null,
+//                     guest_email: order.guest_email || null,
+//                     created_by: user.id,
+//                     order_type: order.order_type || "walk-in",
+//                     status: "in_queue",
+//                     payment_status: "unpaid",
+//                     special_instructions: order.special_instructions || null,
+//                     comments: order.comments || null,
+//                     due_date: order.due_date || null,
+//                     total_amount: totalAmount,
+//                     amount_paid: 0,
+//                     assigned_designer: order.assigned_designer || null,
+//                     assigned_production: order.assigned_production || null,
+//                     design_file_url: order.design_file_url || null,
+//                 },
+//             ])
+//             .select()
+//             .single();
+
+//         if (orderErr) throw orderErr;
+
+//         const items = order.items.map((i) => ({
+//             order_id: newOrder.id,
+//             product_id: i.product_id || null,
+//             product_name: i.product_name,
+//             quantity: i.quantity,
+//             unit_price: i.unit_price,
+//             subtotal: i.quantity * i.unit_price,
+//             specifications: i.specifications || null,
+//             file_url: i.file_url || null,
+//         }));
+
+//         await supabase.from("order_items").insert(items);
+
+//         await this.logAudit("Create Order", "orders", newOrder.id, {
+//             order_number: orderNumber,
+//             total_amount: totalAmount,
+//             items_count: items.length
+//         });
+
+//         await this.notifyRoles(['admin', 'cashier'], "New Order Received", `Order ${orderNumber} has been placed for ${order.guest_name || 'a customer'}.`, 'orders', newOrder.id);
+
+//         if (order.assigned_designer) {
+//             await this.notifyUser(order.assigned_designer, "New Design Assignment", `You have been assigned to design Order ${orderNumber}.`, 'orders', newOrder.id);
+//         }
+
+//         return newOrder;
+//     },
+
+//     async updateOrder(id: string, updates: Record<string, any>) {
+//         const { data: old } = await supabase.from('orders').select('*').eq('id', id).single();
+//         const { data, error } = await supabase
+//             .from("orders")
+//             .update(updates)
+//             .eq("id", id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+
+//         await this.logAudit("Update Order", "orders", id, {
+//             before: old,
+//             after: data,
+//             changed: Object.keys(updates)
+//         });
+
+//         if (updates.status && updates.status !== old.status) {
+//             await this.notifyRoles(['admin', 'cashier'], "Order Status Updated", `Order ${data.order_number} changed from ${old.status} to ${data.status}.`, 'orders', id);
+//             if (data.customer_id) {
+//                 await this.notifyUser(data.customer_id, "Order Update", `Your order ${data.order_number} is now ${data.status.replace('_', ' ')}.`, 'orders', id);
+//             }
+//         }
+
+//         return data;
+//     },
+
+//     async updateDesignerOrderDetails(
+//         orderId: string,
+//         updates: { total_amount?: number; due_date?: string },
+//     ) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: actor, error: actorErr } = await supabase
+//             .from("users")
+//             .select("role")
+//             .eq("id", user.id)
+//             .single();
+//         if (actorErr) throw actorErr;
+//         if ((actor?.role || "").toLowerCase() !== "designer") {
+//             throw new Error("Only designers can edit order pricing in this flow");
+//         }
+
+//         const { data: order, error: orderErr } = await supabase
+//             .from("orders")
+//             .select("id, assigned_designer, status, total_amount")
+//             .eq("id", orderId)
+//             .single();
+//         if (orderErr) throw orderErr;
+//         if (!order) throw new Error("Order not found");
+//         if (order.assigned_designer !== user.id) {
+//             throw new Error("You can only edit orders assigned to you");
+//         }
+//         if (order.status !== "designing") {
+//             throw new Error("Order can only be edited during Designing phase");
+//         }
+
+//         const payload: Record<string, any> = {};
+//         if (updates.total_amount !== undefined) {
+//             const current = Number(order.total_amount) || 0;
+//             const incoming = Number(updates.total_amount);
+//             if (!Number.isFinite(incoming) || incoming <= 0) {
+//                 throw new Error("Total amount must be a valid positive number");
+//             }
+//             if (incoming < current) {
+//                 throw new Error("Designers can only increase the total amount");
+//             }
+//             payload.total_amount = incoming;
+//         }
+//         if (updates.due_date !== undefined) payload.due_date = updates.due_date;
+//         if (Object.keys(payload).length === 0) return order;
+
+//         const { data, error } = await supabase
+//             .from("orders")
+//             .update(payload)
+//             .eq("id", orderId)
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async assignDesignerForAcceptance(orderId: string, designerId: string) {
+//         const { data: order, error: fetchError } = await supabase
+//             .from("orders")
+//             .select("id, status")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchError) throw fetchError;
+//         if (!order) throw new Error("Order not found");
+
+//         if (order.status !== "in_queue") {
+//             throw new Error(
+//                 "Only in-queue orders can be assigned for design acceptance",
+//             );
+//         }
+
+//         const { data, error } = await supabase
+//             .from("orders")
+//             .update({
+//                 assigned_designer: designerId,
+//                 status: "in_queue",
+//             })
+//             .eq("id", orderId)
+//             .select()
+//             .single();
+
+//         if (error) throw error;
+
+//         await this.logAudit("Assign Designer", "orders", orderId, { designer_id: designerId });
+//         await this.notifyUser(designerId, "New Assignment", `You have been assigned to Order ${data.order_number}. Please accept to start designing.`, 'orders', orderId);
+
+//         return data;
+//     },
+
+//     async designerAcceptAssignedOrder(orderId: string) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: order, error: fetchError } = await supabase
+//             .from("orders")
+//             .select("id, order_number, customer_id, assigned_designer, status")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchError) throw fetchError;
+//         if (!order) throw new Error("Order not found");
+
+//         if (order.assigned_designer !== user.id) {
+//             throw new Error("Only the assigned designer can accept this order");
+//         }
+//         if (order.status !== "in_queue") {
+//             throw new Error("Only in-queue orders can be accepted for designing");
+//         }
+
+//         const { data: updated, error: updateErr } = await supabase
+//             .from("orders")
+//             .update({ status: "designing" })
+//             .eq("id", orderId)
+//             .select()
+//             .single();
+//         if (updateErr) throw updateErr;
+
+//         if (order.customer_id) {
+//             try {
+//                 const { data: profile } = await supabase
+//                     .from("users")
+//                     .select("first_name, last_name")
+//                     .eq("id", user.id)
+//                     .single();
+//                 const designerName = profile
+//                     ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+//                     : "Your designer";
+
+//                 await db.chat.sendMessage(
+//                     order.customer_id,
+//                     `Hi! Your order **${order.order_number}** has been accepted by ${designerName} and is now in the Designing phase.`,
+//                     orderId,
+//                 );
+//             } catch (msgErr) {
+//                 console.warn("Designer acceptance notification failed:", msgErr);
+//             }
+//         }
+
+//         await this.logAudit("Designer Accept Order", "orders", orderId, { order_number: order.order_number });
+//         await this.notifyRoles(['admin', 'cashier'], "Designer Accepted Order", `Order ${order.order_number} has been accepted by ${user.id}.`, 'orders', orderId);
+
+//         return updated;
+//     },
+
+//     async designerSelfPickOrder(orderId: string) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: order, error: fetchError } = await supabase
+//             .from("orders")
+//             .select("id, order_number, customer_id, assigned_designer, status")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchError) throw fetchError;
+//         if (!order) throw new Error("Order not found");
+
+//         if (order.status !== "in_queue") {
+//             throw new Error("Only in-queue orders can be self-picked");
+//         }
+//         if (order.assigned_designer) {
+//             throw new Error("Order is already assigned to another designer");
+//         }
+
+//         const { data: updated, error: updateErr } = await supabase
+//             .from("orders")
+//             .update({ assigned_designer: user.id, status: "designing" })
+//             .eq("id", orderId)
+//             .select()
+//             .single();
+//         if (updateErr) throw updateErr;
+
+//         if (order.customer_id) {
+//             try {
+//                 const { data: profile } = await supabase
+//                     .from("users")
+//                     .select("first_name, last_name")
+//                     .eq("id", user.id)
+//                     .single();
+//                 const designerName = profile
+//                     ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+//                     : "Your designer";
+
+//                 await db.chat.sendMessage(
+//                     order.customer_id,
+//                     `Hi! Your order **${order.order_number}** has been picked up by ${designerName} and is now in the Designing phase.`,
+//                     orderId,
+//                 );
+//             } catch (msgErr) {
+//                 console.warn("Self-pick notification failed:", msgErr);
+//             }
+//         }
+
+//         return updated;
+//     },
+
+//     async designerRejectAssignedOrder(orderId: string) {
+//         const { data: { user } } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: order, error: fetchError } = await supabase
+//             .from("orders")
+//             .select("id, order_number, assigned_designer, status, rejected_by_designers")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchError) throw fetchError;
+//         if (!order) throw new Error("Order not found");
+
+//         if (order.assigned_designer !== user.id) {
+//             throw new Error("Only the assigned designer can reject this order");
+//         }
+
+//         const { data: updated, error: updateErr } = await supabase
+//             .from("orders")
+//             .update({
+//                 assigned_designer: null,
+//                 status: "in_queue",
+//                 rejected_by_designers: [...(order.rejected_by_designers || []), user.id]
+//             })
+//             .eq("id", orderId)
+//             .select()
+//             .single();
+//         if (updateErr) throw updateErr;
+
+//         await this.logAudit("Designer Reject Order", "orders", orderId, { order_number: order.order_number });
+//         await this.notifyRoles(['admin', 'cashier'], "Designer Rejected Order", `Order ${order.order_number} was rejected by ${user.id} and returned to queue.`, 'orders', orderId);
+
+//         return updated;
+//     },
+
+//     async updateCustomerDesign(orderId: string, url: string) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: actor, error: actorErr } = await supabase
+//             .from("users")
+//             .select("role")
+//             .eq("id", user.id)
+//             .single();
+//         if (actorErr) throw actorErr;
+
+//         if ((actor?.role || "").toLowerCase() === "designer") {
+//             throw new Error(
+//                 "Designer cannot upload or replace customer initial design",
+//             );
+//         }
+
+//         const { data: order, error: orderErr } = await supabase
+//             .from("orders")
+//             .select("status")
+//             .eq("id", orderId)
+//             .single();
+//         if (orderErr) throw orderErr;
+//         if (!order) throw new Error("Order not found");
+
+//         if (!["in_queue", "designing"].includes(order.status)) {
+//             throw new Error(
+//                 "Initial design can only be replaced during In-Queue or Designing phase",
+//             );
+//         }
+
+//         await supabase
+//             .from("orders")
+//             .update({ design_file_url: url })
+//             .eq("id", orderId);
+
+//         const { data: items, error: fetchError } = await supabase
+//             .from("order_items")
+//             .select("id")
+//             .eq("order_id", orderId)
+//             .limit(1);
+
+//         if (fetchError) throw fetchError;
+//         if (!items || items.length === 0)
+//             throw new Error("No items found for this order");
+
+//         const { data, error } = await supabase
+//             .from("order_items")
+//             .update({ file_url: url })
+//             .eq("id", items[0].id)
+//             .select()
+//             .single();
+
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async submitFinalDesign(orderId: string, url: string) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: order, error: fetchError } = await supabase
+//             .from("orders")
+//             .select("id, customer_id, assigned_designer, status")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchError) throw fetchError;
+//         if (!order) throw new Error("Order not found");
+
+//         if (order.assigned_designer !== user.id) {
+//             throw new Error("Only the assigned designer can submit final design");
+//         }
+//         if (order.status !== "designing") {
+//             throw new Error(
+//                 "Final design can only be submitted during Designing phase",
+//             );
+//         }
+
+//         const { data, error } = await supabase
+//             .from("orders")
+//             .update({ final_design_url: url })
+//             .eq("id", orderId)
+//             .select()
+//             .single();
+//         if (error) throw error;
+
+//         if (order.customer_id) {
+//             try {
+//                 await db.chat.sendMessage(
+//                     order.customer_id,
+//                     "Your final design preview is ready. Please review and accept it to move your order to Payment.",
+//                     orderId,
+//                     url,
+//                 );
+//             } catch (msgErr) {
+//                 console.warn("Final design notification failed:", msgErr);
+//             }
+//         }
+
+//         return data;
+//     },
+
+//     async approveOrderDesign(orderId: string) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: actor } = await supabase
+//             .from("users")
+//             .select("role")
+//             .eq("id", user.id)
+//             .single();
+
+//         const isDesigner = (actor?.role || "").toLowerCase() === "designer";
+//         const isAdmin = (actor?.role || "").toLowerCase() === "admin";
+
+//         if (!isDesigner && !isAdmin) {
+//             throw new Error("Only designers or admins can approve the final design");
+//         }
+
+//         const { data: order, error: fetchError } = await supabase
+//             .from("orders")
+//             .select("id, customer_id, assigned_designer, status, final_design_url")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchError) throw fetchError;
+//         if (!order) throw new Error("Order not found");
+
+//         if (isDesigner && order.assigned_designer !== user.id) {
+//             throw new Error("You can only approve designs for orders assigned to you");
+//         }
+//         if (order.status !== "designing") {
+//             throw new Error("Order is not currently in Designing phase");
+//         }
+//         if (!order.final_design_url) {
+//             throw new Error("No final design found to approve");
+//         }
+
+//         const { data, error } = await supabase
+//             .from("orders")
+//             .update({ status: "payment" })
+//             .eq("id", orderId)
+//             .eq("status", "designing")
+//             .select()
+//             .single();
+//         if (error) throw error;
+
+//         if (order.customer_id) {
+//             try {
+//                 await db.chat.sendMessage(
+//                     order.customer_id,
+//                     "Your final design has been approved by our team. Your order is now in the Payment phase.",
+//                     orderId,
+//                 );
+//             } catch (msgErr) {
+//                 console.warn("Customer notification failed:", msgErr);
+//             }
+//         }
+
+//         return data;
+//     },
+
+//     async deleteOrder(id: string) {
+//         await supabase.from("payments").delete().eq("order_id", id);
+//         await supabase.from("order_items").delete().eq("order_id", id);
+//         const { error } = await supabase.from("orders").delete().eq("id", id);
+//         if (error) throw error;
+//     },
+
+//     async requestCancellation(orderId: string, reason: string) {
+//         // Mark order as cancel_requested with the reason
+//         const { data: order, error: fetchErr } = await supabase
+//             .from("orders")
+//             .select("order_number, assigned_designer, customer_id")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchErr) throw fetchErr;
+
+//         const { error } = await supabase
+//             .from("orders")
+//             .update({ status: "cancel_requested", cancel_reason: reason })
+//             .eq("id", orderId);
+//         if (error) throw error;
+
+//         // Notify the assigned designer
+//         if (order.assigned_designer) {
+//             await this.notifyUser(
+//                 order.assigned_designer,
+//                 `Cancellation Request – ${order.order_number}`,
+//                 `Customer requested cancellation: "${reason}"`,
+//                 "orders",
+//                 orderId,
+//             );
+//         }
+//         await this.logAudit("Request Cancellation", "orders", orderId, { reason });
+//     },
+
+//     async handleCancellationRequest(orderId: string, approve: boolean, designerNote?: string) {
+//         const { data: order, error: fetchErr } = await supabase
+//             .from("orders")
+//             .select("order_number, customer_id")
+//             .eq("id", orderId)
+//             .single();
+//         if (fetchErr) throw fetchErr;
+
+//         if (approve) {
+//             // Cancel the order
+//             const { error } = await supabase
+//                 .from("orders")
+//                 .update({ status: "cancelled", cancel_reason: null })
+//                 .eq("id", orderId);
+//             if (error) throw error;
+
+//             // Notify the customer
+//             if (order.customer_id) {
+//                 await this.notifyUser(
+//                     order.customer_id,
+//                     `Order Cancelled – ${order.order_number}`,
+//                     "Your cancellation request has been approved. Your order has been cancelled.",
+//                     "orders",
+//                     orderId,
+//                 );
+//             }
+//             await this.logAudit("Approve Cancellation", "orders", orderId, {});
+//         } else {
+//             // Revert to Designing
+//             const { error } = await supabase
+//                 .from("orders")
+//                 .update({ status: "designing", cancel_reason: null })
+//                 .eq("id", orderId);
+//             if (error) throw error;
+
+//             // Notify the customer with the rejection
+//             if (order.customer_id) {
+//                 await this.notifyUser(
+//                     order.customer_id,
+//                     `Cancellation Denied – ${order.order_number}`,
+//                     designerNote
+//                         ? `Your cancellation request was declined: "${designerNote}"`
+//                         : "Your cancellation request was declined. Your order continues in design.",
+//                     "orders",
+//                     orderId,
+//                 );
+//             }
+//             await this.logAudit("Reject Cancellation", "orders", orderId, { note: designerNote });
+//         }
+//     },
+
+//     async getOrderBOM(orderId: string) {
+//         const { data: items, error: itemsErr } = await supabase
+//             .from("order_items")
+//             .select("product_id, quantity, product_name")
+//             .eq("order_id", orderId);
+//         if (itemsErr) throw itemsErr;
+
+//         const materials: {
+//             inventory_item_id: string;
+//             material_name: string;
+//             quantity_required: number;
+//             unit: string;
+//             total_standard_usage: number;
+//         }[] = [];
+
+//         for (const item of items || []) {
+//             if (!item.product_id) continue;
+//             const { data: bom, error: bomErr } = await supabase
+//                 .from("product_supply_mapping")
+//                 .select(
+//                     "inventory_item_id, quantity_required, inventory_items:inventory_item_id(name, unit_of_measure)",
+//                 )
+//                 .eq("product_id", item.product_id);
+//             if (bomErr) throw bomErr;
+
+//             for (const mapping of bom || []) {
+//                 const invItem = (mapping as any).inventory_items;
+//                 materials.push({
+//                     inventory_item_id: mapping.inventory_item_id,
+//                     material_name: invItem?.name || "Unknown Material",
+//                     quantity_required: Number(mapping.quantity_required),
+//                     unit: invItem?.unit_of_measure || "",
+//                     total_standard_usage:
+//                         Number(mapping.quantity_required) * item.quantity,
+//                 });
+//             }
+//         }
+//         return materials;
+//     },
+
+//     async deductInventoryForOrder(
+//         orderId: string,
+//         excessUsage?: Record<string, number>,
+//     ) {
+//         const { data: items, error: itemsErr } = await supabase
+//             .from("order_items")
+//             .select("product_id, quantity")
+//             .eq("order_id", orderId);
+//         if (itemsErr) throw itemsErr;
+
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+
+//         for (const item of items || []) {
+//             if (!item.product_id) continue;
+
+//             const { data: bom, error: bomErr } = await supabase
+//                 .from("product_supply_mapping")
+//                 .select("inventory_item_id, quantity_required")
+//                 .eq("product_id", item.product_id);
+//             if (bomErr) throw bomErr;
+
+//             for (const mapping of bom || []) {
+//                 const { data: inv, error: invErr } = await supabase
+//                     .from("inventory_items")
+//                     .select("current_quantity")
+//                     .eq("id", mapping.inventory_item_id)
+//                     .single();
+//                 if (invErr) throw invErr;
+
+//                 const standardUsage = Number(mapping.quantity_required) * item.quantity;
+//                 const excess = excessUsage?.[mapping.inventory_item_id] || 0;
+//                 const totalDeduction = standardUsage + excess;
+
+//                 const newQty = Number(inv.current_quantity) - totalDeduction;
+
+//                 const { error: updateErr } = await supabase
+//                     .from("inventory_items")
+//                     .update({
+//                         current_quantity: newQty,
+//                         updated_at: new Date().toISOString(),
+//                     })
+//                     .eq("id", mapping.inventory_item_id);
+//                 if (updateErr) throw updateErr;
+
+//                 await supabase.from("inventory_changes").insert([
+//                     {
+//                         inventory_item_id: mapping.inventory_item_id,
+//                         change_type: "Manual Adjustment",
+//                         quantity_change: -totalDeduction,
+//                         quantity_before: Number(inv.current_quantity),
+//                         quantity_after: newQty,
+//                         reason:
+//                             excess > 0
+//                                 ? `Automatic deduction for order ${orderId} (includes ${excess} excess)`
+//                                 : `Automatic deduction for order ${orderId}`,
+//                         changed_by: user?.id,
+//                     },
+//                 ]);
+//             }
+//         }
+//     },
+
+//     // ── Payments ─────────────────────────────────────────────────────────
+//     async recordPayment(
+//         orderId: string,
+//         payment: {
+//             amount: number;
+//             payment_method: string;
+//             reference_number?: string;
+//             notes?: string;
+//         },
+//     ) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { error: payErr } = await supabase.from("payments").insert([
+//             {
+//                 order_id: orderId,
+//                 amount: payment.amount,
+//                 payment_method: payment.payment_method,
+//                 reference_number: payment.reference_number,
+//                 status: "pending",
+//             },
+//         ]);
+//         if (payErr) throw payErr;
+
+//         const { data: order } = await supabase.from('orders').select('order_number').eq('id', orderId).single();
+//         await this.logAudit("Record Payment", "payments", orderId, {
+//             amount: payment.amount,
+//             method: payment.payment_method,
+//             ref: payment.reference_number
+//         });
+//         await this.notifyRoles(['admin', 'cashier'], "New Payment Recorded", `A payment of ₱${payment.amount.toLocaleString()} has been recorded for Order ${order?.order_number || 'N/A'}.`, 'orders', orderId);
+//     },
+
+//     async approvePayment(paymentId: string, orderId: string) {
+//         const { error: updateError } = await supabase
+//             .from("payments")
+//             .update({ status: "approved" })
+//             .eq("id", paymentId);
+
+//         if (updateError) throw updateError;
+
+//         await this.logAudit("Approve Payment", "payments", paymentId, { order_id: orderId });
+//         return this.syncOrderPaymentStatus(orderId);
+//     },
+
+//     async declinePayment(paymentId: string, orderId: string, reason: string) {
+//         const { error: updateError } = await supabase
+//             .from("payments")
+//             .update({
+//                 status: "declined",
+//                 decline_reason: reason,
+//             })
+//             .eq("id", paymentId);
+
+//         if (updateError) throw updateError;
+
+//         const { data: order } = await supabase
+//             .from("orders")
+//             .select("customer_id, order_number")
+//             .eq("id", orderId)
+//             .single();
+
+//         if (order && order.customer_id) {
+//             try {
+//                 await db.chat.sendMessage(
+//                     order.customer_id,
+//                     `Your payment for order ${order.order_number} was declined. Reason: ${reason}. Please try paying again.`,
+//                     orderId,
+//                 );
+//             } catch (err) {
+//                 console.warn("Failed to notify customer of declined payment", err);
+//             }
+//             await this.notifyUser(order.customer_id, "Payment Declined", `Your payment for Order ${order.order_number} was declined. Reason: ${reason}`, 'orders', orderId);
+//         }
+
+//         await this.logAudit("Decline Payment", "payments", paymentId, { order_id: orderId, reason });
+
+//         await supabase
+//             .from("orders")
+//             .update({
+//                 last_decline_reason: reason,
+//                 has_unread_decline: true,
+//             })
+//             .eq("id", orderId);
+
+//         return this.syncOrderPaymentStatus(orderId);
+//     },
+
+//     async syncOrderPaymentStatus(orderId: string) {
+//         const { data: approvedPayments, error: sumError } = await supabase
+//             .from("payments")
+//             .select("amount")
+//             .eq("order_id", orderId)
+//             .eq("status", "approved");
+
+//         if (sumError) throw sumError;
+
+//         const totalApproved = (approvedPayments || []).reduce(
+//             (sum, p) => sum + Number(p.amount),
+//             0,
+//         );
+
+//         const { data: order, error: orderFetchError } = await supabase
+//             .from("orders")
+//             .select("total_amount")
+//             .eq("id", orderId)
+//             .single();
+
+//         if (orderFetchError) throw orderFetchError;
+
+//         const totalAmount = parseFloat(order.total_amount);
+//         let newStatus: "paid" | "partial" | "unpaid" = "unpaid";
+//         if (totalApproved >= totalAmount) newStatus = "paid";
+//         else if (totalApproved > 0) newStatus = "partial";
+
+//         const { error: finalError } = await supabase
+//             .from("orders")
+//             .update({
+//                 amount_paid: totalApproved,
+//                 payment_status: newStatus,
+//             })
+//             .eq("id", orderId);
+
+//         if (finalError) throw finalError;
+
+//         return { success: true };
+//     },
+
+//     async markDeclineAsRead(orderId: string) {
+//         const { error } = await supabase
+//             .from("orders")
+//             .update({ has_unread_decline: false })
+//             .eq("id", orderId);
+//         if (error) throw error;
+//     },
+
+//     async getPayments(orderId: string) {
+//         const { data, error } = await supabase
+//             .from("payments")
+//             .select("*")
+//             .eq("order_id", orderId)
+//             .order("created_at", { ascending: false });
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // CART (customer only — RLS enforces ownership)
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getCart() {
+//         const { data, error } = await supabase
+//             .from("cart_items")
+//             .select(
+//                 "*, product:product_id(id, name, description, category, size_spec, variant, final_price)",
+//             )
+//             .order("created_at", { ascending: false });
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async addToCart(
+//         productId: string,
+//         quantity: number = 1,
+//         forceNewRow: boolean = false,
+//         specifications?: string,
+//         fileUrl?: string,
+//     ) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         if (!forceNewRow) {
+//             const { data: existingList, error: queryErr } = await supabase
+//                 .from("cart_items")
+//                 .select("id, quantity")
+//                 .eq("customer_id", user.id)
+//                 .eq("product_id", productId)
+//                 .order("created_at", { ascending: false })
+//                 .limit(1);
+
+//             if (!queryErr && existingList && existingList.length > 0) {
+//                 const existing = existingList[0];
+//                 const { data, error } = await supabase
+//                     .from("cart_items")
+//                     .update({
+//                         quantity: existing.quantity + quantity,
+//                         specifications,
+//                         file_url: fileUrl,
+//                     })
+//                     .eq("id", existing.id)
+//                     .select()
+//                     .single();
+//                 if (error) throw error;
+//                 return data;
+//             }
+//         }
+
+//         const { data, error } = await supabase
+//             .from("cart_items")
+//             .insert([
+//                 {
+//                     customer_id: user.id,
+//                     product_id: productId,
+//                     quantity,
+//                     specifications,
+//                     file_url: fileUrl || null,
+//                 },
+//             ])
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async updateCartItem(
+//         cartItemId: string,
+//         updates: {
+//             quantity?: number;
+//             specifications?: string;
+//             fileUrl?: string;
+//             file_url?: string;
+//         },
+//     ) {
+//         const dbUpdates: any = { ...updates };
+//         if ("fileUrl" in dbUpdates) {
+//             dbUpdates.file_url = dbUpdates.fileUrl;
+//             delete dbUpdates.fileUrl;
+//         }
+
+//         const { data, error } = await supabase
+//             .from("cart_items")
+//             .update(dbUpdates)
+//             .eq("id", cartItemId)
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async removeCartItem(cartItemId: string) {
+//         const { error } = await supabase
+//             .from("cart_items")
+//             .delete()
+//             .eq("id", cartItemId);
+//         if (error) throw error;
+//     },
+
+//     async clearCart() {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+//         const { error } = await supabase
+//             .from("cart_items")
+//             .delete()
+//             .eq("customer_id", user.id);
+//         if (error) throw error;
+//     },
+
+//     async checkout(specialInstructions?: string, dueDate?: string, itemIds?: string[]) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         let cartItems = await db.getCart();
+//         if (itemIds && itemIds.length > 0) {
+//             cartItems = cartItems.filter((ci) => itemIds.includes(ci.id));
+//         }
+
+//         if (!cartItems.length) throw new Error("Cart is empty or no items selected");
+
+//         const order = await db.createOrder({
+//             customer_id: user.id,
+//             order_type: "online",
+//             special_instructions: specialInstructions,
+//             due_date: dueDate,
+//             design_file_url: cartItems[0]?.file_url,
+//             items: cartItems.map((ci) => ({
+//                 product_id: ci.product_id,
+//                 product_name: ci.product?.name || "Unknown",
+//                 quantity: ci.quantity,
+//                 unit_price: parseFloat(ci.product?.final_price || "0"),
+//                 specifications: ci.specifications,
+//                 file_url: ci.file_url,
+//             })),
+//         });
+
+//         if (itemIds && itemIds.length > 0) {
+//             const { error } = await supabase
+//                 .from("cart_items")
+//                 .delete()
+//                 .in("id", itemIds);
+//             if (error) throw error;
+//         } else {
+//             await db.clearCart();
+//         }
+
+//         return order;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // STAFF LIST (for assignment dropdowns)
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getStaffList() {
+//         const { data, error } = await supabase
+//             .from("users")
+//             .select("id, first_name, last_name, role")
+//             .in("role", ["designer", "production", "admin"])
+//             .eq("is_active", true)
+//             .order("role")
+//             .order("first_name");
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // INVENTORY — extended
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async deleteInventoryItem(id: string) {
+//         const { error } = await supabase
+//             .from("inventory_items")
+//             .update({ is_active: false })
+//             .eq("id", id);
+//         if (error) throw error;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // PRODUCT CATALOG VIEW (customer-facing, includes max_capacity from BOM)
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getCatalogProducts(filters?: { category?: string; search?: string }) {
+//         let query = supabase
+//             .from("product_catalog_view")
+//             .select("*")
+//             .eq("is_active", true)
+//             .order("category")
+//             .order("name");
+
+//         if (filters?.category) query = query.eq("category", filters.category);
+//         if (filters?.search) {
+//             const cleanSearch = filters.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+//             if (cleanSearch) {
+//                 query = query.or(
+//                     `name.ilike.%${cleanSearch}%,category.ilike.%${cleanSearch}%`,
+//                 );
+//             }
+//         }
+
+//         const { data, error } = await query;
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // PRODUCTS WITH BOM
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getProductsWithBOM(filters?: { search?: string; category?: string }) {
+//         let query = supabase
+//             .from("products")
+//             .select(
+//                 "*, product_supply_mapping(id, inventory_item_id, quantity_required, inventory_items:inventory_item_id(id, name, unit_of_measure, unit_cost))"
+//             );
+
+//         if (filters?.category) query = query.eq("category", filters.category);
+//         if (filters?.search) {
+//             query = query.or(`name.ilike.%${filters.search}%,category.ilike.%${filters.search}%`);
+//         }
+
+//         const { data, error } = await query
+//             .order("category")
+//             .order("name");
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async createProductWithBOM(
+//         product: {
+//             name: string;
+//             category?: string;
+//             variant?: string;
+//             size_spec?: string;
+//             material_cost: number;
+//             profit_fee: number;
+//             final_price: number;
+//             description?: string;
+//         },
+//         bom: { inventory_item_id: string; quantity_required: number }[],
+//     ) {
+//         const { data: p, error: pErr } = await supabase
+//             .from("products")
+//             .insert([{ ...product, is_active: true }])
+//             .select()
+//             .single();
+//         if (pErr) throw pErr;
+
+//         if (bom.length > 0) {
+//             const rows = bom.map((b) => ({ product_id: p.id, ...b }));
+//             const { error: bErr } = await supabase
+//                 .from("product_supply_mapping")
+//                 .insert(rows);
+//             if (bErr) throw bErr;
+//         }
+//         return p;
+//     },
+
+//     async updateProductWithBOM(
+//         id: string,
+//         product: Record<string, any>,
+//         bom?: { inventory_item_id: string; quantity_required: number }[],
+//     ) {
+//         product.updated_at = new Date().toISOString();
+//         const { data, error } = await supabase
+//             .from("products")
+//             .update(product)
+//             .eq("id", id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+
+//         if (bom !== undefined) {
+//             await supabase
+//                 .from("product_supply_mapping")
+//                 .delete()
+//                 .eq("product_id", id);
+//             if (bom.length > 0) {
+//                 const rows = bom.map((b) => ({ product_id: id, ...b }));
+//                 await supabase.from("product_supply_mapping").insert(rows);
+//             }
+//         }
+//         return data;
+//     },
+
+//     async deleteProduct(id: string) {
+//         const { error } = await supabase
+//             .from("products")
+//             .update({ is_active: false, updated_at: new Date().toISOString() })
+//             .eq("id", id);
+//         if (error) throw error;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // DELIVERIES
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     async getDeliveries(filters?: { status?: string }) {
+//         let query = supabase
+//             .from("deliveries")
+//             .select(
+//                 `
+//       *,
+//       inventory_item:inventory_item_id(id, name, unit_of_measure, purchase_unit, conversion_rate),
+//       supplier:supplier_id(id, name),
+//       requester:requested_by(id, first_name, last_name)
+//     `,
+//             )
+//             .order("created_at", { ascending: false });
+//         if (filters?.status && filters.status !== "all")
+//             query = query.eq("status", filters.status);
+//         const { data, error } = await query;
+//         if (error) throw error;
+//         return data || [];
+//     },
+
+//     async createDelivery(d: {
+//         inventory_item_id: string;
+//         supplier_id?: string;
+//         requested_quantity: number;
+//         expected_arrival_date?: string;
+//         notes?: string;
+//     }) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+//         const { data, error } = await supabase
+//             .from("deliveries")
+//             .insert([
+//                 {
+//                     ...d,
+//                     requested_by: user.id,
+//                     status: "requested",
+//                 },
+//             ])
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async updateDelivery(id: string, updates: Record<string, any>) {
+//         updates.updated_at = new Date().toISOString();
+//         const { data, error } = await supabase
+//             .from("deliveries")
+//             .update(updates)
+//             .eq("id", id)
+//             .select()
+//             .single();
+//         if (error) throw error;
+//         return data;
+//     },
+
+//     async confirmDeliveryReceipt(
+//         id: string,
+//         receipt: {
+//             received_quantity: number;
+//             receipt_reference_number: string;
+//         },
+//     ) {
+//         const {
+//             data: { user },
+//         } = await supabase.auth.getUser();
+//         if (!user) throw new Error("Not authenticated");
+
+//         const { data: delivery, error: dErr } = await supabase
+//             .from("deliveries")
+//             .update({
+//                 status: "received",
+//                 received_quantity: receipt.received_quantity,
+//                 receipt_reference_number: receipt.receipt_reference_number,
+//                 received_date: new Date().toISOString(),
+//                 updated_at: new Date().toISOString(),
+//             })
+//             .eq("id", id)
+//             .select(
+//                 "*, inventory_item:inventory_item_id(id, conversion_rate, current_quantity)",
+//             )
+//             .single();
+//         if (dErr) throw dErr;
+
+//         const item = delivery.inventory_item;
+//         const conversionRate = Number(item.conversion_rate) || 1;
+//         const addQty = receipt.received_quantity * conversionRate;
+//         const newQty = Number(item.current_quantity) + addQty;
+
+//         const { error: iErr } = await supabase
+//             .from("inventory_items")
+//             .update({ current_quantity: newQty, updated_at: new Date().toISOString() })
+//             .eq("id", item.id);
+//         if (iErr) throw iErr;
+
+//         await supabase.from("inventory_changes").insert([
+//             {
+//                 inventory_item_id: item.id,
+//                 change_type: "Manual Adjustment",
+//                 quantity_change: addQty,
+//                 quantity_before: Number(item.current_quantity),
+//                 quantity_after: newQty,
+//                 reason: `Delivery receipt #${receipt.receipt_reference_number}`,
+//                 changed_by: user.id,
+//             },
+//         ]);
+
+//         return delivery;
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // CHAT
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     chat: {
+//         formatChatTimestamp(dateStr: string) {
+//             if (!dateStr) return "";
+//             const date = new Date(dateStr);
+//             const now = new Date();
+//             const isToday = date.toDateString() === now.toDateString();
+//             if (isToday) {
+//                 return date.toLocaleTimeString([], {
+//                     hour: "2-digit",
+//                     minute: "2-digit",
+//                 });
+//             }
+//             return date.toLocaleDateString([], { month: "short", day: "numeric" });
+//         },
+
+//         async getConversations() {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) return [];
+
+//             const { data, error } = await supabase
+//                 .from("chat_messages")
+//                 .select(
+//                     `
+//           id, sender_id, receiver_id, message, sent_at,
+//           sender:sender_id(id, first_name, last_name, role),
+//           receiver:receiver_id(id, first_name, last_name, role)
+//         `,
+//                 )
+//                 .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+//                 .order("sent_at", { ascending: false });
+
+//             if (error) throw error;
+//             if (!data) return [];
+
+//             const conversationsMap = new Map<string, any>();
+
+//             for (const msg of data as any[]) {
+//                 const isSender = msg.sender_id === user.id;
+//                 const otherProfile = isSender ? msg.receiver : msg.sender;
+//                 const otherId = isSender ? msg.receiver_id : msg.sender_id;
+
+//                 if (!otherId) continue;
+//                 if (conversationsMap.has(otherId)) continue;
+
+//                 conversationsMap.set(otherId, {
+//                     id: otherId,
+//                     userId: otherId,
+//                     displayName: otherProfile
+//                         ? `${otherProfile.first_name || ""} ${otherProfile.last_name || ""}`.trim()
+//                         : "Unknown User",
+//                     userRole: otherProfile?.role || "user",
+//                     lastMessage: msg.message,
+//                     lastMessageTime: this.formatChatTimestamp(msg.sent_at),
+//                     unreadCount: 0,
+//                     isActive: true,
+//                     messages: [],
+//                 });
+//             }
+
+//             return Array.from(conversationsMap.values());
+//         },
+
+//         async getUnreadCount(): Promise<number> {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) return 0;
+
+//             const lastViewed = localStorage.getItem(`chat_last_viewed_${user.id}`) || "1970-01-01T00:00:00Z";
+
+//             const { count, error } = await supabase
+//                 .from("chat_messages")
+//                 .select("id", { count: "exact", head: true })
+//                 .eq("receiver_id", user.id)
+//                 .gt("sent_at", lastViewed);
+
+//             if (error) {
+//                 console.warn("Failed to fetch unread count:", error.message);
+//                 return 0;
+//             }
+//             return count ?? 0;
+//         },
+
+//         markMessagesViewed(): void {
+//             const userId = localStorage.getItem("chat_user_id");
+//             if (userId) {
+//                 localStorage.setItem(`chat_last_viewed_${userId}`, new Date().toISOString());
+//             }
+//         },
+
+//         async initUserId(): Promise<void> {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (user) {
+//                 localStorage.setItem("chat_user_id", user.id);
+//             }
+//         },
+
+//         async getMessages(otherUserId: string) {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) return [];
+
+//             if (!isValidUUID(otherUserId)) {
+//                 console.error("Invalid otherUserId:", otherUserId);
+//                 return [];
+//             }
+
+//             const { data, error } = await supabase
+//                 .from("chat_messages")
+//                 .select(
+//                     `id, sender_id, message, attachment_url, sent_at, sender:sender_id(first_name, last_name, role)`,
+//                 )
+//                 .or(
+//                     `and(sender_id.eq.${user.id},receiver_id.eq.${otherUserId}),and(sender_id.eq.${otherUserId},receiver_id.eq.${user.id})`,
+//                 )
+//                 .order("sent_at", { ascending: true });
+
+//             if (error) throw error;
+//             if (!data) return [];
+
+//             const STAFF_ROLES = ["admin", "cashier", "designer", "production"];
+
+//             return data.map((msg: any) => ({
+//                 id: msg.id,
+//                 senderId: msg.sender_id,
+//                 senderName: msg.sender
+//                     ? `${msg.sender.first_name || ""} ${msg.sender.last_name || ""}`.trim()
+//                     : "Unknown",
+//                 content: msg.message,
+//                 attachmentUrl: msg.attachment_url || undefined,
+//                 timestamp: this.formatChatTimestamp(msg.sent_at),
+//                 isFromAdmin: STAFF_ROLES.includes(
+//                     (msg.sender?.role || "").toLowerCase(),
+//                 ),
+//             }));
+//         },
+
+//         async sendMessage(
+//             receiverId: string,
+//             message: string,
+//             orderId?: string,
+//             attachmentUrl?: string,
+//         ) {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) throw new Error("Not authenticated");
+
+//             if (!isValidUUID(receiverId)) throw new Error("Invalid receiverId");
+//             if (orderId && !isValidUUID(orderId)) throw new Error("Invalid orderId");
+
+//             const { data, error } = await supabase
+//                 .from("chat_messages")
+//                 .insert([
+//                     {
+//                         sender_id: user.id,
+//                         receiver_id: receiverId,
+//                         message: message.trim(),
+//                         order_id: orderId || null,
+//                         attachment_url: attachmentUrl || null,
+//                     },
+//                 ])
+//                 .select()
+//                 .single();
+
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async uploadChatImage(file: File, oldUrl?: string): Promise<string> {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) throw new Error("Not authenticated");
+//             if (file.size > 2 * 1024 * 1024)
+//                 throw new Error("Image must be under 2 MB");
+
+//             const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+//             const path = `${user.id}/${Date.now()}.${ext}`;
+
+//             const { error: upErr } = await supabase.storage
+//                 .from("chat-attachments")
+//                 .upload(path, file, { upsert: false });
+//             if (upErr) throw upErr;
+
+//             if (oldUrl && oldUrl.includes("chat-attachments/")) {
+//                 try {
+//                     const oldPath = oldUrl.split("chat-attachments/").pop();
+//                     if (oldPath) {
+//                         await supabase.storage.from("chat-attachments").remove([oldPath]);
+//                     }
+//                 } catch (deleteError) {
+//                     console.warn("Failed to delete old chat attachment:", deleteError);
+//                 }
+//             }
+
+//             const { data: urlData } = supabase.storage
+//                 .from("chat-attachments")
+//                 .getPublicUrl(path);
+//             return urlData.publicUrl;
+//         },
+
+//         subscribeToMessages(callback: (payload: any) => void) {
+//             return supabase
+//                 .channel("chat_messages_realtime")
+//                 .on(
+//                     "postgres_changes",
+//                     { event: "INSERT", schema: "public", table: "chat_messages" },
+//                     callback,
+//                 )
+//                 .subscribe();
+//         },
+
+//         async getPotentialRecipients(currentUserRole: string) {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) return [];
+
+//             const STAFF_ROLES = ["admin", "cashier", "designer", "production"];
+//             const isStaff = STAFF_ROLES.includes(
+//                 (currentUserRole || "").toLowerCase(),
+//             );
+
+//             let query = supabase
+//                 .from("users")
+//                 .select("id, first_name, last_name, role")
+//                 .eq("is_active", true)
+//                 .neq("id", user.id);
+
+//             if (!isStaff) {
+//                 query = query.in("role", [
+//                     "admin",
+//                     "cashier",
+//                     "designer",
+//                     "production",
+//                     "Admin",
+//                     "Cashier",
+//                     "Designer",
+//                     "Production",
+//                 ]);
+//             }
+
+//             const { data, error } = await query.order("first_name");
+//             if (error) throw error;
+//             if (!data) return [];
+
+//             return data.map((u: any) => ({
+//                 userId: u.id,
+//                 displayName: `${u.first_name || ""} ${u.last_name || ""}`.trim(),
+//                 userRole: u.role,
+//             }));
+//         },
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // PAYROLL
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     payroll: {
+//         async getPeriods() {
+//             const { data, error } = await supabase
+//                 .from("payroll_periods")
+//                 .select("*")
+//                 .order("period_start", { ascending: false });
+//             if (error) throw error;
+//             return data || [];
+//         },
+
+//         async createPeriod(period: {
+//             period_start: string;
+//             period_end: string;
+//             pay_date?: string;
+//         }) {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) throw new Error("Not authenticated");
+//             const { data, error } = await supabase
+//                 .from("payroll_periods")
+//                 .insert([{ ...period, status: "draft", created_by: user.id }])
+//                 .select()
+//                 .single();
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async updatePeriod(id: string, updates: Record<string, any>) {
+//             const { data, error } = await supabase
+//                 .from("payroll_periods")
+//                 .update({ ...updates, updated_at: new Date().toISOString() })
+//                 .eq("id", id)
+//                 .select()
+//                 .single();
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async getAttendanceLogs(periodId: string) {
+//             const { data, error } = await supabase
+//                 .from("attendance_logs")
+//                 .select(
+//                     `
+//           *,
+//           employee:employee_id(
+//             id, employee_code, full_name, position,
+//             base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier,
+//             philhealth_contribution, hdmf_contribution
+//           )
+//         `,
+//                 )
+//                 .eq("payroll_period_id", periodId)
+//                 .order("created_at");
+//             if (error) throw error;
+//             return data || [];
+//         },
+
+//         async upsertAttendanceLog(log: {
+//             employee_id: string;
+//             payroll_period_id: string;
+//             worked_hours?: number;
+//             required_hours?: number;
+//             days_present?: number;
+//             late_timeslots?: number;
+//             early_leave_timeslots?: number;
+//             regular_overtime_hours?: number;
+//             holiday_overtime_hours?: number;
+//             special_overtime_hours?: number;
+//             business_trip_days?: number;
+//             absences?: number;
+//             on_leave_days?: number;
+//             additional_pay?: number;
+//             deduction_amount?: number;
+//         }) {
+//             const { data, error } = await supabase
+//                 .from("attendance_logs")
+//                 .upsert([{ ...log, updated_at: new Date().toISOString() }], {
+//                     onConflict: "employee_id,payroll_period_id",
+//                 })
+//                 .select()
+//                 .single();
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async getPayrollRecords(periodId: string) {
+//             const { data, error } = await supabase
+//                 .from("payroll_records")
+//                 .select(
+//                     `
+//           *,
+//           employee:employee_id(id, employee_code, full_name, position)
+//         `,
+//                 )
+//                 .eq("payroll_period_id", periodId)
+//                 .order("created_at");
+//             if (error) throw error;
+//             return data || [];
+//         },
+
+//         async updatePayrollRecord(id: string, updates: Record<string, any>) {
+//             const { data, error } = await supabase
+//                 .from("payroll_records")
+//                 .update({ ...updates, updated_at: new Date().toISOString() })
+//                 .eq("id", id)
+//                 .select()
+//                 .single();
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async computePayroll(periodId: string) {
+//             // ── Fetch period dates — scopes all CA queries to this period only ──────
+//             const { data: periodRow } = await supabase
+//                 .from("payroll_periods")
+//                 .select("period_start, period_end")
+//                 .eq("id", periodId)
+//                 .single();
+//             const periodStart = periodRow?.period_start ?? "1970-01-01";
+//             const periodEnd = periodRow?.period_end ?? "2099-12-31";
+
+//             const { data: logs, error } = await supabase
+//                 .from("attendance_logs")
+//                 .select(
+//                     `
+//           *,
+//           employee:employee_id(
+//             id, employee_code, base_hourly_rate,
+//             philhealth_contribution, hdmf_contribution
+//           )
+//         `,
+//                 )
+//                 .eq("payroll_period_id", periodId);
+//             if (error) throw error;
+
+//             // ══════════════════════════════════════════════════════════════════════
+//             // BULK DATA FETCH — all queries run ONCE instead of per-employee
+//             // ══════════════════════════════════════════════════════════════════════
+//             const { data: allExceptionalHours } = await supabase
+//                 .from("attendance_exceptional_logs")
+//                 .select("employee_id, hours_counted")
+//                 .eq("payroll_period_id", periodId);
+
+//             // FIX: filter approved CAs to those issued within THIS period's date range.
+//             // Previously fetched ALL approved CAs from all time — could pull in old
+//             // unprocessed advances from prior periods.
+//             const { data: allApprovedCAs } = await supabase
+//                 .from("cash_advances")
+//                 .select("id, employee_id, amount")
+//                 .in("status", ["approved", "added_to_current_payroll"])
+//                 .gte("date_issued", periodStart)
+//                 .lte("date_issued", periodEnd);
+
+//             const { data: allDeductedCAs } = await supabase
+//                 .from("cash_advances")
+//                 .select("id, employee_id, amount")
+//                 .eq("status", "deducted")
+//                 .eq("payroll_period_id", periodId);
+
+//             const { data: allPrevRecords } = await supabase
+//                 .from("payroll_records")
+//                 .select("employee_id, carry_over_deduction, created_at")
+//                 .neq("payroll_period_id", periodId)
+//                 .order("created_at", { ascending: false });
+
+//             // Group bulk data by employee_id for O(1) lookup inside the loop
+//             const exceptionalByEmp: Record<string, any[]> = {};
+//             (allExceptionalHours || []).forEach((r: any) => {
+//                 if (!exceptionalByEmp[r.employee_id]) exceptionalByEmp[r.employee_id] = [];
+//                 exceptionalByEmp[r.employee_id].push(r);
+//             });
+
+//             const approvedCAsByEmp: Record<string, any[]> = {};
+//             (allApprovedCAs || []).forEach((r: any) => {
+//                 if (!approvedCAsByEmp[r.employee_id]) approvedCAsByEmp[r.employee_id] = [];
+//                 approvedCAsByEmp[r.employee_id].push(r);
+//             });
+
+//             const deductedCAsByEmp: Record<string, any[]> = {};
+//             (allDeductedCAs || []).forEach((r: any) => {
+//                 if (!deductedCAsByEmp[r.employee_id]) deductedCAsByEmp[r.employee_id] = [];
+//                 deductedCAsByEmp[r.employee_id].push(r);
+//             });
+
+//             // For carry-over, take the most recent record per employee (already sorted desc)
+//             const carryOverByEmp: Record<string, number> = {};
+//             (allPrevRecords || []).forEach((r: any) => {
+//                 if (!(r.employee_id in carryOverByEmp)) {
+//                     carryOverByEmp[r.employee_id] = Number(r.carry_over_deduction) || 0;
+//                 }
+//             });
+
+//             const results = [];
+//             const casToMarkDeducted: string[] = [];
+//             const payrollUpsertBatch: any[] = [];
+
+//             for (const log of logs || []) {
+//                 const emp = log.employee;
+//                 if (!emp) continue;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // BASE RATES
+//                 // NOTE: base_hourly_rate column stores the DAILY rate, not hourly.
+//                 // Hourly rate is derived for OT and tardy calculations.
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const dailyRate = Number(emp.base_hourly_rate) || 0;
+//                 const hourlyRate = dailyRate / 8;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // DAYS PRESENT
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const empExceptional = exceptionalByEmp[emp.id] || [];
+
+//                 const rawDays = Number(log.days_present) || (Number(log.worked_hours) > 0 ? Math.round(Number(log.worked_hours) / 8) : 0);
+//                 const completeDays = Math.max(0, rawDays - empExceptional.length);
+//                 const exceptionalDays = empExceptional.reduce((s: number, r: any) => s + (Number(r.hours_counted) || 0), 0) / 8;
+//                 const daysPresent = completeDays + exceptionalDays;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // BASIC PAY
+//                 // Formula: Daily Rate × Days Present
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const basicPay = dailyRate * daysPresent;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // BUSINESS TRIP PAY
+//                 // Formula: Daily Rate × Business Trip Days
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const businessTripDays = Number(log.business_trip_days) || 0;
+//                 const businessTripPay = dailyRate * businessTripDays;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // HOLIDAY PAY
+//                 // TODO: Add regular_holiday_days and special_holiday_days columns to
+//                 // attendance_logs for proper holiday-day tracking.
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const regularHolidayPay = 0;
+//                 const specialHolidayPay = 0;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // OVERTIME — PREMIUM ONLY
+//                 //
+//                 // The Excel stores OT as monetary premiums only (e.g. =455*0.3=136.50)
+//                 // because basic pay already covers the base rate for those hours via
+//                 // daysPresent. We use the same premium-only multipliers:
+//                 //
+//                 // Regular Day OT     +0.25 (Excel col G header: 0.25)
+//                 // Regular Holiday OT +0.60 (Excel col H header: 0.60)
+//                 // Special Holiday OT +0.30 (Excel col I header: 0.30)
+//                 //
+//                 // FIX: was 1.25/1.60/1.30 — those full-rate multipliers double-count
+//                 // the base pay that is already in basicPay.
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const regularOT =
+//                     hourlyRate * 0.25 * Number(log.regular_overtime_hours || 0);
+//                 const holidayOT =
+//                     hourlyRate * 0.60 * Number(log.holiday_overtime_hours || 0);
+//                 const specialOT =
+//                     hourlyRate * 0.30 * Number(log.special_overtime_hours || 0);
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // TARDY & UNDERTIME DEDUCTIONS
+//                 // Formula: (Daily Rate ÷ 8) × 0.5 × timeslots (1 slot = 30 min)
+//                 // These are subtracted from Gross Income (matching Excel formula).
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const tardyDeductions =
+//                     (dailyRate / 8 / 60) * Number(log.late_timeslots || 0);
+//                 const undertimeDeductions =
+//                     (dailyRate / 8 / 60) * Number(log.early_leave_timeslots || 0);
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // GROSS INCOME  (matches Excel: K7 = C7×D7 + E7+F7+G7+H7+I7 − J7 − J9)
+//                 // = Basic Pay + Business Trip Pay + Holiday Pay + OT Premiums
+//                 //   + Additional Pay − Tardy − Undertime
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const grossIncome =
+//                     basicPay +
+//                     businessTripPay +
+//                     regularHolidayPay +
+//                     specialHolidayPay +
+//                     regularOT +
+//                     holidayOT +
+//                     specialOT +
+//                     Number(log.additional_pay || 0) -
+//                     tardyDeductions -
+//                     undertimeDeductions;
+
+//                 // (Tardy & Undertime are already subtracted from Gross Income above)
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // PHILHEALTH
+//                 // FIX: use per-employee contribution stored on the employee record.
+//                 // Admin sets this manually to match the PhilHealth contribution table
+//                 // for each employee's salary bracket.
+//                 // Previously auto-calculated as (dailyRate × 26) × 3% ÷ 2, which
+//                 // didn't match the manually-entered amounts in the payroll register.
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const philhealth = Number(emp.philhealth_contribution) || 0;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // HDMF (PAG-IBIG)
+//                 // FIX: use per-employee contribution — not a fixed ₱200.
+//                 // Amounts vary: mandatory ₱100 + individual loan amortization if any.
+//                 // Admin sets this in the employee record (Management → Employees).
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const hdmf = Number(emp.hdmf_contribution) || 0;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // WITHHOLDING TAX
+//                 // ₱0 for most employees (monthly equivalent below ₱20,833 threshold)
+//                 // TODO: Implement BIR tax table brackets for higher earners
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const withholdingTax = 0;
+
+//                 // SSS is NOT included in this payroll register format.
+//                 const sss = 0;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // CASH ADVANCE — SAME-PERIOD DEDUCTION
+//                 //
+//                 // CAs approved within this period's date range are deducted this period.
+//                 // The CA query above is already filtered by periodStart/periodEnd so
+//                 // old unprocessed advances from prior periods won't bleed in.
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const MAX_ADVANCE = 2000;
+
+//                 const newCAsToProcess = approvedCAsByEmp[emp.id] || [];
+//                 const alreadyDeducted = deductedCAsByEmp[emp.id] || [];
+
+//                 const alreadyDeductedAmount = alreadyDeducted.reduce(
+//                     (s: number, a: any) => s + Number(a.amount), 0,
+//                 );
+
+//                 const newCAsAmount = newCAsToProcess.reduce(
+//                     (s: number, a: any) => s + Number(a.amount), 0,
+//                 );
+
+//                 const cashAdvanceIssued = Math.min(
+//                     newCAsAmount + alreadyDeductedAmount,
+//                     MAX_ADVANCE,
+//                 );
+
+//                 // Deduction equals the issued amount — same period
+//                 const cashAdvanceDeduction = cashAdvanceIssued;
+
+//                 // Collect CA IDs to mark as deducted (batched after loop)
+//                 newCAsToProcess.forEach((a: any) => casToMarkDeducted.push(a.id));
+
+//                 const carryOverFromPrevious = carryOverByEmp[emp.id] || 0;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // TOTAL DEDUCTIONS  (matches Excel: O7 = L7 + M7 + N7 + N8 + N9)
+//                 // = Withholding Tax + CA + PhilHealth + HDMF
+//                 // NOTE: Tardy/Undertime are NOT here — they reduce Gross Income.
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const totalDeductions =
+//                     withholdingTax +
+//                     cashAdvanceDeduction +
+//                     carryOverFromPrevious +
+//                     philhealth +
+//                     hdmf;
+
+//                 // ────────────────────────────────────────────────────────────────────
+//                 // NET PAY
+//                 // FIX: removed `+ cashAdvanceIssued` from gross.
+//                 // CA is a pure deduction — the employee already received the cash.
+//                 // Previously: netPayRaw = grossIncome + cashAdvanceIssued - totalDeductions
+//                 // This caused CA to cancel itself out, so it never actually reduced
+//                 // take-home pay. Matches the Excel formula: Net = Gross − Deductions.
+//                 // cashAdvanceIssued is retained in the record for payslip display only.
+//                 // ────────────────────────────────────────────────────────────────────
+//                 const netPayRaw = grossIncome - totalDeductions;
+//                 const netPay = Math.max(0, netPayRaw);
+//                 const carryOver = netPayRaw < 0 ? Math.abs(netPayRaw) : 0;
+
+//                 const taxableIncome = grossIncome - philhealth - hdmf;
+
+//                 payrollUpsertBatch.push({
+//                     payroll_period_id: periodId,
+//                     employee_id: emp.id,
+//                     daily_rate: dailyRate,
+//                     days_present: daysPresent,
+//                     basic_pay: basicPay,
+//                     regular_holiday_pay: regularHolidayPay,
+//                     special_holiday_pay: specialHolidayPay,
+//                     regular_overtime: regularOT,
+//                     holiday_overtime: holidayOT,
+//                     special_overtime: specialOT,
+//                     gross_income: grossIncome,
+//                     tardy_deductions: tardyDeductions,
+//                     undertime_deductions: undertimeDeductions,
+//                     sss,
+//                     philhealth,
+//                     hdmf,
+//                     withholding_tax: withholdingTax,
+//                     cash_advance: cashAdvanceDeduction,
+//                     cash_advance_issued: cashAdvanceIssued,
+//                     total_deductions: totalDeductions,
+//                     net_pay: netPay,
+//                     taxable_income: taxableIncome,
+//                     carry_over_deduction: carryOver,
+//                     carry_over_from_previous: carryOverFromPrevious,
+//                     status: "pending",
+//                     updated_at: new Date().toISOString(),
+//                 });
+//             }
+
+//             // ══════════════════════════════════════════════════════════════════════
+//             // BATCH WRITES
+//             // ══════════════════════════════════════════════════════════════════════
+//             if (casToMarkDeducted.length > 0) {
+//                 await supabase
+//                     .from("cash_advances")
+//                     .update({
+//                         status: "deducted",
+//                         payroll_period_id: periodId,
+//                         updated_at: new Date().toISOString(),
+//                     })
+//                     .in("id", casToMarkDeducted);
+//             }
+
+//             if (payrollUpsertBatch.length > 0) {
+//                 const { data: saved, error: saveErr } = await supabase
+//                     .from("payroll_records")
+//                     .upsert(payrollUpsertBatch, { onConflict: "employee_id,payroll_period_id" })
+//                     .select();
+
+//                 if (saveErr) throw saveErr;
+//                 results.push(...(saved || []));
+//             }
+
+//             return results;
+//         },
+
+//         async resetPayroll(periodId: string) {
+//             const { error: delErr } = await supabase
+//                 .from("payroll_records")
+//                 .delete()
+//                 .eq("payroll_period_id", periodId);
+//             if (delErr) throw delErr;
+
+//             const { data: deductedCAs } = await supabase
+//                 .from("cash_advances")
+//                 .select("id")
+//                 .eq("status", "deducted")
+//                 .eq("payroll_period_id", periodId);
+//             if (deductedCAs && deductedCAs.length > 0) {
+//                 await supabase
+//                     .from("cash_advances")
+//                     .update({
+//                         status: "approved",
+//                         payroll_period_id: null,
+//                         updated_at: new Date().toISOString(),
+//                     })
+//                     .in("id", (deductedCAs as any[]).map((a: any) => a.id));
+//             }
+
+//             const { data: issuedCAs } = await supabase
+//                 .from("cash_advances")
+//                 .select("id")
+//                 .eq("status", "added_to_current_payroll")
+//                 .eq("payroll_period_id", periodId);
+//             if (issuedCAs && issuedCAs.length > 0) {
+//                 await supabase
+//                     .from("cash_advances")
+//                     .update({
+//                         status: "approved",
+//                         payroll_period_id: null,
+//                         updated_at: new Date().toISOString(),
+//                     })
+//                     .in("id", (issuedCAs as any[]).map((a: any) => a.id));
+//             }
+
+//             return { success: true };
+//         },
+
+//         async deletePeriod(id: string) {
+//             const { data: period } = await supabase
+//                 .from("payroll_periods")
+//                 .select("status")
+//                 .eq("id", id)
+//                 .single();
+//             if (period?.status !== "draft")
+//                 throw new Error("Only draft periods can be deleted.");
+
+//             await supabase
+//                 .from("cash_advances")
+//                 .update({
+//                     status: "approved",
+//                     payroll_period_id: null,
+//                     updated_at: new Date().toISOString(),
+//                 })
+//                 .in("status", ["added_to_current_payroll", "deducted"])
+//                 .eq("payroll_period_id", id);
+//             await supabase.from("payroll_records").delete().eq("payroll_period_id", id);
+//             await supabase.from("attendance_logs").delete().eq("payroll_period_id", id);
+//             await supabase.from("attendance_exceptional_logs").delete().eq("payroll_period_id", id);
+//             await supabase.from("attendance_summary_imports").delete().eq("payroll_period_id", id);
+
+//             const { error } = await supabase.from("payroll_periods").delete().eq("id", id);
+//             if (error) throw error;
+//         },
+//     },
+
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     // CASH ADVANCES
+//     // ═══════════════════════════════════════════════════════════════════════════
+//     cashAdvances: {
+//         async getAll(filters?: { employee_id?: string; status?: string }) {
+//             let query = supabase
+//                 .from("cash_advances")
+//                 .select(
+//                     `
+//           *,
+//           employee:employee_id(id, employee_code, full_name, position),
+//           issuer:issued_by(id, first_name, last_name)
+//         `,
+//                 )
+//                 .order("created_at", { ascending: false });
+
+//             if (filters?.employee_id)
+//                 query = query.eq("employee_id", filters.employee_id);
+//             if (filters?.status) query = query.eq("status", filters.status);
+
+//             const { data, error } = await query;
+//             if (error) throw error;
+//             return data || [];
+//         },
+
+//         async create(advance: {
+//             employee_id: string;
+//             amount: number;
+//             date_issued?: string;
+//             reason?: string;
+//         }) {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) throw new Error("Not authenticated");
+
+//             const { data, error } = await supabase
+//                 .from("cash_advances")
+//                 .insert([
+//                     {
+//                         ...advance,
+//                         date_issued:
+//                             advance.date_issued || new Date().toISOString().split("T")[0],
+//                         status: "pending",
+//                         issued_by: user.id,
+//                     },
+//                 ])
+//                 .select(
+//                     `
+//           *,
+//           employee:employee_id(id, employee_code, full_name, position),
+//           issuer:issued_by(id, first_name, last_name)
+//         `,
+//                 )
+//                 .single();
+
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async cancel(id: string) {
+//             const { data, error } = await supabase
+//                 .from("cash_advances")
+//                 .update({ status: "cancelled", updated_at: new Date().toISOString() })
+//                 .eq("id", id)
+//                 .eq("status", "pending")
+//                 .select()
+//                 .single();
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async approve(id: string) {
+//             const { data, error } = await supabase
+//                 .from("cash_advances")
+//                 .update({ status: "approved", updated_at: new Date().toISOString() })
+//                 .eq("id", id)
+//                 .eq("status", "pending")
+//                 .select()
+//                 .single();
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async decline(id: string, declineReason: string) {
+//             const { data, error } = await supabase
+//                 .from("cash_advances")
+//                 .update({
+//                     status: "declined",
+//                     decline_reason: declineReason,
+//                     updated_at: new Date().toISOString(),
+//                 })
+//                 .eq("id", id)
+//                 .eq("status", "pending")
+//                 .select()
+//                 .single();
+//             if (error) throw error;
+//             return data;
+//         },
+
+//         async getPendingRequests() {
+//             const { data, error } = await supabase
+//                 .from("cash_advances")
+//                 .select(
+//                     `
+//           *,
+//           employee:employee_id(
+//             id, employee_code, full_name, position, base_hourly_rate
+//           ),
+//           issuer:issued_by(id, first_name, last_name)
+//         `,
+//                 )
+//                 .eq("status", "pending")
+//                 .order("created_at", { ascending: true });
+//             if (error) throw error;
+//             return data || [];
+//         },
+
+//         async checkEligibility(employeeId: string, customDate?: string): Promise<{
+//             eligible: boolean;
+//             reason: "eligible" | "limit_reached";
+//             remaining: number;
+//             totalUsed: number;
+//         }> {
+//             const MAX = 2000;
+//             const today = customDate || new Date().toISOString().split("T")[0];
+
+//             const { data: currentPeriodRow } = await supabase
+//                 .from("payroll_periods")
+//                 .select("id, period_start, period_end")
+//                 .lte("period_start", today)
+//                 .gte("period_end", today)
+//                 .order("period_start", { ascending: false })
+//                 .limit(1)
+//                 .maybeSingle();
+
+//             const getCalendarBounds = () => {
+//                 const d = new Date();
+//                 const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+//                 if (day <= 15) {
+//                     return {
+//                         currentStart: new Date(y, m, 1).toISOString().split("T")[0],
+//                         currentEnd: new Date(y, m, 15).toISOString().split("T")[0],
+//                     };
+//                 }
+//                 const last = new Date(y, m + 1, 0).getDate();
+//                 return {
+//                     currentStart: new Date(y, m, 16).toISOString().split("T")[0],
+//                     currentEnd: new Date(y, m, last).toISOString().split("T")[0],
+//                 };
+//             };
+
+//             const currentPeriodId = currentPeriodRow?.id ?? null;
+//             const { currentStart, currentEnd } = currentPeriodRow
+//                 ? { currentStart: currentPeriodRow.period_start, currentEnd: currentPeriodRow.period_end }
+//                 : getCalendarBounds();
+
+//             const { data: pendingApproved } = await supabase
+//                 .from("cash_advances")
+//                 .select("amount")
+//                 .eq("employee_id", employeeId)
+//                 .in("status", ["pending", "approved"]);
+
+//             const deductedCurrentQuery = supabase
+//                 .from("cash_advances")
+//                 .select("amount")
+//                 .eq("employee_id", employeeId)
+//                 .in("status", ["added_to_current_payroll", "deducted"]);
+
+//             const { data: processedCurrent } = currentPeriodId
+//                 ? await deductedCurrentQuery.eq("payroll_period_id", currentPeriodId)
+//                 : await deductedCurrentQuery
+//                     .gte("date_issued", currentStart)
+//                     .lte("date_issued", currentEnd);
+
+//             const totalUsed = [
+//                 ...(pendingApproved || []),
+//                 ...(processedCurrent || []),
+//             ].reduce((s: number, a: any) => s + Number(a.amount), 0);
+
+//             const remaining = Math.max(0, MAX - totalUsed);
+
+//             if (remaining <= 0) {
+//                 return { eligible: false, reason: "limit_reached", remaining: 0, totalUsed };
+//             }
+
+//             return { eligible: true, reason: "eligible", remaining, totalUsed };
+//         },
+
+//         async requestByCashier(data: {
+//             employee_id: string;
+//             amount: number;
+//             reason?: string;
+//             date_issued?: string;
+//         }) {
+//             const {
+//                 data: { user },
+//             } = await supabase.auth.getUser();
+//             if (!user) throw new Error("Not authenticated");
+
+//             const MAX_AMOUNT = 2000;
+//             const amount = Math.round(data.amount);
+
+//             if (amount <= 0 || amount > MAX_AMOUNT) {
+//                 throw new Error(
+//                     `Amount must be between ₱1 and ₱${MAX_AMOUNT.toLocaleString()}`,
+//                 );
+//             }
+
+//             const targetDate = data.date_issued || new Date().toISOString().split("T")[0];
+//             const { data: currentPeriodRow } = await supabase
+//                 .from("payroll_periods")
+//                 .select("id, period_start, period_end")
+//                 .lte("period_start", targetDate)
+//                 .gte("period_end", targetDate)
+//                 .order("period_start", { ascending: false })
+//                 .limit(1)
+//                 .maybeSingle();
+
+//             const currentPeriodId = currentPeriodRow?.id ?? null;
+
+//             const d = new Date(targetDate + "T12:00:00");
+//             const y = d.getFullYear(), m = d.getMonth(), day = d.getDate();
+//             const currentStart =
+//                 currentPeriodRow?.period_start ??
+//                 (day <= 15
+//                     ? new Date(y, m, 1).toISOString().split("T")[0]
+//                     : new Date(y, m, 16).toISOString().split("T")[0]);
+
+//             const { data: pendingApproved } = await supabase
+//                 .from("cash_advances")
+//                 .select("amount")
+//                 .eq("employee_id", data.employee_id)
+//                 .in("status", ["pending", "approved"]);
+
+//             const processedCurrentQuery = supabase
+//                 .from("cash_advances")
+//                 .select("amount")
+//                 .eq("employee_id", data.employee_id)
+//                 .in("status", ["added_to_current_payroll", "deducted"]);
+
+//             const { data: processedCurrent } = currentPeriodId
+//                 ? await processedCurrentQuery.eq("payroll_period_id", currentPeriodId)
+//                 : await processedCurrentQuery.gte("date_issued", currentStart);
+
+//             const periodTotal = [
+//                 ...(pendingApproved || []),
+//                 ...(processedCurrent || []),
+//             ].reduce((s: number, a: any) => s + Number(a.amount), 0);
+
+//             if (periodTotal + amount > MAX_AMOUNT) {
+//                 throw new Error(
+//                     `This request would exceed the ₱${MAX_AMOUNT.toLocaleString()} period limit. ` +
+//                     `Remaining: ₱${(MAX_AMOUNT - periodTotal).toLocaleString()}`,
+//                 );
+//             }
+
+//             const { data: result, error } = await supabase
+//                 .from("cash_advances")
+//                 .insert([
+//                     {
+//                         employee_id: data.employee_id,
+//                         amount,
+//                         date_issued: targetDate,
+//                         reason: data.reason || null,
+//                         status: "pending",
+//                         issued_by: user.id,
+//                         requested_by_cashier: user.id,
+//                     },
+//                 ])
+//                 .select(
+//                     `
+//           *,
+//           employee:employee_id(id, employee_code, full_name, position),
+//           issuer:issued_by(id, first_name, last_name)
+//         `,
+//                 )
+//                 .single();
+
+//             if (error) throw error;
+
+//             await db.logAudit("Request Cash Advance", "cash_advances", result.id, {
+//                 employee_name: result.employee?.full_name,
+//                 amount: result.amount,
+//                 requested_by: user.id
+//             });
+//             await db.notifyRoles(['admin'], "New Cash Advance Request", `${result.employee?.full_name} is requesting ₱${result.amount.toLocaleString()}.`, 'payroll', result.id);
+
+//             return result;
+//         },
+
+//         async getPendingCount(): Promise<number> {
+//             const { count, error } = await supabase
+//                 .from("cash_advances")
+//                 .select("id", { count: "exact", head: true })
+//                 .eq("status", "pending");
+//             if (error) return 0;
+//             return count ?? 0;
+//         },
+
+//         async getPendingTotal(employeeId: string): Promise<number> {
+//             const { data, error } = await supabase
+//                 .from("cash_advances")
+//                 .select("amount")
+//                 .eq("employee_id", employeeId)
+//                 .eq("status", "pending");
+//             if (error) throw error;
+//             return (data || []).reduce((s, a) => s + Number(a.amount), 0);
+//         },
+//     },
+// };

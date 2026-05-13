@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, Trash2, X, Check } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { Button } from "../Shared/UI/Button";
@@ -31,6 +32,9 @@ const Modal = ({ show, onClose, title, children }: any) => {
 
 // ── Main component ────────────────────────────────────────────────────────────
 const AdminOrders = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [periodFilter, setPeriodFilter] = useState("All Time");
@@ -41,12 +45,19 @@ const AdminOrders = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [assignForm, setAssignForm] = useState({ designer: "", production: "" });
+  const [pageSize, setPageSize] = useState(6);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSizeOptions = ["6", "12", "18", "24"];
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, periodFilter, searchQuery, pageSize]);
 
   const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, approvePayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
 
   const toast = useToast();
 
-  const statusOptions = ["All", "In Queue", "Active", "Completed", "Unpaid", "Overdue", "Ready Pickup"];
+  const statusOptions = ["All", "In Queue", "Active", "Completed", "Incomplete", "Overdue", "Ready Pickup"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
 
   // Active orders = Designing + Payment + Production
@@ -57,8 +68,8 @@ const AdminOrders = () => {
     let pass = true;
     if (statusFilter === "In Queue") pass = o.status === "In Queue";
     else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production"].includes(o.status);
-    else if (statusFilter === "Completed") pass = o.status === "Completed";
-    else if (statusFilter === "Unpaid") pass = o.paymentStatus !== "Paid" && o.status !== "Cancelled";
+    else if (statusFilter === "Incomplete") pass = o.status === "Completed" && o.paymentStatus !== "Paid";
+    else if (statusFilter === "Completed") pass = o.status === "Completed" && o.paymentStatus === "Paid";
     else if (statusFilter === "Overdue") {
       const now = new Date();
       const dueDate = new Date(o.dueDate);
@@ -89,11 +100,13 @@ const AdminOrders = () => {
     }
 
     return pass;
-  }).sort((a, b) => {
-    if (a.isSuki && !b.isSuki) return -1;
-    if (!a.isSuki && b.isSuki) return 1;
-    return 0;
   });
+
+  const totalPages = Math.ceil(filteredOrders.length / pageSize);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   const selectedOrder = selectedOrderId
     ? orders.find((o) => o.id === selectedOrderId) ?? null
@@ -178,8 +191,8 @@ const AdminOrders = () => {
         <KpiCard title="Active" value={activeCount} icon={<Clock size={16} />} iconColor="text-purple-600" />
         <KpiCard title="Ready Pickup" value={stats.readyPickup} icon={<CheckCircle size={16} />} iconColor="text-green-600"
           accent={stats.readyPickup > 0 ? "blue" : "none"} onClick={() => setStatusFilter("Ready Pickup")} />
-        <KpiCard title="Unpaid" value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-orange-600"
-          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setStatusFilter("Unpaid")} />
+        <KpiCard title="Incomplete" value={stats.completedUnpaid} icon={<DollarSign size={16} />} iconColor="text-yellow-600"
+          accent={stats.completedUnpaid > 0 ? "yellow" : "none"} onClick={() => setStatusFilter("Incomplete")} />
         <KpiCard title="Overdue" value={stats.overdue} icon={<AlertCircle size={16} />} iconColor="text-red-600"
           accent={stats.overdue > 0 ? "red" : "none"} onClick={() => setStatusFilter("Overdue")} />
       </div>
@@ -192,19 +205,66 @@ const AdminOrders = () => {
           <div className="flex-1 min-w-[180px]">
             <SearchBar value={searchQuery} onChange={setSearchQuery} placeholder="Search orders, customers..." />
           </div>
+          <FilterDropdown label="Show" value={String(pageSize)} options={pageSizeOptions} onChange={(v) => setPageSize(Number(v))} />
           <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </div>
 
       {/* Order list / cards */}
       {viewMode === "list" ? (
-        <OrdersTable orders={filteredOrders} userRole="admin" onViewDetails={handleViewOrder}
+        <OrdersTable orders={paginatedOrders} userRole="admin" onViewDetails={handleViewOrder}
           onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }}
+          highlightedId={highlightedId} />
       ) : (
-        <OrderCardsGrid orders={filteredOrders} searchQuery={searchQuery}
+        <OrderCardsGrid orders={paginatedOrders} searchQuery={searchQuery}
           onView={handleViewOrder} onEdit={(order) => openAssign(order)}
-          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }} />
+          onDelete={(order) => { setSelectedOrderId(order.id); setShowDeleteConfirm(true); }}
+          highlightedId={highlightedId} />
+      )}
+
+      {/* Pagination Controls */}
+      {filteredOrders.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+          <div className="text-sm text-gray-500">
+            Showing <span className="font-semibold text-gray-900">{(currentPage - 1) * pageSize + 1}</span> to <span className="font-semibold text-gray-900">{Math.min(currentPage * pageSize, filteredOrders.length)}</span> of <span className="font-semibold text-gray-900">{filteredOrders.length}</span> orders
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+              disabled={currentPage === 1}
+              className="px-4"
+            >
+              Previous
+            </Button>
+            <div className="flex items-center gap-1">
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i + 1}
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                    currentPage === i + 1 
+                      ? "bg-cyan-500 text-white shadow-lg shadow-cyan-100" 
+                      : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+            </div>
+            <Button 
+              variant="secondary" 
+              size="sm" 
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+              disabled={currentPage === totalPages}
+              className="px-4"
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Modals */}
@@ -264,11 +324,13 @@ const AdminOrders = () => {
         <p className="text-gray-600 mb-5">This will permanently delete <strong>{(selectedOrder as any)?.orderId}</strong> and all its items and payments. This cannot be undone.</p>
         <div className="flex gap-3">
           <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-          <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2"><Trash2 size={18} />Delete</button>
+          <button onClick={handleDelete} className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+            <Trash2 size={18} /> Delete
+          </button>
         </div>
       </Modal>
     </div>
   );
 };
 
-export default AdminOrders;
+export default AdminOrders;

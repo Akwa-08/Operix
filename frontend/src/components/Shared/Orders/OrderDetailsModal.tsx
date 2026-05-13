@@ -524,18 +524,18 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
             )}
             <InfoField label="Date Ordered" value={order.dateOrdered} />
             <InfoField label="Due Date" value={order.dueDate} />
-            {order.assignedDesigner && (
-              <InfoField
-                label="Assigned Designer"
-                value={order.designerName || "Not assigned"}
-              />
-            )}
-            {order.assignedProduction && (
-              <InfoField
-                label="Assigned Production"
-                value={order.productionName || "Not assigned"}
-              />
-            )}
+            <InfoField
+              label="Assigned Designer"
+              value={
+                !order.assignedDesigner 
+                  ? "Pending" 
+                  : (order.status === "In Queue" ? "Waiting for Designer" : order.designerName || "Pending")
+              }
+            />
+            <InfoField
+              label="Assigned Production"
+              value={order.productionName || "Pending"}
+            />
           </div>
         </div>
 
@@ -817,14 +817,19 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                 <Button
                   variant="primary"
                   size="sm"
-                  disabled={outstanding > 0}
+                  disabled={outstanding > 0 && !order.isSuki}
                   onClick={() => onUpdateStatus("Pickup")}
-                  className={outstanding > 0 ? "opacity-50 cursor-not-allowed" : ""}>
+                  className={outstanding > 0 && !order.isSuki ? "opacity-50 cursor-not-allowed" : ""}>
                   Mark as Ready for Pickup
                 </Button>
-                {outstanding > 0 && (
+                {outstanding > 0 && !order.isSuki && (
                   <p className="text-[10px] text-red-600 font-semibold flex items-center gap-1">
                     <AlertCircle size={12} /> Full payment required to mark as Ready for Pickup
+                  </p>
+                )}
+                {outstanding > 0 && order.isSuki && (
+                  <p className="text-[10px] text-amber-600 font-semibold flex items-center gap-1">
+                    <AlertCircle size={12} /> Suki Bypass: Can mark as ready despite outstanding balance
                   </p>
                 )}
               </div>
@@ -878,22 +883,29 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
           </div>
         )}
 
-        <div className="flex gap-3 pt-4 border-t border-gray-200">
-          {/* Cashier Confirm/Complete Button */}
-          {userRole === "cashier" &&
-            ["Payment", "Pickup"].includes(order.status) &&
-            onUpdateStatus && (
-              <div className="flex-1 flex flex-col gap-1">
+        <div className="space-y-2 pt-4 border-t border-gray-200">
+          {/* Action button row with uniform flex-1 sizes */}
+          <div className="flex gap-3">
+            {/* Cashier/Admin Confirm/Complete Button */}
+            {["cashier", "admin"].includes(userRole) &&
+              ["Payment", "Pickup"].includes(order.status) &&
+              onUpdateStatus && (
                 <Button
                   variant="primary"
-                  className={`w-full bg-cyan-400 hover:bg-cyan-500 border-cyan-500 ${(order.status === "Pickup" && outstanding > 0) ? "opacity-50 cursor-not-allowed" : ""}`}
-                  disabled={order.status === "Pickup" && outstanding > 0}
+                  className={`flex-1 bg-cyan-400 hover:bg-cyan-500 border-cyan-500 ${
+                    order.status === "Pickup" && outstanding > 0 && !order.isSuki
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  }`}
+                  disabled={order.status === "Pickup" && outstanding > 0 && !order.isSuki}
                   onClick={async () => {
                     const isPaid = (order.amountPaid || 0) >= (order.totalAmount || 0);
-                    const nextStatus = order.status === "Pickup" ? "Completed" : "Production";
-                    const targetName = nextStatus === "Completed" ? "Completed" : "Production";
+                    const nextStatus =
+                      order.status === "Pickup" ? "Completed" : "Production";
+                    const targetName =
+                      nextStatus === "Completed" ? "Completed" : "Production";
 
-                    if (isPaid) {
+                    if (isPaid || (order.status === "Pickup" && order.isSuki)) {
                       onUpdateStatus(nextStatus);
                       toast.success(`Order confirmed and set to ${targetName}!`);
                     } else if (order.status === "Payment") {
@@ -904,46 +916,57 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                       toast.error("Full payment is required to complete the order.");
                     }
                   }}>
-                  {order.status === "Pickup" ? "Complete Order" : "Confirm"}
+                  {order.status === "Pickup" ? "Picked up" : "Confirm"}
                 </Button>
-                {order.status === "Pickup" && outstanding > 0 && (
-                  <p className="text-[10px] text-red-600 font-bold text-center">Full payment required</p>
+              )}
+
+            {perms.canEditAll && onEdit && !isDesignerDesigning && (
+              <Button variant="primary" onClick={() => onEdit()} className="flex-1">
+                Edit Order
+              </Button>
+            )}
+
+            {isDesignerDesigning && order.finalDesignUrl && onApproveDesign && (
+              <Button
+                variant="primary"
+                className="flex-1 bg-[#00BEF4] hover:bg-[#00a9d9] border-[#00BEF4]"
+                disabled={approvingDesign}
+                onClick={async () => {
+                  setApprovingDesign(true);
+                  try {
+                    await onApproveDesign();
+                    toast.success("Design approved and order moved to Payment!");
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to approve design");
+                  } finally {
+                    setApprovingDesign(false);
+                  }
+                }}>
+                {approvingDesign ? "Approving..." : "Approve Design"}
+              </Button>
+            )}
+
+            <Button variant="secondary" onClick={onClose} className="flex-1">
+              Close
+            </Button>
+          </div>
+
+          {/* Status Messages below buttons */}
+          {["cashier", "admin"].includes(userRole) &&
+            order.status === "Pickup" &&
+            outstanding > 0 && (
+              <div className="flex justify-center">
+                {!order.isSuki ? (
+                  <p className="text-[10px] text-red-600 font-bold flex items-center gap-1">
+                    <AlertCircle size={10} /> Full payment required to complete
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                    <AlertCircle size={10} /> Suki Bypass Active: Can complete despite balance
+                  </p>
                 )}
               </div>
             )}
-
-          {perms.canEditAll && onEdit && !isDesignerDesigning && (
-            <Button
-              variant="primary"
-              onClick={() => onEdit()}
-              className="flex-1">
-              Edit Order
-            </Button>
-          )}
-
-          {isDesignerDesigning && order.finalDesignUrl && onApproveDesign && (
-            <Button
-              variant="primary"
-              className="flex-1 bg-[#00BEF4] hover:bg-[#00a9d9] border-[#00BEF4]"
-              disabled={approvingDesign}
-              onClick={async () => {
-                setApprovingDesign(true);
-                try {
-                  await onApproveDesign();
-                  toast.success("Design approved and order moved to Payment!");
-                } catch (err: any) {
-                  toast.error(err.message || "Failed to approve design");
-                } finally {
-                  setApprovingDesign(false);
-                }
-              }}>
-              {approvingDesign ? "Approving..." : "Approve Design"}
-            </Button>
-          )}
-
-          <Button variant="secondary" onClick={onClose} className="flex-1">
-            Close
-          </Button>
         </div>
         <FileUploadModal
           isOpen={isCustomerUploadOpen}

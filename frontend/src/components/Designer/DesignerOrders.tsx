@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Upload, Package, Clock, CheckCircle } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
@@ -15,6 +16,10 @@ import { useToast } from "../../context/ToastContext";
 import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 const DesignerOrders = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+  const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -33,16 +38,27 @@ const DesignerOrders = () => {
     acceptAssignedDesignOrder,
     rejectAssignedDesignOrder,
     approveOrderDesign,
+    handleCancellationRequest,
   } = useOrdersData();
+
+  const [cancelReviewOrder, setCancelReviewOrder] = useState<Order | null>(null);
+  const [showCancelReviewModal, setShowCancelReviewModal] = useState(false);
 
   const toast = useToast();
 
-  // Filter for orders assigned to THIS designer, excluding those in Payment/Production stages
+  useEffect(() => {
+    if (highlightedId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId, loading]);
+
+  // Include Cancel Requested orders so designer can action them
   const orders = allOrders.filter(
     (o) => o.assignedDesigner === profile?.id && !["In Queue", "Payment", "Production", "Pickup"].includes(o.status),
   ).sort((a, b) => {
-    if (a.isSuki && !b.isSuki) return -1;
-    if (!a.isSuki && b.isSuki) return 1;
+    // Prioritise cancel requests
+    if (a.status === "Cancel Requested" && b.status !== "Cancel Requested") return -1;
+    if (a.status !== "Cancel Requested" && b.status === "Cancel Requested") return 1;
     return new Date(a.dateOrdered).getTime() - new Date(b.dateOrdered).getTime();
   });
 
@@ -88,6 +104,18 @@ const DesignerOrders = () => {
     const r = await rejectAssignedDesignOrder(orderId);
     if (!r.success) toast.error("Error: " + r.error);
     else toast.success("Order rejected and passed to another designer.");
+  };
+
+  const handleApproveCancellation = async (orderId: string) => {
+    const r = await handleCancellationRequest(orderId, true);
+    if (!r.success) toast.error("Error: " + r.error);
+    else { toast.success("Order cancellation approved."); setShowCancelReviewModal(false); setCancelReviewOrder(null); }
+  };
+
+  const handleRejectCancellation = async (orderId: string) => {
+    const r = await handleCancellationRequest(orderId, false);
+    if (!r.success) toast.error("Error: " + r.error);
+    else { toast.success("Cancellation request rejected. Order back in design."); setShowCancelReviewModal(false); setCancelReviewOrder(null); }
   };
 
   if (loading) return <LoadingSpinner type="table" />;
@@ -149,7 +177,11 @@ const DesignerOrders = () => {
                   </p>
                 ) : (
                   filteredOrders.map((o: any) => (
-                    <div key={o.id} className="p-4 space-y-2">
+                    <div 
+                      key={o.id} 
+                      ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                      className={`p-4 space-y-2 transition-all ${highlightedId === o.id ? "highlight-pulse ring-2 ring-cyan-500" : ""}`}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <p className="font-bold text-gray-900">{o.orderId}</p>
@@ -190,6 +222,13 @@ const DesignerOrders = () => {
                               </button>
                             </>
                           )}
+                        {o.status === "Cancel Requested" && (
+                          <button
+                            onClick={() => { setCancelReviewOrder(o); setShowCancelReviewModal(true); }}
+                            className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors">
+                            Review Request
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
@@ -211,7 +250,11 @@ const DesignerOrders = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filteredOrders.map((o: any) => (
-                      <tr key={o.id} className="hover:bg-gray-50">
+                      <tr 
+                        key={o.id} 
+                        ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                        className={`hover:bg-gray-50 transition-all ${highlightedId === o.id ? "highlight-pulse bg-cyan-50/50" : ""}`}
+                      >
                         <td className="px-4 py-3 font-mono text-xs">{o.orderId}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -249,6 +292,13 @@ const DesignerOrders = () => {
                                   </button>
                                 </div>
                               )}
+                            {o.status === "Cancel Requested" && (
+                              <button
+                                onClick={() => { setCancelReviewOrder(o); setShowCancelReviewModal(true); }}
+                                className="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-semibold rounded-lg transition-colors">
+                                Review
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -270,6 +320,7 @@ const DesignerOrders = () => {
                 orders={filteredOrders}
                 onView={handleViewOrder}
                 onPay={() => {}} 
+                highlightedId={highlightedId}
               />
             </div>
           )}
@@ -304,8 +355,43 @@ const DesignerOrders = () => {
           onRefresh={refresh}
         />
       )}
+
+      {/* Cancellation Review Modal */}
+      {cancelReviewOrder && showCancelReviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Cancellation Request</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Order <span className="font-semibold text-gray-700">{cancelReviewOrder.orderId}</span>
+              {" "}— <span className="text-gray-700">{cancelReviewOrder.customerName}</span>
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-5">
+              <p className="text-xs font-semibold text-red-600 mb-0.5 uppercase tracking-wide">Customer's Reason</p>
+              <p className="text-sm text-red-800 leading-snug">{cancelReviewOrder.cancelReason || "No reason provided."}</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowCancelReviewModal(false); setCancelReviewOrder(null); }}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-sm">
+                Close
+              </button>
+              <button
+                onClick={() => handleRejectCancellation(cancelReviewOrder.id)}
+                className="flex-1 py-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold rounded-lg text-sm">
+                Deny
+              </button>
+              <button
+                onClick={() => handleApproveCancellation(cancelReviewOrder.id)}
+                className="flex-1 py-2 bg-red-500 hover:bg-red-600 text-white font-semibold rounded-lg text-sm">
+                Cancel Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default DesignerOrders;
+

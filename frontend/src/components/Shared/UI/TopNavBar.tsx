@@ -202,8 +202,13 @@ const TopNavBar: React.FC<NavbarProps> = ({ displayName, onMenuClick }) => {
       // related_id = sender's user ID — pass it so Messages auto-opens that conversation
       const chatParam = n.related_id ? `?openChat=${n.related_id}` : "";
       navigate(`${base}/messages${chatParam}`);
-    } else if (n.related_module === "orders" || n.related_module === "payment")
+    } else if (n.related_module === "orders" || n.related_module === "payment") {
       navigate(`${base}/orders?highlight=${n.related_id}`);
+    } else if (n.related_module === "inventory") {
+      navigate(`${base}/inventory?highlight=${n.related_id}`);
+    } else if (n.related_module === "payroll") {
+      navigate(`${base}/payroll?tab=Payroll Dashboard&highlight=${n.related_id}`);
+    }
   };
 
   const displayed =

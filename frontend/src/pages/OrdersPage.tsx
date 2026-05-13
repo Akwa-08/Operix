@@ -1,7 +1,8 @@
 // src/pages/OrdersPage.tsx
 // Customer orders page — fetches real data from Supabase via useOrdersData()
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Search, Package, Clock, CheckCircle } from "lucide-react";
 import { CustomerOrderDetailsModal } from "../components/Customer/CustomerOrderDetailsModal";
@@ -17,6 +18,9 @@ import { useToast } from "../context/ToastContext";
 import { ConfirmModal } from "../components/Shared/UI/ConfirmModal";
 
 export const OrdersPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+
   const toast = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -35,7 +39,24 @@ export const OrdersPage: React.FC = () => {
 
   const itemsPerPage = 6;
 
-  const { orders, loading, refresh, recordPayment, markDeclineAsRead } = useOrdersData();
+  const { orders, loading, refresh, recordPayment, markDeclineAsRead, requestCancellation } = useOrdersData();
+
+  // Cancellation request modal state
+  const [showCancelRequestModal, setShowCancelRequestModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+
+  // If highlightedId is present and belongs to an order not on the current page, we might need to jump to that page
+  useEffect(() => {
+    if (highlightedId && orders.length > 0) {
+      const index = filteredOrders.findIndex(o => o.id === highlightedId);
+      if (index !== -1) {
+        const page = Math.floor(index / itemsPerPage) + 1;
+        if (page !== currentPage) {
+          setCurrentPage(page);
+        }
+      }
+    }
+  }, [highlightedId, orders.length]);
 
   // Derive the full order object from the current orders array.
   // This always reflects the latest data without needing a useEffect sync.
@@ -47,7 +68,7 @@ export const OrdersPage: React.FC = () => {
     ? orders.find(o => o.id === selectedPayOrderId) ?? null
     : null;
 
-  const statusOptions = ["All", "In Queue", "Active", "Completed"];
+  const statusOptions = ["All", "In Queue", "Active", "Completed", "Cancelled"];
   const periodOptions = ["All Time", "Today", "This Week", "This Month"];
 
   const filteredOrders = orders.filter((o) => {
@@ -55,8 +76,10 @@ export const OrdersPage: React.FC = () => {
 
     // Status Filter
     if (statusFilter === "In Queue") pass = o.status === "In Queue";
-    else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production", "Pickup"].includes(o.status);
+    else if (statusFilter === "Active") pass = ["Designing", "Payment", "Production", "Pickup", "Cancel Requested"].includes(o.status);
     else if (statusFilter === "Completed") pass = o.status === "Completed";
+    else if (statusFilter === "Cancelled") pass = o.status === "Cancelled";
+    // For "All", we show everything including Cancelled
 
     // Date Filter
     if (dateFilter !== "All Time" && pass) {
@@ -94,18 +117,30 @@ export const OrdersPage: React.FC = () => {
   };
 
   const handleDeleteOrder = async (order: Order) => {
-    if (order.status === "In Queue" || order.status === "Designing") {
+    const status = (order.status || "").toString().trim();
+    const isDesigning = status === "Designing" || status === "Design Approval" || status.toLowerCase().includes("design");
+    const isInQueue = status === "In Queue" || status.toLowerCase().includes("queue");
+    
+    if (isInQueue) {
+      // Instant delete — no approval needed
+      setShowCancelRequestModal(false);
       setOrderToCancel(order);
       setShowCancelConfirm(true);
+    } else if (isDesigning) {
+      // Request cancellation with reason — needs designer approval
+      setShowCancelConfirm(false);
+      setOrderToCancel(order);
+      setCancelReason("");
+      setShowCancelRequestModal(true);
     } else {
       toast.error(
-        "Order cannot be cancelled at this stage. Please contact us for assistance."
+        `Order in "${status}" status cannot be cancelled. Please contact us.`
       );
     }
   };
 
   const handlePayOrder = (order: Order) => {
-    if (order.status !== "Payment") return;
+    if (order.status === "In Queue" || order.status === "Designing") return;
     setSelectedPayOrderId(order.id);
     setShowPayment(true);
   };
@@ -174,7 +209,8 @@ export const OrdersPage: React.FC = () => {
             onDelete={handleDeleteOrder}
             onPay={handlePayOrder}
             hideDeleteWhen={(o) => o.status !== "In Queue" && o.status !== "Designing"}
-            hidePayWhen={(o) => o.status !== "Payment"}
+            hidePayWhen={(o) => ["In Queue", "Designing", "Cancelled", "Cancel Requested"].includes(o.status)}
+            highlightedId={highlightedId}
           />
         </div>
 
@@ -239,7 +275,7 @@ export const OrdersPage: React.FC = () => {
         />
       )}
 
-      {orderToCancel && (
+      {orderToCancel && showCancelConfirm && (
         <ConfirmModal
           isOpen={showCancelConfirm}
           onClose={() => setShowCancelConfirm(false)}
@@ -248,6 +284,7 @@ export const OrdersPage: React.FC = () => {
               await db.deleteOrder(orderToCancel.id);
               toast.success("Order cancelled successfully.");
               refresh();
+              setShowCancelConfirm(false);
             } catch (err: any) {
               toast.error(err.message || "Failed to cancel order.");
             }
@@ -258,6 +295,51 @@ export const OrdersPage: React.FC = () => {
           variant="danger"
         />
       )}
+      {/* Cancel Request Modal (Designing phase — needs reason + designer approval) */}
+      {orderToCancel && showCancelRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Request Cancellation</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              Order <span className="font-semibold text-gray-700">{orderToCancel.orderId}</span> is in design.
+              Your request will be sent to the designer for approval.
+            </p>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Reason for Cancellation</label>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              placeholder="Please explain why you want to cancel this order..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowCancelRequestModal(false); setOrderToCancel(null); }}
+                className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg text-sm"
+              >
+                Keep Order
+              </button>
+              <button
+                disabled={!cancelReason.trim()}
+                onClick={async () => {
+                  const r = await requestCancellation(orderToCancel.id, cancelReason.trim());
+                  if (r.success) {
+                    toast.success("Cancellation request sent to the designer.");
+                    setShowCancelRequestModal(false);
+                    setOrderToCancel(null);
+                  } else {
+                    toast.error(r.error || "Failed to send cancellation request.");
+                  }
+                }}
+                className="flex-1 py-2 bg-red-500 hover:bg-red-600 disabled:bg-red-200 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-sm"
+              >
+                Send Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

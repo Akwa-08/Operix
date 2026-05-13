@@ -182,107 +182,336 @@ export const SignUpPage = () => {
 
       {!successMessage && (
         <form onSubmit={handleSubmit} className="space-y-3.5">
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0.15} className="grid grid-cols-2 gap-3">
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.15}
+            className="grid grid-cols-2 gap-3">
             <div className="su-input-wrap">
-              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">First Name</label>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                First Name
+              </label>
               <div className="relative">
-                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-                <input type="text" name="firstName" value={formData.firstName} onChange={handleChange} required placeholder="John" className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white" />
+                <User
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"
+                />
+                <input
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  required
+                  placeholder="John"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                />
               </div>
             </div>
             <div className="su-input-wrap">
-              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Last Name</label>
+              <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+                Last Name
+              </label>
               <div className="relative">
-                <User size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-                <input type="text" name="lastName" value={formData.lastName} onChange={handleChange} required placeholder="Doe" className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white" />
+                <User
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"
+                />
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  required
+                  placeholder="Doe"
+                  className="w-full pl-9 pr-3 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white"
+                />
               </div>
             </div>
           </motion.div>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0.2} className="su-input-wrap">
-            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Email</label>
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.2}
+            className="su-input-wrap">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              Email
+            </label>
             <div className="relative">
-              <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-              <input type="email" name="email" value={formData.email} onChange={handleChange} required placeholder="you@example.com" className={`w-full pl-9 pr-3 py-2.5 rounded-lg border text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white ${errors.email ? "border-red-400 focus:border-red-400" : "border-gray-200"}`} />
+              <Mail
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"
+              />
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                placeholder="you@example.com"
+                className={`w-full pl-9 pr-3 py-2.5 rounded-lg border text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white ${errors.email ? "border-red-400 focus:border-red-400" : "border-gray-200"}`}
+              />
             </div>
             <AnimatePresence>
               {errors.email && (
-                <motion.p initial={{opacity: 0, y: -4}} animate={{opacity: 1, y: 0}} exit={{opacity: 0, y: -4}} className="text-xs text-red-500 mt-1.5 flex items-center gap-1"><AlertCircle size={12} /> {errors.email}</motion.p>
+                <motion.p
+                  initial={{opacity: 0, y: -4}}
+                  animate={{opacity: 1, y: 0}}
+                  exit={{opacity: 0, y: -4}}
+                  className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.email}
+                </motion.p>
               )}
             </AnimatePresence>
           </motion.div>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0.25} className="su-input-wrap">
-            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Contact Number</label>
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.25}
+            className="su-input-wrap">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              Contact Number
+            </label>
             <div className="relative">
-              <Phone size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-              <input type="tel" name="contactNumber" value={formData.contactNumber} onChange={handleChange} required placeholder="09171234567" className={`w-full pl-9 pr-3 py-2.5 rounded-lg border text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white ${errors.phone ? "border-red-400 focus:border-red-400" : "border-gray-200"}`} />
+              <Phone
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"
+              />
+              <input
+                type="tel"
+                name="contactNumber"
+                value={formData.contactNumber}
+                onChange={handleChange}
+                required
+                placeholder="09171234567"
+                className={`w-full pl-9 pr-3 py-2.5 rounded-lg border text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white ${errors.phone ? "border-red-400 focus:border-red-400" : "border-gray-200"}`}
+              />
             </div>
             <AnimatePresence>
               {errors.phone && (
-                <motion.p initial={{opacity: 0, y: -4}} animate={{opacity: 1, y: 0}} exit={{opacity: 0, y: -4}} className="text-xs text-red-500 mt-1.5 flex items-center gap-1"><AlertCircle size={12} /> {errors.phone}</motion.p>
+                <motion.p
+                  initial={{opacity: 0, y: -4}}
+                  animate={{opacity: 1, y: 0}}
+                  exit={{opacity: 0, y: -4}}
+                  className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.phone}
+                </motion.p>
               )}
             </AnimatePresence>
           </motion.div>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0.3} className="su-input-wrap">
-            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Password</label>
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.3}
+            className="su-input-wrap">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              Password
+            </label>
             <div className="relative">
-              <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-              <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleChange} required placeholder="Minimum 8 characters" className="w-full pl-9 pr-10 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-0.5">{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+              <Lock
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"
+              />
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                placeholder="Minimum 8 characters"
+                className="w-full pl-9 pr-10 py-2.5 rounded-lg border border-gray-200 text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-0.5">
+                {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
             </div>
             <AnimatePresence>
               {formData.password && (
-                <motion.div initial={{opacity: 0, height: 0}} animate={{opacity: 1, height: "auto"}} exit={{opacity: 0, height: 0}} transition={{duration: 0.2}} className="mt-1.5 space-y-1">
+                <motion.div
+                  initial={{opacity: 0, height: 0}}
+                  animate={{opacity: 1, height: "auto"}}
+                  exit={{opacity: 0, height: 0}}
+                  transition={{duration: 0.2}}
+                  className="mt-1.5 space-y-2">
                   <div className="flex gap-1">
                     {[1, 2, 3, 4, 5].map((i) => (
-                      <motion.div key={i} className="h-1 flex-1 rounded-full" animate={{backgroundColor: i <= passwordStrength.score ? passwordStrength.color : "#e5e7eb"}} transition={{duration: 0.3}} />
+                      <motion.div
+                        key={i}
+                        className="h-1 flex-1 rounded-full"
+                        animate={{
+                          backgroundColor:
+                            i <= passwordStrength.score
+                              ? passwordStrength.color
+                              : "#e5e7eb",
+                        }}
+                        transition={{duration: 0.3}}
+                      />
                     ))}
                   </div>
-                  <p className="text-[11px] font-medium" style={{color: passwordStrength.color}}>{passwordStrength.label}</p>
+                  <div className="flex justify-between items-center">
+                    <p
+                      className="text-[11px] font-bold uppercase tracking-wider"
+                      style={{color: passwordStrength.color}}>
+                      {passwordStrength.label}
+                    </p>
+                  </div>
+
+                  {/* Password Guidelines Checklist */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${formData.password.length >= 8 ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {formData.password.length >= 8 ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${formData.password.length >= 8 ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>8+ Characters</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${/[A-Z]/.test(formData.password) ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {/[A-Z]/.test(formData.password) ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${/[A-Z]/.test(formData.password) ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>Capital Letter</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${/\d/.test(formData.password) ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {/\d/.test(formData.password) ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${/\d/.test(formData.password) ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>Number</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${/[^A-Za-z0-9]/.test(formData.password) ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+                        {/[^A-Za-z0-9]/.test(formData.password) ? <CheckCircle size={10} className="text-emerald-600" /> : <div className="w-1 h-1 bg-gray-300 rounded-full" />}
+                      </div>
+                      <span className={`text-[10px] ${/[^A-Za-z0-9]/.test(formData.password) ? 'text-emerald-700 font-medium' : 'text-gray-400'}`}>Symbol</span>
+                    </div>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.div>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0.35} className="su-input-wrap">
-            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">Confirm Password</label>
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.35}
+            className="su-input-wrap">
+            <label className="block text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
+              Confirm Password
+            </label>
             <div className="relative">
-              <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
-              <input type={showConfirmPassword ? "text" : "password"} name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} required placeholder="Re-enter your password" className={`w-full pl-9 pr-10 py-2.5 rounded-lg border text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white ${errors.passwordMatch ? "border-red-400 focus:border-red-400" : "border-gray-200"}`} />
-              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-0.5">{showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+              <Lock
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"
+              />
+              <input
+                type={showConfirmPassword ? "text" : "password"}
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                required
+                placeholder="Re-enter your password"
+                className={`w-full pl-9 pr-10 py-2.5 rounded-lg border text-[13px] text-gray-800 placeholder-gray-300 outline-none transition-all bg-gray-50/50 focus:bg-white ${errors.passwordMatch ? "border-red-400 focus:border-red-400" : "border-gray-200"}`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-0.5">
+                {showConfirmPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
             </div>
             <AnimatePresence>
               {errors.passwordMatch && (
-                <motion.p initial={{opacity: 0, y: -4}} animate={{opacity: 1, y: 0}} exit={{opacity: 0, y: -4}} className="text-xs text-red-500 mt-1.5 flex items-center gap-1"><AlertCircle size={12} /> {errors.passwordMatch}</motion.p>
+                <motion.p
+                  initial={{opacity: 0, y: -4}}
+                  animate={{opacity: 1, y: 0}}
+                  exit={{opacity: 0, y: -4}}
+                  className="text-xs text-red-500 mt-1.5 flex items-center gap-1">
+                  <AlertCircle size={12} /> {errors.passwordMatch}
+                </motion.p>
               )}
             </AnimatePresence>
           </motion.div>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0.4}>
-            <button type="submit" disabled={submitLoading} className="su-submit-btn w-full py-2.5 rounded-lg text-white font-semibold text-[13px] flex items-center justify-center gap-2 border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.4}>
+            <button
+              type="submit"
+              disabled={submitLoading}
+              className="su-submit-btn w-full py-2.5 rounded-lg text-white font-semibold text-[13px] flex items-center justify-center gap-2 border-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
               {submitLoading ? (
-                <><motion.div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" animate={{rotate: 360}} transition={{duration: 0.6, ease: "linear", repeat: Infinity}} /> Creating account...</>
+                <>
+                  <motion.div
+                    className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full"
+                    animate={{rotate: 360}}
+                    transition={{
+                      duration: 0.6,
+                      ease: "linear",
+                      repeat: Infinity,
+                    }}
+                  />{" "}
+                  Creating account...
+                </>
               ) : (
-                <>Create Account<ArrowRight size={16} /></>
+                <>
+                  Create Account
+                  <ArrowRight size={16} />
+                </>
               )}
             </button>
           </motion.div>
 
-          <motion.p variants={fadeUp} initial="hidden" animate="visible" custom={0.45} className="text-[11px] text-gray-400 text-center leading-relaxed">
-            By signing up, you agree to our <span className="text-gray-500 font-medium cursor-pointer hover:text-[#E80088] transition-colors">Terms of Service</span> and <span className="text-gray-500 font-medium cursor-pointer hover:text-[#E80088] transition-colors">Privacy Policy</span>.
+          <motion.p
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.45}
+            className="text-[11px] text-gray-400 text-center leading-relaxed">
+            By signing up, you agree to our{" "}
+            <span className="text-gray-500 font-medium cursor-pointer hover:text-[#E80088] transition-colors">
+              Terms of Service
+            </span>{" "}
+            and{" "}
+            <span className="text-gray-500 font-medium cursor-pointer hover:text-[#E80088] transition-colors">
+              Privacy Policy
+            </span>
+            .
           </motion.p>
 
-          <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={0.48} className="flex items-center gap-4">
+          <motion.div
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.48}
+            className="flex items-center gap-4">
             <div className="flex-1 h-px bg-gray-100" />
             <span className="text-xs text-gray-300 font-medium">OR</span>
             <div className="flex-1 h-px bg-gray-100" />
           </motion.div>
 
-          <motion.p variants={fadeUp} initial="hidden" animate="visible" custom={0.5} className="text-center text-xs text-gray-400">
+          <motion.p
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.5}
+            className="text-center text-xs text-gray-400">
             Already have an account?{" "}
-            <button type="button" onClick={() => navigate("/login")} className="text-[#E80088] font-semibold hover:text-[#AA00FD] transition-colors bg-transparent border-none cursor-pointer text-xs">Sign In</button>
+            <button
+              type="button"
+              onClick={() => navigate("/login")}
+              className="text-[#E80088] font-semibold hover:text-[#AA00FD] transition-colors bg-transparent border-none cursor-pointer text-xs">
+              Sign In
+            </button>
           </motion.p>
         </form>
       )}

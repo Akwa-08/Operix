@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
@@ -17,6 +18,10 @@ import { ExcessMaterialModal } from "./ExcessMaterialModal";
 import { Modal } from "../Shared/UI/Modal";
 
 const ProductionOrders = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+  const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -41,6 +46,12 @@ const ProductionOrders = () => {
 
   const toast = useToast();
 
+  useEffect(() => {
+    if (highlightedId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId, loading]);
+
   // Show all orders in Production status
   const orders = allOrders.filter(o => o.status === "Production");
 
@@ -62,10 +73,6 @@ const ProductionOrders = () => {
       o.customerName?.toLowerCase().includes(q) ||
       o.orderId?.toLowerCase().includes(q)
     );
-  }).sort((a, b) => {
-    if (a.isSuki && !b.isSuki) return -1;
-    if (!a.isSuki && b.isSuki) return 1;
-    return 0;
   });
 
   const selectedOrder = selectedOrderId
@@ -170,7 +177,9 @@ const ProductionOrders = () => {
               filtered.map((o: any) => (
                 <div
                   key={o.id}
-                  className={`p-4 space-y-2 ${o.status === "Overdue" ? "bg-red-50" : ""}`}>
+                  ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                  className={`p-4 space-y-2 transition-all ${highlightedId === o.id ? "highlight-pulse ring-2 ring-cyan-500" : ""} ${o.status === "Overdue" ? "bg-red-50" : ""}`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-bold text-gray-900">{o.orderId}</p>
@@ -199,9 +208,9 @@ const ProductionOrders = () => {
                     {o.status === "Production" && o.assignedProduction && (
                       <button
                         onClick={() => handleMarkPickup(o)}
-                        disabled={(o.amountPaid || 0) < (o.totalAmount || 0)}
-                        title={(o.amountPaid || 0) < (o.totalAmount || 0) ? "Full payment required" : ""}
-                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-50 hover:bg-green-100 text-green-700"}`}>
+                        disabled={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki}
+                        title={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "Full payment required" : (o.isSuki && (o.amountPaid || 0) < (o.totalAmount || 0) ? "Suki Bypass Active" : "")}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-50 hover:bg-green-100 text-green-700"}`}>
                         ✓ Ready
                       </button>
                     )}
@@ -250,7 +259,9 @@ const ProductionOrders = () => {
                   {filtered.map((o: any) => (
                     <tr
                       key={o.id}
-                      className={`hover:bg-gray-50 ${o.status === "Overdue" ? "bg-red-50" : ""}`}>
+                      ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                      className={`hover:bg-gray-50 transition-all ${highlightedId === o.id ? "highlight-pulse bg-cyan-50/50" : ""} ${o.status === "Overdue" ? "bg-red-50" : ""}`}
+                    >
                       <td className="px-4 py-3 font-mono text-xs">
                         {o.orderId}
                       </td>
@@ -283,9 +294,9 @@ const ProductionOrders = () => {
                           {o.status === "Production" && o.assignedProduction && (
                             <button
                               onClick={() => handleMarkPickup(o)}
-                              disabled={(o.amountPaid || 0) < (o.totalAmount || 0)}
-                              title={(o.amountPaid || 0) < (o.totalAmount || 0) ? "Full payment required" : ""}
-                              className={`px-2 py-1 text-xs font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-100 hover:bg-green-200 text-green-700"}`}>
+                              disabled={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki}
+                              title={(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "Full payment required" : (o.isSuki && (o.amountPaid || 0) < (o.totalAmount || 0) ? "Suki Bypass Active" : "")}
+                              className={`px-2 py-1 text-xs font-semibold rounded-lg ${(o.amountPaid || 0) < (o.totalAmount || 0) && !o.isSuki ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-green-100 hover:bg-green-200 text-green-700"}`}>
                               ✓ Ready
                             </button>
                           )}
@@ -319,6 +330,7 @@ const ProductionOrders = () => {
           orders={filtered}
           searchQuery={searchQuery}
           onView={handleViewOrder}
+          highlightedId={highlightedId}
         />
       )}
 
@@ -380,3 +392,4 @@ const ProductionOrders = () => {
 };
 
 export default ProductionOrders;
+

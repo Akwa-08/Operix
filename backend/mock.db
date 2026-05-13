@@ -1,0 +1,1072 @@
+-- ============================================================
+-- DATABASE SCHEMA DOCUMENTATION
+-- Project: VTALINK
+-- Generated: 2025
+-- WARNING: This file is for context/reference only.
+--          Table order and constraints may not be valid for execution.
+-- ============================================================
+
+
+
+
+-- ══════════════════════════════════════════════════════════════
+-- TABLES & COLUMNS
+-- ══════════════════════════════════════════════════════════════
+
+
+CREATE TABLE public.attendance_logs (
+  id                      uuid        NOT NULL DEFAULT uuid_generate_v4(),
+  employee_id             uuid        NOT NULL,                          -- FK → employees.id
+  payroll_period_id       uuid        NOT NULL,                          -- FK → payroll_periods.id
+  worked_hours            numeric     DEFAULT 0,
+  required_hours          numeric     DEFAULT 160,
+  late_timeslots          integer     DEFAULT 0,
+  early_leave_timeslots   integer     DEFAULT 0,
+  regular_overtime_hours  numeric     DEFAULT 0,
+  holiday_overtime_hours  numeric     DEFAULT 0,
+  special_overtime_hours  numeric     DEFAULT 0,
+  business_trip_days      integer     DEFAULT 0,
+  absences                integer     DEFAULT 0,
+  on_leave_days           integer     DEFAULT 0,
+  additional_pay          numeric     DEFAULT 0,
+  deduction_amount        numeric     DEFAULT 0,
+  days_present            integer,
+  created_at              timestamp   DEFAULT CURRENT_TIMESTAMP,
+  updated_at              timestamp   DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT attendance_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT attendance_logs_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id),
+  CONSTRAINT attendance_logs_payroll_period_id_fkey FOREIGN KEY (payroll_period_id) REFERENCES public.payroll_periods(id)
+);
+
+
+CREATE TABLE public.attendance_punch_logs (
+  id           uuid        NOT NULL DEFAULT uuid_generate_v4(),
+  employee_id  uuid,                                                     -- FK → employees.id
+  date         date,
+  time_in      timestamp,
+  time_out     timestamp,
+  created_at   timestamp   DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT attendance_punch_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT attendance_logs_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id)
+);
+
+
+CREATE TABLE public.attendance_summary_imports (
+  id                    uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  import_batch_id       uuid              NOT NULL,
+  source_file           character varying NOT NULL,
+  company               character varying NOT NULL DEFAULT 'VTALINK',
+  period_start          date              NOT NULL,
+  period_end            date              NOT NULL,
+  employee_no           integer           NOT NULL,
+  employee_name         character varying NOT NULL,
+  department            character varying,
+  required_hours        numeric,
+  actual_hours          numeric,
+  late_times            integer           DEFAULT 0,
+  late_minutes          integer           DEFAULT 0,
+  early_leave_times     integer           DEFAULT 0,
+  early_leave_minutes   integer           DEFAULT 0,
+  overtime_regular      numeric           DEFAULT 0,
+  overtime_special      numeric           DEFAULT 0,
+  attend_required       integer,
+  attend_actual         integer,
+  business_trip         integer           DEFAULT 0,
+  absences              integer           DEFAULT 0,
+  on_leave              integer           DEFAULT 0,
+  bonus_note            character varying,
+  ot_allowance          numeric,
+  allowance             numeric,
+  deduction_late_early  numeric,
+  deduction_on_leave    numeric,
+  deduction_other       numeric,
+  actual_pay            numeric,
+  remark                character varying,
+  payroll_period_id     uuid,                                            -- FK → payroll_periods.id
+  employee_id           uuid,                                            -- FK → employees.id
+  synced_to_attendance  boolean           DEFAULT false,
+  imported_by           uuid,                                            -- FK → users.id
+  created_at            timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT attendance_summary_imports_pkey PRIMARY KEY (id),
+  CONSTRAINT asi_payroll_period_fkey FOREIGN KEY (payroll_period_id) REFERENCES public.payroll_periods(id),
+  CONSTRAINT asi_employee_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id),
+  CONSTRAINT asi_imported_by_fkey FOREIGN KEY (imported_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.audit_logs (
+  id            uuid                      NOT NULL DEFAULT gen_random_uuid(),
+  actor_id      uuid,                                                    -- FK → users.id
+  actor_role    character varying,
+  action        character varying         NOT NULL,
+  target_table  character varying,
+  target_id     uuid,
+  metadata      jsonb,
+  created_at    timestamp with time zone  DEFAULT now(),
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_logs_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.cart_items (
+  id              uuid       NOT NULL DEFAULT gen_random_uuid(),
+  customer_id     uuid       NOT NULL,                                   -- FK → users.id
+  product_id      uuid       NOT NULL,                                   -- FK → products.id
+  quantity        integer    NOT NULL DEFAULT 1,
+  specifications  text,
+  file_url        text,
+  created_at      timestamp  DEFAULT now(),
+  CONSTRAINT cart_items_pkey PRIMARY KEY (id),
+  CONSTRAINT cart_items_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.users(id),
+  CONSTRAINT cart_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+
+
+CREATE TABLE public.cash_advances (
+  id                    uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  employee_id           uuid              NOT NULL,                      -- FK → employees.id
+  amount                numeric           NOT NULL CHECK (amount > 0),
+  date_issued           date              NOT NULL DEFAULT CURRENT_DATE,
+  reason                text,
+  status                character varying NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending','approved','added_to_current_payroll',
+                                            'scheduled_for_deduction','deducted','declined','cancelled')),
+  decline_reason        text,
+  payroll_period_id     uuid,                                            -- FK → payroll_periods.id
+  issued_by             uuid              NOT NULL,                      -- FK → users.id
+  requested_by_cashier  uuid,                                            -- FK → users.id
+  created_at            timestamp         DEFAULT CURRENT_TIMESTAMP,
+  updated_at            timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT cash_advances_pkey PRIMARY KEY (id),
+  CONSTRAINT cash_advances_employee_id_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id),
+  CONSTRAINT cash_advances_payroll_period_id_fkey FOREIGN KEY (payroll_period_id) REFERENCES public.payroll_periods(id),
+  CONSTRAINT cash_advances_issued_by_fkey FOREIGN KEY (issued_by) REFERENCES public.users(id),
+  CONSTRAINT cash_advances_requested_by_cashier_fkey FOREIGN KEY (requested_by_cashier) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.chat_messages (
+  id              uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  order_id        uuid,
+  sender_id       uuid,                                                  -- FK → users.id
+  receiver_id     uuid,                                                  -- FK → users.id
+  message         text,
+  attachment_url  character varying,
+  is_seen         boolean           DEFAULT false,
+  sent_at         timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT chat_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id),
+  CONSTRAINT chat_messages_receiver_id_fkey FOREIGN KEY (receiver_id) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.deliveries (
+  id                        uuid                      NOT NULL DEFAULT gen_random_uuid(),
+  inventory_item_id         uuid                      NOT NULL,          -- FK → inventory_items.id
+  supplier_id               uuid,                                        -- FK → suppliers.id
+  requested_by              uuid,                                        -- FK → users.id
+  requested_quantity        numeric                   NOT NULL CHECK (requested_quantity > 0),
+  expected_arrival_date     date,
+  status                    character varying         NOT NULL DEFAULT 'requested'
+                              CHECK (status IN ('requested','ordered','en_route','received','returned','completed')),
+  received_quantity         numeric                   DEFAULT 0,
+  receipt_reference_number  character varying,
+  received_date             timestamp with time zone,
+  notes                     text,
+  created_at                timestamp with time zone  DEFAULT now(),
+  updated_at                timestamp with time zone  DEFAULT now(),
+  CONSTRAINT deliveries_pkey PRIMARY KEY (id),
+  CONSTRAINT deliveries_inventory_item_id_fkey FOREIGN KEY (inventory_item_id) REFERENCES public.inventory_items(id),
+  CONSTRAINT deliveries_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
+  CONSTRAINT deliveries_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.employees (
+  id                        uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  employee_code             character varying,
+  full_name                 citext,                                      -- USER-DEFINED (citext extension)
+  position                  character varying,
+  base_hourly_rate          numeric,
+  holiday_rate_multiplier   numeric,
+  overtime_rate_multiplier  numeric,
+  hire_date                 date,
+  is_active                 boolean           DEFAULT true,
+  role                      character varying CHECK (role IN ('admin','cashier','designer','production','other')),
+  created_at                timestamp         DEFAULT CURRENT_TIMESTAMP,
+  updated_at                timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT employees_pkey PRIMARY KEY (id)
+);
+
+
+CREATE TABLE public.holidays (
+  id            uuid                      NOT NULL DEFAULT gen_random_uuid(),
+  holiday_date  date                      NOT NULL,
+  name          text                      NOT NULL,
+  type          text                      NOT NULL,
+  is_recurring  boolean                   DEFAULT true,
+  created_at    timestamp with time zone  NOT NULL DEFAULT now(),
+  CONSTRAINT holidays_pkey PRIMARY KEY (id)
+);
+
+
+CREATE TABLE public.inventory_changes (
+  id                 uuid                      NOT NULL DEFAULT uuid_generate_v4(),
+  inventory_item_id  uuid                      NOT NULL,                 -- FK → inventory_items.id
+  change_type        character varying         NOT NULL
+                       CHECK (change_type IN ('Manual Adjustment','Waste','Damage','Correction','Production Use')),
+  quantity_change    numeric                   NOT NULL,
+  quantity_before    numeric                   NOT NULL,
+  quantity_after     numeric                   NOT NULL,
+  reason             text                      NOT NULL,
+  changed_by         uuid                      NOT NULL,                 -- FK → users.id
+  created_at         timestamp with time zone  DEFAULT now(),
+  CONSTRAINT inventory_changes_pkey PRIMARY KEY (id),
+  CONSTRAINT inventory_changes_inventory_item_id_fkey FOREIGN KEY (inventory_item_id) REFERENCES public.inventory_items(id),
+  CONSTRAINT inventory_changes_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.inventory_items (
+  id                uuid                      NOT NULL DEFAULT uuid_generate_v4(),
+  name              character varying         NOT NULL UNIQUE,
+  description       text,
+  unit_of_measure   character varying         NOT NULL,
+  current_quantity  numeric                   DEFAULT 0.00 CHECK (current_quantity >= 0),
+  reorder_point     numeric                   NOT NULL CHECK (reorder_point >= 0),
+  unit_cost         numeric                   DEFAULT 0.00,
+  is_active         boolean                   DEFAULT true,
+  purchase_unit     character varying         DEFAULT '',
+  conversion_rate   numeric                   DEFAULT 1.0,
+  created_at        timestamp with time zone  DEFAULT now(),
+  updated_at        timestamp with time zone  DEFAULT now(),
+  CONSTRAINT inventory_items_pkey PRIMARY KEY (id)
+);
+
+
+CREATE TABLE public.item_suppliers (
+  id                  uuid                      NOT NULL DEFAULT uuid_generate_v4(),
+  inventory_item_id   uuid                      NOT NULL,                -- FK → inventory_items.id
+  supplier_id         uuid                      NOT NULL,                -- FK → suppliers.id
+  supplier_unit_price numeric                   NOT NULL CHECK (supplier_unit_price >= 0),
+  lead_time_days      integer                   DEFAULT 0,
+  is_preferred        boolean                   DEFAULT false,
+  created_at          timestamp with time zone  DEFAULT now(),
+  CONSTRAINT item_suppliers_pkey PRIMARY KEY (id),
+  CONSTRAINT item_suppliers_inventory_item_id_fkey FOREIGN KEY (inventory_item_id) REFERENCES public.inventory_items(id),
+  CONSTRAINT item_suppliers_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
+  CONSTRAINT item_suppliers_inventory_item_id_supplier_id_key UNIQUE (inventory_item_id, supplier_id)
+);
+
+
+CREATE TABLE public.notifications (
+  id              uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  user_id         uuid,                                                  -- FK → users.id
+  related_module  character varying,
+  related_id      uuid,
+  title           character varying,
+  message         text,
+  is_read         boolean           DEFAULT false,
+  created_at      timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT notifications_pkey PRIMARY KEY (id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.order_items (
+  id              uuid              NOT NULL DEFAULT gen_random_uuid(),
+  order_id        uuid              NOT NULL,                            -- FK → orders.id
+  product_id      uuid,                                                  -- FK → products.id (nullable for custom items)
+  product_name    character varying NOT NULL,
+  quantity        integer           NOT NULL DEFAULT 1,
+  unit_price      numeric           NOT NULL DEFAULT 0,
+  subtotal        numeric           NOT NULL DEFAULT 0,
+  specifications  text,
+  file_url        text,
+  created_at      timestamp         DEFAULT now(),
+  CONSTRAINT order_items_pkey PRIMARY KEY (id),
+  CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT order_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+
+
+CREATE TABLE public.order_logs (
+  id          uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  order_id    uuid,
+  updated_by  uuid,                                                      -- FK → users.id
+  status      character varying,
+  note        text,
+  created_at  timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT order_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT order_logs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.orders (
+  id                    uuid              NOT NULL DEFAULT gen_random_uuid(),
+  order_number          character varying NOT NULL UNIQUE,
+  customer_id           uuid,                                            -- FK → users.id (null for walk-in guests)
+  created_by            uuid,                                            -- FK → users.id
+  order_type            character varying NOT NULL DEFAULT 'online'
+                          CHECK (order_type IN ('online','walk-in')),
+  status                character varying NOT NULL DEFAULT 'in_queue'
+                          CHECK (status IN ('in_queue','designing','payment','production','pickup','completed','cancelled')),
+  payment_status        character varying NOT NULL DEFAULT 'unpaid'
+                          CHECK (payment_status IN ('unpaid','partial','paid')),
+  assigned_designer     uuid,                                            -- FK → users.id
+  assigned_production   uuid,                                            -- FK → employees.id (NOT users.id)
+  special_instructions  text,
+  due_date              timestamp,
+  total_amount          numeric           NOT NULL DEFAULT 0,
+  amount_paid           numeric           NOT NULL DEFAULT 0,
+  comments              text,
+  guest_name            character varying,
+  guest_phone           character varying,
+  guest_email           character varying,
+  tracking_token        uuid              DEFAULT gen_random_uuid(),
+  design_file_url       text,
+  final_design_url      text,
+  created_at            timestamp         DEFAULT now(),
+  updated_at            timestamp         DEFAULT now(),
+  CONSTRAINT orders_pkey PRIMARY KEY (id),
+  CONSTRAINT orders_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.users(id),
+  CONSTRAINT orders_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id),
+  CONSTRAINT orders_assigned_designer_fkey FOREIGN KEY (assigned_designer) REFERENCES public.users(id),
+  CONSTRAINT orders_assigned_production_fkey FOREIGN KEY (assigned_production) REFERENCES public.employees(id)
+);
+
+
+CREATE TABLE public.payments (
+  id               uuid              NOT NULL DEFAULT gen_random_uuid(),
+  order_id         uuid              NOT NULL,                           -- FK → orders.id
+  amount           numeric           NOT NULL,
+  payment_method   character varying NOT NULL DEFAULT 'cash'
+                     CHECK (payment_method IN ('cash','gcash','bank_transfer','maya','card','other')),
+  reference_number character varying,
+  received_by      uuid,                                                 -- FK → users.id
+  notes            text,
+  created_at       timestamp         DEFAULT now(),
+  CONSTRAINT payments_pkey PRIMARY KEY (id),
+  CONSTRAINT payments_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT payments_received_by_fkey FOREIGN KEY (received_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.payroll_periods (
+  id           uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  period_start date              NOT NULL,
+  period_end   date              NOT NULL,
+  pay_date     date,
+  status       character varying NOT NULL DEFAULT 'draft'
+                 CHECK (status IN ('draft','processing','complete')),
+  created_by   uuid,                                                     -- FK → users.id
+  created_at   timestamp         DEFAULT CURRENT_TIMESTAMP,
+  updated_at   timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT payroll_periods_pkey PRIMARY KEY (id),
+  CONSTRAINT payroll_periods_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.payroll_records (
+  id                      uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  payroll_period_id       uuid              NOT NULL,                    -- FK → payroll_periods.id
+  employee_id             uuid              NOT NULL,                    -- FK → employees.id
+  daily_rate              numeric           NOT NULL DEFAULT 0,
+  days_present            integer           NOT NULL DEFAULT 0,
+  basic_pay               numeric           DEFAULT 0,
+  regular_holiday_pay     numeric           DEFAULT 0,
+  special_holiday_pay     numeric           DEFAULT 0,
+  regular_overtime        numeric           DEFAULT 0,
+  holiday_overtime        numeric           DEFAULT 0,
+  special_overtime        numeric           DEFAULT 0,
+  gross_income            numeric           DEFAULT 0,
+  tardy_deductions        numeric           DEFAULT 0,
+  undertime_deductions    numeric           DEFAULT 0,
+  sss                     numeric           DEFAULT 0,
+  philhealth              numeric           DEFAULT 200,
+  hdmf                    numeric           DEFAULT 200,
+  withholding_tax         numeric           DEFAULT 0,
+  cash_advance            numeric           DEFAULT 0,
+  total_deductions        numeric           DEFAULT 0,
+  net_pay                 numeric           DEFAULT 0,
+  taxable_income          numeric           DEFAULT 0,
+  carry_over_deduction    numeric           DEFAULT 0,
+  carry_over_from_previous numeric          DEFAULT 0,
+  cash_advance_issued     numeric           DEFAULT 0,
+  status                  character varying NOT NULL DEFAULT 'pending'
+                            CHECK (status IN ('pending','paid')),
+  created_at              timestamp         DEFAULT CURRENT_TIMESTAMP,
+  updated_at              timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT payroll_records_pkey PRIMARY KEY (id),
+  CONSTRAINT payroll_records_period_fkey FOREIGN KEY (payroll_period_id) REFERENCES public.payroll_periods(id),
+  CONSTRAINT payroll_records_employee_fkey FOREIGN KEY (employee_id) REFERENCES public.employees(id)
+);
+
+
+CREATE TABLE public.product_supply_mapping (
+  id                 uuid                      NOT NULL DEFAULT uuid_generate_v4(),
+  product_id         uuid                      NOT NULL,                 -- FK → products.id
+  inventory_item_id  uuid                      NOT NULL,                 -- FK → inventory_items.id
+  quantity_required  numeric                   NOT NULL CHECK (quantity_required > 0),
+  created_at         timestamp with time zone  DEFAULT now(),
+  CONSTRAINT product_supply_mapping_pkey PRIMARY KEY (id),
+  CONSTRAINT product_supply_mapping_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT product_supply_mapping_inventory_item_id_fkey FOREIGN KEY (inventory_item_id) REFERENCES public.inventory_items(id),
+  CONSTRAINT product_supply_mapping_product_id_inventory_item_id_key UNIQUE (product_id, inventory_item_id)
+);
+
+
+CREATE TABLE public.products (
+  id             uuid                      NOT NULL DEFAULT uuid_generate_v4(),
+  name           character varying         NOT NULL,
+  category       character varying,
+  variant        character varying,
+  size_spec      character varying,
+  material_cost  numeric                   DEFAULT 0.00,
+  profit_fee     numeric                   DEFAULT 0.00,
+  final_price    numeric                   NOT NULL,
+  is_active      boolean                   DEFAULT true,
+  description    text,
+  created_at     timestamp with time zone  DEFAULT now(),
+  updated_at     timestamp with time zone  DEFAULT now(),
+  CONSTRAINT products_pkey PRIMARY KEY (id)
+);
+
+
+CREATE TABLE public.receipts (
+  id              uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  payment_id      uuid,                                                  -- FK → payments.id
+  issued_by       uuid,                                                  -- FK → users.id
+  receipt_number  character varying,
+  pdf_url         character varying,
+  issued_at       timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT receipts_pkey PRIMARY KEY (id),
+  CONSTRAINT receipts_issued_by_fkey FOREIGN KEY (issued_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.sales_reports (
+  id            uuid      NOT NULL DEFAULT uuid_generate_v4(),
+  generated_by  uuid,                                                    -- FK → users.id
+  period_start  date,
+  period_end    date,
+  total_sales   numeric,
+  supply_cost   numeric,
+  payroll_cost  numeric,
+  net_profit    numeric,
+  created_at    timestamp DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT sales_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT sales_reports_generated_by_fkey FOREIGN KEY (generated_by) REFERENCES public.users(id)
+);
+
+
+CREATE TABLE public.suppliers (
+  id              uuid                      NOT NULL DEFAULT uuid_generate_v4(),
+  name            character varying         NOT NULL,
+  contact_person  character varying,
+  phone           character varying,
+  email           character varying,
+  address         text,
+  is_active       boolean                   DEFAULT true,
+  is_flagged      boolean                   DEFAULT false,
+  flag_notes      text,
+  created_at      timestamp with time zone  DEFAULT now(),
+  updated_at      timestamp with time zone  DEFAULT now(),
+  CONSTRAINT suppliers_pkey PRIMARY KEY (id)
+);
+
+
+CREATE TABLE public.users (
+  id              uuid              NOT NULL DEFAULT uuid_generate_v4(),
+  first_name      character varying,
+  last_name       character varying,
+  contact_number  character varying,
+  email           character varying UNIQUE,
+  role            character varying,                                     -- 'admin'|'cashier'|'designer'|'production'|'customer'
+  is_active       boolean           DEFAULT true,
+  address         text,
+  avatar_url      text,
+  created_at      timestamp         DEFAULT CURRENT_TIMESTAMP,
+  updated_at      timestamp         DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT users_pkey PRIMARY KEY (id)
+);
+
+
+
+
+-- ══════════════════════════════════════════════════════════════
+-- INDEXES (non-PK)
+-- ══════════════════════════════════════════════════════════════
+
+
+-- attendance_logs
+CREATE UNIQUE INDEX attendance_logs_unique_per_period
+  ON public.attendance_logs (employee_id, payroll_period_id);           -- 1 log per employee per period
+
+
+-- attendance_summary_imports
+CREATE INDEX idx_asi_batch_id ON public.attendance_summary_imports (import_batch_id);
+CREATE INDEX idx_asi_employee  ON public.attendance_summary_imports (employee_id);
+CREATE INDEX idx_asi_period    ON public.attendance_summary_imports (period_start, period_end);
+
+
+-- audit_logs
+CREATE INDEX idx_audit_logs_action  ON public.audit_logs (action);
+CREATE INDEX idx_audit_logs_actor   ON public.audit_logs (actor_id);
+CREATE INDEX idx_audit_logs_created ON public.audit_logs (created_at DESC);
+
+
+-- cash_advances
+CREATE INDEX idx_cash_advances_employee ON public.cash_advances (employee_id);
+CREATE INDEX idx_cash_advances_period   ON public.cash_advances (payroll_period_id);
+CREATE INDEX idx_cash_advances_status   ON public.cash_advances (status);
+
+
+-- inventory_changes
+CREATE INDEX idx_inventory_changes_item ON public.inventory_changes (inventory_item_id);
+
+
+-- inventory_items
+CREATE INDEX        idx_inventory_items_name   ON public.inventory_items (name);
+CREATE UNIQUE INDEX inventory_items_name_key   ON public.inventory_items (name);
+
+
+-- item_suppliers
+CREATE UNIQUE INDEX item_suppliers_inventory_item_id_supplier_id_key
+  ON public.item_suppliers (inventory_item_id, supplier_id);
+
+
+-- orders
+CREATE UNIQUE INDEX orders_order_number_key ON public.orders (order_number);
+
+
+-- payroll_records
+CREATE UNIQUE INDEX payroll_records_unique_per_period
+  ON public.payroll_records (employee_id, payroll_period_id);           -- 1 record per employee per period
+
+
+-- product_supply_mapping
+CREATE INDEX        idx_product_supply_product ON public.product_supply_mapping (product_id);
+CREATE UNIQUE INDEX product_supply_mapping_product_id_inventory_item_id_key
+  ON public.product_supply_mapping (product_id, inventory_item_id);
+
+
+-- products
+CREATE INDEX idx_products_category ON public.products (category);
+
+
+-- users
+CREATE UNIQUE INDEX users_email_unique ON public.users (email);
+
+
+
+
+-- ══════════════════════════════════════════════════════════════
+-- TRIGGERS
+-- ══════════════════════════════════════════════════════════════
+
+
+-- inventory_items
+CREATE TRIGGER trg_low_stock
+  AFTER UPDATE ON public.inventory_items
+  FOR EACH ROW EXECUTE FUNCTION notify_low_stock();
+  -- Fires notify_low_stock() when current_quantity drops at or below reorder_point
+
+
+CREATE TRIGGER update_inventory_items_updated_at
+  BEFORE UPDATE ON public.inventory_items
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- orders
+CREATE TRIGGER orders_updated_at
+  BEFORE UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+
+CREATE TRIGGER trg_order_status_change
+  AFTER UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION notify_order_status_change();
+  -- Fires notify_order_status_change() when status column changes
+
+
+-- products
+CREATE TRIGGER update_products_updated_at
+  BEFORE UPDATE ON public.products
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- suppliers
+CREATE TRIGGER update_suppliers_updated_at
+  BEFORE UPDATE ON public.suppliers
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- users
+CREATE TRIGGER on_public_user_deleted
+  AFTER DELETE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION handle_delete_user();
+  -- Cascades deletion to auth.users
+
+
+
+
+-- ══════════════════════════════════════════════════════════════
+-- FUNCTIONS
+-- ══════════════════════════════════════════════════════════════
+
+
+-- Role helpers used by RLS policies
+CREATE OR REPLACE FUNCTION public.is_admin() RETURNS boolean AS $$
+  SELECT EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin');
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION public.is_staff() RETURNS boolean AS $$
+  SELECT EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()
+    AND role = ANY(ARRAY['admin','cashier','designer','production']));
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION public.i_am_staff() RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = auth.uid()
+      AND lower(role) IN ('admin', 'cashier', 'designer', 'production')
+  );
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION public.get_user_role() RETURNS text AS $$
+  SELECT role FROM public.users WHERE id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+CREATE OR REPLACE FUNCTION public.get_my_role() RETURNS text AS $$
+  SELECT role FROM public.users WHERE id = auth.uid() LIMIT 1;
+$$ LANGUAGE sql SECURITY DEFINER;
+
+
+-- Auth sync: new auth user → public.users
+CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.users (id, first_name, last_name, role, email, contact_number)
+  VALUES (
+    new.id,
+    new.raw_user_meta_data->>'first_name',
+    new.raw_user_meta_data->>'last_name',
+    COALESCE(new.raw_user_meta_data->>'role', 'customer'),
+    new.email,
+    new.raw_user_meta_data->>'contact_number'
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Auth sync: delete public.users → delete auth.users
+CREATE OR REPLACE FUNCTION public.handle_delete_user() RETURNS trigger AS $$
+BEGIN
+  DELETE FROM auth.users WHERE id = old.id;
+  RETURN old;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- Notification: low stock alert to admin + cashier
+CREATE OR REPLACE FUNCTION public.notify_low_stock() RETURNS trigger AS $$
+DECLARE admin_user RECORD;
+BEGIN
+  IF NEW.current_quantity <= NEW.reorder_point AND OLD.current_quantity > OLD.reorder_point THEN
+    FOR admin_user IN SELECT id FROM public.users WHERE role IN ('admin', 'cashier') LOOP
+      INSERT INTO public.notifications (user_id, title, message, related_module, related_id)
+      VALUES (admin_user.id, 'Low Stock Alert', NEW.name || ' is running low on stock.', 'inventory', NEW.id);
+    END LOOP;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Notification: order status change → notify customer
+CREATE OR REPLACE FUNCTION public.notify_order_status_change() RETURNS trigger AS $$
+BEGIN
+  IF OLD.status IS DISTINCT FROM NEW.status THEN
+    IF NEW.customer_id IS NOT NULL THEN
+      INSERT INTO public.notifications (user_id, title, message, related_module, related_id)
+      VALUES (
+        NEW.customer_id, 'Order Update',
+        'Your order ' || COALESCE(NEW.order_number, '') || ' is now ' || NEW.status,
+        'orders', NEW.id
+      );
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Guest order tracking by token
+CREATE OR REPLACE FUNCTION public.get_guest_order(p_tracking_token uuid) RETURNS jsonb AS $$
+DECLARE v_order jsonb;
+BEGIN
+  SELECT jsonb_build_object(
+    'id', o.id,
+    'order_number', o.order_number,
+    'status', o.status,
+    'payment_status', o.payment_status,
+    'total_amount', o.total_amount,
+    'guest_name', o.guest_name,
+    'customer_id', o.customer_id,
+    'items', (
+      SELECT jsonb_agg(jsonb_build_object(
+        'product_name', oi.product_name,
+        'quantity', oi.quantity,
+        'subtotal', oi.subtotal
+      )) FROM public.order_items oi WHERE oi.order_id = o.id
+    )
+  ) INTO v_order
+  FROM public.orders o
+  WHERE o.tracking_token = p_tracking_token;
+  RETURN v_order;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Auto-increment employee code
+CREATE OR REPLACE FUNCTION public.fn_next_employee_code() RETURNS integer AS $$
+DECLARE next_code integer;
+BEGIN
+  SELECT COALESCE(MAX(employee_code), 0) + 1 INTO next_code FROM employees;
+  RETURN next_code;
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- Order number sequence
+CREATE OR REPLACE FUNCTION public.get_next_order_seq() RETURNS bigint AS $$
+  SELECT nextval('order_number_seq');
+$$ LANGUAGE sql;
+
+
+-- Timestamp helpers
+CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS trigger AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION public.update_updated_at() RETURNS trigger AS $$
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
+$$ LANGUAGE plpgsql;
+
+
+
+
+-- ══════════════════════════════════════════════════════════════
+-- RLS — All tables have RLS ENABLED
+-- ══════════════════════════════════════════════════════════════
+
+
+ALTER TABLE public.attendance_logs            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_punch_logs      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.attendance_summary_imports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cart_items                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cash_advances              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_messages              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.deliveries                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.employees                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.holidays                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_changes          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_items            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.item_suppliers             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_items                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_logs                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.orders                     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payments                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payroll_periods            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payroll_records            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_supply_mapping     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.products                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.receipts                   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sales_reports              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers                  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.users                      ENABLE ROW LEVEL SECURITY;
+
+
+
+
+-- ══════════════════════════════════════════════════════════════
+-- RLS POLICIES
+-- ══════════════════════════════════════════════════════════════
+
+
+-- ── attendance_logs ──────────────────────────────────────────
+CREATE POLICY "Admin full access attendance_logs"
+  ON public.attendance_logs FOR ALL TO public USING (is_admin());
+CREATE POLICY "Staff read attendance_logs"
+  ON public.attendance_logs FOR SELECT TO public USING (is_staff());
+
+
+-- ── attendance_punch_logs ────────────────────────────────────
+CREATE POLICY "Admin full access punch_logs"
+  ON public.attendance_punch_logs FOR ALL TO public USING (is_admin());
+CREATE POLICY "Staff read punch_logs"
+  ON public.attendance_punch_logs FOR SELECT TO public USING (is_staff());
+
+
+-- ── attendance_summary_imports ───────────────────────────────
+CREATE POLICY "Admin full access attendance_summary_imports"
+  ON public.attendance_summary_imports FOR ALL TO public USING (is_admin());
+CREATE POLICY "Staff read attendance_summary_imports"
+  ON public.attendance_summary_imports FOR SELECT TO public USING (is_staff());
+
+
+-- ── audit_logs ───────────────────────────────────────────────
+CREATE POLICY audit_admin_read
+  ON public.audit_logs FOR SELECT TO public USING (is_admin());
+CREATE POLICY audit_staff_insert
+  ON public.audit_logs FOR INSERT TO public WITH CHECK (is_staff());
+
+
+-- ── cart_items ───────────────────────────────────────────────
+-- Customers can only access their own cart
+CREATE POLICY cart_select ON public.cart_items FOR SELECT TO public USING (customer_id = auth.uid());
+CREATE POLICY cart_insert ON public.cart_items FOR INSERT TO public WITH CHECK (customer_id = auth.uid());
+CREATE POLICY cart_update ON public.cart_items FOR UPDATE TO public USING (customer_id = auth.uid());
+CREATE POLICY cart_delete ON public.cart_items FOR DELETE TO public USING (customer_id = auth.uid());
+
+
+-- ── cash_advances ────────────────────────────────────────────
+CREATE POLICY "Admin full access cash_advances"
+  ON public.cash_advances FOR ALL TO authenticated
+  USING (EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role = 'admin'))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role = 'admin'));
+CREATE POLICY "Cashier insert cash_advances"
+  ON public.cash_advances FOR INSERT TO authenticated
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role = ANY(ARRAY['admin','cashier'])));
+CREATE POLICY "Admin update cash_advances"
+  ON public.cash_advances FOR UPDATE TO authenticated
+  USING (EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role = ANY(ARRAY['admin','cashier'])))
+  WITH CHECK (EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid() AND users.role = ANY(ARRAY['admin','cashier'])));
+CREATE POLICY "Staff read cash_advances"
+  ON public.cash_advances FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM users WHERE users.id = auth.uid()
+    AND users.role = ANY(ARRAY['admin','cashier','designer','production'])));
+
+
+-- ── chat_messages ────────────────────────────────────────────
+-- Users can only see/send their own messages
+CREATE POLICY chat_select ON public.chat_messages FOR SELECT TO public
+  USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+CREATE POLICY chat_insert ON public.chat_messages FOR INSERT TO public
+  WITH CHECK (auth.uid() = sender_id);
+
+
+-- ── deliveries ───────────────────────────────────────────────
+CREATE POLICY "Admin full access deliveries"
+  ON public.deliveries FOR ALL TO public USING (is_admin());
+CREATE POLICY "Staff can view deliveries"
+  ON public.deliveries FOR SELECT TO public USING (is_staff());
+CREATE POLICY "Production can request restocks"
+  ON public.deliveries FOR INSERT TO public WITH CHECK (get_user_role() = ANY(ARRAY['production','admin']));
+CREATE POLICY "Cashier can confirm deliveries"
+  ON public.deliveries FOR UPDATE TO public USING (get_user_role() = ANY(ARRAY['cashier','admin']));
+
+
+-- ── employees ────────────────────────────────────────────────
+CREATE POLICY employees_staff_read   ON public.employees FOR SELECT TO public USING (is_staff());
+CREATE POLICY employees_admin_insert ON public.employees FOR INSERT TO public WITH CHECK (is_admin());
+CREATE POLICY employees_admin_update ON public.employees FOR UPDATE TO public USING (is_admin());
+CREATE POLICY employees_admin_delete ON public.employees FOR DELETE TO public USING (is_admin());
+
+
+-- ── inventory_changes ────────────────────────────────────────
+-- NOTE: Has duplicate policies for both {public} and {authenticated} roles (functionally redundant)
+CREATE POLICY inv_changes_staff_read   ON public.inventory_changes FOR SELECT TO public USING (is_staff());
+CREATE POLICY inv_changes_staff_insert ON public.inventory_changes FOR INSERT TO public
+  WITH CHECK (get_user_role() = ANY(ARRAY['admin','production']));
+-- Also: "Allow authenticated inserts" (WITH CHECK true) — overly permissive, consider removing
+
+
+-- ── inventory_items ──────────────────────────────────────────
+-- NOTE: "Allow authenticated updates on inventory_items" (USING true, WITH CHECK true) — overly permissive
+CREATE POLICY inventory_staff_read   ON public.inventory_items FOR SELECT TO public USING (is_staff());
+CREATE POLICY inventory_admin_insert ON public.inventory_items FOR INSERT TO public WITH CHECK (is_admin());
+CREATE POLICY inventory_admin_update ON public.inventory_items FOR UPDATE TO public USING (is_admin());
+CREATE POLICY inventory_admin_delete ON public.inventory_items FOR DELETE TO public USING (is_admin());
+
+
+-- ── item_suppliers ───────────────────────────────────────────
+-- NOTE: Has duplicate policies for both {public} and {authenticated} roles
+CREATE POLICY item_suppliers_staff_read   ON public.item_suppliers FOR SELECT TO public USING (is_staff());
+CREATE POLICY item_suppliers_admin_insert ON public.item_suppliers FOR INSERT TO public WITH CHECK (is_admin());
+CREATE POLICY item_suppliers_admin_update ON public.item_suppliers FOR UPDATE TO public USING (is_admin());
+CREATE POLICY item_suppliers_admin_delete ON public.item_suppliers FOR DELETE TO public USING (is_admin());
+
+
+-- ── notifications ────────────────────────────────────────────
+CREATE POLICY "Users can view their own notifications"
+  ON public.notifications FOR SELECT TO public USING (auth.uid() = user_id);
+CREATE POLICY "Users can update their own notifications"
+  ON public.notifications FOR UPDATE TO public USING (auth.uid() = user_id);
+CREATE POLICY "System can insert notifications"
+  ON public.notifications FOR INSERT TO public WITH CHECK (true);       -- open insert for trigger-based inserts
+CREATE POLICY notifications_admin_all
+  ON public.notifications FOR ALL TO public USING (is_admin());
+
+
+-- ── order_items ──────────────────────────────────────────────
+CREATE POLICY oi_select ON public.order_items FOR SELECT TO public
+  USING (EXISTS (SELECT 1 FROM orders o WHERE o.id = order_items.order_id
+    AND (o.customer_id = auth.uid() OR o.created_by = auth.uid())) OR is_staff());
+CREATE POLICY oi_insert ON public.order_items FOR INSERT TO public
+  WITH CHECK (EXISTS (SELECT 1 FROM orders o WHERE o.id = order_items.order_id) OR is_staff());
+CREATE POLICY oi_update ON public.order_items FOR UPDATE TO public USING (is_staff());
+CREATE POLICY oi_delete ON public.order_items FOR DELETE TO public
+  USING (is_admin() OR EXISTS (SELECT 1 FROM orders o
+    WHERE o.id = order_items.order_id AND o.customer_id = auth.uid() AND o.status = 'in_queue'));
+
+
+-- ── order_logs ───────────────────────────────────────────────
+CREATE POLICY order_logs_staff_read   ON public.order_logs FOR SELECT TO public USING (is_staff());
+CREATE POLICY order_logs_admin_manage ON public.order_logs FOR ALL    TO public USING (is_admin());
+
+
+-- ── orders ───────────────────────────────────────────────────
+CREATE POLICY orders_select ON public.orders FOR SELECT TO public
+  USING (customer_id = auth.uid() OR created_by = auth.uid() OR is_staff());
+CREATE POLICY orders_insert ON public.orders FOR INSERT TO public
+  WITH CHECK (customer_id = auth.uid() OR get_user_role() = ANY(ARRAY['admin','cashier']) OR customer_id IS NULL);
+CREATE POLICY orders_update_staff ON public.orders FOR UPDATE TO authenticated
+  USING (is_staff()) WITH CHECK (is_staff());
+CREATE POLICY orders_update_customer_accept_design ON public.orders FOR UPDATE TO authenticated
+  USING (customer_id = auth.uid() AND status = 'designing' AND final_design_url IS NOT NULL)
+  WITH CHECK (customer_id = auth.uid() AND status = 'payment');
+-- NOTE: "Allow authenticated to update order payment status" (USING true, WITH CHECK true) — overly permissive
+CREATE POLICY orders_delete ON public.orders FOR DELETE TO authenticated
+  USING ((SELECT role FROM users WHERE id = auth.uid()) = 'admin'
+    OR (customer_id = auth.uid() AND status = 'in_queue'));
+
+
+-- ── payments ─────────────────────────────────────────────────
+-- NOTE: "Enable insert for authenticated users" (WITH CHECK true) — bypasses cashier-only restriction
+-- NOTE: "Enable read access for authenticated users" (USING true) — all authenticated users can read all payments
+CREATE POLICY payments_select ON public.payments FOR SELECT TO public
+  USING (EXISTS (SELECT 1 FROM orders o WHERE o.id = payments.order_id AND o.customer_id = auth.uid()) OR is_staff());
+CREATE POLICY payments_insert ON public.payments FOR INSERT TO public
+  WITH CHECK (get_user_role() = ANY(ARRAY['admin','cashier']));
+CREATE POLICY payments_update ON public.payments FOR UPDATE TO authenticated
+  USING (get_user_role() = ANY(ARRAY['admin','cashier']))
+  WITH CHECK (get_user_role() = ANY(ARRAY['admin','cashier']));
+CREATE POLICY payments_delete ON public.payments FOR DELETE TO authenticated
+  USING ((SELECT role FROM users WHERE id = auth.uid()) = 'admin'
+    OR EXISTS (SELECT 1 FROM orders o WHERE o.id = payments.order_id
+      AND o.customer_id = auth.uid() AND o.status = 'in_queue'));
+
+
+-- ── payroll_periods ──────────────────────────────────────────
+CREATE POLICY "Admin full access payroll_periods"
+  ON public.payroll_periods FOR ALL    TO public USING (is_admin());
+CREATE POLICY "Staff read payroll_periods"
+  ON public.payroll_periods FOR SELECT TO public USING (is_staff());
+
+
+-- ── payroll_records ──────────────────────────────────────────
+CREATE POLICY "Admin full access payroll_records"
+  ON public.payroll_records FOR ALL    TO public USING (is_admin());
+CREATE POLICY "Staff read payroll_records"
+  ON public.payroll_records FOR SELECT TO public USING (is_staff());
+
+
+-- ── product_supply_mapping ───────────────────────────────────
+-- NOTE: Has duplicate policies for both {public} and {authenticated} roles
+CREATE POLICY psm_staff_read   ON public.product_supply_mapping FOR SELECT TO public USING (is_staff());
+CREATE POLICY psm_admin_insert ON public.product_supply_mapping FOR INSERT TO public WITH CHECK (is_admin());
+CREATE POLICY psm_admin_update ON public.product_supply_mapping FOR UPDATE TO public USING (is_admin());
+CREATE POLICY psm_admin_delete ON public.product_supply_mapping FOR DELETE TO public USING (is_admin());
+
+
+-- ── products ─────────────────────────────────────────────────
+-- NOTE: Has duplicate policies for both {public} and {authenticated} roles
+CREATE POLICY products_anyone_read_active ON public.products FOR SELECT TO public
+  USING (is_active = true OR is_staff());                               -- public can see active products
+CREATE POLICY products_admin_insert ON public.products FOR INSERT TO public WITH CHECK (is_admin());
+CREATE POLICY products_admin_update ON public.products FOR UPDATE TO public USING (is_admin());
+CREATE POLICY products_admin_delete ON public.products FOR DELETE TO public USING (is_admin());
+
+
+-- ── receipts ─────────────────────────────────────────────────
+CREATE POLICY receipts_staff_all ON public.receipts FOR ALL TO public USING (is_staff());
+CREATE POLICY receipts_customer_read ON public.receipts FOR SELECT TO public
+  USING (EXISTS (SELECT 1 FROM payments p JOIN orders o ON p.order_id = o.id
+    WHERE p.id = receipts.payment_id AND o.customer_id = auth.uid()));
+
+
+-- ── sales_reports ────────────────────────────────────────────
+CREATE POLICY sales_reports_admin_all ON public.sales_reports FOR ALL TO public USING (is_admin());
+
+
+-- ── suppliers ────────────────────────────────────────────────
+-- NOTE: Has duplicate policies for both {public} and {authenticated} roles
+CREATE POLICY suppliers_staff_read   ON public.suppliers FOR SELECT TO public USING (is_staff());
+CREATE POLICY suppliers_admin_insert ON public.suppliers FOR INSERT TO public WITH CHECK (is_admin());
+CREATE POLICY suppliers_admin_update ON public.suppliers FOR UPDATE TO public USING (is_admin());
+CREATE POLICY suppliers_admin_delete ON public.suppliers FOR DELETE TO public USING (is_admin());
+
+
+-- ── users ────────────────────────────────────────────────────
+CREATE POLICY users_read_own ON public.users FOR SELECT TO public USING (id = auth.uid());
+CREATE POLICY users_staff_read_all ON public.users FOR SELECT TO public USING (is_staff());
+CREATE POLICY users_select ON public.users FOR SELECT TO public
+  USING (id = auth.uid() OR i_am_staff() OR lower(role) = ANY(ARRAY['admin','cashier','designer','production'])
+    OR id IN (SELECT sender_id FROM chat_messages WHERE receiver_id = auth.uid())
+    OR id IN (SELECT receiver_id FROM chat_messages WHERE sender_id = auth.uid()));
+CREATE POLICY users_admin_all ON public.users FOR ALL TO public USING (is_admin());
+CREATE POLICY users_admin_insert ON public.users FOR INSERT TO public WITH CHECK (is_admin() OR id = auth.uid());
+CREATE POLICY users_update_own ON public.users FOR UPDATE TO public
+  USING (id = auth.uid()) WITH CHECK (id = auth.uid());
+CREATE POLICY users_admin_update_any ON public.users FOR UPDATE TO public USING (is_admin());
+CREATE POLICY users_delete_admin ON public.users FOR DELETE TO public USING (is_admin());
+
+
+
+
+-- ══════════════════════════════════════════════════════════════
+-- STORAGE BUCKETS
+-- ══════════════════════════════════════════════════════════════
+
+
+-- Bucket: chat-attachments | public: true | no size limit | any mime type
+-- Bucket: order-files      | public: true | no size limit | any mime type
+-- Bucket: user-profile     | public: true | no size limit | any mime type
+
+
+-- Realtime: chat_messages is subscribed to supabase_realtime publication
+
+
+-- Storage Policies (storage.objects):
+
+
+-- order-files
+--   SELECT  → public read (bucket_id = 'order-files')
+--   SELECT  → authenticated read (bucket_id = 'order-files')
+--   INSERT  → authenticated upload (bucket_id = 'order-files')
+--   INSERT  → owner-scoped upload: foldername[1] = auth.uid()
+--   UPDATE  → owner only: foldername[1] = auth.uid()
+--   DELETE  → owner only: foldername[1] = auth.uid()
+
+
+-- chat-attachments
+--   INSERT  → owner-scoped: (storage.foldername(name))[1] = auth.uid()::text
+--   SELECT  → public read
+--   UPDATE  → owner only
+--   DELETE  → owner only
+-- NOTE: A separate policy "Authenticated users can upload 14tobej_0" has WITH CHECK (true)
+--       → Any authenticated user can upload anywhere. Consider removing this policy.
+
+
+-- user-profile
+--   SELECT  → public read (via "Public can view 14tobej_0" policy — suspicious name, likely a leftover)

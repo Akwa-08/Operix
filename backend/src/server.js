@@ -557,3 +557,91 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 module.exports = app;
+
+// ── Unpaid Order Reminders ───────────────────────────────────────────────────
+
+async function checkUnpaidOrders() {
+  console.log('[Reminder Job] Checking for unpaid orders...');
+  try {
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    
+    // 1. Get unpaid orders older than 3 days that haven't been notified
+    // We select customer contact info for registered users and guest info for walk-ins
+    const { data: orders, error } = await supabase
+      .from('orders')
+      .select('*, customer:customer_id(contact_number)')
+      .eq('payment_status', 'unpaid')
+      .eq('unpaid_notification_sent', false)
+      .lt('created_at', threeDaysAgo);
+
+    if (error) throw error;
+    if (!orders || orders.length === 0) {
+      console.log('[Reminder Job] No pending notifications found.');
+      return;
+    }
+
+    console.log(`[Reminder Job] Found ${orders.length} orders to notify.`);
+
+    // 2. Get all admin users for internal notification
+    const { data: admins } = await supabase.from('users').select('id').eq('role', 'admin');
+
+    for (const order of orders) {
+      const phone = order.customer?.contact_number || order.guest_phone;
+      const orderNum = order.order_number;
+
+      // A. Send SMS to Customer
+      if (phone) {
+        await sendSMS(phone, `Reminder: Your order ${orderNum} at Operix is still unpaid. Please settle your payment to proceed with your order.`);
+      }
+
+      // B. Notify Admins via internal notification system
+      if (admins && admins.length > 0) {
+        const notifications = admins.map(admin => ({
+          user_id: admin.id,
+          title: 'Unpaid Order Warning',
+          message: `Order ${orderNum} (${order.guest_name || 'Registered User'}) has been unpaid for over 3 days.`,
+          related_module: 'orders',
+          related_id: order.id
+        }));
+        await supabase.from('notifications').insert(notifications);
+      }
+
+      // C. Mark as notified so we don't spam them
+      await supabase.from('orders').update({ unpaid_notification_sent: true }).eq('id', order.id);
+      
+      console.log(`[Reminder Job] Processed notifications for Order: ${orderNum}`);
+    }
+  } catch (err) {
+    console.error('[Reminder Job] Error:', err.message);
+  }
+}
+
+/**
+ * Placeholder for SMS Integration
+ * Replace this logic with your actual SMS provider (e.g. Twilio, Semaphore, etc.)
+ */
+async function sendSMS(phone, message) {
+  console.log(`[SMS SIMULATOR] To: ${phone} | Content: ${message}`);
+  
+  // Example for Semaphore (popular in PH):
+  /*
+  try {
+    await fetch('https://api.semaphore.co/api/v4/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        apikey: process.env.SEMAPHORE_API_KEY,
+        number: phone,
+        message: message,
+        sendername: 'OPERIX'
+      })
+    });
+  } catch (e) {
+    console.error('SMS Failed:', e.message);
+  }
+  */
+}
+
+// Run check on server startup and then every 4 hours
+setTimeout(checkUnpaidOrders, 5000); // Wait 5s for DB to be ready
+setInterval(checkUnpaidOrders, 4 * 60 * 60 * 1000);

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Plus, DollarSign, Package, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
@@ -8,17 +9,22 @@ import { PageHeader } from "../Shared/UI/PageHeader";
 import { InfoBanner } from "../Shared/UI/InfoBanner";
 import { ViewToggle } from "../Shared/UI/ViewToggle";
 import {
-  getOrderStatusColor,
   getPaymentStatusColor,
 } from "../../util/formatters";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
+import { OrderStatusBadge } from "../Shared/Orders/OrderStatusBadge";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import type { Order } from "../../Types";
 import { useOrdersData } from "../../hooks/useSupabase";
 import { useToast } from "../../context/ToastContext";
+import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 const CashierOrders = () => {
+  const [searchParams] = useSearchParams();
+  const highlightedId = searchParams.get("highlight");
+  const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -39,6 +45,12 @@ const CashierOrders = () => {
   } = useOrdersData();
 
   const toast = useToast();
+
+  useEffect(() => {
+    if (highlightedId && highlightedRef.current) {
+      highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedId, loading]);
 
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
@@ -70,8 +82,10 @@ const CashierOrders = () => {
 
   const filteredOrders = orders.filter((o) => {
     // Filter by status if not "All"
-    if (statusFilter === "Unpaid") {
+    if (statusFilter === "Incomplete") {
       if (o.status !== "Completed" || o.paymentStatus === "Paid") return false;
+    } else if (statusFilter === "Completed") {
+      if (o.status !== "Completed" || o.paymentStatus !== "Paid") return false;
     } else if (statusFilter !== "All" && o.status !== statusFilter) {
       return false;
     }
@@ -83,10 +97,6 @@ const CashierOrders = () => {
       o.orderId?.toLowerCase().includes(q) ||
       o.productType?.toLowerCase().includes(q)
     );
-  }).sort((a, b) => {
-    if (a.isSuki && !b.isSuki) return -1;
-    if (!a.isSuki && b.isSuki) return 1;
-    return 0;
   });
 
   const selectedOrder = selectedOrderId
@@ -120,11 +130,11 @@ const CashierOrders = () => {
           iconColor="text-blue-600"
         />
         <StatusCard
-          title="Unpaid (Done)"
+          title="Incomplete"
           value={stats.completedUnpaid}
           icon={<AlertCircle size={18} />}
-          iconColor="text-red-600"
-          onClick={() => setStatusFilter("Unpaid")}
+          iconColor="text-yellow-600"
+          onClick={() => setStatusFilter("Incomplete")}
         />
         <StatusCard
           title="Completed"
@@ -155,7 +165,7 @@ const CashierOrders = () => {
               <option value="Production">Production</option>
               <option value="Pickup">Pickup</option>
               <option value="Completed">Completed</option>
-              <option value="Unpaid">Unpaid (Completed)</option>
+              <option value="Incomplete">Incomplete</option>
             </select>
             <ViewToggle mode={viewMode} onChange={setViewMode} />
             <Button
@@ -183,19 +193,23 @@ const CashierOrders = () => {
               </p>
             ) : (
               filteredOrders.map((o: any) => (
-                <div key={o.id} className="p-4 space-y-2">
+                <div 
+                  key={o.id} 
+                  ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                  className={`p-4 space-y-2 transition-all ${highlightedId === o.id ? "highlight-pulse ring-2 ring-cyan-500" : ""}`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-bold text-gray-900">{o.orderId}</p>
-                      <p className="text-sm text-gray-500">
-                        {o.customerName} · {o.productType}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-gray-500">
+                          {o.customerName} · {o.productType}
+                        </p>
+                        {o.isSuki && <SukiBadge />}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>
-                        {o.status}
-                      </span>
+                      <OrderStatusBadge status={o.status} paymentStatus={o.paymentStatus} size="sm" />
                       <span
                         className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getPaymentStatusColor(o.paymentStatus)}`}>
                         {o.paymentStatus}
@@ -255,11 +269,20 @@ const CashierOrders = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredOrders.map((o: any) => (
-                    <tr key={o.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={o.id} 
+                      ref={highlightedId === o.id ? (el) => { (highlightedRef as any).current = el; } : null}
+                      className={`hover:bg-gray-50 transition-all ${highlightedId === o.id ? "highlight-pulse bg-cyan-50/50" : ""}`}
+                    >
                       <td className="px-4 py-3 font-mono text-xs">
                         {o.orderId}
                       </td>
-                      <td className="px-4 py-3">{o.customerName}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {o.customerName}
+                          {o.isSuki && <SukiBadge />}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-600">
                         {o.productType}
                       </td>
@@ -267,10 +290,7 @@ const CashierOrders = () => {
                         ₱{o.totalAmount?.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-semibold ${getOrderStatusColor(o.status)}`}>
-                          {o.status}
-                        </span>
+                         <OrderStatusBadge status={o.status} paymentStatus={o.paymentStatus} size="sm" />
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span
@@ -308,7 +328,7 @@ const CashierOrders = () => {
           </div>
         </div>
       ) : (
-        <OrderCardsGrid orders={filteredOrders} onView={handleViewOrder} />
+        <OrderCardsGrid orders={filteredOrders} onView={handleViewOrder} highlightedId={highlightedId} />
       )}
 
       <CreateOrderModal
@@ -348,3 +368,4 @@ const CashierOrders = () => {
 };
 
 export default CashierOrders;
+
