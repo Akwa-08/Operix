@@ -170,6 +170,14 @@ export const db = {
   },
 
   // ── Users list (staff can read all via RLS) ────────────────────────────
+  async updateLastSeen() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from("users").update({ last_seen: new Date().toISOString() }).eq("id", user.id);
+    } catch (e) { console.error("Failed to update last seen", e); }
+  },
+  
   async getUsers(filters?: { role?: string; status?: string }) {
     let query = supabase
       .from("users")
@@ -375,7 +383,7 @@ export const db = {
     description?: string;
     purchase_unit?: string;
     conversion_rate?: number;
-  }) {
+  }, supplierIds?: string[]) {
     const { data, error } = await supabase
       .from("inventory_items")
       .insert([{ ...item, is_active: true }])
@@ -383,6 +391,11 @@ export const db = {
       .single();
     if (error) throw error;
     await this.logAudit("Create Inventory Item", "inventory_items", data.id, { name: data.name });
+
+    if (supplierIds && supplierIds.length > 0) {
+      await this.updateMaterialSuppliers(data.id, supplierIds);
+    }
+
     return data;
   },
 
@@ -407,6 +420,21 @@ export const db = {
     }
 
     return data;
+  },
+
+  async updateMaterialSuppliers(materialId: string, supplierIds: string[]) {
+    // Delete existing
+    await supabase.from("product_supply_mapping").delete().eq("inventory_item_id", materialId);
+    
+    // Insert new
+    if (supplierIds.length > 0) {
+      const inserts = supplierIds.map(sid => ({
+        inventory_item_id: materialId,
+        supplier_id: sid
+      }));
+      const { error } = await supabase.from("product_supply_mapping").insert(inserts);
+      if (error) throw error;
+    }
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
