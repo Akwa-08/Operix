@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown, MoreVertical, Star, Flag, Info } from "lucide-react";
+import { Plus, Package, CheckCircle, AlertTriangle, X, Truck, Clock, ChevronDown, MoreVertical, Star, Flag, Info, FileBarChart } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
 import { StatusCard } from "../Shared/UI/StatusCard";
 import { Button } from "../Shared/UI/Button";
@@ -20,6 +20,8 @@ import type { Material, AdminProduct, Delivery } from "../../Types";
 import { useInventoryData, useProductsData, useDeliveries } from "../../hooks/useSupabase";
 import { useToast } from "../../context/ToastContext";
 import { db } from "../../lib/database";
+import { PageSummaryCard } from "../Shared/UI/PageSummaryCard";
+import { downloadCSV } from "../../util/reportExport";
 
 // ── Reusable Modal Shell ─────────────────────────────────────────────────────
 const Modal = ({ show, onClose, title, children, width = "max-w-2xl" }: { show: boolean; onClose: () => void; title: string; children: React.ReactNode; width?: string }) => {
@@ -349,6 +351,62 @@ const AdminInventory = () => {
   return (
     <div className="max-w-7xl mx-auto">
       <PageHeader title="Inventory" subtitle="Manage materials, products, and incoming deliveries" />
+
+      {/* ── INVENTORY SUMMARY ───────────────────────────────────────────── */}
+      <div className="mb-6">
+        <PageSummaryCard
+          title="Inventory Overview"
+          icon={<FileBarChart size={16} />}
+          onDownloadCSV={() => {
+            if (activeTab === "Materials") {
+              downloadCSV("inventory_materials", [
+                { header: "Name", accessor: (m: any) => m.name },
+                { header: "Stock", accessor: (m: any) => m.currentQuantity },
+                { header: "Unit", accessor: (m: any) => m.unitOfMeasure },
+                { header: "Reorder Point", accessor: (m: any) => m.reorderPoint },
+                { header: "Unit Cost", accessor: (m: any) => m.unitCost },
+                { header: "Status", accessor: (m: any) => m.status },
+              ], materials);
+            } else if (activeTab === "Products") {
+              downloadCSV("inventory_products", [
+                { header: "Name", accessor: (p: any) => p.name },
+                { header: "Category", accessor: (p: any) => p.category },
+                { header: "Final Price", accessor: (p: any) => p.finalPrice },
+                { header: "Active", accessor: (p: any) => p.isActive ? "Yes" : "No" },
+              ], products);
+            } else {
+              downloadCSV("inventory_deliveries", [
+                { header: "Material", accessor: (d: any) => d.materialName },
+                { header: "Supplier", accessor: (d: any) => d.supplierName },
+                { header: "Qty", accessor: (d: any) => d.quantity },
+                { header: "Status", accessor: (d: any) => d.status },
+                { header: "Expected", accessor: (d: any) => d.expectedDate },
+              ], deliveries);
+            }
+          }}
+        >
+          {activeTab === "Materials" && (
+            <>
+              <strong>{materialStats.total}</strong> materials tracked.
+              {" "}<strong className="text-green-700">{materialStats.available}</strong> are sufficiently stocked{materialStats.lowStock > 0 && (<>, <strong className="text-amber-700">{materialStats.lowStock}</strong> need restocking</>)}{materialStats.restocking > 0 && (<>, <strong className="text-blue-700">{materialStats.restocking}</strong> are at zero</>)}{materialStats.phasedOut > 0 && (<>, <strong className="text-red-600">{materialStats.phasedOut}</strong> are discontinued</>)}.
+            </>
+          )}
+          {activeTab === "Products" && (
+            <>
+              <strong>{products.length}</strong> products registered.
+              {" "}<strong className="text-green-700">{products.filter((p: any) => p.isActive).length}</strong> are active,{" "}
+              <strong className="text-gray-500">{products.filter((p: any) => !p.isActive).length}</strong> are deactivated.
+            </>
+          )}
+          {activeTab === "Deliveries" && (
+            <>
+              <strong>{deliveries.length}</strong> deliveries tracked.
+              {" "}<strong className="text-blue-700">{deliveries.filter((d: any) => ["requested", "ordered", "en_route"].includes(d.status)).length}</strong> in progress,{" "}
+              <strong className="text-green-700">{deliveries.filter((d: any) => d.status === "received").length}</strong> received.
+            </>
+          )}
+        </PageSummaryCard>
+      </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         {tabs.map(tab => (

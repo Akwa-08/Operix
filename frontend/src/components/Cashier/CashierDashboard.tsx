@@ -4,10 +4,13 @@ import {
   TrendingUp, DollarSign,
   Package, AlertTriangle, CheckCircle, Clock,
   Banknote, Search, X, ChevronDown, Loader,
+  FileBarChart,
 } from "lucide-react";
 import { useDashboard, useCashierCashAdvances, useEmployees } from "../../hooks/useSupabase";
 import type { CashAdvanceEligibility } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageSummaryCard } from "../Shared/UI/PageSummaryCard";
+import { downloadCSV, printReport, buildKpiHtml, fmtMoneyFull } from "../../util/reportExport";
 
 const CA_LIMIT = 2000;
 const fmt = (n: number) => `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
@@ -326,6 +329,54 @@ const CashierDashboard = () => {
         <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Cashier Dashboard</h1>
         <p className="text-sm text-gray-400 mt-0.5">{dateStr}</p>
       </div>
+
+      {/* Business Summary */}
+      <PageSummaryCard
+        title="Today's Overview"
+        icon={<FileBarChart size={16} />}
+        onDownloadCSV={() => {
+          const activeWork = (orderStats?.inQueue ?? 0)+(orderStats?.designing ?? 0)+(orderStats?.payment ?? 0)+(orderStats?.production ?? 0);
+          downloadCSV("cashier_report", [
+            { header: "Metric", accessor: (r: any) => r.label },
+            { header: "Value", accessor: (r: any) => r.value },
+          ], [
+            { label: "Total Orders", value: orderStats?.total ?? 0 },
+            { label: "Active Work", value: activeWork },
+            { label: "Ready Pickup", value: orderStats?.pickup ?? 0 },
+            { label: "Completed", value: orderStats?.completed ?? 0 },
+            { label: "Low Stock Items", value: invStats?.lowStock ?? 0 },
+            { label: "Total Revenue", value: fmtMoneyFull(orderStats?.totalRevenue) },
+            { label: "Total Collected", value: fmtMoneyFull(orderStats?.totalCollected) },
+            { label: "Pending Cash Advances", value: pendingCount },
+          ]);
+        }}
+        onPrint={() => {
+          printReport("Cashier Daily Report", dateStr, [
+            {
+              title: "Daily Summary",
+              content: `<div class="summary-text">Today you're managing <strong>${orderStats?.total ?? 0}</strong> orders. <strong>${(orderStats?.inQueue ?? 0)+(orderStats?.designing ?? 0)+(orderStats?.payment ?? 0)+(orderStats?.production ?? 0)}</strong> are in progress, <strong>${orderStats?.pickup ?? 0}</strong> are ready for client pickup. Total revenue across all orders is <strong>${fmtMoneyFull(orderStats?.totalRevenue)}</strong>, of which <strong>${fmtMoneyFull(orderStats?.totalCollected)}</strong> has been collected.${invStats?.lowStock > 0 ? ` <span style="color:#d97706"><strong>${invStats.lowStock}</strong> materials need restocking.</span>` : ''}</div>`,
+            },
+            {
+              title: "Metrics",
+              content: buildKpiHtml([
+                { label: "Total Orders", value: String(orderStats?.total ?? 0) },
+                { label: "Active Work", value: String((orderStats?.inQueue ?? 0)+(orderStats?.designing ?? 0)+(orderStats?.payment ?? 0)+(orderStats?.production ?? 0)) },
+                { label: "Ready Pickup", value: String(orderStats?.pickup ?? 0) },
+                { label: "Revenue", value: fmtMoneyFull(orderStats?.totalRevenue) },
+                { label: "Collected", value: fmtMoneyFull(orderStats?.totalCollected) },
+                { label: "Low Stock", value: String(invStats?.lowStock ?? 0) },
+              ]),
+            },
+          ]);
+        }}
+      >
+        Today you're managing <strong>{orderStats?.total ?? 0}</strong> orders.{" "}
+        <strong>{(orderStats?.inQueue ?? 0)+(orderStats?.designing ?? 0)+(orderStats?.payment ?? 0)+(orderStats?.production ?? 0)}</strong> are in progress,{" "}
+        <strong className="text-cyan-700">{orderStats?.pickup ?? 0}</strong> are ready for client pickup.
+        {" "}Total revenue: <strong className="text-green-700">{fmtMoney(orderStats?.totalRevenue)}</strong>,
+        {" "}collected: <strong className="text-green-700">{fmtMoney(orderStats?.totalCollected)}</strong>.
+        {invStats?.lowStock > 0 && (<>{" "}<span className="text-amber-600 font-semibold">{invStats.lowStock} material(s) need restocking.</span></>)}
+      </PageSummaryCard>
 
       {/* 7 KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">

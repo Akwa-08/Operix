@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Trash2, X, Check } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
@@ -6,15 +6,18 @@ import { Button } from "../Shared/UI/Button";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
 import { useToast } from "../../context/ToastContext";
 import { ViewToggle } from "../Shared/UI/ViewToggle";
-import { Package, Clock, CheckCircle, AlertCircle, DollarSign } from "lucide-react";
+import { Package, Clock, CheckCircle, AlertCircle, DollarSign, FileBarChart } from "lucide-react";
 import { OrdersTable } from "../Shared/Orders/OrdersTable";
 import { OrderCardsGrid } from "../Shared/Orders/OrderCardsGrid";
 import { OrderDetailsModal } from "../Shared/Orders/OrderDetailsModal";
 import { CreateOrderModal } from "../Shared/Orders/CreateOrderModal";
 import { KpiCard } from "../Shared/UI/KpiCard";
+import { PageSummaryCard } from "../Shared/UI/PageSummaryCard";
 import { FilterDropdown } from "../Shared/UI/FilterDropdown";
 import type { Order } from "../../Types";
 import { useOrdersData } from "../../hooks/useSupabase";
+import { fmtMoney } from "../../util/formatters";
+import { downloadCSV, printReport, buildKpiHtml, buildHtmlTable, fmtMoneyFull } from "../../util/reportExport";
 
 // ── Local modal shell ────────────────────────────────────────────────────────
 const Modal = ({ show, onClose, title, children }: any) => {
@@ -169,6 +172,56 @@ const AdminOrders = () => {
     setShowAssignModal(true);
   };
 
+  // ── Report Export ──────────────────────────────────────────────────────────
+  const totalRevenue = orders.reduce((s, o) => s + o.totalAmount, 0);
+  const totalCollected = orders.reduce((s, o) => s + o.amountPaid, 0);
+
+  const handleOrdersCSV = useCallback(() => {
+    downloadCSV("orders_report", [
+      { header: "Order #", accessor: (o: Order) => o.orderId },
+      { header: "Customer", accessor: (o: Order) => o.customerName },
+      { header: "Product", accessor: (o: Order) => o.productType },
+      { header: "Qty", accessor: (o: Order) => o.quantity },
+      { header: "Amount (₱)", accessor: (o: Order) => o.totalAmount },
+      { header: "Paid (₱)", accessor: (o: Order) => o.amountPaid },
+      { header: "Status", accessor: (o: Order) => o.status },
+      { header: "Payment", accessor: (o: Order) => o.paymentStatus },
+      { header: "Date Ordered", accessor: (o: Order) => o.dateOrdered },
+      { header: "Due Date", accessor: (o: Order) => o.dueDate },
+    ], filteredOrders);
+  }, [filteredOrders]);
+
+  const handleOrdersPrint = useCallback(() => {
+    printReport("Orders Report", `${filteredOrders.length} orders • ${statusFilter} • ${periodFilter}`, [
+      {
+        title: "Orders Summary",
+        content: `<div class="summary-text">You have <strong>${orders.length}</strong> total orders. <strong>${activeCount}</strong> are in progress, <strong>${stats.readyPickup}</strong> are ready for pickup, <strong>${stats.completedUnpaid}</strong> are completed but unpaid, and <strong>${stats.overdue}</strong> are overdue. Total revenue: <strong>${fmtMoneyFull(totalRevenue)}</strong>, collected: <strong>${fmtMoneyFull(totalCollected)}</strong>.</div>`,
+      },
+      {
+        title: "Key Metrics",
+        content: buildKpiHtml([
+          { label: "Total Orders", value: String(stats.total) },
+          { label: "Active", value: String(activeCount) },
+          { label: "Ready Pickup", value: String(stats.readyPickup) },
+          { label: "Incomplete", value: String(stats.completedUnpaid) },
+          { label: "Overdue", value: String(stats.overdue) },
+          { label: "Revenue", value: fmtMoneyFull(totalRevenue) },
+        ]),
+      },
+      {
+        title: `Order List (${filteredOrders.length})`,
+        content: buildHtmlTable([
+          { header: "Order #", accessor: (o: Order) => o.orderId },
+          { header: "Customer", accessor: (o: Order) => o.customerName },
+          { header: "Product", accessor: (o: Order) => o.productType },
+          { header: "Amount", accessor: (o: Order) => fmtMoneyFull(o.totalAmount), align: "right" as const },
+          { header: "Status", accessor: (o: Order) => o.status },
+          { header: "Payment", accessor: (o: Order) => o.paymentStatus },
+        ], filteredOrders.slice(0, 50)),
+      },
+    ]);
+  }, [orders, filteredOrders, stats, activeCount, statusFilter, periodFilter, totalRevenue, totalCollected]);
+
   if (loading) return <LoadingSpinner type="table" />;
 
   return (
@@ -184,6 +237,19 @@ const AdminOrders = () => {
           New Order
         </Button>
       </div>
+
+      {/* Summary */}
+      <PageSummaryCard
+        title="Orders Overview"
+        icon={<FileBarChart size={16} />}
+        onDownloadCSV={handleOrdersCSV}
+        onPrint={handleOrdersPrint}
+      >
+        You have <strong>{orders.length}</strong> total orders.
+        {" "}<strong>{activeCount}</strong> are currently in progress,
+        {" "}<strong className="text-green-700">{stats.readyPickup}</strong> are ready for pickup{stats.completedUnpaid > 0 && (<>, <strong className="text-amber-700">{stats.completedUnpaid}</strong> are completed but unpaid</>)}{stats.overdue > 0 && (<>, and <strong className="text-red-600">{stats.overdue}</strong> are overdue</>)}.
+        {" "}Total revenue: <strong className="text-cyan-700">{fmtMoney(totalRevenue)}</strong>, collected: <strong className="text-green-700">{fmtMoney(totalCollected)}</strong>.
+      </PageSummaryCard>
 
       {/* KPI Cards — 5 focused metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">

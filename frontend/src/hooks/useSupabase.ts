@@ -989,6 +989,67 @@ export function usePayrollData() {
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUDIT LOGS
 // ═══════════════════════════════════════════════════════════════════════════════
+// ── Human-readable formatting helpers for logs ──────────────────────────────
+
+/** Format a timestamp into a business-friendly date string */
+function fmtLogDate(ts: string | null | undefined): string {
+  if (!ts) return '—';
+  try {
+    return new Date(ts).toLocaleString('en-PH', {
+      timeZone: 'Asia/Manila',
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    });
+  } catch { return '—'; }
+}
+
+/** Format a user + role into "John Doe (Admin)" style */
+function fmtLogUser(user: any, fallback = 'System'): string {
+  if (!user) return fallback;
+  const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+  if (!name) return fallback;
+  const role = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : '';
+  return role ? `${name} (${role})` : name;
+}
+
+/** Convert snake_case field names to Title Case labels */
+function humanizeField(field: string): string {
+  const map: Record<string, string> = {
+    first_name: 'First Name', last_name: 'Last Name', contact_number: 'Phone',
+    is_active: 'Active Status', is_suki: 'Suki Status', full_name: 'Full Name',
+    base_hourly_rate: 'Hourly Rate', hire_date: 'Hire Date',
+    unit_of_measure: 'Unit', current_quantity: 'Stock Quantity',
+    reorder_point: 'Reorder Point', unit_cost: 'Unit Cost',
+    purchase_unit: 'Purchase Unit', conversion_rate: 'Conversion Rate',
+    material_cost: 'Material Cost', profit_fee: 'Profit Fee',
+    final_price: 'Final Price', size_spec: 'Size/Spec',
+    total_amount: 'Total Amount', amount_paid: 'Amount Paid',
+    payment_status: 'Payment Status', order_type: 'Order Type',
+    special_instructions: 'Instructions', due_date: 'Due Date',
+    assigned_designer: 'Designer', assigned_production: 'Production Staff',
+    is_flagged: 'Flagged', flag_category: 'Flag Category', flag_notes: 'Flag Notes',
+    philhealth_contribution: 'PhilHealth', hdmf_contribution: 'HDMF/Pag-IBIG',
+    holiday_rate_multiplier: 'Holiday Rate', overtime_rate_multiplier: 'OT Rate',
+  };
+  return map[field] || field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** Map raw order status to readable label */
+function humanizeStatus(status: string): string {
+  const map: Record<string, string> = {
+    in_queue: 'In Queue', designing: 'Designing', payment: 'Awaiting Payment',
+    production: 'In Production', pickup: 'Ready for Pickup', completed: 'Completed',
+    cancelled: 'Cancelled', cancel_requested: 'Cancellation Requested',
+  };
+  return map[status] || status.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+/** Format a peso amount for log display */
+function fmtLogPeso(v: number | undefined | null): string {
+  const val = Number(v) || 0;
+  return `₱${val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function useLogsData() {
   const q = useQuery(async () => {
     const [ordersRes, invRes, auditRes] = await Promise.all([
@@ -1002,33 +1063,172 @@ export function useLogsData() {
   const logs = useMemo(() => {
     if (!q.data) return [];
     const combined: any[] = [];
+
+    // ── Order Logs ────────────────────────────────────────────────────────
     q.data.orders.forEach((raw: any) => {
-      combined.push({ id: raw.id, module: 'orders', action: raw.status ? `Status → ${raw.status}` : 'Order Updated', details: raw.note || `Order ID: ${raw.order_id || 'Unknown'}`, user: raw.updated_by_user ? `${raw.updated_by_user.first_name || ''} ${raw.updated_by_user.last_name || ''}`.trim() : 'Customer / System', role: raw.updated_by_user?.role || 'customer', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
+      const statusLabel = raw.status ? humanizeStatus(raw.status) : '';
+      const action = statusLabel ? `Order moved to "${statusLabel}"` : 'Order Updated';
+      const note = raw.note ? ` — ${raw.note}` : '';
+      const details = `Order #${raw.order_id?.slice(0, 8) || 'Unknown'}${note}`;
+
+      combined.push({
+        id: raw.id,
+        module: 'orders',
+        action,
+        details,
+        user: fmtLogUser(raw.updated_by_user, 'Customer / System'),
+        role: raw.updated_by_user?.role || 'customer',
+        createdAt: fmtLogDate(raw.created_at),
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0,
+      });
     });
+
+    // ── Inventory Changes ─────────────────────────────────────────────────
     q.data.inventory.forEach((raw: any) => {
-      combined.push({ id: raw.id, module: 'inventory', action: raw.change_type || 'Inventory Changed', details: `${raw.item?.name || 'Item'} changed by ${raw.quantity_change}. Reason: ${raw.reason || 'N/A'}`, user: raw.changed_by_user ? `${raw.changed_by_user.first_name || ''} ${raw.changed_by_user.last_name || ''}`.trim() : 'System', role: raw.changed_by_user?.role || 'system', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
+      const itemName = raw.item?.name || 'Unknown item';
+      const qtyChange = Number(raw.quantity_change) || 0;
+      const direction = qtyChange >= 0 ? 'increased' : 'reduced';
+      const absQty = Math.abs(qtyChange);
+      const reason = raw.reason
+        ? raw.reason.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+        : 'Manual adjustment';
+      const changeType = raw.change_type
+        ? raw.change_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+        : 'Stock Changed';
+
+      combined.push({
+        id: raw.id,
+        module: 'inventory',
+        action: changeType,
+        details: `${itemName}: stock ${direction} by ${absQty}. Reason: ${reason}`,
+        user: fmtLogUser(raw.changed_by_user),
+        role: raw.changed_by_user?.role || 'system',
+        createdAt: fmtLogDate(raw.created_at),
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0,
+      });
     });
+
+    // ── Audit Logs ────────────────────────────────────────────────────────
     q.data.audit.forEach((raw: any) => {
       let details = '';
       const m = raw.metadata || {};
+
       switch (raw.action) {
-        case 'Update Inventory': details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`; break;
-        case 'Create Order': details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`; break;
-        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_', ' ')} (Ref: ${m.ref || 'N/A'}).`; break;
-        case 'Approve Payment': details = `Payment approved for order.`; break;
-        case 'Decline Payment': details = `Payment declined. Reason: ${m.reason}`; break;
-        case 'Request Cash Advance': details = `Requested ₱${m.amount?.toLocaleString()} for ${m.employee_name}.`; break;
-        case 'Create Employee': details = `New employee: ${m.name} (${m.position})`; break;
-        case 'Update Employee': details = `Updated employee info. Fields: ${Object.keys(m.updates || {}).join(', ')}`; break;
-        case 'Create Supplier': details = `New supplier: ${m.name}`; break;
-        case 'Update Supplier': details = `Updated supplier info. Fields: ${Object.keys(m.updates || {}).join(', ')}`; break;
-        case 'Create Inventory Item': details = `New inventory item: ${m.name}`; break;
-        case 'Create Product': details = `New product: ${m.name} (${m.category})`; break;
-        case 'Update Product': details = `Updated product info. Fields: ${Object.keys(m.updates || {}).join(', ')}`; break;
-        default: details = typeof raw.metadata === 'object' ? JSON.stringify(raw.metadata) : String(raw.metadata || '');
+        case 'Update Inventory': {
+          const name = m.after?.name || m.before?.name || 'Item';
+          const fields = (m.changed_fields || []).map(humanizeField);
+          details = `Updated "${name}": ${fields.length > 0 ? fields.join(', ') : 'details'} changed.`;
+          break;
+        }
+        case 'Create Order': {
+          details = `New order #${m.order_number || '—'} created for ${fmtLogPeso(m.total_amount)}.`;
+          break;
+        }
+        case 'Record Payment': {
+          const method = (m.method || 'unknown').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+          details = `Payment of ${fmtLogPeso(m.amount)} recorded via ${method}${m.ref ? ` (Ref: ${m.ref})` : ''}.`;
+          break;
+        }
+        case 'Approve Payment':
+          details = `Payment approved${m.order_number ? ` for order #${m.order_number}` : ''}.`;
+          break;
+        case 'Decline Payment':
+          details = `Payment declined. Reason: ${m.reason || 'Not specified'}.`;
+          break;
+        case 'Request Cash Advance':
+          details = `Cash advance of ${fmtLogPeso(m.amount)} requested for ${m.employee_name || 'employee'}.`;
+          break;
+        case 'Approve Cash Advance':
+          details = `Cash advance of ${fmtLogPeso(m.amount)} approved for ${m.employee_name || 'employee'}.`;
+          break;
+        case 'Decline Cash Advance':
+          details = `Cash advance declined for ${m.employee_name || 'employee'}. Reason: ${m.reason || 'Not specified'}.`;
+          break;
+        case 'Create Employee':
+          details = `New employee added: ${m.name || '—'} as ${m.position || '—'}.`;
+          break;
+        case 'Update Employee': {
+          const updatedFields = Object.keys(m.updates || {}).map(humanizeField);
+          details = `Employee info updated: ${updatedFields.length > 0 ? updatedFields.join(', ') : 'details changed'}.`;
+          break;
+        }
+        case 'Create Supplier':
+          details = `New supplier registered: ${m.name || '—'}.`;
+          break;
+        case 'Update Supplier': {
+          const supplierFields = Object.keys(m.updates || {}).map(humanizeField);
+          details = `Supplier info updated: ${supplierFields.length > 0 ? supplierFields.join(', ') : 'details changed'}.`;
+          break;
+        }
+        case 'Create Inventory Item':
+          details = `New material added to inventory: ${m.name || '—'}.`;
+          break;
+        case 'Create Product':
+          details = `New product created: ${m.name || '—'}${m.category ? ` (${m.category})` : ''}.`;
+          break;
+        case 'Update Product': {
+          const productFields = Object.keys(m.updates || {}).map(humanizeField);
+          details = `Product updated: ${productFields.length > 0 ? productFields.join(', ') : 'details changed'}.`;
+          break;
+        }
+        case 'Delete Product':
+          details = `Product "${m.name || '—'}" was deactivated.`;
+          break;
+        case 'Assign Designer':
+          details = `Designer assigned to order #${m.order_number || '—'}.`;
+          break;
+        case 'Assign Production':
+          details = `Production staff assigned to order #${m.order_number || '—'}.`;
+          break;
+        case 'Create Delivery':
+          details = `Restock requested: ${m.material || '—'} (${m.quantity || 0} units) from ${m.supplier || '—'}.`;
+          break;
+        case 'Confirm Delivery':
+          details = `Delivery received: ${m.material || '—'} (${m.received_quantity || 0} units). Ref: ${m.receipt_ref || 'N/A'}.`;
+          break;
+        default: {
+          // Fallback: try to produce something readable from metadata
+          if (typeof raw.metadata === 'object' && raw.metadata !== null) {
+            const keys = Object.keys(raw.metadata).filter(k => !['id', 'actor_id'].includes(k));
+            if (keys.length <= 4) {
+              details = keys.map(k => `${humanizeField(k)}: ${String(raw.metadata[k])}`).join(', ');
+            } else {
+              details = `${keys.length} fields updated.`;
+            }
+          } else {
+            details = String(raw.metadata || 'No additional details.');
+          }
+        }
       }
-      combined.push({ id: raw.id, module: raw.target_table || 'system', action: raw.action || 'System Action', details, user: raw.actor_user ? `${raw.actor_user.first_name || ''} ${raw.actor_user.last_name || ''}`.trim() : 'System', role: raw.actor_role || raw.actor_user?.role || 'system', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleString() : '', timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0 });
+
+      // Humanize the action label itself
+      const actionLabel = raw.action
+        ? raw.action.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+        : 'System Action';
+
+      // Humanize the module/target table
+      const moduleMap: Record<string, string> = {
+        orders: 'Orders', order_items: 'Orders', payments: 'Payments',
+        inventory_items: 'Inventory', products: 'Products',
+        product_supply_mapping: 'Products', deliveries: 'Deliveries',
+        employees: 'Employees', users: 'Users', suppliers: 'Suppliers',
+        cash_advances: 'Cash Advances', payroll_periods: 'Payroll',
+        payroll_records: 'Payroll', attendance_logs: 'Attendance',
+      };
+      const module = moduleMap[raw.target_table] || raw.target_table || 'system';
+
+      combined.push({
+        id: raw.id,
+        module,
+        action: actionLabel,
+        details,
+        user: fmtLogUser(raw.actor_user),
+        role: raw.actor_role || raw.actor_user?.role || 'system',
+        createdAt: fmtLogDate(raw.created_at),
+        timestamp: raw.created_at ? new Date(raw.created_at).getTime() : 0,
+      });
     });
+
     return combined.sort((a, b) => b.timestamp - a.timestamp);
   }, [q.data]);
 

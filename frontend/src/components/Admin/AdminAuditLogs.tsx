@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useLogsData } from "../../hooks/useSupabase";
 import { LoadingSpinner } from "../Shared/UI/LoadingSpinner";
+import { PageSummaryCard } from "../Shared/UI/PageSummaryCard";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type LogEntry = {
@@ -31,18 +32,29 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const MODULE_COLORS: Record<string, string> = {
   orders:          "bg-purple-50 text-purple-700 border-purple-100",
+  Orders:          "bg-purple-50 text-purple-700 border-purple-100",
   inventory:       "bg-teal-50 text-teal-700 border-teal-100",
+  Inventory:       "bg-teal-50 text-teal-700 border-teal-100",
   inventory_items: "bg-teal-50 text-teal-700 border-teal-100",
   employees:       "bg-blue-50 text-blue-700 border-blue-100",
+  Employees:       "bg-blue-50 text-blue-700 border-blue-100",
   suppliers:       "bg-orange-50 text-orange-700 border-orange-100",
+  Suppliers:       "bg-orange-50 text-orange-700 border-orange-100",
   products:        "bg-pink-50 text-pink-700 border-pink-100",
+  Products:        "bg-pink-50 text-pink-700 border-pink-100",
   deliveries:      "bg-yellow-50 text-yellow-700 border-yellow-100",
+  Deliveries:      "bg-yellow-50 text-yellow-700 border-yellow-100",
   payments:        "bg-green-50 text-green-700 border-green-100",
+  Payments:        "bg-green-50 text-green-700 border-green-100",
+  Users:           "bg-indigo-50 text-indigo-700 border-indigo-100",
+  "Cash Advances": "bg-amber-50 text-amber-700 border-amber-100",
+  Payroll:         "bg-emerald-50 text-emerald-700 border-emerald-100",
+  Attendance:      "bg-sky-50 text-sky-700 border-sky-100",
   system:          "bg-gray-50 text-gray-600 border-gray-200",
 };
 
 function moduleColor(module: string) {
-  return MODULE_COLORS[module?.toLowerCase()] ?? MODULE_COLORS.system;
+  return MODULE_COLORS[module] ?? MODULE_COLORS[module?.toLowerCase()] ?? MODULE_COLORS.system;
 }
 
 function exportCSV(logs: LogEntry[]) {
@@ -179,6 +191,22 @@ const AdminLogs = () => {
           </button>
         </div>
       </div>
+
+      {/* ── ACTIVITY SUMMARY ────────────────────────────────────────────────── */}
+      <PageSummaryCard
+        title="Activity Overview"
+        icon={<Activity size={16} />}
+        onDownloadCSV={() => exportCSV(filteredLogs)}
+        showExport={true}
+      >
+        <strong>{allLogs.length}</strong> activities have been logged.{" "}
+        <strong>{counts.staff}</strong> staff actions,{" "}
+        <strong>{counts.orders}</strong> order events, and{" "}
+        <strong>{counts.inventory}</strong> inventory changes.
+        {filteredLogs.length < allLogs.length && (
+          <>{" "}Currently showing <strong>{filteredLogs.length}</strong> filtered results.</>
+        )}
+      </PageSummaryCard>
 
       {/* ── TABS ────────────────────────────────────────────────────────────── */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-wrap">
