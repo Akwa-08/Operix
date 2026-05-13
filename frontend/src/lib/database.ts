@@ -2517,6 +2517,40 @@ export const db = {
           .in("id", (issuedCAs as any[]).map((a: any) => a.id));
       }
 
+      // ── Re-flag incomplete punches so they show up again ──
+      // Reset has_incomplete_punch on attendance_logs based on exceptional logs
+      const { data: exceptionalLogs } = await supabase
+        .from("attendance_exceptional_logs")
+        .select("employee_id, punch_date")
+        .eq("payroll_period_id", periodId);
+
+      if (exceptionalLogs && exceptionalLogs.length > 0) {
+        // Mark all exceptional logs as incomplete again
+        await supabase
+          .from("attendance_exceptional_logs")
+          .update({ is_incomplete: true })
+          .eq("payroll_period_id", periodId);
+
+        // Group by employee to get incomplete punch dates
+        const byEmployee: Record<string, string[]> = {};
+        exceptionalLogs.forEach((row: any) => {
+          if (!byEmployee[row.employee_id]) byEmployee[row.employee_id] = [];
+          byEmployee[row.employee_id].push(row.punch_date);
+        });
+
+        // Re-flag each employee's attendance log
+        for (const [empId, dates] of Object.entries(byEmployee)) {
+          await supabase
+            .from("attendance_logs")
+            .update({
+              has_incomplete_punch: true,
+              incomplete_punch_dates: dates,
+            })
+            .eq("payroll_period_id", periodId)
+            .eq("employee_id", empId);
+        }
+      }
+
       return { success: true };
     },
 

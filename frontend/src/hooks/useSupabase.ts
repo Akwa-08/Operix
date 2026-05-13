@@ -20,7 +20,7 @@ import type {
   UserRole, FrontendUser, FrontendSupplier, EmployeeRecord, CatalogProduct, CartItem,
   AdminProduct, BOMItem, Delivery, DeliveryStatus, EmployeeRole,
 } from '../Types';
-import { parseDbDate } from '../util/formatters';
+import { fmtDate, parseDbDate } from '../util/formatters';
 
 function useQuery<T>(
   fetcher: () => Promise<T>,
@@ -29,7 +29,11 @@ function useQuery<T>(
   initialData: T | null = null,
 ) {
   const queryClient = useQueryClient();
-  const queryKey: QueryKey = ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
+  // IMPROVED: If the first element of deps is a string (e.g., 'orders'), we use deps directly.
+  // This allows for explicit invalidation via queryClient.invalidateQueries({ queryKey: ['orders'] }).
+  const queryKey: QueryKey = (deps.length > 0 && typeof deps[0] === 'string')
+    ? deps
+    : ['operix-query', ...deps, fetcher.toString().slice(0, 50)];
 
   const { data, isLoading, error, refetch } = useTanStackQuery({
     queryKey,
@@ -39,7 +43,9 @@ function useQuery<T>(
 
   useEffect(() => {
     if (!realtimeTables || realtimeTables.length === 0) return;
-    const channelName = `realtime_${realtimeTables.join('_')}_${JSON.stringify(deps).slice(0, 20)}`;
+    // Use the first part of the key for the channel name if it's a string, otherwise fallback
+    const baseKey = typeof queryKey[0] === 'string' ? queryKey[0] : 'query';
+    const channelName = `realtime_${baseKey}_${realtimeTables.join('_')}_${JSON.stringify(deps).slice(0, 20)}`;
     let channel = supabase.channel(channelName);
     realtimeTables.forEach(table => {
       channel = channel.on('postgres_changes' as any, { event: '*', schema: 'public', table }, () => {
@@ -83,8 +89,8 @@ function mapOrder(raw: any): Order {
     quantity: items.reduce((s: number, i: any) => s + (i.quantity || 0), 0),
     totalAmount: Number(raw.total_amount) || 0,
     status: mapStatus(raw.status), paymentStatus: mapPayment(raw.payment_status),
-    dateOrdered: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
-    dueDate: parseDbDate(raw.due_date)?.toLocaleDateString() || '',
+    dateOrdered: fmtDate(raw.created_at),
+    dueDate: fmtDate(raw.due_date),
     specialInstructions: raw.special_instructions || items[0]?.specifications || '', designFile: raw.design_file_url || items[0]?.file_url || '',
     assignedDesigner: raw.assigned_designer || '', assignedProduction: raw.assigned_production || '',
     designerName: raw.designer ? `${raw.designer.first_name || ''} ${raw.designer.last_name || ''}`.trim() : '',
@@ -93,6 +99,7 @@ function mapOrder(raw: any): Order {
     finalDesignUrl: raw.final_design_url || '',
     lastDeclineReason: raw.last_decline_reason || '',
     hasUnreadDecline: !!raw.has_unread_decline,
+    isSuki: !!c?.is_suki,
     payments: Array.isArray(raw.payments) ? raw.payments.map((p: any) => ({
       id: p.id, amount: Number(p.amount) || 0, payment_method: p.payment_method,
       reference_number: p.reference_number, created_at: p.created_at,
@@ -110,7 +117,9 @@ function mapUser(raw: any): FrontendUser {
     email: raw.email || '',
     role: raw.role ? raw.role.charAt(0).toUpperCase() + raw.role.slice(1) : 'Customer',
     contactNumber: raw.contact_number || '', isActive: raw.is_active ?? true,
-    createdAt: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
+    isSuki: !!raw.is_suki,
+    createdAt: fmtDate(raw.created_at),
+    lastSeenAt: raw.last_seen_at,
   };
 }
 
@@ -119,9 +128,7 @@ function mapSupplier(raw: any): FrontendSupplier {
     id: raw.id, supplierName: raw.name || '', email: raw.email || '',
     contactNumber: raw.phone || '', address: raw.address || '',
     supplierStatus: raw.is_active ? 'Active' : 'Inactive',
-    isFlagged: raw.is_flagged ?? false,
-    flagCategory: raw.flag_category || '',
-    flagNotes: raw.flag_notes || '',
+    isFlagged: raw.is_flagged ?? false, flagCategory: raw.flag_category || 'None', flagNotes: raw.flag_notes || '',
     createdAt: parseDbDate(raw.created_at)?.toLocaleDateString() || '',
   };
 }
@@ -150,21 +157,32 @@ function deriveMatStatus(item: any): MaterialStatus {
 }
 
 function mapMaterial(item: any): Material {
-  const pref = item.item_suppliers?.find((s: any) => s.is_preferred) ?? item.item_suppliers?.[0];
-  const mappedSuppliers = item.item_suppliers?.map((s: any) => ({
-    id: s.suppliers?.id,
-    name: s.suppliers?.name,
-    flagCategory: s.suppliers?.flag_category,
-  })).filter((s: any) => s.id) || [];
+  const pref =
+    item.item_suppliers?.find((s: any) => s.is_preferred) ??
+    item.item_suppliers?.[0];
+  const mappedSuppliers =
+    item.item_suppliers
+      ?.map((s: any) => ({
+        id: s.suppliers?.id,
+        name: s.suppliers?.name,
+        flagCategory: s.suppliers?.flag_category,
+      }))
+      .filter((s: any) => s.id) || [];
 
   return {
-    id: item.id, itemType: item.name, itemVariant: item.description || '',
-    usableStocks: Number(item.current_quantity), stockUnit: item.unit_of_measure,
-    reorderPoint: Number(item.reorder_point), unitCost: Number(item.unit_cost),
+    id: item.id,
+    itemType: item.name,
+    itemVariant: item.description || "",
+    usableStocks: Number(item.current_quantity),
+    stockUnit: item.unit_of_measure,
+    reorderPoint: Number(item.reorder_point),
+    unitCost: Number(item.unit_cost),
     purchaseQty: Number(item.conversion_rate ?? 1),
     purchaseUnit: item.purchase_unit || item.unit_of_measure,
-    supplier: pref?.suppliers?.name || '—', status: deriveMatStatus(item),
-    isActive: item.is_active, description: item.description,
+    supplier: pref?.suppliers?.name || "—",
+    status: deriveMatStatus(item),
+    isActive: item.is_active,
+    description: item.description,
     lastSupplierCost: pref ? Number(pref.supplier_unit_price) : undefined,
     mappedSuppliers,
   };
@@ -172,10 +190,24 @@ function mapMaterial(item: any): Material {
 
 export function useMyProfile() {
   const q = useQuery(async () => { return await db.getMyProfile(); }, ['my-profile'], ['users']);
+
+  useEffect(() => {
+    // Heartbeat every 2 minutes if tab is active
+    const heartbeat = () => {
+      if (document.visibilityState === 'visible') {
+        db.updateLastSeen();
+      }
+    };
+
+    const interval = setInterval(heartbeat, 120000);
+    heartbeat(); // Initial
+
+    return () => clearInterval(interval);
+  }, []);
   return { profile: q.data, ...q };
 }
 
-export const clearProfileCache = () => {};
+export const clearProfileCache = () => { };
 
 export function useUsers(filters?: { role?: string; status?: string }) {
   const q = useQuery(() => db.getUsers(filters), [filters?.role, filters?.status], ['users']);
@@ -198,12 +230,17 @@ export function useProducts(filters?: { search?: string; category?: string }) {
 }
 
 export function useOrders(filters?: { status?: string; assigned_designer?: string; assigned_production?: string }) {
-  const { data: rawOrders, loading, error, refresh } = useQuery(() => db.getOrders(filters), [filters?.status, filters?.assigned_designer, filters?.assigned_production], ['orders', 'order_items', 'payments']);
+  const { data: rawOrders, loading, error, refresh } = useQuery(
+    () => db.getOrders(filters),
+    ['orders', filters?.status, filters?.assigned_designer, filters?.assigned_production],
+    ['orders', 'order_items', 'payments']
+  );
   const { data: staffList } = useQuery(() => db.getStaffList(), [], ['employees', 'users']);
 
   const orders = rawOrders || [];
   const staff = (staffList || []).map((s: any) => ({
     id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', role: s.role,
+    lastSeenAt: s.last_seen_at,
   }));
 
   const now = new Date();
@@ -240,22 +277,39 @@ export function useInventoryData() {
     updateMaterial: async (id: string, updates: any) => {
       const r = await safe(() => db.updateInventoryItem(id, updates).then(() => q.refresh()));
       return r;
-    }
+    },
+    updateMaterialSuppliers: async (materialId: string, supplierIds: string[]) => {
+      const r = await safe(() =>
+        db.updateMaterialSuppliers(materialId, supplierIds).then(() => q.refresh()),
+      );
+      return r;
+    },
   };
 }
 
 export function useProductCatalog(filters?: { search?: string; category?: string }) {
-  const { products: raw, loading, error, refresh } = useProducts(filters);
-  const products: CatalogProduct[] = raw.map((p: any) => ({
-    id: p.id, title: p.name, category: p.category || '', variant: p.variant || '',
-    size: p.size_spec || '', price: Number(p.final_price), description: p.description || '',
-    isActive: p.is_active, maxCapacity: Number(p.max_capacity ?? 0),
+  const { data: raw, loading, error, refresh } = useQuery(
+    () => db.getCatalogProducts(filters),
+    [filters?.search, filters?.category],
+    ['products', 'product_supply_mapping', 'inventory_items'],
+  );
+  const products: CatalogProduct[] = (raw || []).map((p: any) => ({
+    id: p.id,
+    title: p.name,
+    category: p.category || "",
+    variant: p.variant || "",
+    size: p.size_spec || "",
+    price: Number(p.final_price),
+    description: p.description || "",
+    isActive: p.is_active ?? true,
+    maxCapacity: Number(p.max_capacity ?? 0),
   }));
   return { products, loading, error, refresh };
 }
 
 export function useCartData() {
-  const { data: rawItems, loading, error, refresh } = useQuery(() => db.getCart(), [], ['cart_items', 'products']);
+  const queryClient = useQueryClient();
+  const { data: rawItems, loading, error, refresh } = useQuery(() => db.getCart(), ['cart'], ['cart_items', 'products']);
   const raw = rawItems || [];
   const items: CartItem[] = raw.map((r: any) => ({
     id: r.id, productId: r.product_id,
@@ -273,12 +327,24 @@ export function useCartData() {
     updateCartItem: async (id: string, updates: { quantity?: number; specifications?: string; fileUrl?: string }) => { const r = await safe(() => db.updateCartItem(id, updates).then(() => refresh())); return r; },
     removeItem: async (id: string) => { const r = await safe(() => db.removeCartItem(id).then(() => refresh())); return r; },
     clearCart: async () => { const r = await safe(() => db.clearCart().then(() => refresh())); return r; },
-    checkout: async (notes?: string, due?: string, ids?: string[]) => { try { const o = await db.checkout(notes, due, ids); await refresh(); return { success: true, error: null, order: o }; } catch (e: any) { return { success: false, error: e.message, order: null }; } },
+    checkout: async (notes?: string, due?: string, ids?: string[]) => {
+      try {
+        const o = await db.checkout(notes, due, ids);
+        // Explicitly invalidate orders so they reflect "live" on navigation
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        await refresh();
+        return { success: true, error: null, order: o };
+      } catch (e: any) {
+        return { success: false, error: e.message, order: null };
+      }
+    },
     directOrder: async (data: { productId: string; productName: string; quantity: number; unitPrice: number; specifications?: string; fileUrl?: string }) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not authenticated');
         await db.createOrder({ customer_id: user.id, order_type: 'online', special_instructions: data.specifications, items: [{ product_id: data.productId, product_name: data.productName, quantity: data.quantity, unit_price: data.unitPrice, specifications: data.specifications, file_url: data.fileUrl }] });
+        // Explicitly invalidate orders
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
         return { success: true, error: null };
       } catch (e: any) { return { success: false, error: e.message || 'Failed to place order' }; }
     },
@@ -289,26 +355,81 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
   const queryClient = useQueryClient();
   const { orders: rawOrders, stats, staff, loading: ordersLoading, error, refresh: ordersRefresh } = useOrders(filters);
   const { employees, loading: empLoading, refresh: empRefresh } = useEmployees();
-  
+
   const loading = ordersLoading || empLoading;
   const refresh = async () => { await Promise.all([ordersRefresh(), empRefresh()]); };
-  
+
   const orders: Order[] = rawOrders.map(mapOrder);
   const staffList = staff;
-  const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({ id: s.id, name: `${s.firstName} ${s.lastName}`.trim() }));
-  
+  const designers = staff.filter((s: any) => s.role === 'designer').map((s: any) => ({
+    id: s.id,
+    name: `${s.firstName} ${s.lastName}`.trim(),
+    lastSeenAt: s.lastSeenAt
+  }));
+
   const productionStaff = employees
     .filter((e: any) => e.role?.toLowerCase() === 'production' || e.position?.toLowerCase().includes('production'))
     .map((e: any) => ({ id: e.id, name: e.full_name }));
 
+  // Auto-dispatch algorithm
+  useEffect(() => {
+    if (loading || !orders.length || !designers.length) return;
+
+    const unassigned = orders.filter(o => o.status === "In Queue" && !o.assignedDesigner);
+    if (unassigned.length === 0) return;
+
+    const dispatchNext = async () => {
+      const now = new Date();
+      for (const order of unassigned) {
+        const loads = designers.map(d => {
+          const loadCount = orders.filter(o => o.assignedDesigner === d.id && (o.status === "In Queue" || o.status === "Designing")).length;
+          const hasRejected = order.rejectedByDesigners?.includes(d.id);
+
+          // Consider "online" if seen in the last 15 minutes
+          const lastSeenAt = d.lastSeenAt;
+          let isOnline = false;
+          if (lastSeenAt) {
+            const lastSeenDate = new Date(lastSeenAt);
+            const diffMs = now.getTime() - lastSeenDate.getTime();
+            isOnline = diffMs < 900000; // 15 mins
+          }
+
+          return { id: d.id, load: loadCount, hasRejected, isOnline };
+        });
+
+        // Filter for candidates who are ONLINE and haven't rejected
+        const candidates = loads
+          .filter(c => c.isOnline && !c.hasRejected)
+          .sort((a, b) => a.load - b.load);
+
+        if (candidates.length > 0) {
+          await db.assignDesignerForAcceptance(order.id, candidates[0].id);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      refresh();
+    };
+
+    dispatchNext();
+  }, [orders, designers, loading, queryClient, refresh]);
+
   return {
     orders, stats, staffList, designers, productionStaff, loading, error, refresh,
-    createOrder: async (data: any) => { const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => refresh())); return r; },
+    createOrder: async (data: { customer_id?: string | null; guest_name?: string | null; guest_phone?: string | null; guest_email?: string | null; order_type: string; items: { product_name: string; quantity: number; unit_price: number; specifications?: string; file_url?: string }[]; special_instructions?: string; due_date?: string; assigned_designer?: string | null; assigned_production?: string | null; comments?: string | null }) => {
+      const r = await safe(() => db.createOrder({ ...data, assigned_designer: data.assigned_designer || undefined, assigned_production: data.assigned_production || undefined, comments: data.comments || undefined, customer_id: data.customer_id || undefined, guest_name: data.guest_name || undefined, guest_phone: data.guest_phone || undefined, guest_email: data.guest_email || undefined }).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
     updateStatus: async (orderId: string, status: string, excessUsage?: Record<string, number>) => {
       const dbStatus = status.toLowerCase().replace(/ /g, '_');
       const r = await safe(async () => {
         await db.updateOrder(orderId, { status: dbStatus });
-        if (dbStatus === 'pickup') { try { await db.deductInventoryForOrder(orderId, excessUsage); } catch (invErr) { console.error("Inventory deduction failed:", invErr); } }
+        if (dbStatus === 'pickup') {
+          try { await db.deductInventoryForOrder(orderId, excessUsage); } catch (invErr) { console.error("Inventory deduction failed:", invErr); }
+        }
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
         await refresh();
       });
       return r;
@@ -318,27 +439,102 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       const r = await safe(async () => {
         const hasDesigner = !!assignment.assigned_designer;
         const hasProduction = !!assignment.assigned_production;
-        if (hasDesigner && !hasProduction) { await db.assignDesignerForAcceptance(orderId, assignment.assigned_designer!); }
-        else { await db.updateOrder(orderId, assignment); }
+        if (hasDesigner && !hasProduction) {
+          await db.assignDesignerForAcceptance(orderId, assignment.assigned_designer!);
+        } else {
+          await db.updateOrder(orderId, assignment);
+        }
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
         await refresh();
       });
       return r;
     },
-    deleteOrder: async (orderId: string) => { const r = await safe(() => db.deleteOrder(orderId).then(() => refresh())); return r; },
-    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => { const r = await safe(() => db.recordPayment(orderId, payment).then(() => refresh())); return r; },
-    approvePayment: async (paymentId: string, orderId: string) => { const r = await safe(() => db.approvePayment(paymentId, orderId).then(() => refresh())); return r; },
-    declinePayment: async (paymentId: string, orderId: string, reason: string) => { const r = await safe(() => db.declinePayment(paymentId, orderId, reason).then(() => refresh())); return r; },
-    markDeclineAsRead: async (orderId: string) => { const r = await safe(() => db.markDeclineAsRead(orderId).then(() => refresh())); return r; },
-    selfAssign: async (orderId: string) => { const r = await safe(async () => { await db.designerSelfPickOrder(orderId); await refresh(); }); return r; },
-    updateCustomerDesign: async (orderId: string, url: string) => { const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => refresh())); return r; },
-    updateFinalDesign: async (orderId: string, url: string) => { const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => refresh())); return r; },
-    acceptAssignedDesignOrder: async (orderId: string) => { const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => refresh())); return r; },
-    approveOrderDesign: async (orderId: string) => { const r = await safe(() => db.approveOrderDesign(orderId).then(() => refresh())); return r; },
+    deleteOrder: async (orderId: string) => {
+      const r = await safe(() => db.deleteOrder(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    recordPayment: async (orderId: string, payment: { amount: number; payment_method: string; reference_number?: string; notes?: string }) => {
+      const r = await safe(() => db.recordPayment(orderId, payment).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    approvePayment: async (paymentId: string, orderId: string) => {
+      const r = await safe(() => db.approvePayment(paymentId, orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    declinePayment: async (paymentId: string, orderId: string, reason: string) => {
+      const r = await safe(() => db.declinePayment(paymentId, orderId, reason).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    markDeclineAsRead: async (orderId: string) => {
+      const r = await safe(() => db.markDeclineAsRead(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    selfAssign: async (orderId: string) => {
+      const r = await safe(async () => {
+        await db.designerSelfPickOrder(orderId);
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        await refresh();
+      });
+      return r;
+    },
+    updateCustomerDesign: async (orderId: string, url: string) => {
+      const r = await safe(() => db.updateCustomerDesign(orderId, url).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    updateFinalDesign: async (orderId: string, url: string) => {
+      const r = await safe(() => db.submitFinalDesign(orderId, url).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    acceptAssignedDesignOrder: async (orderId: string) => {
+      const r = await safe(() => db.designerAcceptAssignedOrder(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    rejectAssignedDesignOrder: async (orderId: string) => {
+      const r = await safe(() => db.designerRejectAssignedOrder(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
+    approveOrderDesign: async (orderId: string) => {
+      const r = await safe(() => db.approveOrderDesign(orderId).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
+      return r;
+    },
     updateDesignerOrderDetails: async (orderId: string, updates: { totalAmount?: number; dueDate?: string }) => {
       const payload: { total_amount?: number; due_date?: string } = {};
       if (updates.totalAmount !== undefined) payload.total_amount = updates.totalAmount;
       if (updates.dueDate !== undefined) payload.due_date = updates.dueDate;
-      const r = await safe(() => db.updateDesignerOrderDetails(orderId, payload).then(() => refresh()));
+      const r = await safe(() => db.updateDesignerOrderDetails(orderId, payload).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
+        refresh();
+      }));
       return r;
     },
     requestCancellation: async (orderId: string, reason: string) => {
@@ -355,7 +551,6 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
       }));
       return r;
     },
-    rejectAssignedDesignOrder: async (orderId: string) => { const r = await safe(() => db.designerRejectAssignedOrder(orderId).then(() => refresh())); return r; },
   };
 }
 
@@ -384,12 +579,22 @@ export function useManagementData() {
       return r;
     },
     deactivateEmployee: async (id: string) => { const r = await safe(() => db.updateEmployee(id, { is_active: false }).then(() => refreshEmps())); return r; },
-    createSupplier: async (data: { name: string; phone?: string; email?: string; address?: string }) => { const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups())); return r; },
-    updateSupplier: async (id: string, data: { name?: string; phone?: string; email?: string; address?: string }) => { const r = await safe(() => db.updateSupplier(id, { name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups())); return r; },
+    createSupplier: async (data: { name: string; phone?: string; email?: string; address?: string }) => {
+      const r = await safe(() => db.createSupplier({ name: data.name, phone: data.phone, email: data.email, address: data.address }).then(() => refreshSups()));
+      return r;
+    },
+    updateSupplier: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateSupplier(id, updates).then(() => refreshSups())); return r; },
     flagSupplier: async (id: string, flagged: boolean, category: string, notes?: string) => { const r = await safe(() => db.updateSupplier(id, { is_flagged: flagged, flag_category: category, flag_notes: notes || '' }).then(() => refreshSups())); return r; },
     toggleSupplierActive: async (id: string, active: boolean) => { const r = await safe(() => db.updateSupplier(id, { is_active: active }).then(() => refreshSups())); return r; },
-    getSupplierMaterials: async (id: string) => { return await db.getSupplierMaterials(id); },
-    updateSupplierMaterials: async (id: string, materialIds: string[]) => { const r = await safe(() => db.updateSupplierMaterials(id, materialIds).then(() => refreshSups())); return r; },
+    getSupplierMaterials: async (supplierId: string) => {
+      return await db.getSupplierMaterials(supplierId);
+    },
+    updateSupplierMaterials: async (supplierId: string, inventoryItemIds: string[]) => {
+      const r = await safe(() =>
+        db.updateSupplierMaterials(supplierId, inventoryItemIds).then(() => refreshSups()),
+      );
+      return r;
+    },
     toggleSuki: async (id: string, isSuki: boolean) => { const r = await safe(() => adminApi.toggleSuki(id, isSuki).then(() => refreshUsers())); return r; },
   };
 }
@@ -406,7 +611,7 @@ export function useDashboard() {
     phasedOut: items.filter((i: any) => !i.is_active).length,
   };
   const lowStockItems = items.filter((i: any) => Number(i.current_quantity) > 0 && Number(i.current_quantity) <= Number(i.reorder_point)).map((i: any) => ({ id: i.id, name: i.name, currentQty: Number(i.current_quantity), reorderPoint: Number(i.reorder_point), unit: i.unit_of_measure }));
-  const recentOrders = orders.slice(0, 5).map((o: any) => { const c = o.customer; return { id: o.id, orderId: o.order_number, customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in', product: o.order_items?.[0]?.product_name || 'Multiple', amount: Number(o.total_amount) || 0, status: o.status, date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '' }; });
+  const recentOrders = orders.slice(0, 5).map((o: any) => { const c = o.customer; return { id: o.id, orderId: o.order_number, customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in', product: o.order_items?.[0]?.product_name || 'Multiple', amount: Number(o.total_amount) || 0, status: o.status, date: fmtDate(o.created_at) }; });
   const totalRevenue = orders.reduce((s: number, o: any) => s + (Number(o.total_amount) || 0), 0);
   const totalCollected = orders.reduce((s: number, o: any) => s + (Number(o.amount_paid) || 0), 0);
   const extendedOrderStats = { ...orderStats, totalRevenue, totalCollected, unpaid: orderStats.pendingPayment };
@@ -420,16 +625,16 @@ export function useDashboardData() {
 }
 
 function mapAdminProduct(raw: any): AdminProduct {
-  const bom: BOMItem[] = (raw.product_supply_mapping || []).map((m: any) => ({ id: m.id, inventoryItemId: m.inventory_item_id, materialName: m.inventory_items?.name || '—', quantityRequired: Number(m.quantity_required), unitOfMeasure: m.inventory_items?.unit_of_measure || '', unitCost: Number(m.inventory_items?.unit_cost) || 0 }));
+  const bom: BOMItem[] = (raw.product_supply_mapping || []).map((m: any) => ({ id: m.id, inventoryItemId: m.inventory_item_id, materialName: m.inventory_items?.name || '—', quantityRequired: Number(m.quantity_required), unitOfMeasure: m.inventory_items?.unit_of_measure || '', unitCost: Number(m.inventory_items?.unit_cost) || 0, conversionRate: Number(m.inventory_items?.conversion_rate) || 1 }));
   return { id: raw.id, name: raw.name, category: raw.category || '', variant: raw.variant || '', sizeSpec: raw.size_spec || '', materialCost: Number(raw.material_cost) || 0, profitFee: Number(raw.profit_fee) || 0, finalPrice: Number(raw.final_price) || 0, isActive: raw.is_active ?? true, description: raw.description || '', bom };
 }
 
-export function useProductsData() {
-  const q = useQuery(() => db.getProductsWithBOM(), [], ['products', 'product_supply_mapping', 'inventory_items']);
-  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
+export function useProductsData(filters?: { search?: string; category?: string }) {
+  const q = useQuery(() => db.getProductsWithBOM(filters), [filters?.search, filters?.category], ['products', 'product_supply_mapping', 'inventory_items']);
+  const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items', 'item_suppliers', 'suppliers']);
   const raw = q.data || [];
   const products: AdminProduct[] = raw.map(mapAdminProduct);
-  const materials = (rawMaterials || []).filter((m: any) => m.is_active);
+  const materials: Material[] = (rawMaterials || []).filter((m: any) => m.is_active).map(mapMaterial);
   const stats = { total: products.length, active: products.filter(p => p.isActive).length, inactive: products.filter(p => !p.isActive).length };
   return {
     products, stats, materials, loading: q.loading, error: q.error, refresh: q.refresh,
@@ -441,21 +646,46 @@ export function useProductsData() {
 
 function mapDelivery(raw: any): Delivery {
   const req = raw.requester;
-  return { id: raw.id, inventoryItemId: raw.inventory_item_id, materialName: raw.inventory_item?.name || '—', materialUnit: raw.inventory_item?.purchase_unit || raw.inventory_item?.unit_of_measure || '', supplierId: raw.supplier_id, supplierName: raw.supplier?.name || '—', requestedBy: raw.requested_by, requestedByName: req ? `${req.first_name || ''} ${req.last_name || ''}`.trim() : '—', requestedQuantity: Number(raw.requested_quantity), expectedArrivalDate: raw.expected_arrival_date || '', status: raw.status as DeliveryStatus, receivedQuantity: Number(raw.received_quantity) || 0, receiptReferenceNumber: raw.receipt_reference_number || '', receivedDate: raw.received_date ? new Date(raw.received_date).toLocaleDateString() : '', notes: raw.notes || '', createdAt: raw.created_at ? new Date(raw.created_at).toLocaleDateString() : '' };
+  return { id: raw.id, inventoryItemId: raw.inventory_item_id, materialName: raw.inventory_item?.name || '—', materialUnit: raw.inventory_item?.purchase_unit || raw.inventory_item?.unit_of_measure || '', supplierId: raw.supplier_id, supplierName: raw.supplier?.name || '—', requestedBy: raw.requested_by, requestedByName: req ? `${req.first_name || ''} ${req.last_name || ''}`.trim() : '—', requestedQuantity: Number(raw.requested_quantity), expectedArrivalDate: raw.expected_arrival_date || '', status: raw.status as DeliveryStatus, receivedQuantity: Number(raw.received_quantity) || 0, receiptReferenceNumber: raw.receipt_reference_number || '', receivedDate: fmtDate(raw.received_date), notes: raw.notes || '', createdAt: fmtDate(raw.created_at) };
 }
 
 export function useDeliveries() {
   const q = useQuery(() => db.getDeliveries(), [], ['deliveries', 'inventory_items', 'suppliers']);
   const { data: rawMaterials } = useQuery(() => db.getInventoryItems(), [], ['inventory_items']);
   const { data: rawSuppliers } = useQuery(() => db.getSuppliers(), [], ['suppliers']);
+  const { data: staffList } = useQuery(() => db.getStaffList(), [], ['users']);
+  const { data: rawEmployees } = useQuery(() => db.getEmployees(), [], ['employees']);
+
   const raw = q.data || [];
   const deliveries: Delivery[] = raw.map(mapDelivery);
   const materials = (rawMaterials || []).filter((m: any) => m.is_active);
   const suppliers = (rawSuppliers || []).filter((s: any) => s.is_active);
-  const stats = { total: deliveries.length, requested: deliveries.filter(d => d.status === 'requested').length, ordered: deliveries.filter(d => d.status === 'ordered').length, enRoute: deliveries.filter(d => d.status === 'en_route').length, received: deliveries.filter(d => d.status === 'received').length, completed: deliveries.filter(d => d.status === 'completed').length };
+
+  const staff = (staffList || []).map((s: any) => ({
+    id: s.id, firstName: s.first_name || '', lastName: s.last_name || '', role: s.role,
+  }));
+
+  const employees = (rawEmployees || []).map((e: any) => ({
+    id: e.id,
+    fullName: e.full_name,
+    role: e.role,
+    position: e.position
+  }));
+
+  const stats = {
+    total: deliveries.length,
+    requested: deliveries.filter(d => d.status === 'requested').length,
+    ordered: deliveries.filter(d => d.status === 'ordered').length,
+    enRoute: deliveries.filter(d => d.status === 'en_route').length,
+    received: deliveries.filter(d => d.status === 'received').length,
+    completed: deliveries.filter(d => d.status === 'completed').length,
+    returned: deliveries.filter(d => d.status === 'returned').length,
+    cancelled: deliveries.filter(d => d.status === 'cancelled').length
+  };
+
   return {
-    deliveries, stats, materials, suppliers, loading: q.loading, error: q.error, refresh: q.refresh,
-    createDelivery: async (data: { inventory_item_id: string; supplier_id?: string; requested_quantity: number; expected_arrival_date?: string; notes?: string }) => { const r = await safe(() => db.createDelivery(data).then(() => q.refresh())); return r; },
+    deliveries, stats, materials, suppliers, staff, employees, loading: q.loading, error: q.error, refresh: q.refresh,
+    createDelivery: async (data: { inventory_item_id: string; supplier_id?: string; requested_quantity: number; expected_arrival_date?: string; notes?: string; requested_by?: string }) => { const r = await safe(() => db.createDelivery(data).then(() => q.refresh())); return r; },
     updateDelivery: async (id: string, updates: Record<string, any>) => { const r = await safe(() => db.updateDelivery(id, updates).then(() => q.refresh())); return r; },
     confirmReceipt: async (id: string, receipt: { received_quantity: number; receipt_reference_number: string }) => { const r = await safe(() => db.confirmDeliveryReceipt(id, receipt).then(() => q.refresh())); return r; },
   };
@@ -579,21 +809,35 @@ function mapAttendanceLog(raw: any): AttendanceLog {
 
 function mapPayrollRecord(raw: any): PayrollRecord {
   const emp = raw.employee;
+  const dailyRate = Number(raw.daily_rate) || Number(emp?.base_hourly_rate) || 0;
+  const daysPresent = Number(raw.days_present) || 0;
+  const basicPay = Number(raw.basic_pay) || (dailyRate * daysPresent);
+  
+  const regularOT = Number(raw.regular_overtime) || 0;
+  const holidayOT = Number(raw.holiday_overtime) || 0;
+  const specialOT = Number(raw.special_overtime) || 0;
+  const tardyDeductions = Number(raw.tardy_deductions) || 0;
+  const undertimeDeductions = Number(raw.undertime_deductions) || 0;
+  
+  const grossIncome = Number(raw.gross_income) || (basicPay + regularOT + holidayOT + specialOT - tardyDeductions - undertimeDeductions);
+  const totalDeductions = Number(raw.total_deductions) || 0;
+  const netPay = Number(raw.net_pay) || (grossIncome - totalDeductions);
+
   return {
     id: raw.id, employeeId: raw.employee_id, employeeName: emp?.full_name || '',
     employeeCode: emp?.employee_code || '', position: emp?.position || '',
-    dailyRate: Number(raw.daily_rate) || 0, daysPresent: Number(raw.days_present) || 0,
-    basicPay: Number(raw.basic_pay) || 0, regularHolidayPay: Number(raw.regular_holiday_pay) || 0,
-    specialHolidayPay: Number(raw.special_holiday_pay) || 0, regularOvertime: Number(raw.regular_overtime) || 0,
-    holidayOvertime: Number(raw.holiday_overtime) || 0, specialOvertime: Number(raw.special_overtime) || 0,
-    grossIncome: Number(raw.gross_income) || 0, tardyDeductions: Number(raw.tardy_deductions) || 0,
-    undertimeDeductions: Number(raw.undertime_deductions) || 0, sss: Number(raw.sss) || 0,
+    dailyRate, daysPresent,
+    basicPay, regularHolidayPay: Number(raw.regular_holiday_pay) || 0,
+    specialHolidayPay: Number(raw.special_holiday_pay) || 0, regularOvertime: regularOT,
+    holidayOvertime: holidayOT, specialOvertime: specialOT,
+    grossIncome, tardyDeductions,
+    undertimeDeductions, sss: Number(raw.sss) || 0,
     philhealth: Number(raw.philhealth) || 0, hdmf: Number(raw.hdmf) || 0,
     withholdingTax: Number(raw.withholding_tax) || 0, cashAdvance: Number(raw.cash_advance) || 0,
     cashAdvanceIssued: Number(raw.cash_advance_issued) || 0,
     carryOverFromPrevious: Number(raw.carry_over_from_previous) || 0,
-    totalDeductions: Number(raw.total_deductions) || 0,
-    netPay: Number(raw.net_pay) || 0, taxableIncome: Number(raw.taxable_income) || 0,
+    totalDeductions,
+    netPay, taxableIncome: Number(raw.taxable_income) || 0,
     status: raw.status || 'pending',
   };
 }
@@ -626,12 +870,12 @@ export function usePayrollData() {
 
   const attendanceQ = useQuery(
     () => activePeriodId ? db.payroll.getAttendanceLogs(activePeriodId) : Promise.resolve([]),
-    [activePeriodId],
+    ['attendance', activePeriodId],
     ['attendance_logs', 'employees']
   );
   const payrollQ = useQuery(
     () => activePeriodId ? db.payroll.getPayrollRecords(activePeriodId) : Promise.resolve([]),
-    [activePeriodId],
+    ['payroll', activePeriodId],
     ['payroll_records', 'employees']
   );
 
@@ -679,9 +923,7 @@ export function usePayrollData() {
     computePayroll: async (periodId: string) => {
       setComputing(true);
       const r = await safe(async () => {
-        // Only re-flag incomplete punches on the FIRST compute (no payroll records yet).
-        // On recomputes, the admin has already confirmed/resolved incomplete punches,
-        // so we must NOT re-flag them.
+        // Restore old behavior: flag incomplete punches on first compute
         const { count } = await supabase
           .from('payroll_records')
           .select('id', { count: 'exact', head: true })
@@ -691,6 +933,7 @@ export function usePayrollData() {
           await attendanceQ.refresh();
         }
         await db.payroll.computePayroll(periodId);
+        await attendanceQ.refresh(); // Keep UI in sync on all computes
         await payrollQ.refresh();
       });
       setComputing(false);
@@ -768,10 +1011,10 @@ export function useLogsData() {
     q.data.audit.forEach((raw: any) => {
       let details = '';
       const m = raw.metadata || {};
-      switch(raw.action) {
+      switch (raw.action) {
         case 'Update Inventory': details = `${m.after?.name || 'Item'}: ${m.changed_fields?.join(', ') || 'Quantity'} updated.`; break;
         case 'Create Order': details = `Order ${m.order_number} for ₱${m.total_amount?.toLocaleString()}.`; break;
-        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_',' ')} (Ref: ${m.ref || 'N/A'}).`; break;
+        case 'Record Payment': details = `₱${m.amount?.toLocaleString()} via ${m.method?.replace('_', ' ')} (Ref: ${m.ref || 'N/A'}).`; break;
         case 'Approve Payment': details = `Payment approved for order.`; break;
         case 'Decline Payment': details = `Payment declined. Reason: ${m.reason}`; break;
         case 'Request Cash Advance': details = `Requested ₱${m.amount?.toLocaleString()} for ${m.employee_name}.`; break;
