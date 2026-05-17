@@ -177,7 +177,7 @@ export const db = {
       await supabase.from("users").update({ last_seen: new Date().toISOString() }).eq("id", user.id);
     } catch (e) { console.error("Failed to update last seen", e); }
   },
-  
+
   async getUsers(filters?: { role?: string; status?: string }) {
     let query = supabase
       .from("users")
@@ -337,7 +337,9 @@ export const db = {
     const inserts = materialIds.map(id => ({
       supplier_id: supplierId,
       inventory_item_id: id,
-      is_preferred: false
+      is_preferred: false,
+      supplier_unit_price: 0,
+      lead_time_days: 0,
     }));
 
     const { error: insError } = await supabase
@@ -425,7 +427,7 @@ export const db = {
   async updateMaterialSuppliers(materialId: string, supplierIds: string[]) {
     // Delete existing
     await supabase.from("product_supply_mapping").delete().eq("inventory_item_id", materialId);
-    
+
     // Insert new
     if (supplierIds.length > 0) {
       const inserts = supplierIds.map(sid => ({
@@ -655,6 +657,106 @@ export const db = {
     }
 
     return data;
+  },
+
+  // ── Fetch the BOM for all products in an order ──────────────────────────────
+  async getOrderBOM(orderId: string) {
+    const { data: items, error: itemsErr } = await supabase
+      .from("order_items")
+      .select("product_id, quantity")
+      .eq("order_id", orderId);
+    if (itemsErr) throw itemsErr;
+    if (!items || items.length === 0) return [];
+
+    const productIds = items.map((i: any) => i.product_id).filter(Boolean);
+    if (productIds.length === 0) return [];
+
+    const { data: bom, error: bomErr } = await supabase
+      .from("product_supply_mapping")
+      .select("product_id, inventory_item_id, quantity_required, inventory_items(id, name, unit_of_measure, current_quantity)")
+      .in("product_id", productIds);
+    if (bomErr) throw bomErr;
+
+    // Build result: one entry per BOM line, with total_standard_usage = qty_required × order_qty
+    const result: {
+      inventory_item_id: string;
+      material_name: string;
+      quantity_required: number;
+      unit: string;
+      total_standard_usage: number;
+      current_quantity: number;
+    }[] = [];
+
+    for (const orderItem of items) {
+      if (!orderItem.product_id) continue;
+      const bomLines = (bom || []).filter((b: any) => b.product_id === orderItem.product_id);
+      for (const b of bomLines) {
+        const inv = (b as any).inventory_items;
+        result.push({
+          inventory_item_id: b.inventory_item_id,
+          material_name: inv?.name || "—",
+          quantity_required: Number(b.quantity_required),
+          unit: inv?.unit_of_measure || "",
+          total_standard_usage: Number(b.quantity_required) * Number(orderItem.quantity),
+          current_quantity: Number(inv?.current_quantity) || 0,
+        });
+      }
+    }
+
+    return result;
+  },
+
+  // ── Deduct inventory based on BOM when order moves to Pickup ────────────────
+  async deductInventoryForOrder(orderId: string, excessUsage?: Record<string, number>) {
+    // 1. Get order items (product_id + quantity ordered)
+    const { data: items, error: itemsErr } = await supabase
+      .from("order_items")
+      .select("product_id, quantity")
+      .eq("order_id", orderId);
+    if (itemsErr) throw itemsErr;
+    if (!items || items.length === 0) return;
+
+    const productIds = items.map((i: any) => i.product_id).filter(Boolean);
+    if (productIds.length === 0) return; // walk-in orders with no linked products
+
+    // 2. Get BOM for those products
+    const { data: bom, error: bomErr } = await supabase
+      .from("product_supply_mapping")
+      .select("product_id, inventory_item_id, quantity_required")
+      .in("product_id", productIds);
+    if (bomErr) throw bomErr;
+    if (!bom || bom.length === 0) return;
+
+    // 3. Calculate total deduction per inventory item
+    const deductions: Record<string, number> = {};
+    for (const orderItem of items) {
+      if (!orderItem.product_id) continue;
+      const bomRows = bom.filter((b: any) => b.product_id === orderItem.product_id);
+      for (const row of bomRows) {
+        const standard = Number(row.quantity_required) * Number(orderItem.quantity);
+        const excess = excessUsage?.[row.inventory_item_id] || 0;
+        deductions[row.inventory_item_id] = (deductions[row.inventory_item_id] || 0) + standard + excess;
+      }
+    }
+
+    // 4. Apply deductions to each inventory item
+    for (const [inventoryItemId, totalDeduction] of Object.entries(deductions)) {
+      if (totalDeduction <= 0) continue;
+      const { data: inv, error: invErr } = await supabase
+        .from("inventory_items")
+        .select("current_quantity")
+        .eq("id", inventoryItemId)
+        .single();
+      if (invErr || !inv) { console.warn(`Could not fetch inventory item ${inventoryItemId}`); continue; }
+      const newQty = Math.max(0, Number(inv.current_quantity) - totalDeduction);
+      const { error: updateErr } = await supabase
+        .from("inventory_items")
+        .update({ current_quantity: newQty })
+        .eq("id", inventoryItemId);
+      if (updateErr) console.warn(`Failed to deduct inventory item ${inventoryItemId}:`, updateErr);
+    }
+
+    await this.logAudit("Inventory Deduction", "orders", orderId, { deductions, excessUsage });
   },
 
   async updateDesignerOrderDetails(
@@ -1141,110 +1243,6 @@ export const db = {
         );
       }
       await this.logAudit("Reject Cancellation", "orders", orderId, { note: designerNote });
-    }
-  },
-
-  async getOrderBOM(orderId: string) {
-    const { data: items, error: itemsErr } = await supabase
-      .from("order_items")
-      .select("product_id, quantity, product_name")
-      .eq("order_id", orderId);
-    if (itemsErr) throw itemsErr;
-
-    const materials: {
-      inventory_item_id: string;
-      material_name: string;
-      quantity_required: number;
-      unit: string;
-      total_standard_usage: number;
-    }[] = [];
-
-    for (const item of items || []) {
-      if (!item.product_id) continue;
-      const { data: bom, error: bomErr } = await supabase
-        .from("product_supply_mapping")
-        .select(
-          "inventory_item_id, quantity_required, inventory_items:inventory_item_id(name, unit_of_measure)",
-        )
-        .eq("product_id", item.product_id);
-      if (bomErr) throw bomErr;
-
-      for (const mapping of bom || []) {
-        const invItem = (mapping as any).inventory_items;
-        materials.push({
-          inventory_item_id: mapping.inventory_item_id,
-          material_name: invItem?.name || "Unknown Material",
-          quantity_required: Number(mapping.quantity_required),
-          unit: invItem?.unit_of_measure || "",
-          total_standard_usage:
-            Number(mapping.quantity_required) * item.quantity,
-        });
-      }
-    }
-    return materials;
-  },
-
-  async deductInventoryForOrder(
-    orderId: string,
-    excessUsage?: Record<string, number>,
-  ) {
-    const { data: items, error: itemsErr } = await supabase
-      .from("order_items")
-      .select("product_id, quantity")
-      .eq("order_id", orderId);
-    if (itemsErr) throw itemsErr;
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    for (const item of items || []) {
-      if (!item.product_id) continue;
-
-      const { data: bom, error: bomErr } = await supabase
-        .from("product_supply_mapping")
-        .select("inventory_item_id, quantity_required")
-        .eq("product_id", item.product_id);
-      if (bomErr) throw bomErr;
-
-      for (const mapping of bom || []) {
-        const { data: inv, error: invErr } = await supabase
-          .from("inventory_items")
-          .select("current_quantity")
-          .eq("id", mapping.inventory_item_id)
-          .single();
-        if (invErr) throw invErr;
-
-        const standardUsage = Number(mapping.quantity_required) * item.quantity;
-        const excess = excessUsage?.[mapping.inventory_item_id] || 0;
-        const totalDeduction = standardUsage + excess;
-
-        const newQty = Number(inv.current_quantity) - totalDeduction;
-
-        const { error: updateErr } = await supabase
-          .from("inventory_items")
-          .update({
-            current_quantity: newQty,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", mapping.inventory_item_id);
-        if (updateErr) throw updateErr;
-
-        await supabase.from("inventory_changes").insert([
-          {
-            inventory_item_id: mapping.inventory_item_id,
-            change_type: "Manual Adjustment",
-            quantity_change: -totalDeduction,
-            quantity_before: Number(inv.current_quantity),
-            quantity_after: newQty,
-            reason:
-              excess > 0
-                ? `Automatic deduction for order ${orderId} (includes ${excess} excess)`
-                : `Automatic deduction for order ${orderId}`,
-            changed_by: user?.id,
-          },
-        ]);
-      }
     }
   },
 

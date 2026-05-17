@@ -117,11 +117,17 @@ const AdminOrders = () => {
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
       customer_id: orderData.customerId || null,
-      guest_name: orderData.guestName || null,
-      guest_phone: orderData.guestPhone || null,
-      guest_email: orderData.guestEmail || null,
+      guest_name: orderData.customerName || null,
+      guest_phone: orderData.customerPhone || null,
+      guest_email: orderData.customerEmail || null,
       order_type: orderData.orderType || "walk-in",
-      items: [{ product_name: orderData.productType, quantity: orderData.quantity, unit_price: orderData.totalAmount / (orderData.quantity || 1), specifications: orderData.specialInstructions }],
+      items: [{
+        product_id: orderData.productId || undefined,
+        product_name: orderData.productType,
+        quantity: orderData.quantity,
+        unit_price: orderData.totalAmount / (orderData.quantity || 1),
+        specifications: orderData.specialInstructions,
+      }],
       special_instructions: orderData.specialInstructions,
       due_date: orderData.dueDate,
       assigned_designer: orderData.assignedDesigner || null,

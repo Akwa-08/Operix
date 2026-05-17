@@ -96,7 +96,13 @@ export const ExcessMaterialModal: React.FC<ExcessMaterialModalProps> = ({
                   <div className="flex justify-between items-start mb-3">
                     <div>
                       <p className="font-bold text-gray-900">{m.material_name}</p>
-                      <p className="text-xs text-gray-500">Standard: {m.total_standard_usage} {m.unit}</p>
+                      <p className="text-xs text-gray-500">
+                        Standard: <span className="font-semibold text-cyan-700">{m.total_standard_usage} {m.unit}</span>
+                        {" · "}
+                        In stock: <span className={`font-semibold ${m.current_quantity <= m.quantity_required ? "text-red-600" : "text-green-600"}`}>
+                          {m.current_quantity} {m.unit}
+                        </span>
+                      </p>
                     </div>
                   </div>
                   

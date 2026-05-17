@@ -283,7 +283,20 @@ const ProductionInventory = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">Quantity *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-semibold text-gray-700">Quantity *</label>
+                {(() => {
+                  const mat = delMaterials.find((m: any) => m.id === newDelivery.inventory_item_id);
+                  if (mat) {
+                    return (
+                      <span className="text-[10px] text-cyan-600 font-bold uppercase tracking-wider">
+                        Rate: 1 {mat.purchase_unit || 'purchase unit'} = {mat.conversion_rate || 1} {mat.unit_of_measure}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
               <input
                 type="number"
                 min="1"
