@@ -83,6 +83,7 @@ function mapOrder(raw: any): Order {
   const items = raw.order_items || [];
   return {
     id: raw.id, orderId: raw.order_number || '',
+    customerId: raw.customer_id || '',
     customerName: c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : 'Walk-in',
     customerEmail: c?.email || '', customerPhone: c?.contact_number || '',
     productType: items[0]?.product_name || (items.length > 1 ? 'Multiple' : '—'),
@@ -405,6 +406,28 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
 
         if (candidates.length > 0) {
           await db.assignDesignerForAcceptance(order.id, candidates[0].id);
+        } else {
+          // If no online candidates who haven't rejected this order are available, notify the admin
+          try {
+            const { data: existingNotif } = await supabase
+              .from('notifications')
+              .select('id')
+              .eq('related_id', order.id)
+              .eq('title', 'No Online Designers Available')
+              .limit(1);
+
+            if (!existingNotif || existingNotif.length === 0) {
+              await db.notifyRoles(
+                ['admin'],
+                'No Online Designers Available',
+                `Order ${order.orderId} has been tagged as Unassigned because there are no more online designers available to accept it.`,
+                'orders',
+                order.id
+              );
+            }
+          } catch (notifErr) {
+            console.error("Failed to check or send unassigned admin notification:", notifErr);
+          }
         }
       }
       queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -413,6 +436,40 @@ export function useOrdersData(filters?: { status?: string; assigned_designer?: s
 
     dispatchNext();
   }, [orders, designers, loading, queryClient, refresh]);
+
+  // Suki auto-bypass for payment status
+  useEffect(() => {
+    if (loading || !orders.length) return;
+
+    const sukiInPayment = orders.filter(o => o.status === "Payment" && o.isSuki);
+    if (sukiInPayment.length === 0) return;
+
+    const bypassPayment = async () => {
+      for (const order of sukiInPayment) {
+        console.log(`Automatically bypassing payment for Suki order: ${order.orderId}`);
+        try {
+          await db.updateOrder(order.id, { status: "production" });
+          if (order.customerId) {
+            try {
+              await db.chat.sendMessage(
+                order.customerId,
+                "Your order has automatically bypassed the payment confirmation phase because you are tagged as a SUKI customer, and it is now in the Production phase.",
+                order.id
+              );
+            } catch (msgErr) {
+              console.warn("Auto-bypass chat notification failed:", msgErr);
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to auto-bypass payment for order ${order.orderId}:`, err);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      refresh();
+    };
+
+    bypassPayment();
+  }, [orders, loading, queryClient, refresh]);
 
   return {
     orders, stats, staffList, designers, productionStaff, loading, error, refresh,

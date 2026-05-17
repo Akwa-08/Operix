@@ -22,6 +22,7 @@ export type MaterialStatus = "Available" | "Low Stock" | "Restocking" | "Phased 
 export interface Order {
   id: string;
   orderId: string;
+  customerId?: string;
   customerName: string; // Main field name
   customer?: string; // Alias for compatibility
   customerEmail?: string;

@@ -52,7 +52,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
       ref={highlightedRef}
       initial={{ opacity: 0, y: 10 }} 
       animate={{ opacity: 1, y: 0 }}
-      className={`p-5 rounded-2xl border transition-all ${isHighlighted ? "highlight-pulse ring-2 ring-cyan-500" : (order.hasUnreadDecline ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200')} ${order.paymentStatus === "Partially paid" ? 'bg-yellow-50/80' : 'bg-white'} shadow-sm flex flex-col gap-3 hover:shadow-md`}
+      className={`p-5 rounded-2xl border transition-all ${isHighlighted ? "highlight-pulse ring-2 ring-cyan-500" : (order.hasUnreadDecline ? 'border-red-500 ring-2 ring-red-100' : 'border-gray-200')} bg-white shadow-sm flex flex-col gap-3 hover:shadow-md`}
     >
 
       {/* Header: customer + order number */}
@@ -97,7 +97,7 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
                 (done || active)
                   ? (step.status === "Payment" && order.paymentStatus === "Unpaid" ? "bg-red-500 text-white" :
                      step.status === "Payment" && order.paymentStatus === "Partially paid" ? "bg-yellow-500 text-white" :
-                     step.status === "Complete" && order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white" : 
+                     step.status === "Complete" && cardStatus === "Complete" && order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white" : 
                      "bg-green-500 text-white")
                   : "bg-gray-100 text-gray-400"
               }`}>
@@ -108,7 +108,9 @@ const StaffOrderCard = ({ order, onView, onEdit, onDelete, onPay, hideDeleteWhen
                   : done ? <CheckCircle2 size={12} /> : <Icon size={12} /> 
                 }
               </div>
-              <span className={`text-[8px] mt-1 font-medium ${active ? "text-gray-900 font-bold" : "text-gray-400"}`}>{step.label}</span>
+              <span className={`text-[8px] mt-1 font-medium ${active ? "text-gray-900 font-bold" : "text-gray-400"}`}>
+                {step.status === "Complete" && cardStatus === "Complete" && order.paymentStatus !== "Paid" ? "Incomplete" : step.label}
+              </span>
             </div>
           );
         })}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, X } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
@@ -77,11 +77,26 @@ const ProductionInventory = () => {
   const { materials: delMaterials, suppliers, employees, createDelivery } = useDeliveries();
   const toast = useToast();
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedId = searchParams.get("highlight");
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
 
-  // No tab switching needed here as ProductionInventory is single-view for materials
-  // Highlighting is handled by the table via highlightedId prop
+  // Auto-reset highlight param and clear search query on highlight
+  useEffect(() => {
+    if (highlightedId && materials.length > 0 && highlightedId !== lastHighlighted) {
+      const targetMaterial = materials.find(m => m.id === highlightedId);
+      if (targetMaterial) {
+        setLastHighlighted(highlightedId);
+        setSearchQuery("");
+
+        setTimeout(() => {
+          const next = new URLSearchParams(window.location.search);
+          next.delete("highlight");
+          setSearchParams(next, { replace: true });
+        }, 1500);
+      }
+    }
+  }, [highlightedId, materials, lastHighlighted, searchParams, setSearchParams]);
 
   const handleViewMaterial = (material: Material) => { setSelectedMaterial(material); setShowViewModal(true); };
   const handleEditMaterial = (material: Material) => { setSelectedMaterial(material); setShowEditModal(true); };

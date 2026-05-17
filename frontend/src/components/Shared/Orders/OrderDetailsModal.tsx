@@ -95,6 +95,7 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
   const [payMethod, setPayMethod] = useState("cash");
   const [payRef, setPayRef] = useState("");
   const [payNotes, setPayNotes] = useState("");
+  const [payRefError, setPayRefError] = useState("");
   const [payLoading, setPayLoading] = useState(false);
   const [editAmount, setEditAmount] = useState(String(order.totalAmount || ""));
   const [editDueDate, setEditDueDate] = useState("");
@@ -143,6 +144,11 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
 
     if (payMethod !== "cash" && !payRef.trim()) {
       toast.error("Reference number is required for non-cash payments");
+      return;
+    }
+
+    if (payRefError) {
+      toast.error(payRefError);
       return;
     }
 
@@ -430,14 +436,29 @@ export const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({
                     <input
                       type="text"
                       value={payRef}
-                      onChange={(e) => setPayRef(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const hasInvalid = /[^a-zA-Z0-9-]/.test(val);
+                        if (hasInvalid) {
+                          setPayRefError("Only alphanumeric characters and hyphens (-) are allowed.");
+                        } else {
+                          setPayRefError("");
+                        }
+                        const filtered = val.replace(/[^a-zA-Z0-9-]/g, "");
+                        setPayRef(filtered);
+                      }}
                       placeholder="e.g. GCash ref number"
                       className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
-                        payMethod !== "cash" && !payRef.trim()
+                        payRefError
+                          ? "border-red-500 focus:ring-red-500"
+                          : payMethod !== "cash" && !payRef.trim()
                           ? "border-red-300"
                           : "border-gray-300"
                       }`}
                     />
+                    {payRefError && (
+                      <p className="text-red-500 text-[11px] mt-1 font-medium">{payRefError}</p>
+                    )}
                   </div>
                   <div>
                     {/* Receipt number tracking is now handled in the receipts table natively */}

@@ -153,7 +153,7 @@ export const CustomerOrderDetailsModal: React.FC<
                   </div>
                   <span
                     className={`text-[11px] font-semibold mt-2 ${isCurrent ? "text-gray-900" : "text-gray-500"}`}>
-                    {step.label}
+                    {step.status === "Complete" && currentStep === "Complete" && order.paymentStatus !== "Paid" ? "Incomplete" : step.label}
                   </span>
 
                   {/* Active segment overlay line */}

@@ -22,7 +22,7 @@ import {downloadCSV, printReport, buildKpiHtml, buildHtmlTable} from "../../util
 
 const DesignerDashboard = () => {
   const {profile} = useMyProfile();
-  const {orders: allOrders, loading, refresh, selfAssign, rejectAssignedDesignOrder} = useOrdersData();
+  const {orders: allOrders, loading, refresh, selfAssign, rejectAssignedDesignOrder, acceptAssignedDesignOrder} = useOrdersData();
   const toast = useToast();
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -33,7 +33,7 @@ const DesignerDashboard = () => {
       allOrders.filter(
         (o) =>
           o.assignedDesigner === profile?.id &&
-          o.status === "Designing",
+          (o.status === "Designing" || o.status === "In Queue"),
       ),
     [allOrders, profile?.id],
   );
@@ -44,7 +44,8 @@ const DesignerDashboard = () => {
         .filter(
           (o) =>
             o.status === "In Queue" &&
-            (!o.assignedDesigner || o.assignedDesigner === profile?.id),
+            !o.assignedDesigner &&
+            !o.rejectedByDesigners?.includes(profile?.id || ""),
         )
         .sort((a, b) => {
           // Priority: Date (oldest first)
@@ -53,7 +54,7 @@ const DesignerDashboard = () => {
             new Date(b.dateOrdered).getTime()
           );
         }),
-    [allOrders],
+    [allOrders, profile?.id],
   );
 
   const stats = useMemo(
@@ -260,22 +261,20 @@ const DesignerDashboard = () => {
                           className="px-4 py-1.5 bg-cyan-400 hover:bg-cyan-500 border-cyan-500 text-white text-xs font-bold rounded-lg shadow-sm shadow-blue-200 transition-all active:scale-95">
                           Accept
                         </button>
-                        {o.assignedDesigner === profile?.id && (
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const r = await rejectAssignedDesignOrder(o.id);
-                              if (r.success) {
-                                toast.success(`Order ${o.orderId} rejected.`);
-                                refresh();
-                              } else {
-                                toast.error(r.error || "Failed to reject order");
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-white border border-red-200 text-red-500 hover:bg-red-50 text-xs font-bold rounded-lg shadow-sm transition-all active:scale-95">
-                            Reject
-                          </button>
-                        )}
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const r = await rejectAssignedDesignOrder(o.id);
+                            if (r.success) {
+                              toast.success(`Order ${o.orderId} rejected.`);
+                              refresh();
+                            } else {
+                              toast.error(r.error || "Failed to reject order");
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-white border border-red-200 text-red-500 hover:bg-red-50 text-xs font-bold rounded-lg shadow-sm transition-all active:scale-95">
+                          Reject
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -346,6 +345,38 @@ const DesignerDashboard = () => {
                       Due: {order.dueDate || "—"}
                     </span>
                   </div>
+                  {order.status === "In Queue" && (
+                    <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const r = await acceptAssignedDesignOrder(order.id);
+                          if (r.success) {
+                            toast.success(`Order ${order.orderId} accepted!`);
+                            refresh();
+                          } else {
+                            toast.error(r.error || "Failed to accept order");
+                          }
+                        }}
+                        className="flex-1 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg text-center transition-all active:scale-95">
+                        Accept
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const r = await rejectAssignedDesignOrder(order.id);
+                          if (r.success) {
+                            toast.success(`Order ${order.orderId} rejected.`);
+                            refresh();
+                          } else {
+                            toast.error(r.error || "Failed to reject order");
+                          }
+                        }}
+                        className="flex-1 py-1.5 bg-white border border-red-200 text-red-500 hover:bg-red-50 text-xs font-bold rounded-lg text-center transition-all active:scale-95">
+                        Reject
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -370,6 +401,9 @@ const DesignerDashboard = () => {
                       </th>
                       <th className="px-4 py-3 text-left font-semibold text-gray-700">
                         Due
+                      </th>
+                      <th className="px-4 py-3 text-center font-semibold text-gray-700">
+                        Actions
                       </th>
                     </tr>
                   </thead>
@@ -396,6 +430,42 @@ const DesignerDashboard = () => {
                         </td>
                         <td className="px-4 py-3 text-gray-600 text-xs">
                           {order.dueDate || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {order.status === "In Queue" ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const r = await acceptAssignedDesignOrder(order.id);
+                                  if (r.success) {
+                                    toast.success(`Order ${order.orderId} accepted!`);
+                                    refresh();
+                                  } else {
+                                    toast.error(r.error || "Failed to accept order");
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg shadow-sm transition-all active:scale-95">
+                                Accept
+                              </button>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const r = await rejectAssignedDesignOrder(order.id);
+                                  if (r.success) {
+                                    toast.success(`Order ${order.orderId} rejected.`);
+                                    refresh();
+                                  } else {
+                                    toast.error(r.error || "Failed to reject order");
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-white border border-red-200 text-red-500 hover:bg-red-50 text-xs font-bold rounded-lg shadow-sm transition-all active:scale-95">
+                                Reject
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs font-medium">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}

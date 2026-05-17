@@ -1530,8 +1530,28 @@ const AdminPayroll: React.FC = () => {
   const initialTab = searchParams.get("tab") || "Payroll Dashboard";
   const [activeTab, setActiveTab] = useState(initialTab);
   const highlightedId = searchParams.get("highlight");
-
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Auto-reset highlight parameter, clear search query, and select dashboard tab on highlight
+  useEffect(() => {
+    if (highlightedId && highlightedId !== lastHighlighted) {
+      setLastHighlighted(highlightedId);
+      setActiveTab("Payroll Dashboard");
+      setSearchQuery("");
+
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set("tab", "Payroll Dashboard");
+      setSearchParams(newParams, { replace: true });
+
+      setTimeout(() => {
+        const next = new URLSearchParams(window.location.search);
+        next.delete("highlight");
+        next.set("tab", "Payroll Dashboard");
+        setSearchParams(next, { replace: true });
+      }, 1500);
+    }
+  }, [highlightedId, lastHighlighted, searchParams, setSearchParams]);
   const [showPeriodDrop, setShowPeriodDrop] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [markPaidConfirm, setMarkPaidConfirm] = useState<PayrollRecord | null>(null);

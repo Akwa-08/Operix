@@ -31,18 +31,31 @@ const CashierInventory = () => {
   const [showViewDelivery, setShowViewDelivery] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [receipt, setReceipt] = useState({ received_quantity: "", receipt_reference_number: "" });
+  const [refError, setRefError] = useState("");
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedId = searchParams.get("highlight");
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
 
   const { materials, stats: materialStats, loading: matLoading, updateMaterial } = useInventoryData();
 
-  // Auto-switch to Materials tab if highlight param exists (highlighting is handled by the table)
+  // Auto-switch to Materials tab if highlight param exists, clearing search query
   useEffect(() => {
-    if (highlightedId && materials.length > 0) {
-      setActiveTab("Materials");
+    if (highlightedId && materials.length > 0 && highlightedId !== lastHighlighted) {
+      const targetMaterial = materials.find(m => m.id === highlightedId);
+      if (targetMaterial) {
+        setLastHighlighted(highlightedId);
+        setActiveTab("Materials");
+        setSearchQuery("");
+
+        setTimeout(() => {
+          const next = new URLSearchParams(window.location.search);
+          next.delete("highlight");
+          setSearchParams(next, { replace: true });
+        }, 1500);
+      }
     }
-  }, [highlightedId, materials]);
+  }, [highlightedId, materials, lastHighlighted, searchParams, setSearchParams]);
   const { deliveries, stats: delStats, suppliers, loading: delLoading, updateDelivery, confirmReceipt: confirmReceiptFn } = useDeliveries();
 
   const loading = activeTab === "Materials" ? matLoading : delLoading;
@@ -72,6 +85,10 @@ const CashierInventory = () => {
   // Handlers for Deliveries
   const handleConfirmReceipt = async () => {
     if (!selectedDelivery) return;
+    if (refError) {
+      toast.error(refError);
+      return;
+    }
     if (!receipt.received_quantity || Number(receipt.received_quantity) <= 0) {
       toast.error("Valid quantity is required");
       return;
@@ -82,6 +99,7 @@ const CashierInventory = () => {
     });
     if (r.success) {
       toast.success("Delivery marked as received");
+      setRefError("");
       setShowConfirmReceipt(false);
     } else {
       toast.error("Error receiving delivery: " + r.error);
@@ -238,7 +256,22 @@ const CashierInventory = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold mb-1">Receipt Reference #</label>
-                <input type="text" value={receipt.receipt_reference_number} onChange={e => setReceipt({...receipt, receipt_reference_number: e.target.value})} className="w-full px-3 py-2 border rounded-lg" placeholder="e.g. OR-99812" />
+                <input type="text" value={receipt.receipt_reference_number} onChange={e => {
+                  const val = e.target.value;
+                  const hasInvalid = /[^a-zA-Z0-9-]/.test(val);
+                  if (hasInvalid) {
+                    setRefError("Only alphanumeric characters and hyphens (-) are allowed.");
+                  } else {
+                    setRefError("");
+                  }
+                  const filtered = val.replace(/[^a-zA-Z0-9-]/g, "");
+                  setReceipt({...receipt, receipt_reference_number: filtered});
+                }} className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                  refError ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                }`} placeholder="e.g. OR-99812" />
+                {refError && (
+                  <p className="text-red-500 text-[11px] mt-1 font-medium">{refError}</p>
+                )}
               </div>
             </div>
             <div className="flex gap-3">
