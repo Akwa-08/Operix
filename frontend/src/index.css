@@ -70,7 +70,7 @@
 }
 
 .highlight-pulse {
-  animation: highlight-pulse 2s ease-in-out forwards;
+  animation: highlight-pulse 1s ease-in-out 3;
   z-index: 10;
   scroll-margin-top: 100px;
 }

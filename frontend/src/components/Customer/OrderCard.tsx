@@ -12,6 +12,7 @@ import {
   Truck,
   Package,
 } from "lucide-react";
+import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 export type OrderStatus =
   | "Queue"
@@ -34,6 +35,7 @@ export interface Order {
   isPriceEstimated?: boolean;
   paymentStatus: "Partially paid" | "Paid" | "None";
   note?: string;
+  isSuki?: boolean;
 }
 
 interface OrderCardProps {
@@ -122,9 +124,12 @@ export const OrderCard: React.FC<OrderCardProps> = ({
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 bg-gray-300 rounded-full flex-shrink-0" />
         <div>
-          <h3 className="text-sm font-bold text-gray-900 leading-tight">
-            {order.customerName}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-bold text-gray-900 leading-tight">
+              {order.customerName}
+            </h3>
+            {order.isSuki && <SukiBadge size="sm" />}
+          </div>
           <p className="text-xs text-gray-500 font-medium mt-0.5">
             {order.role} • <span className="uppercase">{order.orderNumber}</span>
           </p>
@@ -169,7 +174,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center border-2 border-white shadow-sm transition-colors duration-300 ${
                   (isCompleted || isActive)
-                    ? (step.status === "Complete" && order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white" : "bg-green-500 text-white")
+                    ? (step.status === "Complete" && order.currentStatus === "Complete" && order.paymentStatus !== "Paid" ? "bg-yellow-500 text-white" : "bg-green-500 text-white")
                     : "bg-gray-100 text-gray-400"
                 }`}>
                 {isCompleted ? (
@@ -182,7 +187,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 className={`text-xs mt-1.5 font-medium whitespace-nowrap ${
                   isActive ? "text-gray-900 font-bold" : "text-gray-400"
                 }`}>
-                {step.label}
+                {step.status === "Complete" && order.currentStatus === "Complete" && order.paymentStatus !== "Paid" ? "Incomplete" : step.label}
               </span>
             </div>
           );

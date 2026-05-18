@@ -16,7 +16,7 @@ import { useToast } from "../../context/ToastContext";
 import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 const DesignerOrders = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedId = searchParams.get("highlight");
   const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
 
@@ -24,6 +24,7 @@ const DesignerOrders = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
 
   const { profile } = useMyProfile();
 
@@ -52,9 +53,25 @@ const DesignerOrders = () => {
     }
   }, [highlightedId, loading]);
 
-  // Include Cancel Requested orders so designer can action them
+  useEffect(() => {
+    if (highlightedId && allOrders.length > 0 && highlightedId !== lastHighlighted) {
+      const targetOrder = allOrders.find(o => o.id === highlightedId);
+      if (targetOrder) {
+        setLastHighlighted(highlightedId);
+        setSearchQuery("");
+
+        setTimeout(() => {
+          const next = new URLSearchParams(window.location.search);
+          next.delete("highlight");
+          setSearchParams(next, { replace: true });
+        }, 1500);
+      }
+    }
+  }, [highlightedId, allOrders, lastHighlighted, searchParams, setSearchParams]);
+
+  // Include Cancel Requested and In Queue assigned orders so designer can action them
   const orders = allOrders.filter(
-    (o) => o.assignedDesigner === profile?.id && !["In Queue", "Payment", "Production", "Pickup"].includes(o.status),
+    (o) => o.assignedDesigner === profile?.id && !["Payment", "Production", "Pickup"].includes(o.status),
   ).sort((a, b) => {
     // Prioritise cancel requests
     if (a.status === "Cancel Requested" && b.status !== "Cancel Requested") return -1;

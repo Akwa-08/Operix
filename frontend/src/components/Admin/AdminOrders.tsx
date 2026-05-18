@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Plus, Trash2, X, Check } from "lucide-react";
 import { SearchBar } from "../Shared/UI/SearchBar";
@@ -52,6 +52,9 @@ const AdminOrders = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSizeOptions = ["6", "12", "18", "24"];
 
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
+  const skipPageResetRef = useRef(false);
+
   useEffect(() => {
     const filter = searchParams.get("filter");
     if (filter === "unassigned") {
@@ -63,11 +66,38 @@ const AdminOrders = () => {
     }
   }, [searchParams, setSearchParams]);
 
+  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, approvePayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
+
   useEffect(() => {
+    if (highlightedId && orders.length > 0 && highlightedId !== lastHighlighted) {
+      const targetOrder = orders.find(o => o.id === highlightedId);
+      if (targetOrder) {
+        setLastHighlighted(highlightedId);
+        skipPageResetRef.current = true;
+        
+        setStatusFilter("All");
+        setPeriodFilter("All Time");
+        setSearchQuery("");
+        
+        const index = orders.findIndex(o => o.id === highlightedId);
+        if (index !== -1) {
+          setCurrentPage(Math.floor(index / pageSize) + 1);
+        }
+
+        const next = new URLSearchParams(searchParams);
+        next.delete("highlight");
+        setSearchParams(next, { replace: true });
+      }
+    }
+  }, [highlightedId, orders, pageSize, lastHighlighted, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (skipPageResetRef.current) {
+      skipPageResetRef.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [statusFilter, periodFilter, searchQuery, pageSize]);
-
-  const { orders, stats, designers, productionStaff, loading, createOrder, updateStatus, assignStaff, deleteOrder, recordPayment, approvePayment, declinePayment, updateCustomerDesign, refresh } = useOrdersData();
 
   const toast = useToast();
 

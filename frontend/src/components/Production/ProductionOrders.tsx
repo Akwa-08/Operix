@@ -18,7 +18,7 @@ import { ExcessMaterialModal } from "./ExcessMaterialModal";
 import { Modal } from "../Shared/UI/Modal";
 
 const ProductionOrders = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedId = searchParams.get("highlight");
   const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
 
@@ -28,6 +28,7 @@ const ProductionOrders = () => {
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
   const [showExcessModal, setShowExcessModal] = useState(false);
   const [pendingPickupOrder, setPendingPickupOrder] = useState<Order | null>(null);
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
 
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignOrderId, setAssignOrderId] = useState<string | null>(null);
@@ -51,6 +52,22 @@ const ProductionOrders = () => {
       highlightedRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [highlightedId, loading]);
+
+  useEffect(() => {
+    if (highlightedId && allOrders.length > 0 && highlightedId !== lastHighlighted) {
+      const targetOrder = allOrders.find(o => o.id === highlightedId);
+      if (targetOrder) {
+        setLastHighlighted(highlightedId);
+        setSearchQuery("");
+
+        setTimeout(() => {
+          const next = new URLSearchParams(window.location.search);
+          next.delete("highlight");
+          setSearchParams(next, { replace: true });
+        }, 1500);
+      }
+    }
+  }, [highlightedId, allOrders, lastHighlighted, searchParams, setSearchParams]);
 
   // Show all orders in Production status
   const orders = allOrders.filter(o => o.status === "Production");

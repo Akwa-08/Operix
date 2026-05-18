@@ -20,7 +20,7 @@ export const OrderStatusBadge: React.FC<OrderStatusBadgeProps> = ({
   paymentStatus,
   size = "md",
 }) => {
-  const isCompletedUnpaid = status === "Completed" && paymentStatus !== "Paid";
+  const isCompletedUnpaid = (status === "Completed" || status === "Complete") && paymentStatus !== "Paid";
   const colorClass = isCompletedUnpaid 
     ? "bg-yellow-100 text-yellow-700 border-yellow-200" 
     : getOrderStatusColor(status);

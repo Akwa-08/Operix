@@ -84,7 +84,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
           <div 
             key={order.id} 
             ref={highlightedId === order.id ? (el) => { (highlightedRef as any).current = el; } : null}
-            className={`p-4 space-y-2 transition-all ${highlightedId === order.id ? "highlight-pulse ring-2 ring-cyan-500" : ""} ${order.paymentStatus === "Partially paid" ? "bg-yellow-50/80" : ""}`}
+            className={`p-4 space-y-2 transition-all ${highlightedId === order.id ? "highlight-pulse ring-2 ring-cyan-500" : ""}`}
           >
             {/* Header row */}
             <div className="flex items-start justify-between gap-2">
@@ -148,7 +148,7 @@ export const OrdersTable: React.FC<OrdersTableProps> = ({
                 <tr 
                   key={order.id} 
                   ref={highlightedId === order.id ? (el) => { (highlightedRef as any).current = el; } : null}
-                  className={`hover:bg-gray-50 transition-all ${highlightedId === order.id ? "highlight-pulse bg-cyan-50/50" : ""} ${order.paymentStatus === "Partially paid" ? "bg-yellow-50/80" : ""}`}
+                  className={`hover:bg-gray-50 transition-all ${highlightedId === order.id ? "highlight-pulse bg-cyan-50/50" : ""}`}
                 >
                   <td className="px-4 py-3 text-gray-900 font-semibold">{order.orderId}</td>
                   <td className="px-4 py-3 text-gray-900">

@@ -77,6 +77,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
   const [payType, setPayType] = useState<PaymentType>("full");
   const [partialAmt, setPartialAmt] = useState<string>("");
   const [reference, setReference] = useState("");
+  const [refError, setRefError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,6 +93,7 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
     setPayType("full");
     setPartialAmt("");
     setReference("");
+    setRefError("");
     setError(null);
     onClose();
   };
@@ -114,6 +116,10 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
     }
     if (!reference.trim()) {
       setError("Please enter the reference number.");
+      return;
+    }
+    if (refError) {
+      setError(refError);
       return;
     }
 
@@ -353,10 +359,27 @@ export const CustomerPaymentModal: React.FC<CustomerPaymentModalProps> = ({
               <input
                 type="text"
                 value={reference}
-                onChange={(e) => setReference(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const hasInvalid = /[^a-zA-Z0-9-]/.test(val);
+                  if (hasInvalid) {
+                    setRefError("Only alphanumeric characters and hyphens (-) are allowed.");
+                  } else {
+                    setRefError("");
+                  }
+                  const filtered = val.replace(/[^a-zA-Z0-9-]/g, "");
+                  setReference(filtered);
+                }}
                 placeholder="Enter reference number from your app"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-cyan-400 focus:outline-none text-sm font-medium text-gray-900 transition-colors placeholder:text-gray-300"
+                className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none text-sm font-medium text-gray-900 transition-colors placeholder:text-gray-300 ${
+                  refError
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-gray-200 focus:border-cyan-400"
+                }`}
               />
+              {refError && (
+                <p className="text-red-500 text-[11px] mt-1 font-medium">{refError}</p>
+              )}
               <p className="text-[11px] text-gray-400 mt-1">
                 Found in your transaction history after payment
               </p>

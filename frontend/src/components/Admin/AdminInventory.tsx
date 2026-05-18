@@ -105,6 +105,7 @@ const AdminInventory = () => {
   const [editDeliveryForm, setEditDeliveryForm] = useState({ requested_quantity: "", expected_arrival_date: "", notes: "", supplier_id: "" });
   const [faultyReason, setFaultyReason] = useState("");
   const [receipt, setReceipt] = useState({ received_quantity: "", receipt_reference_number: "" });
+  const [refError, setRefError] = useState("");
   const [showManageSuppliersModal, setShowManageSuppliersModal] = useState(false);
   const [selectedMaterialSuppliers, setSelectedMaterialSuppliers] = useState<string[]>([]);
   const [savingSuppliers, setSavingSuppliers] = useState(false);
@@ -112,9 +113,10 @@ const AdminInventory = () => {
   const [restockSupplierSearch, setRestockSupplierSearch] = useState("");
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const highlightedId = searchParams.get("highlight");
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
 
   const tabs = ["Materials", "Products", "Deliveries"];
   const {
@@ -129,12 +131,24 @@ const AdminInventory = () => {
 
   const loading = activeTab === "Materials" ? matLoading : activeTab === "Products" ? prodLoading : delLoading;
 
-  // Auto-switch to Materials tab if highlight param exists (highlighting is handled by the table)
+  // Auto-switch to Materials tab if highlight param exists, clearing search/filters
   useEffect(() => {
-    if (highlightedId && materials.length > 0) {
-      setActiveTab("Materials");
+    if (highlightedId && materials.length > 0 && highlightedId !== lastHighlighted) {
+      const targetMaterial = materials.find(m => m.id === highlightedId);
+      if (targetMaterial) {
+        setLastHighlighted(highlightedId);
+        setActiveTab("Materials");
+        setMaterialStatusFilter("All");
+        setSearchQuery("");
+
+        setTimeout(() => {
+          const next = new URLSearchParams(window.location.search);
+          next.delete("highlight");
+          setSearchParams(next, { replace: true });
+        }, 1500);
+      }
     }
-  }, [highlightedId, materials]);
+  }, [highlightedId, materials, lastHighlighted, searchParams, setSearchParams]);
 
   // ══════════════════════════════════════════════════════════════════════════════
   // MATERIALS HANDLERS
@@ -299,10 +313,17 @@ const AdminInventory = () => {
 
   const handleConfirmReceipt = async () => {
     if (!selectedDelivery) return;
+    if (refError) { toast.error(refError); return; }
     if (!receipt.receipt_reference_number.trim()) { toast.error("Receipt / Reference number is required and cannot be empty."); return; }
     if (!receipt.received_quantity) { toast.error("Quantity is required."); return; }
     const r = await confirmReceiptFn(selectedDelivery.id, { received_quantity: Number(receipt.received_quantity), receipt_reference_number: receipt.receipt_reference_number });
-    if (r.success) { toast.success("Delivery confirmed! Inventory updated."); setShowConfirmReceipt(false); setReceipt({ received_quantity: "", receipt_reference_number: "" }); refreshMat(); }
+    if (r.success) {
+      toast.success("Delivery confirmed! Inventory updated.");
+      setRefError("");
+      setShowConfirmReceipt(false);
+      setReceipt({ received_quantity: "", receipt_reference_number: "" });
+      refreshMat();
+    }
     else toast.error(r.error || "Failed");
   };
 
@@ -1022,8 +1043,23 @@ const AdminInventory = () => {
                     <input type="number" min="0.01" step="0.01" value={receipt.received_quantity} onChange={e => setReceipt({ ...receipt, received_quantity: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
                   <div><label className="block text-sm font-semibold text-gray-700 mb-1">Receipt / Reference Number *</label>
-                    <input type="text" value={receipt.receipt_reference_number} onChange={e => setReceipt({ ...receipt, receipt_reference_number: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="e.g., RCV-2026-001" /></div>
+                    <input type="text" value={receipt.receipt_reference_number} onChange={e => {
+                      const val = e.target.value;
+                      const hasInvalid = /[^a-zA-Z0-9-]/.test(val);
+                      if (hasInvalid) {
+                        setRefError("Only alphanumeric characters and hyphens (-) are allowed.");
+                      } else {
+                        setRefError("");
+                      }
+                      const filtered = val.replace(/[^a-zA-Z0-9-]/g, "");
+                      setReceipt({ ...receipt, receipt_reference_number: filtered });
+                    }}
+                      className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 ${
+                        refError ? "border-red-500 focus:ring-red-500" : "border-gray-300"
+                      }`} placeholder="e.g., RCV-2026-001" />
+                    {refError && (
+                      <p className="text-red-500 text-[11px] mt-1 font-medium">{refError}</p>
+                    )}</div>
                 </div>
                 <p className="text-xs text-gray-400 mb-4">Confirming will automatically update the material's stock based on the received quantity × conversion rate.</p>
                 <div className="flex gap-3">

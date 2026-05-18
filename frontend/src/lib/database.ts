@@ -496,7 +496,7 @@ export const db = {
       .select(
         `
       *,
-      customer:customer_id(id, first_name, last_name, email, contact_number),
+      customer:customer_id(id, first_name, last_name, email, contact_number, is_suki),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
@@ -523,7 +523,7 @@ export const db = {
       .select(
         `
       *,
-      customer:customer_id(id, first_name, last_name, email, contact_number),
+      customer:customer_id(id, first_name, last_name, email, contact_number, is_suki),
       designer:assigned_designer(id, first_name, last_name),
       production_staff:assigned_production(id, full_name),
       order_items(id, product_id, product_name, quantity, unit_price, subtotal, specifications, file_url),
@@ -633,9 +633,21 @@ export const db = {
 
   async updateOrder(id: string, updates: Record<string, any>) {
     const { data: old } = await supabase.from('orders').select('*').eq('id', id).single();
+    let finalUpdates = { ...updates };
+    if (finalUpdates.status === "payment" && old && old.customer_id) {
+      const { data: customer } = await supabase
+        .from("users")
+        .select("is_suki")
+        .eq("id", old.customer_id)
+        .single();
+      if (customer && customer.is_suki) {
+        finalUpdates.status = "production";
+      }
+    }
+
     const { data, error } = await supabase
       .from("orders")
-      .update(updates)
+      .update(finalUpdates)
       .eq("id", id)
       .select()
       .single();
@@ -869,7 +881,7 @@ export const db = {
     if (fetchError) throw fetchError;
     if (!order) throw new Error("Order not found");
 
-    if (order.assigned_designer !== user.id) {
+    if (order.assigned_designer && order.assigned_designer !== user.id) {
       throw new Error("Only the assigned designer can reject this order");
     }
 
@@ -1018,7 +1030,14 @@ export const db = {
 
     const { data: order, error: fetchError } = await supabase
       .from("orders")
-      .select("id, customer_id, assigned_designer, status, final_design_url")
+      .select(`
+        id, 
+        customer_id, 
+        assigned_designer, 
+        status, 
+        final_design_url,
+        customer:customer_id(is_suki)
+      `)
       .eq("id", orderId)
       .single();
     if (fetchError) throw fetchError;
@@ -1034,9 +1053,12 @@ export const db = {
       throw new Error("No final design found to approve");
     }
 
+    const isSuki = !!(order?.customer as any)?.is_suki;
+    const nextStatus = isSuki ? "production" : "payment";
+
     const { data, error } = await supabase
       .from("orders")
-      .update({ status: "payment" })
+      .update({ status: nextStatus })
       .eq("id", orderId)
       .eq("status", "designing")
       .select()
@@ -1047,7 +1069,9 @@ export const db = {
       try {
         await db.chat.sendMessage(
           order.customer_id,
-          "Your final design has been approved by our team. Your order is now in the Payment phase.",
+          isSuki
+            ? "Your final design has been approved by our team. Since you are a SUKI customer, your order has bypassed payment confirmation and is now in the Production phase."
+            : "Your final design has been approved by our team. Your order is now in the Payment phase.",
           orderId,
         );
       } catch (msgErr) {

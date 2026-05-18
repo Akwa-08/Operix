@@ -21,7 +21,7 @@ import { useToast } from "../../context/ToastContext";
 import { SukiBadge } from "../Shared/UI/SukiBadge";
 
 const CashierOrders = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const highlightedId = searchParams.get("highlight");
   const highlightedRef = useRef<HTMLDivElement | HTMLTableRowElement | null>(null);
 
@@ -31,6 +31,7 @@ const CashierOrders = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "cards">("list");
+  const [lastHighlighted, setLastHighlighted] = useState<string | null>(null);
 
   const {
     orders,
@@ -43,6 +44,23 @@ const CashierOrders = () => {
     updateStatus,
     refresh,
   } = useOrdersData();
+
+  useEffect(() => {
+    if (highlightedId && orders.length > 0 && highlightedId !== lastHighlighted) {
+      const targetOrder = orders.find(o => o.id === highlightedId);
+      if (targetOrder) {
+        setLastHighlighted(highlightedId);
+        setStatusFilter("All");
+        setSearchQuery("");
+
+        setTimeout(() => {
+          const next = new URLSearchParams(window.location.search);
+          next.delete("highlight");
+          setSearchParams(next, { replace: true });
+        }, 1500);
+      }
+    }
+  }, [highlightedId, orders, lastHighlighted, searchParams, setSearchParams]);
 
   const toast = useToast();
 
