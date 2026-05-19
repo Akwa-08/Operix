@@ -166,6 +166,7 @@ export interface EmployeeRecord {
   overtimeRateMultiplier: number;
   hireDate: string;
   isActive: boolean;
+  sssContribution: number;
   philhealthContribution: number;
   hdmfContribution: number;
 }
