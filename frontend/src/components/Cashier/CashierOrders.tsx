@@ -73,9 +73,13 @@ const CashierOrders = () => {
   const handleCreateOrder = async (orderData: any) => {
     const result = await createOrder({
       customer_id: orderData.customerId || null,
+      guest_name: orderData.customerName || null,
+      guest_phone: orderData.customerPhone || null,
+      guest_email: orderData.customerEmail || null,
       order_type: "walk-in",
       items: [
         {
+          product_id: orderData.productId || undefined,
           product_name: orderData.productType,
           quantity: orderData.quantity,
           unit_price: orderData.totalAmount / (orderData.quantity || 1),

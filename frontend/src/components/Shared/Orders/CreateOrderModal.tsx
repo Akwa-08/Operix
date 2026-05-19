@@ -34,6 +34,7 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
     customerEmail: "",
     customerPhone: "",
     productType: "",
+    productId: "",
     quantity: "" as number | string,
     totalAmount: 0,
     dueDate: "",
@@ -186,7 +187,9 @@ export const CreateOrderModal: React.FC<CreateOrderModalProps> = ({
                 <select
                   value={formData.productType}
                   onChange={(e) => {
+                    const selected = products.find(p => p.name === e.target.value) || null;
                     handleChange("productType", e.target.value);
+                    handleChange("productId", selected?.id || "");
                     handleChange("quantity", ""); // Reset quantity on product change
                   }}
                   disabled={loadingProducts}

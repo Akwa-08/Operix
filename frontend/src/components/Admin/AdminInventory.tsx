@@ -44,7 +44,7 @@ const getFlagPriority = (category?: string) => {
   return 2;
 };
 
-const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category") => {
+const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKey: string = "flag_category", onViewNote?: (name: string, note: string) => void) => {
   const category = s[categoryKey] || s.flagCategory;
   const name = s[nameKey];
   const notes = s.flag_notes || s.flagNotes;
@@ -55,10 +55,15 @@ const renderSupplierNameWithFlag = (s: any, nameKey: string = "name", categoryKe
       {category === "Critical" && <Flag size={14} className="text-red-500 fill-red-500 flex-shrink-0" />}
       <span className={category === "Critical" ? "text-red-600 font-semibold" : category === "Warning" ? "text-orange-600 font-medium" : ""}>{name}</span>
       {notes && (
-        <button 
-          type="button" 
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); alert(`Supplier Note for ${name}:\n${notes}`); }} 
-          className="text-gray-400 hover:text-cyan-600 focus:outline-none flex-shrink-0 ml-1" 
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (onViewNote) onViewNote(name, notes);
+            else alert(`Supplier Note for ${name}:\n${notes}`);
+          }}
+          className="text-gray-400 hover:text-cyan-600 focus:outline-none flex-shrink-0 ml-1"
           title="View Note"
         >
           <Info size={14} />
@@ -112,6 +117,7 @@ const AdminInventory = () => {
   const [restockSearch, setRestockSearch] = useState("");
   const [restockSupplierSearch, setRestockSupplierSearch] = useState("");
   const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [noteModal, setNoteModal] = useState({ show: false, title: "", content: "" });
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -350,13 +356,13 @@ const AdminInventory = () => {
   const handleFaultySubmission = async () => {
     if (!selectedDelivery) return;
     if (!faultyReason.trim()) { toast.error("Please provide a reason for the faulty delivery."); return; }
-    const updatedNotes = selectedDelivery.notes 
+    const updatedNotes = selectedDelivery.notes
       ? `${selectedDelivery.notes} | Faulty Reason: ${faultyReason}`
       : `Faulty Reason: ${faultyReason}`;
-    
-    const r = await updateDelivery(selectedDelivery.id, { 
-      status: "returned", 
-      notes: updatedNotes 
+
+    const r = await updateDelivery(selectedDelivery.id, {
+      status: "returned",
+      notes: updatedNotes
     });
     if (r.success) {
       toast.success("Delivery marked as returned (faulty).");
@@ -524,7 +530,7 @@ const AdminInventory = () => {
                       }}
                       className="w-4 h-4 text-cyan-600 rounded border-gray-300 focus:ring-cyan-500 flex-shrink-0"
                     />
-                    <div className="text-sm text-gray-700 min-w-0 flex-1">{renderSupplierNameWithFlag(s)}</div>
+                    <div className="text-sm text-gray-700 min-w-0 flex-1">{renderSupplierNameWithFlag(s, "name", "flag_category", (name, note) => setNoteModal({ show: true, title: `Supplier Note: ${name}`, content: note }))}</div>
                   </label>
                 ))}
               </div>
@@ -571,7 +577,7 @@ const AdminInventory = () => {
                     />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-gray-900 mb-0.5">
-                        {renderSupplierNameWithFlag(s)}
+                        {renderSupplierNameWithFlag(s, "name", "flag_category", (name, note) => setNoteModal({ show: true, title: `Supplier Note: ${name}`, content: note }))}
                       </div>
                       <p className="text-xs text-gray-500 truncate">
                         {s.email || "No email"}
@@ -706,7 +712,7 @@ const AdminInventory = () => {
 
                     {/* Secondary Actions for mobile */}
                     <div className="relative">
-                      <button 
+                      <button
                         onClick={() => setOpenActionMenuId(openActionMenuId === d.id ? null : d.id)}
                         className={`p-2 rounded-lg border transition-all ${openActionMenuId === d.id ? 'bg-gray-100 border-gray-300 text-gray-900' : 'bg-white border-gray-200 text-gray-400'}`}
                       >
@@ -721,17 +727,17 @@ const AdminInventory = () => {
                               onClick={() => { setSelectedDelivery(d); setShowViewDelivery(true); setOpenActionMenuId(null); }}
                               className="w-full text-left px-4 py-2.5 text-sm text-gray-700 active:bg-gray-50 flex items-center gap-2"
                             >View Details</button>
-                            
+
                             {["requested", "ordered", "en_route"].includes(d.status) && (
                               <button
-                                onClick={() => { 
-                                  setSelectedDelivery(d); 
-                                  setEditDeliveryForm({ 
-                                    requested_quantity: String(d.requestedQuantity), 
-                                    expected_arrival_date: d.expectedArrivalDate, 
+                                onClick={() => {
+                                  setSelectedDelivery(d);
+                                  setEditDeliveryForm({
+                                    requested_quantity: String(d.requestedQuantity),
+                                    expected_arrival_date: d.expectedArrivalDate,
                                     notes: d.notes,
                                     supplier_id: d.supplierId || ""
-                                  }); 
+                                  });
                                   setShowEditDelivery(true);
                                   setOpenActionMenuId(null);
                                 }}
@@ -740,7 +746,7 @@ const AdminInventory = () => {
                             )}
 
                             {d.status === "en_route" && (
-                              <button 
+                              <button
                                 onClick={() => { setSelectedDelivery(d); setFaultyReason(""); setShowFaultyModal(true); setOpenActionMenuId(null); }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-red-600 active:bg-red-50 flex items-center gap-2"
                               >Return (Faulty)</button>
@@ -751,7 +757,7 @@ const AdminInventory = () => {
                             )}
 
                             {["requested", "ordered", "en_route"].includes(d.status) && (
-                              <button 
+                              <button
                                 onClick={() => { setSelectedDelivery(d); setShowCancelDeliveryModal(true); setOpenActionMenuId(null); }}
                                 className="w-full text-left px-4 py-2.5 text-sm text-gray-500 active:bg-red-50 active:text-red-600"
                               >Cancel Request</button>
@@ -809,7 +815,7 @@ const AdminInventory = () => {
 
                             {/* Secondary Actions Dropdown */}
                             <div className="relative">
-                              <button 
+                              <button
                                 onClick={() => setOpenActionMenuId(openActionMenuId === d.id ? null : d.id)}
                                 className={`p-1.5 rounded-lg transition-colors ${openActionMenuId === d.id ? 'bg-gray-200 text-gray-900' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600'}`}
                               >
@@ -824,17 +830,17 @@ const AdminInventory = () => {
                                       onClick={() => { setSelectedDelivery(d); setShowViewDelivery(true); setOpenActionMenuId(null); }}
                                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                                     >View Details</button>
-                                    
+
                                     {["requested", "ordered", "en_route"].includes(d.status) && (
                                       <button
-                                        onClick={() => { 
-                                          setSelectedDelivery(d); 
-                                          setEditDeliveryForm({ 
-                                            requested_quantity: String(d.requestedQuantity), 
-                                            expected_arrival_date: d.expectedArrivalDate, 
+                                        onClick={() => {
+                                          setSelectedDelivery(d);
+                                          setEditDeliveryForm({
+                                            requested_quantity: String(d.requestedQuantity),
+                                            expected_arrival_date: d.expectedArrivalDate,
                                             notes: d.notes,
                                             supplier_id: d.supplierId || ""
-                                          }); 
+                                          });
                                           setShowEditDelivery(true);
                                           setOpenActionMenuId(null);
                                         }}
@@ -843,7 +849,7 @@ const AdminInventory = () => {
                                     )}
 
                                     {d.status === "en_route" && (
-                                      <button 
+                                      <button
                                         onClick={() => { setSelectedDelivery(d); setFaultyReason(""); setShowFaultyModal(true); setOpenActionMenuId(null); }}
                                         className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                                       >Return (Faulty)</button>
@@ -854,7 +860,7 @@ const AdminInventory = () => {
                                     )}
 
                                     {["requested", "ordered", "en_route"].includes(d.status) && (
-                                      <button 
+                                      <button
                                         onClick={() => { setSelectedDelivery(d); setShowCancelDeliveryModal(true); setOpenActionMenuId(null); }}
                                         className="w-full text-left px-4 py-2 text-sm text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors"
                                       >Cancel Request</button>
@@ -936,14 +942,14 @@ const AdminInventory = () => {
                         const fullSupplier = suppliers.find(sup => sup.id === s.id) as any;
                         const supplierWithNotes = { ...s, flag_notes: fullSupplier?.flag_notes, flagNotes: fullSupplier?.flag_notes };
                         return (
-                        <div
-                          key={s.id}
-                          onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
-                          className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
-                        >
-                          <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(supplierWithNotes, "name", "flagCategory")}</div>
-                          {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
-                        </div>
+                          <div
+                            key={s.id}
+                            onClick={() => setNewDelivery({ ...newDelivery, supplier_id: s.id })}
+                            className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-cyan-50 transition-colors flex items-center justify-between ${newDelivery.supplier_id === s.id ? 'bg-cyan-50 text-cyan-800 font-bold' : 'text-gray-700'}`}
+                          >
+                            <div className="flex-1 min-w-0 pr-2">{renderSupplierNameWithFlag(supplierWithNotes, "name", "flagCategory", (name, note) => setNoteModal({ show: true, title: `Supplier Note: ${name}`, content: note }))}</div>
+                            {newDelivery.supplier_id === s.id && <CheckCircle size={14} className="text-cyan-600" />}
+                          </div>
                         );
                       })}
                     {(materials.find(m => m.id === newDelivery.inventory_item_id)?.mappedSuppliers || [])
@@ -958,9 +964,24 @@ const AdminInventory = () => {
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div><label className="block text-sm font-semibold text-gray-700 mb-1">Quantity *</label>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-semibold text-gray-700">Quantity *</label>
+                    {(() => {
+                      const mat = delMaterials.find(m => m.id === newDelivery.inventory_item_id);
+                      if (mat) {
+                        return (
+                          <span className="text-[10px] text-cyan-600 font-bold uppercase tracking-wider">
+                            Rate: 1 {mat.purchase_unit || 'purchase unit'} = {mat.conversion_rate || 1} {mat.unit_of_measure}
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                   <input type="number" min="1" value={newDelivery.requested_quantity} onChange={e => setNewDelivery({ ...newDelivery, requested_quantity: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Amount in purchase units" /></div>
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" placeholder="Amount in purchase units" />
+                </div>
                 <div><label className="block text-sm font-semibold text-gray-700 mb-1">Expected Arrival *</label>
                   <input type="date" value={newDelivery.expected_arrival_date} onChange={e => setNewDelivery({ ...newDelivery, expected_arrival_date: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" /></div>
@@ -983,11 +1004,11 @@ const AdminInventory = () => {
                   <p className="text-sm font-bold text-gray-900">{selectedDelivery.materialName}</p>
                   <p className="text-xs text-gray-500">Updating existing request</p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Supplier</label>
-                  <select 
-                    value={editDeliveryForm.supplier_id} 
+                  <select
+                    value={editDeliveryForm.supplier_id}
                     onChange={e => setEditDeliveryForm({ ...editDeliveryForm, supplier_id: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm bg-white"
                   >
@@ -1003,13 +1024,13 @@ const AdminInventory = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Quantity</label>
-                    <input type="number" min="1" value={editDeliveryForm.requested_quantity} 
+                    <input type="number" min="1" value={editDeliveryForm.requested_quantity}
                       onChange={e => setEditDeliveryForm({ ...editDeliveryForm, requested_quantity: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">Expected Arrival</label>
-                    <input type="date" value={editDeliveryForm.expected_arrival_date} 
+                    <input type="date" value={editDeliveryForm.expected_arrival_date}
                       onChange={e => setEditDeliveryForm({ ...editDeliveryForm, expected_arrival_date: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm" />
                   </div>
@@ -1017,7 +1038,7 @@ const AdminInventory = () => {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Notes</label>
-                  <textarea value={editDeliveryForm.notes} 
+                  <textarea value={editDeliveryForm.notes}
                     onChange={e => setEditDeliveryForm({ ...editDeliveryForm, notes: e.target.value })} rows={3}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm" />
                 </div>
@@ -1076,9 +1097,9 @@ const AdminInventory = () => {
               <p className="text-sm text-gray-600">Please provide a reason why this delivery is being returned or marked as faulty. This will be recorded in the delivery notes.</p>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1">Reason for Return *</label>
-                <textarea 
-                  value={faultyReason} 
-                  onChange={e => setFaultyReason(e.target.value)} 
+                <textarea
+                  value={faultyReason}
+                  onChange={e => setFaultyReason(e.target.value)}
                   rows={4}
                   placeholder="Describe the issues found (e.g., damaged items, incorrect specification...)"
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -1100,13 +1121,13 @@ const AdminInventory = () => {
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowCancelDeliveryModal(false)} className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 font-semibold rounded-xl">No, Keep It</button>
-                <button 
+                <button
                   onClick={() => {
                     if (selectedDelivery) {
                       handleUpdateDeliveryStatus(selectedDelivery.id, "cancelled");
                       setShowCancelDeliveryModal(false);
                     }
-                  }} 
+                  }}
                   className="flex-1 px-4 py-3 bg-gray-800 text-white font-semibold rounded-xl hover:bg-black"
                 >Yes, Cancel Request</button>
               </div>
@@ -1121,6 +1142,18 @@ const AdminInventory = () => {
               delivery={selectedDelivery}
             />
           )}
+          {/* Supplier Note Modal */}
+          <Modal
+            show={noteModal.show}
+            onClose={() => setNoteModal({ ...noteModal, show: false })}
+            title={noteModal.title}
+            width="max-w-md"
+          >
+            <div className="bg-cyan-50 border border-cyan-100 p-4 rounded-xl text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {noteModal.content}
+            </div>
+            <Button variant="primary" className="w-full mt-6" onClick={() => setNoteModal({ ...noteModal, show: false })}>Close</Button>
+          </Modal>
         </div>
       )}
     </div>

@@ -368,12 +368,12 @@ const ProductionOrders = () => {
           onRefresh={refresh}
         />
       )}
-      {selectedOrder && (
+      {pendingPickupOrder && (
         <ExcessMaterialModal
           isOpen={showExcessModal}
           onClose={() => setShowExcessModal(false)}
-          orderId={selectedOrder.id}
-          orderNumber={selectedOrder.orderId}
+          orderId={pendingPickupOrder.id}
+          orderNumber={pendingPickupOrder.orderId}
           onConfirm={handleConfirmPickup}
         />
       )}
