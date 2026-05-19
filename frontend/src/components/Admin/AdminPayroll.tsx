@@ -859,6 +859,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
     : "";
 
   const handlePrint = () => {
+    const isNeg = record.grossIncome - record.totalDeductions < 0;
     const w = window.open("", "_blank", "width=900,height=700");
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head><title>Payslip — ${record.employeeName}</title>
@@ -872,7 +873,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
       .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
       .row span:last-child { font-weight: 600; }
       .total-row { display: flex; justify-content: space-between; font-weight: bold; border-top: 1px solid #ccc; padding-top: 6px; margin-top: 6px; }
-      .net-box { background: #d1fae5; padding: 10px 14px; border-radius: 4px; display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 8px; }
+      .net-box { background: ${isNeg ? '#fee2e2' : '#d1fae5'}; padding: 10px 14px; border-radius: 4px; display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 8px; }
       .red { color: #dc2626; } .blue { color: #2563eb; } .green { color: #16a34a; }
     </style></head><body>
     <div class="header">
@@ -925,7 +926,7 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
         <h3>PAY SUMMARY</h3>
         <div class="row"><span>Gross Income:</span><span class="green">${fmt(record.grossIncome)}</span></div>
         <div class="row"><span>Total Deductions:</span><span class="red">${fmt(record.totalDeductions)}</span></div>
-        <div class="net-box"><span>NET PAY</span><span class="green">${fmt(record.netPay)}</span></div>
+        <div class="net-box"><span>NET PAY</span><span class="${isNeg ? 'red' : 'green'}">${fmt(record.netPay)}</span></div>
         <div style="margin-top:8px;font-size:10px;color:#666">
           <div class="row"><span>Taxable Income:</span><span>${fmt(record.taxableIncome)}</span></div>
           <div class="row"><span>Tax Rate:</span><span>0%</span></div>
@@ -1035,9 +1036,15 @@ function PayslipModal({ record, period, onClose }: { record: PayrollRecord; peri
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between"><span>Gross Income:</span><span className="text-green-600 font-semibold">{fmt(record.grossIncome)}</span></div>
                   <div className="flex justify-between"><span>Total Deductions:</span><span className="text-red-600 font-semibold">{fmt(record.totalDeductions)}</span></div>
-                  <div className="bg-green-100 px-3 py-2 rounded font-bold flex justify-between mt-2">
-                    <span>Net Pay</span><span className="text-green-700">{fmt(record.netPay)}</span>
-                  </div>
+                  {(() => {
+                    const isNeg = record.grossIncome - record.totalDeductions < 0;
+                    return (
+                      <div className={`${isNeg ? "bg-red-100 border border-red-200" : "bg-green-100"} px-3 py-2 rounded font-bold flex justify-between mt-2`}>
+                        <span>Net Pay</span>
+                        <span className={isNeg ? "text-red-700" : "text-green-700"}>{fmt(record.netPay)}</span>
+                      </div>
+                    );
+                  })()}
                   <div className="pt-2 border-t border-gray-200 space-y-0.5 text-[10px] text-gray-400">
                     <div className="flex justify-between"><span>Taxable Income:</span><span>{fmt(record.taxableIncome)}</span></div>
                     <div className="flex justify-between"><span>Tax Rate:</span><span>0%</span></div>
@@ -1296,7 +1303,14 @@ function SalaryBreakdownModal({ record, period, onClose }: { record: PayrollReco
     },
     {
       section: "NET PAY", items: [
-        { label: "Net Pay", formula: `Gross Income − Total Deductions = ${fmt(record.grossIncome)} − ${fmt(record.totalDeductions)}`, value: record.netPay, note: `This is column P in the Excel register`, isBold: true },
+        {
+          label: "Net Pay",
+          formula: `Gross Income − Total Deductions = ${fmt(record.grossIncome)} − ${fmt(record.totalDeductions)}`,
+          value: record.netPay,
+          note: `This is column P in the Excel register`,
+          isBold: true,
+          isNeg: record.grossIncome - record.totalDeductions < 0
+        },
       ]
     },
   ];
@@ -1551,7 +1565,7 @@ const AdminPayroll: React.FC = () => {
 
   const printPayrollTable = () => {
     if (!currentPeriod) return;
-    const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">${fmt(rec.totalDeductions)}</td><td class="num grn">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === "paid" ? "Paid" : "Pending"}</td></tr>`).join("");
+    const rows = payrollRecords.map(rec => `<tr><td>${rec.employeeName}</td><td>${rec.position}</td><td class="num">${fmt(rec.dailyRate)}</td><td class="ctr">${rec.daysPresent}</td><td class="num">${fmt(rec.basicPay)}</td><td class="num">${fmt(rec.regularOvertime + rec.holidayOvertime + rec.specialOvertime)}</td><td class="num blu">${fmt(rec.grossIncome)}</td><td class="num red">${fmt(rec.totalDeductions)}</td><td class="num ${rec.grossIncome - rec.totalDeductions < 0 ? 'red' : 'grn'}">${fmt(rec.netPay)}</td><td class="ctr">${rec.status === "paid" ? "Paid" : "Pending"}</td></tr>`).join("");
     printWithIframe(`<!DOCTYPE html><html><head><title>Payroll — ${periodLabel(currentPeriod)}</title><style>@page{size:landscape;margin:15mm}body{font-family:Arial,sans-serif;font-size:11px;color:#111;margin:0}h2{font-size:14px;font-weight:bold;margin:0 0 2px}p{font-size:10px;color:#555;margin:0 0 12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 7px}th{background:#f3f4f6;font-weight:700;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.4px}.num{text-align:right}.ctr{text-align:center}.blu{color:#1d4ed8;font-weight:bold}.red{color:#dc2626}.grn{color:#16a34a;font-weight:bold}tfoot td{font-weight:bold;border-top:2px solid #888;background:#f9fafb}</style></head><body><h2>VTA LINK PRINTING SERVICES — PAYROLL REGISTER</h2><p>Period: ${periodLabel(currentPeriod)} | Printed: ${new Date().toLocaleDateString("en-PH", { day: "numeric", month: "long", year: "numeric" })}</p><table><thead><tr><th>Employee</th><th>Position</th><th>Daily Rate</th><th>Days</th><th>Basic Pay</th><th>OT Pay</th><th>Gross</th><th>Deductions</th><th>Net Pay</th><th>Status</th></tr></thead><tbody>${rows}</tbody><tfoot><tr><td colspan="4">TOTALS (${payrollRecords.length} employees)</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.basicPay, 0))}</td><td class="num">${fmt(payrollRecords.reduce((s, r) => s + r.regularOvertime + r.holidayOvertime + r.specialOvertime, 0))}</td><td class="num blu">${fmt(payrollRecords.reduce((s, r) => s + r.grossIncome, 0))}</td><td class="num red">${fmt(payrollRecords.reduce((s, r) => s + r.totalDeductions, 0))}</td><td class="num grn">${fmt(payrollRecords.reduce((s, r) => s + r.netPay, 0))}</td><td></td></tr></tfoot></table></body></html>`);
   };
 
@@ -2025,7 +2039,7 @@ const AdminPayroll: React.FC = () => {
                           <td className="px-4 py-3 text-xs text-red-600">{fmt(rec.tardyDeductions + rec.undertimeDeductions)}</td>
                           <td className="px-4 py-3 font-semibold text-blue-700 text-xs">{fmt(rec.grossIncome)}</td>
                           <td className="px-4 py-3 text-red-600 text-xs">{fmt(rec.totalDeductions)}</td>
-                          <td className="px-4 py-3 font-bold text-green-700 text-xs">{fmt(rec.netPay)}</td>
+                          <td className={`px-4 py-3 font-bold text-xs ${rec.grossIncome - rec.totalDeductions < 0 ? "text-red-600" : "text-green-700"}`}>{fmt(rec.netPay)}</td>
                           <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{rec.status === "paid" ? "Paid" : "Pending"}</span></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1">
@@ -2148,7 +2162,7 @@ const AdminPayroll: React.FC = () => {
                                   <td className="px-3 py-2 text-gray-500">{rec.position}</td>
                                   <td className="px-3 py-2 text-blue-600 font-semibold">{fmt(rec.grossIncome)}</td>
                                   <td className="px-3 py-2 text-red-600 font-semibold">{fmt(rec.totalDeductions)}</td>
-                                  <td className="px-3 py-2 text-green-600 font-semibold">{fmt(rec.netPay)}</td>
+                                  <td className={`px-3 py-2 font-semibold ${rec.grossIncome - rec.totalDeductions < 0 ? "text-red-600" : "text-green-600"}`}>{fmt(rec.netPay)}</td>
                                   <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rec.status === "paid" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{rec.status === "paid" ? "Paid" : "Pending"}</span></td>
                                   <td className="px-3 py-2"><button onClick={() => setViewingRecord(rec)} className="p-1 hover:bg-gray-200 rounded" title="View payslip"><Eye size={14} className="text-gray-600" /></button></td>
                                 </tr>

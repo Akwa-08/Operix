@@ -2119,7 +2119,7 @@ export const db = {
           employee:employee_id(
             id, employee_code, full_name, position,
             base_hourly_rate, holiday_rate_multiplier, overtime_rate_multiplier,
-            philhealth_contribution, hdmf_contribution
+            sss_contribution, philhealth_contribution, hdmf_contribution
           )
         `,
         )
@@ -2200,7 +2200,7 @@ export const db = {
           *,
           employee:employee_id(
             id, employee_code, base_hourly_rate,
-            philhealth_contribution, hdmf_contribution
+            sss_contribution, philhealth_contribution, hdmf_contribution
           )
         `,
         )
@@ -2231,11 +2231,31 @@ export const db = {
         .eq("status", "deducted")
         .eq("payroll_period_id", periodId);
 
+      // Fetch all periods to map their start dates for correct chronological sorting
+      const { data: periods } = await supabase
+        .from("payroll_periods")
+        .select("id, period_start");
+      
+      const periodStartMap: Record<string, string> = {};
+      (periods || []).forEach((p: any) => {
+        periodStartMap[p.id] = p.period_start || "";
+      });
+
       const { data: allPrevRecords } = await supabase
         .from("payroll_records")
-        .select("employee_id, carry_over_deduction, created_at")
-        .neq("payroll_period_id", periodId)
-        .order("created_at", { ascending: false });
+        .select("employee_id, payroll_period_id, carry_over_deduction")
+        .neq("payroll_period_id", periodId);
+
+      const sortedPrevRecords = (allPrevRecords || [])
+        .filter((r: any) => {
+          const prevStart = periodStartMap[r.payroll_period_id] || "";
+          return prevStart < periodStart; // Only include chronologically EARLIER periods
+        })
+        .sort((a: any, b: any) => {
+          const dateA = periodStartMap[a.payroll_period_id] || "";
+          const dateB = periodStartMap[b.payroll_period_id] || "";
+          return dateB.localeCompare(dateA); // Newest calendar period first
+        });
 
       // Group bulk data by employee_id for O(1) lookup inside the loop
       const exceptionalByEmp: Record<string, any[]> = {};
@@ -2256,9 +2276,9 @@ export const db = {
         deductedCAsByEmp[r.employee_id].push(r);
       });
 
-      // For carry-over, take the most recent record per employee (already sorted desc)
+      // For carry-over, take the most recent record per employee based on calendar dates
       const carryOverByEmp: Record<string, number> = {};
-      (allPrevRecords || []).forEach((r: any) => {
+      sortedPrevRecords.forEach((r: any) => {
         if (!(r.employee_id in carryOverByEmp)) {
           carryOverByEmp[r.employee_id] = Number(r.carry_over_deduction) || 0;
         }
